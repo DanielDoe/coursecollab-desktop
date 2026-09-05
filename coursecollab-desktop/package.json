@@ -1,0 +1,64 @@
+{
+  "name": "coursecollab-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CourseCollab Desktop application foundation",
+  "author": "CourseCollab",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"tsc -p tsconfig.electron.json && wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "build": "tsc -b && tsc -p tsconfig.electron.json && vite build && electron-builder",
+    "build:renderer": "vite build",
+    "lint": "eslint .",
+    "typecheck": "tsc -b --pretty false",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "vite": "latest"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "concurrently": "latest",
+    "cross-env": "latest",
+    "electron": "latest",
+    "electron-builder": "latest",
+    "eslint": "latest",
+    "eslint-plugin-react-hooks": "latest",
+    "eslint-plugin-react-refresh": "latest",
+    "prettier": "latest",
+    "tailwindcss": "latest",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.69.0",
+    "wait-on": "latest"
+  },
+  "build": {
+    "appId": "com.coursecollab.desktop",
+    "productName": "CourseCollab",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    }
+  }
+}
