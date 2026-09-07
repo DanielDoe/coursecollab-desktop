@@ -1,0 +1,1 @@
+import{o as e}from"./rolldown-runtime-C0FnF6B9.js";import{t}from"./react-C21x__mS.js";import{t as n}from"./jsx-runtime-BdxMnOeJ.js";var r=e(t()),i=n(),a=(0,r.createContext)({base:`/student/dashboard-v2/recommendations`});function o({base:e,children:t}){return(0,i.jsx)(a.Provider,{value:{base:e},children:t})}function s(){return(0,r.useContext)(a)}export{s as n,o as t};

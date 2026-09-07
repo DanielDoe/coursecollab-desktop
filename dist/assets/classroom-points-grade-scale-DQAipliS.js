@@ -1,0 +1,1 @@
+function e(e=200){return Math.max(1,Number(e)||200)/10}function t(t,n=200){let r=Number(t)||0,i=e(n);return Math.min(r/i,10)}export{t};

@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./InstructorMembershipDisclaimerBanner-D3XexI6j.js";var n=e();function r({children:e}){return(0,n.jsxs)(`div`,{className:`w-full min-w-0 overflow-x-hidden`,children:[(0,n.jsx)(`div`,{className:`mb-4`,children:(0,n.jsx)(t,{})}),e]})}export{r as default};

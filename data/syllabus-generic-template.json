@@ -1,0 +1,196 @@
+{
+  "title": "[Course Code] — [Course Title] Syllabus",
+  "term": "[Term]",
+  "sections": [
+    {
+      "sectionId": "course-header",
+      "title": "Course Overview",
+      "order": 1,
+      "type": "text",
+      "content": {
+        "fields": {
+          "Course Code": "[Course Code]",
+          "Course Title": "[Course Title]",
+          "Section": "[Section]",
+          "Delivery Mode": "[Delivery Mode]",
+          "Term": "[Term]",
+          "Credit Hours": "[Credit Hours]",
+          "Prerequisites / Corequisites": "[Prerequisites / Corequisites]"
+        }
+      },
+      "isRequired": true,
+      "isVisible": true,
+      "isEditable": true
+    },
+    {
+      "sectionId": "instructor-info",
+      "title": "Instructor Information",
+      "order": 2,
+      "type": "text",
+      "content": {
+        "fields": {
+          "Instructor Name": "[Instructor Name]",
+          "Department": "[Department]",
+          "Email": "[Email]",
+          "Phone": "[Phone]",
+          "Office Location": "[Office Location]",
+          "Office Hours": "[Office Hours]"
+        }
+      },
+      "isRequired": true,
+      "isVisible": true,
+      "isEditable": true
+    },
+    {
+      "sectionId": "general-course-info",
+      "title": "General Course Information",
+      "order": 3,
+      "type": "text",
+      "content": {
+        "fields": {
+          "Course Meeting Days / Time": "[Meeting Time]",
+          "Course Meeting Location": "[Meeting Location]",
+          "Course Modality": "[Course Modality]",
+          "Course Platform / Links": "[Course Platform / Links]"
+        }
+      },
+      "isRequired": true,
+      "isVisible": true,
+      "isEditable": true
+    },
+    {
+      "sectionId": "objectives-outcomes",
+      "title": "Course Objectives and Learning Outcomes",
+      "order": 4,
+      "type": "text",
+      "content": {
+        "markdown": "## Catalog Description\n\n[Course Description]\n\n## Course Topics\n\n[List course topics here]\n\n## Expected Course Outcomes\n\n[Learning Outcomes]\n\n## ABET / Student Outcome Mapping\n\n[ABET outcome mapping if applicable]"
+      },
+      "isRequired": true,
+      "isVisible": true,
+      "isEditable": true
+    },
+    {
+      "sectionId": "required-materials",
+      "title": "Required Instructional Materials",
+      "order": 5,
+      "type": "list",
+      "content": {
+        "items": [
+          "Required textbook / materials: [Required Materials]",
+          "Optional references: [Optional References]",
+          "Software / tools: [Software / Tools]",
+          "Calculator / material requirements: [Calculator / Material Requirements]"
+        ]
+      },
+      "isRequired": true,
+      "isVisible": true,
+      "isEditable": true
+    },
+    {
+      "sectionId": "schedule-assessments",
+      "title": "Course Schedule, Assignments, and Assessments",
+      "order": 6,
+      "type": "schedule",
+      "content": {
+        "markdown": "### Course Links\n\n[Course platform and communication links]\n\n### Academic Calendar\n\n[Academic calendar dates]\n\n### Exams and Homework\n\n[Exam, quiz, and homework policies]"
+      },
+      "isRequired": true,
+      "isVisible": true,
+      "isEditable": true
+    },
+    {
+      "sectionId": "exam-quiz-schedule",
+      "title": "Recommended Exam and Quiz Dates",
+      "order": 7,
+      "type": "schedule",
+      "content": {
+        "columns": ["Assessment", "Date", "Day"],
+        "rows": [
+          ["Quiz 1", "[Date]", "[Day]"],
+          ["Midterm Exam 1", "[Date]", "[Day]"],
+          ["Final Exam", "[Date]", "[Day]"]
+        ]
+      },
+      "isRequired": true,
+      "isVisible": true,
+      "isEditable": true
+    },
+    {
+      "sectionId": "lecture-topics",
+      "title": "Discussion and Lecture Topics",
+      "order": 8,
+      "type": "schedule",
+      "content": {
+        "columns": ["Lecture", "Date", "Title", "Description / Contents"],
+        "rows": [
+          ["Lecture 1", "[Date]", "[Lecture Title]", "[Lecture contents]"],
+          ["Lecture 2", "[Date]", "[Lecture Title]", "[Lecture contents]"]
+        ]
+      },
+      "isRequired": true,
+      "isVisible": true,
+      "isEditable": true
+    },
+    {
+      "sectionId": "grading",
+      "title": "Grading Rubrics and Weights",
+      "order": 9,
+      "type": "grading",
+      "content": {
+        "columns": ["Assessment Category", "Weight (%)"],
+        "rows": [
+          ["Quizzes", ""],
+          ["Homework", ""],
+          ["Midterm Exam", ""],
+          ["Final Exam", ""],
+          ["Class Participation", ""]
+        ],
+        "markdown": "### Extra Credit Policy\n\n[Extra credit policy]\n\n### Grade Scale\n\n[Grade scale]"
+      },
+      "isRequired": true,
+      "isVisible": true,
+      "isEditable": true
+    },
+    {
+      "sectionId": "course-policies",
+      "title": "Course Policies and Procedures",
+      "order": 10,
+      "type": "policy",
+      "content": {
+        "fields": {
+          "Attendance and Participation": "[Attendance and participation policy]",
+          "Homework Policy": "[Homework policy]",
+          "Quiz / Exam Policy": "[Quiz / exam policy]",
+          "Academic Integrity": "[Academic integrity policy]",
+          "Classroom Conduct": "[Classroom conduct policy]",
+          "Communication": "[Communication policy]",
+          "Technology Use": "[Technology use policy]",
+          "Syllabus Change Policy": "[Syllabus change policy]"
+        }
+      },
+      "isRequired": true,
+      "isVisible": true,
+      "isEditable": true
+    },
+    {
+      "sectionId": "university-policies",
+      "title": "University Policies and Student Support Resources",
+      "order": 11,
+      "type": "policy",
+      "content": {
+        "fields": {
+          "Mental Health and Wellness": "[Mental health and wellness resources]",
+          "Title IX / Sexual Misconduct": "[Title IX / sexual misconduct policy]",
+          "Accessibility Accommodations": "[Accessibility accommodations policy]",
+          "Academic Honesty": "[Academic honesty policy]",
+          "Excused Absence Policy": "[Excused absence policy]",
+          "Recording of Class Policy": "[Recording of class policy]"
+        }
+      },
+      "isRequired": true,
+      "isVisible": true,
+      "isEditable": true
+    }
+  ]
+}

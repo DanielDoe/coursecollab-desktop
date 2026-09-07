@@ -1,0 +1,642 @@
+/* ============================================================
+   Tailwind + AnimateCSS Base Imports - PVAMU Purple Theme Active
+   ============================================================ */
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* ============================================================
+   RGB/HEX Color System — Safe for html2canvas & jsPDF
+   ============================================================ */
+
+/* ---------- 🌞 Light Mode ---------- */
+:root {
+  /* Core palette (no OKLCH or alpha functions) */
+  --background: 255 255 255; /* white */
+  --foreground: 0 0 0;       /* black */
+
+  --card: 255 255 255;
+  --card-foreground: 0 0 0;
+
+  --popover: 255 255 255;
+  --popover-foreground: 0 0 0;
+
+  /* 🟣 PVAMU Official Brand Colors (Prairie View A&M) */
+  --pv-purple: 88 44 131;        /* #582c83 - Official PVAMU Purple */
+  --pv-purple-light: 109 69 163; /* #6D45A3 - Lighter Purple */
+  --pv-purple-dark: 67 34 100;   /* #432264 - Deep Brand Purple */
+  --pv-gold: 234 170 0;          /* #EAAA00 - Official PVAMU Gold */
+  --pv-gold-soft: 244 197 66;   /* #F4C542 - Soft Gold highlight */
+
+  /* 🎨 Purple Surface Layers - Prominent but Refined */
+  --purple-surface: 245 240 250; /* Light purple surface for sidebar */
+  --purple-hover: 237 230 245;   /* Purple hover state */
+  --purple-border: 220 205 235;  /* Clear purple borders */
+  
+  /* Purple depth layers for UI */
+  --purple-wash: 252 250 254;    /* Subtle purple wash */
+  --purple-tint: 248 245 251;    /* Soft purple tint */
+  --purple-soft: 243 238 248;    /* Soft purple */
+  --purple-muted: 233 224 241;   /* Muted purple borders */
+
+  --primary: 88 44 131;         /* PVAMU purple - official brand */
+  --primary-foreground: 255 255 255;
+
+  --secondary: 240 244 248;      /* keep light gray for secondary */
+  --secondary-foreground: 94 42 132;
+
+  --muted: 247 247 247;          /* light gray for muted */
+  --muted-foreground: 82 82 82;
+
+  --accent: 234 170 0;           /* PVAMU gold for accent */
+  --accent-foreground: 76 29 111;
+
+  --destructive: 239 68 68;   /* red */
+  --destructive-foreground: 255 255 255;
+
+  --border: 229 231 235;         /* neutral borders */
+  --input: 229 231 235;
+  --ring: 88 44 131;             /* PVAMU purple ring */
+
+  /* Charts - PVAMU purple/gold + emerald for success */
+  --chart-1: 88 44 131;         /* PVAMU purple */
+  --chart-2: 234 170 0;         /* PVAMU gold */
+  --chart-3: 34 197 94;         /* Emerald success */
+  --chart-4: 109 69 163;        /* Purple light */
+  --chart-5: 244 197 66;        /* Gold soft */
+
+  /* Sidebar - Visible Purple */
+  --sidebar: 247 242 252;        /* purple-surface */
+  --sidebar-foreground: 88 44 131;
+  --sidebar-primary: 88 44 131;
+  --sidebar-primary-foreground: 255 255 255;
+  --sidebar-accent: 238 230 248;  /* purple-hover */
+  --sidebar-accent-foreground: 88 44 131;
+  --sidebar-border: 218 205 235;  /* purple-border */
+  --sidebar-ring: 88 44 131;
+
+  --radius: 0.625rem;
+
+  /* Dashboard v2 - Light Mode */
+  --dashboard-v2-bg: 248 250 252;
+  --dashboard-v2-surface: 255 255 255;
+  --dashboard-v2-card: 255 255 255;
+  --dashboard-v2-fg: 15 23 42;
+  --dashboard-v2-muted: 100 116 139;
+  --dashboard-v2-border: 226 232 240;
+  --dashboard-v2-accent: 88 44 131;   /* PVAMU purple */
+  --dashboard-v2-accent-2: 234 170 0;   /* PVAMU gold */
+
+  /* M3 Surface Container Roles (m3.material.io) */
+  --m3-surface: 250 250 250;
+  --m3-surface-container-lowest: 255 255 255;
+  --m3-surface-container-low: 247 243 249;
+  --m3-surface-container: 243 237 247;
+  --m3-surface-container-high: 235 222 235;
+  --m3-surface-container-highest: 229 214 229;
+  --m3-primary-container: 232 222 255;
+  --m3-on-primary-container: 30 25 43;
+  --m3-secondary-container: 243 219 255;
+  --m3-tertiary-container: 255 217 232;
+  --m3-outline: 121 116 126;
+  --m3-outline-variant: 202 196 207;
+}
+
+/* ---------- 🌚 Dark Mode ---------- */
+.dark {
+  --background: 15 23 42;     /* slate-900 */
+  --foreground: 255 255 255;
+
+  --card: 30 41 59;           /* slate-800 */
+  --card-foreground: 255 255 255;
+
+  --popover: 30 41 59;
+  --popover-foreground: 255 255 255;
+
+  /* 🟣 PVAMU Brand Colors - Dark Mode (refined) */
+  --pv-purple: 122 78 186;       /* #7A4EBA - vibrant PVAMU purple */
+  --pv-purple-light: 155 120 210; /* #9B78D2 - lighter purple */
+  --pv-purple-dark: 88 44 131;   /* #582c83 - official base */
+  --pv-gold: 234 170 0;         /* #EAAA00 - official gold */
+  --pv-gold-soft: 251 191 36;   /* #FBBF24 - bright gold accent */
+
+  /* 🎨 Purple Surface Layers - Dark Mode */
+  --purple-surface: 30 27 40;    /* Dark purple-tinted surface */
+  --purple-hover: 40 35 52;      /* Purple hover in dark */
+  --purple-border: 55 48 70;     /* Purple borders in dark */
+  
+  /* Purple depth layers for dark mode UI */
+  --purple-wash: 20 26 46;       /* Dark with hint of purple */
+  --purple-tint: 35 45 66;       /* Slightly lighter with purple */
+  --purple-soft: 45 55 80;       /* Soft purple-tinted surface */
+  --purple-muted: 60 70 95;      /* Muted purple-tinted borders */
+
+  --primary: 122 78 186;         /* PVAMU purple - vibrant for dark */
+  --primary-foreground: 255 255 255;
+
+  --secondary: 51 65 85;         /* slate for secondary */
+  --secondary-foreground: 255 255 255;
+
+  --muted: 51 65 85;             /* slate for muted */
+  --muted-foreground: 203 213 225;
+
+  --accent: 251 191 36;          /* PVAMU gold for accent in dark */
+  --accent-foreground: 30 27 40;
+
+  --destructive: 239 68 68;
+  --destructive-foreground: 255 255 255;
+
+  --border: 51 65 85;            /* neutral borders in dark */
+  --input: 51 65 85;
+  --ring: 122 78 186;           /* PVAMU purple ring in dark */
+
+  /* Charts - PVAMU palette */
+  --chart-1: 88 44 131;          /* PVAMU purple */
+  --chart-2: 234 170 0;         /* PVAMU gold */
+  --chart-3: 74 222 128;        /* Emerald success */
+  --chart-4: 122 78 186;        /* Purple vibrant */
+  --chart-5: 251 191 36;        /* Gold accent */
+
+  /* Sidebar - Keep clean glass in dark mode */
+  --sidebar: 30 41 59;           /* slate-800 */
+  --sidebar-foreground: 255 255 255;
+  --sidebar-primary: 139 92 246;
+  --sidebar-primary-foreground: 255 255 255;
+  --sidebar-accent: 51 65 85;    /* slate for hover */
+  --sidebar-accent-foreground: 255 255 255;
+  --sidebar-border: 51 65 85;    /* slate border */
+  --sidebar-ring: 139 92 246;
+
+  /* Dashboard v2 - Dark Mode */
+  --dashboard-v2-bg: 11 17 32;
+  --dashboard-v2-surface: 15 23 42;
+  --dashboard-v2-card: 30 41 59;
+  --dashboard-v2-fg: 248 250 252;
+  --dashboard-v2-muted: 148 163 184;
+  --dashboard-v2-border: 51 65 85;
+  --dashboard-v2-accent: 88 44 131;   /* PVAMU purple */
+  --dashboard-v2-accent-2: 234 170 0; /* PVAMU gold */
+
+  /* M3 Surface Container Roles - Dark */
+  --m3-surface: 28 27 31;
+  --m3-surface-container-lowest: 32 31 36;
+  --m3-surface-container-low: 37 35 41;
+  --m3-surface-container: 41 38 47;
+  --m3-surface-container-high: 47 43 54;
+  --m3-surface-container-highest: 52 49 61;
+  --m3-primary-container: 73 68 105;
+  --m3-on-primary-container: 232 222 255;
+  --m3-secondary-container: 74 68 88;
+  --m3-tertiary-container: 92 76 85;
+  --m3-outline: 147 143 153;
+  --m3-outline-variant: 73 69 79;
+}
+
+/* Dashboard v2 Premium - PVAMU Purple & Gold Theme */
+.dashboard-v2-premium {
+  --d2-bg: #050505;
+  --d2-primary: #582c83;
+  --d2-secondary: #eaaa00;
+  --d2-success: #10B981;
+  --d2-glow: rgba(88,44,131,0.35);
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Hide scrollbar but keep scrollable - modern UX */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* ============================================================
+   Theme Variable Bindings for shadcn/ui
+   ============================================================ */
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Core colors */
+  --color-background: rgb(var(--background));
+  --color-foreground: rgb(var(--foreground));
+  --color-card: rgb(var(--card));
+  --color-card-foreground: rgb(var(--card-foreground));
+  --color-popover: rgb(var(--popover));
+  --color-popover-foreground: rgb(var(--popover-foreground));
+
+  --color-primary: rgb(var(--primary));
+  --color-primary-foreground: rgb(var(--primary-foreground));
+  --color-secondary: rgb(var(--secondary));
+  --color-secondary-foreground: rgb(var(--secondary-foreground));
+
+  --color-muted: rgb(var(--muted));
+  --color-muted-foreground: rgb(var(--muted-foreground));
+
+  --color-accent: rgb(var(--accent));
+  --color-accent-foreground: rgb(var(--accent-foreground));
+
+  --color-destructive: rgb(var(--destructive));
+  --color-destructive-foreground: rgb(var(--destructive-foreground));
+
+  --color-border: rgb(var(--border));
+  --color-input: rgb(var(--input));
+  --color-ring: rgb(var(--ring));
+
+  /* Charts */
+  --color-chart-1: rgb(var(--chart-1));
+  --color-chart-2: rgb(var(--chart-2));
+  --color-chart-3: rgb(var(--chart-3));
+  --color-chart-4: rgb(var(--chart-4));
+  --color-chart-5: rgb(var(--chart-5));
+
+  /* Dashboard v2 */
+  --color-dashboard-v2-bg: rgb(var(--dashboard-v2-bg));
+  --color-dashboard-v2-surface: rgb(var(--dashboard-v2-surface));
+  --color-dashboard-v2-card: rgb(var(--dashboard-v2-card));
+  --color-dashboard-v2-fg: rgb(var(--dashboard-v2-fg));
+  --color-dashboard-v2-muted: rgb(var(--dashboard-v2-muted));
+  --color-dashboard-v2-border: rgb(var(--dashboard-v2-border));
+
+  /* Radii */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Sidebar */
+  --color-sidebar: rgb(var(--sidebar));
+  --color-sidebar-foreground: rgb(var(--sidebar-foreground));
+  --color-sidebar-primary: rgb(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: rgb(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: rgb(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: rgb(var(--sidebar-accent-foreground));
+  --color-sidebar-border: rgb(var(--sidebar-border));
+  --color-sidebar-ring: rgb(var(--sidebar-ring));
+}
+
+/* ============================================================
+   Base Layer — Global Defaults
+   ============================================================ */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    color: rgb(var(--foreground));
+    background-color: rgb(var(--background));
+    -webkit-print-color-adjust: exact; /* ensures accurate colors in PDF */
+    print-color-adjust: exact;
+  }
+}
+
+/* ============================================================
+   Utility Helpers
+   ============================================================ */
+.bg-background {
+  background-color: rgb(var(--background));
+}
+
+.text-foreground {
+  color: rgb(var(--foreground));
+}
+
+/* Explicit safe background for printable content */
+#printable-report {
+  background-color: rgb(var(--background));
+  color: rgb(var(--foreground));
+}
+
+/* ============================================================
+   Typography tuning for reports
+   ============================================================ */
+@layer base {
+  h1, .text-3xl {
+    @apply text-[1.75rem] font-bold leading-tight;
+  }
+  h2, .text-2xl {
+    @apply text-[1.5rem] font-semibold;
+  }
+  h3, .text-xl {
+    @apply text-[1.25rem] font-semibold;
+  }
+  p, span, li {
+    @apply text-[0.95rem] leading-relaxed;
+  }
+  small, .text-xs {
+    @apply text-[0.8rem];
+  }
+
+  /* Fix text color consistency across light/dark exports */
+  body, #printable-report {
+    color: rgb(var(--foreground));
+    font-family: "Inter", system-ui, sans-serif;
+  }
+}
+
+/* ============================================================
+   Button alignment fixes for outlined and filled variants
+   ============================================================ */
+@layer components {
+  button,
+  .btn,
+  .shadcn-button {
+    @apply rounded-full font-medium tracking-tight;
+    line-height: 1.3;
+  }
+
+  /* 🟢 Outlined buttons (Review, Hide Questions) */
+  .btn-outline,
+  .shadcn-button[variant="outline"],
+  .border {
+    @apply border border-border bg-transparent;
+    padding: 0.5rem 1.25rem;
+  }
+
+  /* 🔵 Filled primary buttons */
+  .btn-primary {
+    @apply bg-primary text-white hover:opacity-90 border-none;
+    padding: 0.6rem 1.5rem;
+  }
+
+  /* 🟠 Secondary & accent buttons */
+  .btn-accent {
+    @apply bg-accent text-white hover:opacity-90;
+  }
+
+  /* 🔲 Fix vertical centering for icons */
+  button svg {
+    vertical-align: middle;
+    margin-bottom: 1px;
+  }
+}
+
+/* Material Design ripple animation */
+@keyframes ripple {
+  to {
+    width: 400px;
+    height: 400px;
+    opacity: 0;
+  }
+}
+
+/* ============================================================
+   M3 Material Design 3 (m3.material.io) – Motion & State Layers
+   ============================================================ */
+
+/* M3 standard curve – desktop 200–300ms */
+.mui-liquid {
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* M3 state layer – hover 8%, pressed 12% */
+.mui-state-layer {
+  position: relative;
+}
+.mui-state-layer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+.mui-state-layer:hover::after {
+  opacity: 0.08;
+}
+.mui-state-layer:active::after {
+  opacity: 0.12;
+}
+.mui-state-layer:focus-visible::after {
+  opacity: 0.12;
+}
+
+/* M3 Typography (m3.material.io/styles/typography) */
+.m3-display-large { font-size: 3.5625rem; font-weight: 400; letter-spacing: -0.01562em; line-height: 1.1; }
+.m3-display-medium { font-size: 2.8125rem; font-weight: 400; letter-spacing: 0; line-height: 1.2; }
+.m3-display-small { font-size: 2.25rem; font-weight: 400; letter-spacing: 0; line-height: 1.3; }
+.m3-headline-large { font-size: 2rem; font-weight: 400; letter-spacing: 0; line-height: 1.25; }
+.m3-headline-medium { font-size: 1.75rem; font-weight: 400; letter-spacing: 0; line-height: 1.3; }
+.m3-headline-small { font-size: 1.5rem; font-weight: 400; letter-spacing: 0; line-height: 1.3; }
+.m3-title-large { font-size: 1.375rem; font-weight: 500; letter-spacing: 0; line-height: 1.4; }
+.m3-title-medium { font-size: 1rem; font-weight: 500; letter-spacing: 0.00938em; line-height: 1.5; }
+.m3-title-small { font-size: 0.875rem; font-weight: 500; letter-spacing: 0.00625em; line-height: 1.4; }
+.m3-body-large { font-size: 1rem; font-weight: 400; letter-spacing: 0.03125em; line-height: 1.5; }
+.m3-body-medium { font-size: 0.875rem; font-weight: 400; letter-spacing: 0.01563em; line-height: 1.43; }
+.m3-body-small { font-size: 0.8125rem; font-weight: 400; letter-spacing: 0.025em; line-height: 1.3; }
+.m3-label-large { font-size: 0.875rem; font-weight: 500; letter-spacing: 0.00625em; line-height: 1.4; }
+.m3-label-medium { font-size: 0.75rem; font-weight: 500; letter-spacing: 0.03125em; line-height: 1.3; }
+.m3-label-small { font-size: 0.6875rem; font-weight: 500; letter-spacing: 0.04167em; line-height: 1.3; }
+
+/* M3 Card variants – with depth */
+.m3-card-filled {
+  background: rgb(var(--m3-surface-container));
+  border-radius: 1rem;
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.06);
+}
+.dark .m3-card-filled {
+  border-color: rgba(255,255,255,0.06);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2), 0 8px 24px rgba(0,0,0,0.15);
+}
+.m3-card-elevated {
+  background: rgb(var(--m3-surface-container-lowest));
+  border-radius: 1rem;
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.06);
+}
+.dark .m3-card-elevated {
+  border-color: rgba(255,255,255,0.06);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25), 0 12px 32px rgba(0,0,0,0.2);
+}
+.m3-card-outlined {
+  background: rgb(var(--m3-surface));
+  border: 1px solid rgb(var(--m3-outline-variant));
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+/* Dashboard depth – hover lift */
+.dashboard-card-lift {
+  transition: transform 0.2s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s cubic-bezier(0.4,0,0.2,1);
+}
+.dashboard-card-lift:hover {
+  transform: translateY(-2px);
+}
+.dashboard-card-lift:hover.m3-card-filled {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12), 0 12px 32px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+}
+.dark .dashboard-card-lift:hover.m3-card-filled {
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35), 0 16px 40px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.06);
+}
+.dashboard-card-lift:hover.m3-card-elevated {
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1), 0 16px 40px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+}
+.dark .dashboard-card-lift:hover.m3-card-elevated {
+  box-shadow: 0 8px 28px rgba(0,0,0,0.35), 0 20px 48px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.06);
+}
+
+@layer components {
+  .question-card {
+    @apply border border-border rounded-xl p-4 shadow-sm bg-white;
+  }
+
+  .question-card h4 {
+    @apply font-semibold text-[1.05rem];
+  }
+
+  .question-card p {
+    @apply text-[0.9rem] text-muted-foreground;
+  }
+
+  .question-options {
+    @apply mt-2 space-y-2;
+  }
+
+  .question-options div {
+    @apply border border-border rounded-lg p-3 flex items-center justify-between;
+  }
+}
+
+/* ============================================================
+   🟡 PVAMU Gold Accent Utilities
+   ============================================================ */
+@layer utilities {
+  .text-gold {
+    color: rgb(var(--pv-gold));
+  }
+
+  .bg-gold-soft {
+    background-color: rgba(var(--pv-gold), 0.15);
+  }
+
+  .border-gold {
+    border-color: rgba(var(--pv-gold), 0.3);
+  }
+
+  .ring-gold {
+    --tw-ring-color: rgba(var(--pv-gold), 0.5);
+  }
+
+  /* 🟣 Purple Surface Layer Utilities */
+  .bg-purple-surface {
+    background-color: rgb(var(--purple-surface));
+  }
+
+  .bg-purple-hover {
+    background-color: rgb(var(--purple-hover));
+  }
+
+  .border-purple-border {
+    border-color: rgb(var(--purple-border));
+  }
+
+  /* Purple depth utility classes */
+  .bg-purple-wash {
+    background-color: rgb(var(--purple-wash));
+  }
+
+  .bg-purple-tint {
+    background-color: rgb(var(--purple-tint));
+  }
+
+  .bg-purple-soft {
+    background-color: rgb(var(--purple-soft));
+  }
+
+  .border-purple-muted {
+    border-color: rgb(var(--purple-muted));
+  }
+
+  /* 🎨 Purple-tinted Shadows for Depth */
+  .shadow-purple-sm {
+    box-shadow: 0 1px 2px 0 rgba(var(--pv-purple), 0.05);
+  }
+
+  .shadow-purple {
+    box-shadow: 
+      0 4px 6px -1px rgba(var(--pv-purple), 0.08),
+      0 2px 4px -1px rgba(var(--pv-purple), 0.04);
+  }
+
+  .shadow-purple-md {
+    box-shadow: 
+      0 10px 15px -3px rgba(var(--pv-purple), 0.08),
+      0 4px 6px -2px rgba(var(--pv-purple), 0.04);
+  }
+
+  .shadow-purple-lg {
+    box-shadow: 
+      0 20px 25px -5px rgba(var(--pv-purple), 0.08),
+      0 10px 10px -5px rgba(var(--pv-purple), 0.02);
+  }
+
+  .hover\:shadow-purple-md:hover {
+    box-shadow: 
+      0 10px 15px -3px rgba(var(--pv-purple), 0.12),
+      0 4px 6px -2px rgba(var(--pv-purple), 0.06);
+  }
+
+  /* Dashboard v2 Sidebar - visible purple gradient */
+  .bg-sidebar-purple {
+    background: linear-gradient(180deg, rgb(var(--purple-surface)) 0%, rgb(var(--purple-hover)) 100%);
+  }
+}
+
+/* ============================================================
+   🌟 Atmospheric Purple Background (Light Mode)
+   ============================================================ */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: 
+    radial-gradient(circle at 15% 15%, rgba(var(--pv-purple), 0.03), transparent 50%),
+    radial-gradient(circle at 85% 85%, rgba(var(--pv-purple), 0.02), transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.dark body::before {
+  background: 
+    radial-gradient(circle at 15% 15%, rgba(var(--pv-purple), 0.015), transparent 50%),
+    radial-gradient(circle at 85% 85%, rgba(var(--pv-purple), 0.01), transparent 50%);
+}
+
+body > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* AI Slide Assistant — true full-screen on mobile (overrides centered dialog transform) */
+@media (max-width: 639px) {
+  .lecture-ai-dialog {
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+}

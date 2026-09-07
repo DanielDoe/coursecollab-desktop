@@ -1,0 +1,1 @@
+import{bt as e}from"./index-BFIBYwc9.js";function t(){e(`/admin/dashboard-v2/management/faculty`)}export{t as default};

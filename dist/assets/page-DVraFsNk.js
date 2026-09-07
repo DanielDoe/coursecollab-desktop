@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./InstitutionAuthView-BOrOOarc.js";var n=e();function r(){return(0,n.jsx)(t,{mode:`signup`})}export{r as default};

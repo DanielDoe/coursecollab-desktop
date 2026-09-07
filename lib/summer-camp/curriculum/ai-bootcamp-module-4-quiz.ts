@@ -1,0 +1,177 @@
+/** Module 4 final knowledge check — 18 scenario-based Responsible AI questions. */
+
+export const AI_BOOTCAMP_MODULE_4_QUIZ: Array<Record<string, unknown>> = [
+  {
+    id: "q1",
+    prompt: "The core ethical question for this module is best stated as…",
+    options: [
+      "Which AI tool has the most features?",
+      "Can I use AI here? What could go wrong? Who is affected? What should I verify?",
+      "How do I make AI always agree with me?",
+      "How do I hide AI use from my teacher?",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q2",
+    prompt: "True or False: The fact that AI can do something does not automatically mean AI should do it.",
+    options: ["True", "False"],
+    correctIndex: 0,
+    trueFalse: true,
+  },
+  {
+    id: "q3",
+    prompt: "An AI hiring system trained on biased historical decisions may…",
+    options: [
+      "Only be unfair if the computer has emotions",
+      "Reproduce unfair patterns even without intentional discrimination",
+      "Always be fair because it uses math",
+      "Never affect real people",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q4",
+    prompt: "In the PAUSE framework, the **A** stands for…",
+    options: ["Audience", "Accuracy — verify important claims", "Automation", "Attribution only"],
+    correctIndex: 1,
+  },
+  {
+    id: "q5",
+    prompt: "Before sharing information with AI, the \"Before You Prompt\" test includes… (Select ALL that apply)",
+    options: [
+      "Is it mine to share?",
+      "Is the tool approved for this information?",
+      "Could I remove identifying details?",
+      "Share everything — more data is always better",
+    ],
+    multiSelect: true,
+    correctIndices: [0, 1, 2],
+  },
+  {
+    id: "q6",
+    prompt: "Misinformation differs from disinformation because disinformation is…",
+    options: [
+      "Always accidentally false",
+      "Deliberately created or spread to deceive",
+      "Only found in textbooks",
+      "Always easy to detect visually",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q7",
+    prompt: "A deepfake is…",
+    options: [
+      "Any low-resolution photograph",
+      "Synthetic or manipulated media making someone appear to say or do something they did not",
+      "A type of computer virus",
+      "A verified news source",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q8",
+    prompt: "You receive an urgent voice message asking for money. Best first response?",
+    options: [
+      "Send money immediately",
+      "Stop → verify independently through a trusted channel",
+      "Reply with your password to confirm identity",
+      "Assume urgency proves authenticity",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q9",
+    prompt: "True or False: AI-generated content is automatically copyright-free.",
+    options: ["True", "False"],
+    correctIndex: 1,
+    trueFalse: true,
+  },
+  {
+    id: "q10",
+    prompt: "Which is MOST likely acceptable academic use of AI?",
+    options: [
+      "Complete my exam for me",
+      "Quiz me with hints without giving final answers",
+      "Fabricate references for my bibliography",
+      "Submit AI output unchanged as my own work",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q11",
+    prompt: "Human-in-the-loop means…",
+    options: [
+      "AI makes the final decision alone",
+      "AI helps, a human reviews, and a human decides",
+      "Humans are removed from the process for efficiency",
+      "Only robots may use AI",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q12",
+    prompt: "For HIGH-RISK decisions (e.g., medical advice), the verification requirement should…",
+    options: [
+      "Decrease — AI is always accurate in health",
+      "Increase — require qualified human expertise",
+      "Disappear if the AI sounds confident",
+      "Be skipped if the prompt was well written",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q13",
+    prompt: "Risk-based thinking teaches that as risk increases… (Select ALL that apply)",
+    options: [
+      "Verification should increase",
+      "Human expertise should increase",
+      "AI autonomy should decrease",
+      "You should share more private data",
+    ],
+    multiSelect: true,
+    correctIndices: [0, 1, 2],
+  },
+  {
+    id: "q14",
+    prompt: "Uploading a friend's photo to an AI image tool without permission raises concerns about…",
+    options: ["Consent and privacy", "Keyboard layout", "Screen brightness", "Wi-Fi speed"],
+    correctIndex: 0,
+  },
+  {
+    id: "q15",
+    prompt: "Transparency in AI means…",
+    options: [
+      "Hiding when AI was used",
+      "People understand when AI is used and how it may influence outcomes",
+      "Never explaining AI decisions",
+      "Only experts may know AI was involved",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q16",
+    prompt: "Scenario: AI rejects a scholarship application but gives only \"score 0.43.\" What principle is weak?",
+    options: ["Explainability / meaningful transparency", "Birthday party planning", "Image aspect ratio", "Music tempo"],
+    correctIndex: 0,
+  },
+  {
+    id: "q17",
+    prompt: "True or False: AI can simulate empathy in conversation, but that does not mean it experiences emotions like humans.",
+    options: ["True", "False"],
+    correctIndex: 0,
+    trueFalse: true,
+  },
+  {
+    id: "q18",
+    prompt: "Responsible AI is best described as…",
+    options: [
+      "Avoiding AI entirely",
+      "Using AI thoughtfully, safely, transparently, with appropriate human judgment",
+      "Trusting confident AI language without verification",
+      "Letting AI replace all human decisions",
+    ],
+    correctIndex: 1,
+  },
+]

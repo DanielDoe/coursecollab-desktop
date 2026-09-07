@@ -1,0 +1,196 @@
+@keyframes pitch-enter {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pitch-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.pitch-enter {
+  animation: pitch-enter 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.pitch-rise {
+  animation: pitch-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes pitch-orb {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate(14px, -10px) scale(1.08);
+    opacity: 0.9;
+  }
+}
+
+.pitch-orb {
+  animation: pitch-orb 8s ease-in-out infinite;
+}
+
+@keyframes pitch-ken {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.06);
+  }
+}
+
+.pitch-ken {
+  animation: pitch-ken 14s ease-in-out infinite alternate;
+}
+
+.pitch-card-shine {
+  position: relative;
+}
+
+.pitch-card-shine::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 28%,
+    rgba(234, 170, 0, 0.1) 46%,
+    transparent 64%
+  );
+  transform: translateX(-120%);
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pitch-card-shine:hover::after {
+  transform: translateX(120%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pitch-enter,
+  .pitch-rise,
+  .pitch-orb,
+  .pitch-ken,
+  .pitch-title-float {
+    animation: none;
+  }
+
+  .pitch-fusion-plus,
+  .pitch-fusion-pill,
+  .pitch-fusion-swap,
+  .pitch-fusion-card,
+  .pitch-adoption-node-active {
+    animation: none;
+  }
+}
+
+@keyframes pitch-title-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.pitch-title-float {
+  animation: none;
+}
+
+@media (min-width: 1280px) {
+  .pitch-title-float {
+    animation: pitch-title-float 7s ease-in-out infinite;
+  }
+}
+
+@keyframes pitch-fusion-plus {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 24px rgba(234, 170, 0, 0.45);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 36px rgba(234, 170, 0, 0.65);
+  }
+}
+
+@keyframes pitch-fusion-pill {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes pitch-fusion-swap {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pitch-fusion-glow {
+  0%,
+  100% {
+    border-color: rgba(234, 170, 0, 0.25);
+  }
+  50% {
+    border-color: rgba(234, 170, 0, 0.45);
+  }
+}
+
+.pitch-fusion-plus {
+  animation: pitch-fusion-plus 2.4s ease-in-out infinite;
+}
+
+.pitch-fusion-pill {
+  animation: pitch-fusion-pill 3.2s ease-in-out infinite;
+}
+
+.pitch-fusion-pill:last-of-type {
+  animation-delay: -1.6s;
+}
+
+.pitch-fusion-swap {
+  animation: pitch-fusion-swap 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes pitch-adoption-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 28px rgba(234, 170, 0, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(234, 170, 0, 0.7);
+  }
+}
+
+.pitch-adoption-node-active {
+  animation: pitch-adoption-pulse 2.4s ease-in-out infinite;
+}
+
+.pitch-fusion-card {
+  animation: pitch-fusion-glow 3.2s ease-in-out infinite;
+}

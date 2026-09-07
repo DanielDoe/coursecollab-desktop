@@ -1,0 +1,1 @@
+var e=`cc-modal-scrim fixed inset-0 bg-[var(--cc-modal-scrim,rgba(15,23,42,0.82))]`,t=`cc-modal-surface bg-[var(--cc-modal-surface,#fff)] text-[var(--cc-text,var(--foreground))]`;export{t as n,e as t};

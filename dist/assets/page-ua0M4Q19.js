@@ -1,0 +1,1 @@
+import{bt as e,ut as t}from"./index-BFIBYwc9.js";function n({searchParams:n}){let r=new URLSearchParams;n.plan&&r.set(`plan`,n.plan),n.cadence&&r.set(`cadence`,n.cadence);let i=r.toString()?`?${r.toString()}`:``;e(`${t}/checkout${i}`)}export{n as default};

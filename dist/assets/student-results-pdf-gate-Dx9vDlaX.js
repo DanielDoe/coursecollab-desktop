@@ -1,0 +1,1 @@
+function e(e){return e.results_review_locked===!0||e.has_downloaded_pdf===!0||e.pdf_downloaded_at!==null&&e.pdf_downloaded_at!==void 0}export{e as t};

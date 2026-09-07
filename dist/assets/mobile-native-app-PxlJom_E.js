@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-C0FnF6B9.js";function t(e){return e.get(i)===`1`}function n(e){return e.includes(`native=1`)?e:`${e}${e.includes(`?`)?`&`:`?`}${i}=1`}var r,i,a=e((()=>{r=`CourseCollab-Native`,i=`native`}));export{t as a,a as i,r as n,n as r,i as t};

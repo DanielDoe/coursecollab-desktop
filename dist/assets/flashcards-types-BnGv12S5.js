@@ -1,0 +1,1 @@
+var e=[`easy`,`medium`,`hard`,`very_hard`],t={easy:`Easy`,medium:`Medium`,hard:`Hard`,very_hard:`Very hard`};function n(e){let t=String(e??`medium`).trim().toLowerCase().replace(/[\s-]+/g,`_`);return t===`very_hard`||t===`veryhard`||t===`expert`?`very_hard`:t===`easy`?`easy`:t===`hard`?`hard`:`medium`}export{e as n,n as r,t};

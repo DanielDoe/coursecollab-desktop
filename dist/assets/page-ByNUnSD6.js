@@ -1,0 +1,1 @@
+import{bt as e}from"./index-BFIBYwc9.js";import{r as t}from"./camper-nav-BbWk2dwE.js";async function n({params:n}){let{moduleId:r}=await n;e(t(`/module/${r}`))}export{n as default};

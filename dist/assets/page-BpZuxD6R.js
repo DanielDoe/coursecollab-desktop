@@ -1,0 +1,1 @@
+import{bt as e,lt as t}from"./index-BFIBYwc9.js";function n(){e(`${t}/administration/teaching-assistants`)}export{n as default};

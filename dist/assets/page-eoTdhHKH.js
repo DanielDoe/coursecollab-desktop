@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./AccessRequestStatusScreen-CbGVTozj.js";var n=e();function r(){return(0,n.jsx)(t,{allowedLifecycles:[`pending_approval`,`pending_email_verification`]})}export{r as default};

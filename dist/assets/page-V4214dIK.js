@@ -1,0 +1,1 @@
+import{bt as e}from"./index-BFIBYwc9.js";function t(){e(`/faculty/login`)}export{t as default};

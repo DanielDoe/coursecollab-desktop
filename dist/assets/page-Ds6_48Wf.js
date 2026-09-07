@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";var t=e();function n(){return(0,t.jsxs)(`div`,{className:`p-6`,children:[(0,t.jsx)(`h1`,{className:`text-2xl font-bold`,children:`Practice Analytics`}),(0,t.jsx)(`p`,{children:`Analytics page coming soon...`})]})}export{n as default};

@@ -1,0 +1,1 @@
+var e=[{code:`ELEG1304P01`,label:`ELEG1304P01`},{code:`ELEG1301P01`,label:`ELEG1301P01`}];function t(){return e.map(e=>e.code)}export{t as n,e as t};

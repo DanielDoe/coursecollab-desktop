@@ -1,0 +1,1 @@
+import{bt as e}from"./index-BFIBYwc9.js";function t(){e(`/faculty/dashboard/analytics?section=progress-reviews`)}export{t as default};

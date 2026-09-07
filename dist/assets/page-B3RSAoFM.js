@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./FacultySettingsHub-BjvGWTmn.js";var n=e();function r(){return(0,n.jsx)(t,{initialSection:`account`})}export{r as default};

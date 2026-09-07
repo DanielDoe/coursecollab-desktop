@@ -1,0 +1,1 @@
+function e(e){return Array.isArray(e)?e.filter(e=>e?.courseId!=null).length:0}function t(e){if(e.studentRowId!=null&&Number.isFinite(e.studentRowId)&&e.studentRowId>0)return`row-${Math.trunc(e.studentRowId)}`;let t=e.section?.trim()??``;return t?`course-${e.courseId}-section-${t}`:`course-${e.courseId}`}export{t as n,e as t};

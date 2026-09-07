@@ -1,0 +1,1 @@
+import{t as e}from"./display-url-B_XaIuQR.js";var t=new Set([`image/heic`,`image/heif`]);function n(e,n){let r=(e||``).toLowerCase().split(`;`)[0]?.trim();return t.has(r)?!0:/\.heic$|\.heif$/i.test(n||``)}function r(t,r,i){return t&&(n(r,i)||n(null,t)?`/api/solution-image?url=${encodeURIComponent(t)}`:e(t,`medium`))}export{r as n,n as t};

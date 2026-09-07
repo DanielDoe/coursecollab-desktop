@@ -1,0 +1,1 @@
+var e=`Leave waiting room?`,t=`You'll leave the lobby but stay registered for this session. To play later, open Playground and tap Continue session — or ask your instructor to reset your attempt.`,n=`Leave session?`,r=`You'll keep your current score and progress. You won't be able to rejoin this live session unless your instructor resets your attempt.`;export{n as i,e as n,r,t};

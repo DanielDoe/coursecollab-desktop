@@ -1,0 +1,1 @@
+var e=/\/(?:instructor\/(?:dashboard-v2\/)?|faculty\/dashboard\/)results\/[^/]+$/;function t(t){return!!t?.match(e)}function n(e){return e?`/faculty/dashboard/results`:`/instructor/results`}function r(e,t){return`${n(t)}/${e}`}export{n,t as r,r as t};

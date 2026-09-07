@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+    />
+    <title>CourseCollab Setup</title>
+    <style>
+      :root {
+        --bg: #f4f5f8;
+        --bg-elev: #ffffff;
+        --line: #e6e8ee;
+        --text: #111827;
+        --muted: #5b6472;
+        --faint: #8b93a1;
+        --accent: #4f46e5;
+        --accent-hover: #4338ca;
+        --success: #0f766e;
+        --success-soft: #ecfdf7;
+        --warn: #b45309;
+        --warn-soft: #fff7ed;
+        --danger: #b42318;
+        --danger-soft: #fef3f2;
+        --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 12px 32px rgba(16, 24, 40, 0.06);
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: flex;
+        flex-direction: column;
+        background:
+          radial-gradient(1200px 420px at 50% -80px, rgba(79, 70, 229, 0.08), transparent 60%),
+          var(--bg);
+        color: var(--text);
+        font-family: "SF Pro Text", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .shell {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        padding: 28px 36px 24px;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 28px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .brand-mark {
+        width: 28px;
+        height: 28px;
+        object-fit: contain;
+        display: block;
+        flex-shrink: 0;
+      }
+      .step {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 11px;
+        font-weight: 650;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--faint);
+      }
+      .step-dots {
+        display: flex;
+        gap: 6px;
+      }
+      .step-dots i {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #d4d8e0;
+      }
+      .step-dots i.on { background: var(--accent); }
+      .bar {
+        display: none;
+        height: 6px;
+        margin: 10px 18px 0;
+        border-radius: 999px;
+        background: #eef0f5;
+        overflow: hidden;
+      }
+      .bar.show { display: block; }
+      .bar > span {
+        display: block;
+        height: 100%;
+        width: 0;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #6366f1, #4f46e5);
+        transition: width 0.25s ease;
+      }
+      .pill.busy { background: #eef2ff; color: var(--accent); }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+        letter-spacing: -0.04em;
+        font-weight: 650;
+      }
+      .lead {
+        margin: 0 0 22px;
+        max-width: 38rem;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      .panel {
+        flex: 1;
+        background: var(--bg-elev);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--line);
+        background: #fafbff;
+      }
+      .panel-head strong {
+        font-size: 13px;
+        font-weight: 650;
+      }
+      .panel-head span {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 56px 1fr auto;
+        gap: 14px;
+        align-items: center;
+        padding: 16px 18px;
+        min-height: 88px;
+      }
+      .row + .row { border-top: 1px solid var(--line); }
+      .logo-wrap {
+        width: 56px;
+        height: 56px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: #f8fafc;
+        display: grid;
+        place-items: center;
+      }
+      .logo-wrap img {
+        width: 36px;
+        height: 36px;
+        object-fit: contain;
+        display: block;
+      }
+      .name {
+        font-size: 15px;
+        font-weight: 650;
+        letter-spacing: -0.02em;
+      }
+      .detail {
+        margin-top: 3px;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 26px;
+        padding: 0 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        background: #f3f4f6;
+        color: var(--muted);
+      }
+      .pill::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .pill.ready { background: var(--success-soft); color: var(--success); }
+      .pill.wait { background: var(--warn-soft); color: var(--warn); }
+      .pill.miss { background: var(--danger-soft); color: var(--danger); }
+      .foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-top: 20px;
+      }
+      .progress {
+        min-width: 0;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.4;
+      }
+      .actions { display: flex; gap: 8px; flex-shrink: 0; }
+      button {
+        border: 0;
+        height: 38px;
+        padding: 0 16px;
+        border-radius: 10px;
+        font-weight: 650;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      button:disabled { opacity: 0.45; cursor: default; }
+      .primary {
+        background: var(--accent);
+        color: white;
+        box-shadow: 0 8px 18px rgba(79, 70, 229, 0.22);
+      }
+      .primary:hover:not(:disabled) { background: var(--accent-hover); }
+      .ghost {
+        background: white;
+        color: var(--text);
+        border: 1px solid var(--line);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="topbar">
+        <div class="brand">
+          <img class="brand-mark" src="logos/course-collab-mark.png" alt="" width="28" height="28" />
+          CourseCollab
+        </div>
+        <div class="step" id="step" aria-live="polite">
+          <span class="step-dots" id="stepDots" aria-hidden="true"></span>
+          <span id="stepLabel">Step 1 of 1 · Environments</span>
+        </div>
+      </div>
+      <h1 id="title">Prepare this computer</h1>
+      <p class="lead" id="lead">
+        CodeBench checks C++, C, and Python before you sign in. If a C++ compiler is missing, CourseCollab can install one now.
+      </p>
+      <section class="panel" aria-label="Language environments">
+        <div class="panel-head">
+          <strong id="panelTitle">Language runtimes</strong>
+          <span id="summary">Scanning this Mac…</span>
+        </div>
+        <div class="bar" id="bar"><span id="barFill"></span></div>
+        <div id="rows"></div>
+      </section>
+      <div class="foot">
+        <p class="progress" id="progress">Looking for compilers and runtimes…</p>
+        <div class="actions">
+          <button class="ghost" id="continue" type="button" disabled>Continue</button>
+          <button class="primary" id="action" type="button" disabled>Install missing</button>
+        </div>
+      </div>
+    </div>
+    <script>
+      const rowsEl = document.getElementById("rows")
+      const progressEl = document.getElementById("progress")
+      const summaryEl = document.getElementById("summary")
+      const actionBtn = document.getElementById("action")
+      const continueBtn = document.getElementById("continue")
+      const stepLabelEl = document.getElementById("stepLabel")
+      const stepDotsEl = document.getElementById("stepDots")
+      const titleEl = document.getElementById("title")
+      const leadEl = document.getElementById("lead")
+      const panelTitleEl = document.getElementById("panelTitle")
+      const barEl = document.getElementById("bar")
+      const barFillEl = document.getElementById("barFill")
+      const api = window.courseCollabDesktop
+      const logos = { cpp: "logos/cpp.png", c: "logos/c.png", python: "logos/python.png" }
+      let report = null
+      let busy = false
+      let installRequired = false
+      let phase = "review"
+      let installPercent = 0
+
+      function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[ch])
+      }
+
+      function needsInstall(data) {
+        return Boolean(data?.languages.some((row) => !row.ready && row.canInstall))
+      }
+
+      function stepMeta() {
+        if (!installRequired) return { current: 1, total: 1, label: "Environments" }
+        if (phase === "review") return { current: 1, total: 2, label: "Environments" }
+        return { current: 2, total: 2, label: "Install" }
+      }
+
+      function setInstallPercent(value) {
+        installPercent = Math.max(0, Math.min(100, Number(value) || 0))
+        barFillEl.style.width = `${installPercent}%`
+      }
+
+      function pill(row) {
+        if (row.ready) return { cls: "ready", label: "Ready" }
+        if (phase !== "review" && row.canInstall) return { cls: "busy", label: "Installing" }
+        if (row.canInstall) return { cls: "wait", label: "Will install" }
+        if (phase !== "review" && row.id === "c") return { cls: "busy", label: "Waiting" }
+        return { cls: "miss", label: "Not found" }
+      }
+
+      function render() {
+        if (!report) return
+        installRequired = installRequired || needsInstall(report)
+        const step = stepMeta()
+        const missingInstallable = needsInstall(report)
+        const readyCount = report.languages.filter((row) => row.ready).length
+        stepLabelEl.textContent = `Step ${step.current} of ${step.total} · ${step.label}`
+        stepDotsEl.innerHTML = Array.from({ length: step.total }, (_, index) =>
+          `<i class="${index < step.current ? "on" : ""}"></i>`,
+        ).join("")
+        if (step.total === 1) {
+          titleEl.textContent = "Prepare this computer"
+          leadEl.textContent = "CodeBench checked C++, C, and Python. These language environments are ready, so you can continue to sign in."
+          panelTitleEl.textContent = "Language runtimes"
+        } else if (phase === "review") {
+          titleEl.textContent = "Prepare this computer"
+          leadEl.textContent = "CodeBench checked C++, C, and Python. A C++ compiler is missing, so the next step installs one for this computer."
+          panelTitleEl.textContent = "Language runtimes"
+        } else if (phase === "install") {
+          titleEl.textContent = "Install the C++ compiler"
+          leadEl.textContent = "CourseCollab downloads a C++ compiler for this computer. C uses the same compiler. When this finishes, continue to sign in."
+          panelTitleEl.textContent = "Installing"
+        } else {
+          titleEl.textContent = "C++ compiler installed"
+          leadEl.textContent = "C++ and C are ready on this computer. Python is optional for now — you can still write it in CodeBench."
+          panelTitleEl.textContent = "Language runtimes"
+        }
+        barEl.classList.toggle("show", phase !== "review" && installRequired)
+        rowsEl.innerHTML = report.languages.map((row) => {
+          const status = pill(row)
+          return `
+            <div class="row">
+              <div class="logo-wrap">
+                <img src="${logos[row.id] || logos.cpp}" alt="" width="36" height="36" />
+              </div>
+              <div>
+                <div class="name">${escapeHtml(row.label)}</div>
+                <div class="detail">${escapeHtml(row.detail)}</div>
+              </div>
+              <span class="pill ${status.cls}">${status.label}</span>
+            </div>`
+        }).join("")
+        summaryEl.textContent = phase === "install"
+          ? `${installPercent}% complete`
+          : `${readyCount} of ${report.languages.length} ready`
+        actionBtn.hidden = !(phase === "review" && missingInstallable)
+        actionBtn.disabled = busy || !missingInstallable
+        continueBtn.disabled = busy && phase === "install"
+        continueBtn.className = missingInstallable && phase === "review" ? "ghost" : "primary"
+        continueBtn.textContent = missingInstallable && phase === "review" ? "Skip for now" : "Continue to sign in"
+      }
+
+      async function scan() {
+        busy = true
+        phase = "review"
+        progressEl.textContent = "Looking for C++, C, and Python…"
+        render()
+        report = await api.setup.scan()
+        installRequired = needsInstall(report)
+        busy = false
+        progressEl.textContent = installRequired
+          ? "Next: install the missing C++ compiler."
+          : "These language environments are ready on this computer."
+        render()
+      }
+
+      async function install() {
+        phase = "install"
+        busy = true
+        setInstallPercent(4)
+        progressEl.textContent = "Installing the C++ compiler…"
+        render()
+        report = await api.setup.install()
+        setInstallPercent(100)
+        busy = false
+        phase = "done"
+        const ready = report.languages.filter((row) => row.ready).length
+        progressEl.textContent = `${ready} of ${report.languages.length} language environments ready.`
+        render()
+      }
+
+      async function previewInstall() {
+        phase = "install"
+        busy = true
+        setInstallPercent(8)
+        progressEl.textContent = "Downloading the C++ compiler…"
+        render()
+        for (const value of [24, 47, 71, 88]) {
+          await new Promise((resolve) => setTimeout(resolve, 280))
+          setInstallPercent(value)
+          progressEl.textContent = `Downloading the C++ compiler… ${value}%`
+          render()
+        }
+        setInstallPercent(100)
+        report = {
+          languages: [
+            { id: "cpp", label: "C++", ready: true, detail: "C++ compiler ready", canInstall: false },
+            { id: "c", label: "C", ready: true, detail: "Uses the same compiler as C++.", canInstall: false },
+            {
+              id: "python",
+              label: "Python",
+              ready: false,
+              detail: "Python was not found. You can still write Python in CodeBench; local Run for Python is next.",
+              canInstall: false,
+            },
+          ],
+        }
+        busy = false
+        phase = "done"
+        progressEl.textContent = "2 of 3 language environments ready."
+        render()
+      }
+
+      actionBtn.addEventListener("click", () => api?.setup ? void install() : void previewInstall())
+      continueBtn.addEventListener("click", () => {
+        if (api?.setup) void api.setup.finish()
+      })
+      if (api?.subscribeToolchain) {
+        api.subscribeToolchain((progress) => {
+          if (progress.percent != null) setInstallPercent(progress.percent)
+          if (!progress.message) return
+          progressEl.textContent = progress.percent != null
+            ? `${progress.message} ${progress.percent}%`
+            : progress.message
+          if (phase === "install") render()
+        })
+      }
+      if (!api?.setup) {
+        const previewReady = new URLSearchParams(location.search).has("ready")
+        report = previewReady
+          ? {
+              languages: [
+                { id: "cpp", label: "C++", ready: true, detail: "Apple clang 21.0.0", canInstall: false },
+                { id: "c", label: "C", ready: true, detail: "Uses the same compiler as C++.", canInstall: false },
+                { id: "python", label: "Python", ready: true, detail: "Python 3.9.6", canInstall: false },
+              ],
+            }
+          : {
+              languages: [
+                {
+                  id: "cpp",
+                  label: "C++",
+                  ready: false,
+                  detail: "CourseCollab can install a C++ compiler for this computer. You can also install Apple Command Line Tools.",
+                  canInstall: true,
+                },
+                {
+                  id: "c",
+                  label: "C",
+                  ready: false,
+                  detail: "C is installed with the C++ compiler.",
+                  canInstall: false,
+                },
+                {
+                  id: "python",
+                  label: "Python",
+                  ready: false,
+                  detail: "Python was not found. You can still write Python in CodeBench; local Run for Python is next.",
+                  canInstall: false,
+                },
+              ],
+            }
+        progressEl.textContent = previewReady
+          ? "These language environments are ready on this computer."
+          : "Install the missing C++ compiler, then continue to sign in."
+        render()
+      } else {
+        void scan()
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,1 @@
+import{ln as e}from"./index-BFIBYwc9.js";function t(){let{isDark:t,toggleLightDark:n,ready:r}=e();return{theme:t?`dark`:`light`,toggleTheme:n,ready:r}}export{t};

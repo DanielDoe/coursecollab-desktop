@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./edit-quiz-form-PRRd7Wyg.js";import{t as n}from"./admin-header-CDFqxKE5.js";var r=e();function i({params:e}){return(0,r.jsxs)(`div`,{className:`min-h-screen bg-secondary`,children:[(0,r.jsx)(n,{}),(0,r.jsx)(`main`,{className:`container mx-auto px-4 py-8`,children:(0,r.jsx)(t,{quizId:e.id})})]})}export{i as default};

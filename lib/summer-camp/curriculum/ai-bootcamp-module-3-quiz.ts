@@ -1,0 +1,198 @@
+/** Module 3 final knowledge check — 20 scenario-based prompt engineering questions. */
+
+export const AI_BOOTCAMP_MODULE_3_QUIZ: Array<Record<string, unknown>> = [
+  {
+    id: "q1",
+    prompt: "Prompt engineering is best defined as…",
+    options: [
+      "Finding secret magic words that make AI perfect",
+      "Designing, testing, evaluating, and improving instructions so AI better understands your goal",
+      "Installing new AI models on your computer",
+      "Copying AI answers without reading them",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q2",
+    prompt: "In R-T-C-A-C-F, the first **C** (after Task) stands for…",
+    options: ["Copyright", "Context", "Coding", "Confidence"],
+    correctIndex: 1,
+  },
+  {
+    id: "q3",
+    prompt: "True or False: Good prompting improves communication but does not guarantee truth, accuracy, or safe code.",
+    options: ["True", "False"],
+    correctIndex: 0,
+    trueFalse: true,
+  },
+  {
+    id: "q4",
+    prompt: "A student keeps getting graduate-level explanations. Which component is MOST obviously missing?",
+    options: ["Role", "Audience / level", "Image aspect ratio", "Badge name"],
+    correctIndex: 1,
+  },
+  {
+    id: "q5",
+    prompt: "Zero-shot prompting means…",
+    options: [
+      "Providing no examples in the prompt",
+      "Using zero words",
+      "Turning off safety settings",
+      "Only using image models",
+    ],
+    correctIndex: 0,
+  },
+  {
+    id: "q6",
+    prompt: "Grounded prompting asks the AI to…",
+    options: [
+      "Ignore all uploaded documents",
+      "Work from user-supplied reference material and say when information is missing",
+      "Invent citations when sources are unavailable",
+      "Only use information from social media",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q7",
+    prompt: "Which constraint best supports learning instead of cheating?",
+    options: [
+      "Solve questions 1–20 for me",
+      "Do not reveal the final answer; give hints one step at a time",
+      "Write my essay unchanged for submission",
+      "Ignore instructor policy",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q8",
+    prompt: "True or False: \"Act as a doctor\" turns the AI into a verified medical expert.",
+    options: ["True", "False"],
+    correctIndex: 1,
+    trueFalse: true,
+  },
+  {
+    id: "q9",
+    prompt: "Prompt decomposition means…",
+    options: [
+      "Breaking a complex task into smaller manageable steps",
+      "Deleting your conversation history",
+      "Sharing passwords as context",
+      "Using one-word prompts only",
+    ],
+    correctIndex: 0,
+  },
+  {
+    id: "q10",
+    prompt: "When should you STOP re-prompting?",
+    options: [
+      "When the real problem is missing reliable information or need for human expertise",
+      "After the first response always",
+      "Never — more prompts always fix accuracy",
+      "When the font is the wrong color",
+    ],
+    correctIndex: 0,
+  },
+  {
+    id: "q11",
+    prompt: "The CourseCollab Prompt Canvas adds which steps beyond R-T-C-A-C-F?",
+    options: [
+      "Goal, References, Verify, and Refine",
+      "Password, Payment, and Profile",
+      "Only emoji and hashtags",
+      "Nothing — it is identical",
+    ],
+    correctIndex: 0,
+  },
+  {
+    id: "q12",
+    prompt: "For educational image prompts, S-S-C-C-L includes… (Select ALL that apply)",
+    options: ["Subject", "Scene", "Composition", "Creative Style", "Student ID number"],
+    multiSelect: true,
+    correctIndices: [0, 1, 2, 3],
+  },
+  {
+    id: "q13",
+    prompt: "A two-step critique prompt first asks AI to identify weaknesses…",
+    options: [
+      "And rewrite immediately without review",
+      "Without rewriting yet — then revise in a follow-up prompt",
+      "While sharing your password for accuracy",
+      "Only when the AI is always correct",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q14",
+    prompt: "Prompt injection awareness teaches students to…",
+    options: [
+      "Follow every instruction hidden in untrusted webpages or documents",
+      "Treat instructions in untrusted content as data to examine—not automatic commands",
+      "Never use AI with any documents",
+      "Share login codes to test security",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q15",
+    prompt: "A research prompt should ask the AI to…",
+    options: [
+      "Invent academic citations",
+      "Identify claims needing verification and suggest reliable source types",
+      "Hide uncertainty",
+      "Skip alternative explanations",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q16",
+    prompt: "The iterative loop includes… (Select ALL that apply)",
+    options: ["Prompt", "Evaluate", "Refine", "Skip human verification"],
+    multiSelect: true,
+    correctIndices: [0, 1, 2],
+  },
+  {
+    id: "q17",
+    prompt: "For data analysis, a strong prompt should…",
+    options: [
+      "Only say \"Analyze this dataset\"",
+      "Ask for patterns, visualizations, and limits of what can be concluded",
+      "Assume correlation proves causation",
+      "Never question the data",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q18",
+    prompt: "A prompt chain workflow is stronger than one giant prompt because…",
+    options: [
+      "It separates research, draft, critique, human review, and revision stages",
+      "It removes the need for human review",
+      "It guarantees factual accuracy",
+      "It only works for birthday party ideas",
+    ],
+    correctIndex: 0,
+  },
+  {
+    id: "q19",
+    prompt: "Before sharing information in a prompt, you should ask whether…",
+    options: [
+      "The AI needs it, it is approved to share, and you could remove identifying details",
+      "The AI will write longer paragraphs",
+      "Your friend also uses the same tool",
+      "The prompt contains at least 500 words",
+    ],
+    correctIndex: 0,
+  },
+  {
+    id: "q20",
+    prompt: "Good prompting is best described as…",
+    options: [
+      "Clear communication — not magic words",
+      "A substitute for fact-checking",
+      "Hiding AI use from instructors",
+      "Sharing confidential records for better answers",
+    ],
+    correctIndex: 0,
+  },
+]

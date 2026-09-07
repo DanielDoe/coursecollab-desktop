@@ -1,0 +1,1 @@
+import e,{metadata as t}from"./page-DehsqKeA.js";export{e as default,t as metadata};

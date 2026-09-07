@@ -1,0 +1,1 @@
+var e=`instructor-calendar-invalidate`;function t(){typeof window>`u`||window.dispatchEvent(new Event(e))}function n(e){return e.sessionCode?.trim()||e.courseCode?.trim()||null}export{n,t as r,e as t};

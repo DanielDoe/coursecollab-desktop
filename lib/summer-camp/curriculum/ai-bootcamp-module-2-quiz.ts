@@ -1,0 +1,168 @@
+/** Module 2 final knowledge check — 18 questions covering the AI tool ecosystem. */
+
+export const AI_BOOTCAMP_MODULE_2_QUIZ: Array<Record<string, unknown>> = [
+  {
+    id: "q1",
+    prompt: "An AI model is best described as…",
+    options: [
+      "The user interface you click in a browser",
+      "The underlying computational system trained to recognize patterns or generate outputs",
+      "A spreadsheet formula that never changes",
+      "A social media account used to share AI images",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q2",
+    prompt: "True or False: Two AI applications may use similar models but offer very different features, integrations, and privacy controls.",
+    options: ["True", "False"],
+    correctIndex: 0,
+    trueFalse: true,
+  },
+  {
+    id: "q3",
+    prompt: "Multimodal AI can work with which types of information? (Select ALL that apply)",
+    options: ["Text", "Images", "Audio", "Video", "Documents and code"],
+    multiSelect: true,
+    correctIndices: [0, 1, 2, 3, 4],
+  },
+  {
+    id: "q4",
+    prompt: "You need to find peer-reviewed sources about climate policy. Which category is MOST appropriate?",
+    options: [
+      "AI image generation",
+      "AI search and research tools",
+      "AI music generation",
+      "Text-to-speech tools",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q5",
+    prompt: "You uploaded course PDFs and want flashcards grounded in those files. Which approach fits best?",
+    options: [
+      "Document-grounded AI (e.g., NotebookLM-style workflows)",
+      "Music AI",
+      "Video avatar tools",
+      "A generic calculator app",
+    ],
+    correctIndex: 0,
+  },
+  {
+    id: "q6",
+    prompt: "In the TASK framework, the \"S\" stands for…",
+    options: ["Speed", "Sensitivity (privacy, risk, confidentiality)", "Software version", "Student grade level"],
+    correctIndex: 1,
+  },
+  {
+    id: "q7",
+    prompt: "True or False: A citation provided by an AI assistant always proves a statement is correct.",
+    options: ["True", "False"],
+    correctIndex: 1,
+    trueFalse: true,
+  },
+  {
+    id: "q8",
+    prompt: "Before trusting an important AI-generated answer, you should…",
+    options: [
+      "Share it immediately because AI sounds confident",
+      "Question it, verify important claims, revise, then approve before use",
+      "Assume newer AI tools are always accurate",
+      "Skip verification if the answer is long",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q9",
+    prompt: "Which is the safest information to enter into a public AI assistant?",
+    options: [
+      "Your password or authentication code",
+      "A classmate's private medical information",
+      "Brainstorming ideas for a public presentation topic",
+      "Your student ID and home address together",
+    ],
+    correctIndex: 2,
+  },
+  {
+    id: "q10",
+    prompt: "AI-generated code should be…",
+    options: [
+      "Submitted without reading it",
+      "Reviewed, understood, tested, and secured before use",
+      "Trusted because AI never invents libraries",
+      "Hidden from instructors",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q11",
+    prompt: "Which best describes an emerging AI agent?",
+    options: [
+      "A tool that can only return one paragraph per prompt",
+      "A system that may plan and execute multi-step workflows using tools",
+      "Hardware that stores photos in the cloud",
+      "A fixed rule-based calculator",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q12",
+    prompt: "Two assistants answer the same prompt differently mainly because of… (Select ALL that apply)",
+    options: [
+      "Different underlying models and training",
+      "Different system instructions and safety rules",
+      "Different search or tool access",
+      "Because one assistant is always universally better",
+    ],
+    multiSelect: true,
+    correctIndices: [0, 1, 2],
+  },
+  {
+    id: "q13",
+    prompt: "In the CLEAR evaluation framework, the \"E\" reminds you to check whether claims are…",
+    options: ["Entertaining", "Evidence-aware and verifiable", "Encrypted", "Edited by AI only"],
+    correctIndex: 1,
+  },
+  {
+    id: "q14",
+    prompt: "Scenario: You need a presentation outline for a school assembly on responsible AI use. Best starting category?",
+    options: ["Presentation and content-creation AI", "Voice cloning for impersonation", "Deepfake video of a classmate", "Sharing passwords with AI for faster login"],
+    correctIndex: 0,
+  },
+  {
+    id: "q15",
+    prompt: "True or False: The professional skill is knowing which tool fits the task — not memorizing every product name.",
+    options: ["True", "False"],
+    correctIndex: 0,
+    trueFalse: true,
+  },
+  {
+    id: "q16",
+    prompt: "Data classified as Confidential should…",
+    options: [
+      "Be pasted into any free AI website for convenience",
+      "Not be entered into unauthorized AI systems",
+      "Always be posted publicly for transparency",
+      "Replace human judgment entirely",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q17",
+    prompt: "When comparing two AI responses to the same prompt, the best conclusion is…",
+    options: [
+      "Tool A is always better in every situation",
+      "Tool A performed better for this specific task under these conditions",
+      "Whichever answer is longer is correct",
+      "Neither response ever needs verification",
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: "q18",
+    prompt: "Generative AI can create which outputs? (Select ALL that apply)",
+    options: ["Text and code", "Images and presentations", "Audio and music", "Video concepts", "Perfect factual certainty on every topic"],
+    multiSelect: true,
+    correctIndices: [0, 1, 2, 3],
+  },
+]

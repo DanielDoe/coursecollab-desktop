@@ -1,0 +1,1 @@
+import{bt as e,ut as t}from"./index-BFIBYwc9.js";function n({searchParams:n}){let r=new URLSearchParams;n.session_id&&r.set(`session_id`,n.session_id),n.plan&&r.set(`plan`,n.plan);let i=r.toString()?`?${r.toString()}`:``;e(`${t}/success${i}`)}export{n as default};

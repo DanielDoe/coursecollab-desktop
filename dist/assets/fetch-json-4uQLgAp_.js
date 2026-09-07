@@ -1,0 +1,1 @@
+var e=class extends Error{constructor(e,t){super(e),this.name=`QueryFetchError`,this.status=t}};async function t(t){let n=await t.json().catch(()=>({}));if(!t.ok)throw new e(typeof n?.error==`string`?n.error:`Request failed (${t.status})`,t.status);return n}export{t};

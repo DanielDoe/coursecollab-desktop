@@ -1,0 +1,1 @@
+function e(e,t){let n=new URLSearchParams,r=String(e??``).trim(),i=String(t??``).trim();r&&r.toLowerCase()!==`all`&&n.set(`session`,r),i&&i.toLowerCase()!==`all`&&n.set(`status`,i);let a=n.toString();return a?`/api/projects/list?${a}`:`/api/projects/list`}export{e as t};

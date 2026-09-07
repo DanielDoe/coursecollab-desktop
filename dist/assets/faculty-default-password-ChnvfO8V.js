@@ -1,0 +1,1 @@
+var e=`FACULTY2026!`;export{e as t};

@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./instructor-recommendations-list-BKOzO48_.js";var n=e();function r(){return(0,n.jsx)(t,{bucket:`done`})}export{r as default};

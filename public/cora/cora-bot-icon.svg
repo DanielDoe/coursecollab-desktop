@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <style>
+    .cb-body { fill: #f4f4f6; stroke: rgba(15, 23, 42, 0.16); }
+    .cb-visor { fill: #17171a; }
+    .cb-eye { fill: #5ec8f8; }
+    .cb-cap { fill: #141416; }
+    .cb-tassel { fill: #e8b84a; }
+    @media (prefers-color-scheme: dark) {
+      .cb-body { fill: #f7f7f8; stroke: rgba(255, 255, 255, 0.08); }
+      .cb-eye { fill: #7dd3fc; }
+    }
+  </style>
+  <ellipse class="cb-body" cx="16" cy="24.2" rx="6.2" ry="4.6" stroke-width="0.6"/>
+  <ellipse class="cb-body" cx="8.4" cy="22.6" rx="2.1" ry="2.6" stroke-width="0.5"/>
+  <ellipse class="cb-body" cx="23.6" cy="22.6" rx="2.1" ry="2.6" stroke-width="0.5"/>
+  <circle class="cb-body" cx="16" cy="15.4" r="7.4" stroke-width="0.6"/>
+  <rect class="cb-visor" x="10.2" y="13.4" width="11.6" height="4.4" rx="2.2"/>
+  <path class="cb-eye" d="M12.6 16.4c.7-1.1 1.8-1.1 2.4 0" stroke="#5ec8f8" stroke-width="1.15" stroke-linecap="round"/>
+  <path class="cb-eye" d="M17 16.4c.7-1.1 1.8-1.1 2.4 0" stroke="#5ec8f8" stroke-width="1.15" stroke-linecap="round"/>
+  <path class="cb-cap" d="M8.4 9.6 16 7.2l7.6 2.4-7.6 2.2L8.4 9.6Z"/>
+  <rect class="cb-cap" x="10.6" y="8.7" width="10.8" height="1.5" rx="0.4"/>
+  <circle class="cb-cap" cx="16" cy="8.1" r="1"/>
+  <path class="cb-tassel" d="M16 8.2c2.2.15 3.8 1.4 4.1 3.6" stroke="#e8b84a" stroke-width="1.15" fill="none" stroke-linecap="round"/>
+  <circle class="cb-tassel" cx="20.2" cy="12.4" r="1.05"/>
+</svg>

@@ -1,0 +1,1 @@
+var e=`DELETE STUDENT DATA`,t=[`students`,`groups`,`quizAttempts`,`quizAnswers`,`practiceAttempts`,`playgroundSessions`,`userQuizzes`,`classroomPoints`];export{e as n,t};

@@ -1,0 +1,1 @@
+import{bt as e}from"./index-BFIBYwc9.js";function t(){e(`/instructor/dashboard-v2/recommendations/settings`)}export{t as default};

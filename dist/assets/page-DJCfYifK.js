@@ -1,0 +1,1 @@
+import{bt as e}from"./index-BFIBYwc9.js";import{r as t}from"./camper-nav-BbWk2dwE.js";function n(){e(t(`/onboarding`))}export{n as default};

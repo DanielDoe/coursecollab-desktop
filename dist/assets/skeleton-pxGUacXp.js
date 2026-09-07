@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./utils-jU4PRXjo.js";import{d as n}from"./ui-primitives-DHvzrx1A.js";var r=e();function i({className:e,...i}){return(0,r.jsx)(`div`,{"data-slot":`skeleton`,className:t(n,e),...i})}export{i as t};
