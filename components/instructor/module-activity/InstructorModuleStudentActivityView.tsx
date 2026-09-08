@@ -60,7 +60,6 @@ function formatWhen(value: string | null): string {
   return date.toLocaleString(undefined, {
     month: "short",
     day: "numeric",
-    year: "numeric",
     hour: "numeric",
     minute: "2-digit",
   })
@@ -142,7 +141,13 @@ export function InstructorModuleStudentActivityView({ module, moduleId, embedInD
   const showPoints = copy.pointsLabel != null
 
   return (
-    <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4"}>
+    <div
+      className={
+        embedInDashboard
+          ? "flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto pr-1 [scrollbar-gutter:stable] sm:pr-2"
+          : "space-y-4"
+      }
+    >
       <div className={cn("space-y-1", embedInDashboard && "shrink-0")}>
         <h2 className={cn("text-lg font-semibold tracking-tight", PORTAL_TEXT)}>{copy.title}</h2>
         <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>{copy.description}</p>
@@ -210,16 +215,13 @@ export function InstructorModuleStudentActivityView({ module, moduleId, embedInD
         }
       />
 
-      <div className={cn(PORTAL_CARD, "overflow-hidden", embedInDashboard && "flex min-h-0 flex-1 flex-col")}>
+      <div className={cn(PORTAL_CARD, "min-w-0")}>
         {loading && !payload ? (
-          <div className={cn("flex items-center justify-center", embedInDashboard ? "min-h-0 flex-1" : "min-h-[240px]")}>
+          <div className="flex min-h-[240px] items-center justify-center">
             <Loader2 className={cn("h-7 w-7 animate-spin", chrome.p.iconText)} />
           </div>
         ) : rows.length === 0 ? (
-          <div className={cn(
-            "flex flex-col items-center justify-center gap-2 p-8 text-center",
-            embedInDashboard ? "min-h-0 flex-1 border-dashed" : "min-h-[240px]",
-          )}>
+          <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 p-8 text-center">
             <Users className="h-10 w-10 text-muted-foreground/40" />
             <p className={cn("font-medium", PORTAL_TEXT)}>No matching students</p>
             <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>
@@ -228,24 +230,26 @@ export function InstructorModuleStudentActivityView({ module, moduleId, embedInD
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="border-b border-[var(--border)] bg-muted/20 text-left">
-                    <th className="px-4 py-3 font-medium">Student</th>
-                    <th className="px-4 py-3 font-medium">Section</th>
-                    <th className="px-4 py-3 font-medium">Activity</th>
-                    <th className="px-4 py-3 font-medium">Last activity</th>
-                    {showPoints ? <th className="px-4 py-3 font-medium">{copy.pointsLabel}</th> : null}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--border)]">
-                  {paginatedRows.map((row) => (
-                    <ActivityRow key={row.studentDbId} row={row} showPoints={showPoints} moduleId={moduleId} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <table className="w-full table-fixed text-sm">
+              <thead>
+                <tr className="border-b border-[var(--border)] bg-muted/20 text-left">
+                  <th className="px-3 py-3 font-medium sm:px-4">Student</th>
+                  <th className="w-[18%] px-2 py-3 font-medium sm:px-3">Section</th>
+                  <th className="w-[24%] px-2 py-3 font-medium sm:px-3">Activity</th>
+                  <th className="w-[6.75rem] whitespace-nowrap px-2 py-3 font-medium sm:px-3">Last activity</th>
+                  {showPoints ? (
+                    <th className="w-[7.25rem] px-3 py-3 text-right font-medium">
+                      {copy.pointsLabel}
+                    </th>
+                  ) : null}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {paginatedRows.map((row) => (
+                  <ActivityRow key={row.studentDbId} row={row} showPoints={showPoints} moduleId={moduleId} />
+                ))}
+              </tbody>
+            </table>
             <div className="px-4 pb-3">
               <FacultySidebarPagination
                 page={studentsPage}
@@ -274,33 +278,37 @@ function ActivityRow({
   const chrome = facultyEmbedChrome(moduleId)
   return (
     <tr className="hover:bg-muted/30">
-      <td className="px-4 py-3 align-top">
-        <div className="font-medium text-[var(--foreground)]">{row.fullName}</div>
+      <td className="min-w-0 px-3 py-3 align-top sm:px-4">
+        <div className="break-words font-medium text-[var(--foreground)] [overflow-wrap:anywhere]">
+          {row.fullName}
+        </div>
         <div className={cn("text-xs", PORTAL_TEXT_MUTED)}>{row.studentId}</div>
-        {row.email ? <div className={cn("text-xs", PORTAL_TEXT_MUTED)}>{row.email}</div> : null}
+        {row.email ? (
+          <div className={cn("text-xs [overflow-wrap:anywhere]", PORTAL_TEXT_MUTED)}>{row.email}</div>
+        ) : null}
       </td>
-      <td className={cn("px-4 py-3 align-top", PORTAL_TEXT_MUTED)}>
+      <td className={cn("px-2 py-3 align-top [overflow-wrap:anywhere] sm:px-3", PORTAL_TEXT_MUTED)}>
         {row.sessionCode || row.section || "—"}
       </td>
-      <td className="px-4 py-3 align-top">
+      <td className="px-2 py-3 align-top sm:px-3">
         <div className="flex flex-wrap items-center gap-2">
           <Badge
             variant="secondary"
             className={cn(
-              "rounded-md text-xs",
+              "max-w-full whitespace-normal rounded-md text-xs",
               row.engaged ? chrome.p.softBg : "bg-muted text-muted-foreground",
             )}
           >
             {row.activityLabel}
           </Badge>
         </div>
-        {row.detail ? <p className={cn("mt-1 text-xs", PORTAL_TEXT_MUTED)}>{row.detail}</p> : null}
+        {row.detail ? <p className={cn("mt-1 text-xs [overflow-wrap:anywhere]", PORTAL_TEXT_MUTED)}>{row.detail}</p> : null}
       </td>
-      <td className={cn("px-4 py-3 align-top whitespace-nowrap", PORTAL_TEXT_MUTED)}>
+      <td className={cn("px-2 py-3 align-top [overflow-wrap:anywhere] sm:px-3", PORTAL_TEXT_MUTED)}>
         {formatWhen(row.lastActivityAt)}
       </td>
       {showPoints ? (
-        <td className={cn("px-4 py-3 align-top tabular-nums", PORTAL_TEXT)}>
+        <td className={cn("px-3 py-3 text-right align-top tabular-nums", PORTAL_TEXT)}>
           {row.pointsAwarded > 0 ? row.pointsAwarded : "—"}
         </td>
       ) : null}

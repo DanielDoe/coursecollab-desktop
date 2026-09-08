@@ -26,7 +26,13 @@ export async function POST(request: NextRequest) {
   const auth = await requireCallerStudentDbId(request)
   if (!auth.ok) return auth.response
 
-  let body: { courseId?: unknown; section?: unknown; studentRowId?: unknown } = {}
+  let body: {
+    courseId?: unknown
+    section?: unknown
+    studentRowId?: unknown
+    sessionId?: unknown
+    academicTermId?: unknown
+  } = {}
   try {
     body = (await request.json()) as typeof body
   } catch {
@@ -37,6 +43,8 @@ export async function POST(request: NextRequest) {
     courseId: body.courseId != null ? Number(body.courseId) : null,
     section: typeof body.section === "string" ? body.section : null,
     studentRowId: body.studentRowId != null ? Number(body.studentRowId) : null,
+    sessionId: body.sessionId != null ? Number(body.sessionId) : null,
+    academicTermId: body.academicTermId != null ? Number(body.academicTermId) : null,
   })
   if (!resolved.ok) {
     return NextResponse.json({ error: resolved.error }, { status: resolved.status })

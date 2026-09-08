@@ -1,6 +1,7 @@
 "use client"
 
 import { instructorApiFetch } from "@/lib/instructor-api-headers"
+import { useInstructorDashboardV2 } from "@/components/instructor/dashboard-v2/InstructorDashboardV2Context"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { CheckCircle2, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -39,6 +40,7 @@ const STATUS_FILTER_OPTIONS = [
 
 export function CourseEvaluationEvaluationsPanel() {
   const { toast } = useToast()
+  const { courseScopeVersion } = useInstructorDashboardV2()
   const [loading, setLoading] = useState(true)
   const [items, setItems] = useState<EvaluationRow[]>([])
   const [pendingItems, setPendingItems] = useState<EvaluationRow[]>([])
@@ -62,6 +64,7 @@ export function CourseEvaluationEvaluationsPanel() {
       ])
       const listData = await listRes.json()
       const pendingData = await pendingRes.json()
+      if (!listRes.ok) throw new Error(listData.error || "Failed to load evaluations")
       setItems((listData.evaluations ?? []).map((r: Record<string, unknown>) => normalizeEvaluationRow(r)))
       setPendingItems((pendingData.evaluations ?? []).map((r: Record<string, unknown>) => normalizeEvaluationRow(r)))
     } catch {
@@ -73,7 +76,7 @@ export function CourseEvaluationEvaluationsPanel() {
 
   useEffect(() => {
     void load()
-  }, [load])
+  }, [load, courseScopeVersion])
 
   useEffect(() => {
     setCurrentPage(1)

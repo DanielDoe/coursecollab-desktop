@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{n as t,r as n,t as r}from"./LegalDocumentArticle-W6QamVH1.js";var i=e(),a=t(`support`),o={title:`Support · CourseCollab`,description:`Help, contact, and account support for CourseCollab.`};function s(){return(0,i.jsx)(n,{title:a.title,updated:a.updated,children:(0,i.jsx)(r,{document:a})})}export{s as default,o as metadata};

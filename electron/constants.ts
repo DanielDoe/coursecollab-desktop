@@ -39,6 +39,19 @@ export function resolveStartupPath(): string {
   return path.startsWith('/') ? path : `/${path}`
 }
 
+/**
+ * Packaged builds always open the portal picker first. Session resume happens
+ * inside `/auth/welcome` so we never cold-start on a dashboard route that
+ * immediately bounces to a login screen and skips portal/university selection.
+ */
+export function resolveInitialStartPath(
+  readLastRoute: () => string | null,
+  isPackaged: boolean,
+): string {
+  if (isPackaged) return resolveStartupPath()
+  return readLastRoute() || resolveStartupPath()
+}
+
 export function buildDesktopUserAgent(appVersion: string): string {
   return `Mozilla/5.0 CourseCollab-Desktop/${appVersion}`
 }

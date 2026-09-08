@@ -1,1 +1,0 @@
-function e({children:e}){return e}export{e as default};

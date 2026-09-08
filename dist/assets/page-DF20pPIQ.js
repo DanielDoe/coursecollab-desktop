@@ -1,1 +1,0 @@
-import{zt as e}from"./index-Bk6sIswz.js";async function t({params:t}){let{requestId:n}=await t;e(`/instructor/dashboard-v2/recommendations/${n}`)}export{t as default};

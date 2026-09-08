@@ -583,7 +583,7 @@ export const FACULTY_CORA_MODULE_REGISTRY: Record<FacultyCoraModuleId, FacultyCo
   "student-progress": {
     module: "student-progress",
     version: 1,
-    label: "Student Progress",
+    label: "Class Analytics",
     capabilities: [
       "progress.analyze",
       "progress.identifyAtRisk",

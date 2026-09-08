@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";var t=e();function n({children:e}){return(0,t.jsx)(`div`,{className:`native-app-shell min-h-[100dvh] overflow-x-hidden bg-[var(--cc-background)]`,children:e})}export{n as t};

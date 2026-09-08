@@ -13,12 +13,14 @@ __v0_jsx-dev-runtime.ts
 # Common ignores
 node_modules
 .next/
+dist/
 dist-electron/
 release/
 .DS_Store
 
 # Desktop app runtime state (machine-local — never commit or ship in the repo tree)
 codebench-setup.json
+install-instance.json
 codebench-toolchain/
 codebench-workspaces/
 codebench-local-root.json

@@ -15,6 +15,8 @@ export type StudentActiveEnrollmentRequest = {
   courseId?: number | null
   section?: string | null
   studentRowId?: number | null
+  sessionId?: number | null
+  academicTermId?: number | null
 }
 
 export function studentEnrollmentPickerKey(enrollment: Pick<StudentEnrollmentRecord, "courseId" | "section">): string {
@@ -41,10 +43,25 @@ export function matchStudentEnrollment(
   if (matches.length === 0) return null
 
   const section = request.section?.trim()
-  if (section) {
-    return matches.find((row) => row.section.trim() === section) ?? null
+  const sectionMatches = section
+    ? matches.filter((row) => row.section.trim() === section)
+    : matches
+  if (section && sectionMatches.length === 0) return null
+
+  if (request.sessionId != null && Number.isFinite(request.sessionId) && request.sessionId > 0) {
+    const bySession = sectionMatches.find((row) => row.sessionId === Math.trunc(request.sessionId!))
+    if (bySession) return bySession
   }
-  return matches[0] ?? null
+
+  if (request.academicTermId != null && Number.isFinite(request.academicTermId) && request.academicTermId > 0) {
+    const byTerm = sectionMatches.find((row) => row.academicTermId === Math.trunc(request.academicTermId!))
+    if (byTerm) return byTerm
+  }
+
+  if (sectionMatches.length === 1) return sectionMatches[0]
+
+  // Same section code can exist in Spring and Fall. Prefer the newest term, never the first row.
+  return [...sectionMatches].sort((a, b) => (b.academicTermId ?? 0) - (a.academicTermId ?? 0))[0] ?? null
 }
 
 export function serializeStudentEnrollment(enrollment: StudentEnrollmentRecord) {

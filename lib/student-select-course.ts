@@ -6,6 +6,8 @@ export type StudentSelectCourseOption = {
   courseTitle: string
   section?: string
   studentRowId?: number | null
+  sessionId?: number | null
+  academicTermId?: number | null
   academicTermLabel?: string | null
 }
 

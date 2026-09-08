@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./quiz-preview-CvlhKaF2.js";var n=e();function r({params:e}){return console.log(`[v0] PreviewQuizPage rendering with params:`,e),(0,n.jsx)(t,{quizId:e.id})}export{r as default};

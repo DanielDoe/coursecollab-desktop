@@ -821,7 +821,7 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
               <div
                 className={cn(
                   cardBase,
-                  "flex min-h-0 flex-1 flex-col items-center justify-center border-dashed px-4 py-10 text-center",
+                  "flex min-h-0 flex-1 flex-col items-center justify-center border-dashed px-6 py-12 text-center sm:px-8",
                 )}
               >
                 <Users className={cn("mx-auto mb-3 h-10 w-10", PORTAL_TEXT_MUTED)} />

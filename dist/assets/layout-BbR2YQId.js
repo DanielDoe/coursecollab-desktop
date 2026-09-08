@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";var t=e();function n({children:e}){return(0,t.jsx)(`div`,{className:`space-y-4 sm:space-y-6 w-full min-w-0 overflow-x-hidden`,children:e})}export{n as default};

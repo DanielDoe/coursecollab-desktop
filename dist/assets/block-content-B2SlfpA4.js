@@ -1,1 +1,0 @@
-function e(e){if(e==null)return{};if(typeof e==`string`)try{let t=JSON.parse(e);return typeof t==`object`&&t&&!Array.isArray(t)?t:{}}catch{return{}}return typeof e==`object`&&!Array.isArray(e)?e:{}}function t(t){return{...t,content:e(t.content)}}export{t as n,e as t};

@@ -1,1 +1,0 @@
-import{zt as e}from"./index-Bk6sIswz.js";function t(){e(`/admin/dashboard-v2/management/faculty`)}export{t as default};

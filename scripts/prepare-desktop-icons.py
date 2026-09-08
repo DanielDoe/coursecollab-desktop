@@ -29,8 +29,11 @@ ICONSET_SIZES = {
 }
 
 ICO_SIZES = (16, 24, 32, 48, 64, 128, 256)
-# Mark size inside a full dock tile (matches Chrome / Phone visual weight).
-APP_ICON_SCALE = 0.82
+# Squircle tile size on the 1024 master canvas — macOS dock icons need outer transparent
+# padding or they render larger than system apps (Chrome, Phone, etc.).
+DOCK_TILE_SCALE = 0.82
+# Mark size relative to the inset tile, not the full canvas.
+APP_ICON_SCALE = 0.72
 TILE_COLOR = (248, 247, 252, 255)
 SQUIRCLE_RADIUS = 0.223
 
@@ -61,14 +64,18 @@ def squircle_mask(size: int) -> Image.Image:
 
 
 def inset_app_icon(image: Image.Image, size: int = 1024, scale: float = APP_ICON_SCALE) -> Image.Image:
-    """Full dock tile with the isolated mark centered, so the icon matches other apps."""
-    tile = Image.new("RGBA", (size, size), TILE_COLOR)
-    tile.putalpha(squircle_mask(size))
-    mark_size = max(1, int(size * scale))
+    """Inset squircle tile on a transparent canvas so dock size matches system icons."""
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    tile_size = max(1, int(size * DOCK_TILE_SCALE))
+    tile = Image.new("RGBA", (tile_size, tile_size), TILE_COLOR)
+    tile.putalpha(squircle_mask(tile_size))
+    mark_size = max(1, int(tile_size * scale))
     mark = resize(isolate_mark(image), mark_size)
-    offset = (size - mark_size) // 2
+    offset = (tile_size - mark_size) // 2
     tile.alpha_composite(mark, (offset, offset))
-    return tile
+    inset = (size - tile_size) // 2
+    canvas.alpha_composite(tile, (inset, inset))
+    return canvas
 
 
 def make_template(image: Image.Image, size: int) -> Image.Image:
@@ -171,7 +178,10 @@ def main() -> None:
 
     build_icns(app_icon)
     build_badges()
-    print(f"Prepared CourseCollab desktop icons ({int(APP_ICON_SCALE * 100)}% dock inset) in build/ and public/")
+    print(
+        f"Prepared CourseCollab desktop icons "
+        f"({int(DOCK_TILE_SCALE * 100)}% tile / {int(APP_ICON_SCALE * 100)}% mark) in build/ and public/"
+    )
 
 
 if __name__ == "__main__":

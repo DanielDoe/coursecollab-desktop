@@ -1,1 +1,0 @@
-var e=`Career Member`,t=`Career Members`,n=`Career Member workspace`,r=`Career Member account`,i=`CourseCollab Career Member`,a=`Career Member Free`;export{i as a,t as i,a as n,n as o,e as r,r as t};

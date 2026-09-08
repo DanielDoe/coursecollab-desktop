@@ -1,1 +1,0 @@
-var e=new Set([`module`,`training`,`thread`]);function t(t,n){if(!t||t===`#`||!t.startsWith(n))return!1;let r=t.slice(n.length).replace(/^\//,``).split(`/`).filter(Boolean),i=r[r.length-1];return e.has(i)}export{t};

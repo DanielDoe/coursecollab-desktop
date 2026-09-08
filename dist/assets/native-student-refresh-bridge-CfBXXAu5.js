@@ -1,1 +1,0 @@
-function e(){typeof window>`u`||window.ReactNativeWebView?.postMessage(JSON.stringify({type:`REFRESH_STUDENT_DATA`}))}function t(e){typeof window>`u`||window.ReactNativeWebView?.postMessage(JSON.stringify({type:`NATIVE_NAVIGATE`,route:e}))}export{e as n,t};

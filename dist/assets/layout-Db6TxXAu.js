@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./recommendation-nav-context-CUiaKwGi.js";var n=e();function r({children:e}){return(0,n.jsx)(t,{base:`/guest/recommendations`,children:e})}export{r as default};

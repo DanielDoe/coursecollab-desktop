@@ -1,1 +1,0 @@
-import e,{metadata as t}from"./page-Ci8592p2.js";export{e as default,t as metadata};

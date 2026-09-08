@@ -32,8 +32,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { getProjectModuleSessionCodes, PROJECT_MODULE_SESSIONS } from "@/lib/project-module-sessions";
+import { getProjectModuleSessionCodesForCourse, PROJECT_MODULE_SESSIONS } from "@/lib/project-module-sessions";
+import { readFacultySelectedCourseCode } from "@/lib/project-presentation-course-scope";
 import { getInstructorScopeHeaders } from "@/lib/instructor-client-scope-headers";
+import { instructorApiFetch } from "@/lib/instructor-api-headers";
+import { useInstructorDashboardV2 } from "@/components/instructor/dashboard-v2/InstructorDashboardV2Context";
 import {
   FacultyIntegratedToolbar,
   facultyToolbarFilterButtonClass,
@@ -244,6 +247,7 @@ export function InstructorProjectStudentGrades({ embedInDashboard }: { embedInDa
   const fp = chrome.p;
   const cardBase = chrome.card;
   const { toast } = useToast();
+  const { courseScopeVersion } = useInstructorDashboardV2();
   const [grades, setGrades] = useState<StudentGrade[]>([]);
   const [loading, setLoading] = useState(true);
   const [sessionFilter, setSessionFilter] = useState("all");
@@ -266,7 +270,16 @@ export function InstructorProjectStudentGrades({ embedInDashboard }: { embedInDa
     "local",
   );
 
-  const sessions = ["all", ...getProjectModuleSessionCodes()];
+  const sessions = useMemo(
+    () => ["all", ...getProjectModuleSessionCodesForCourse(readFacultySelectedCourseCode())],
+    [courseScopeVersion],
+  );
+
+  useEffect(() => {
+    setSessionFilter("all");
+    setSearchQuery("");
+    setGrades([]);
+  }, [courseScopeVersion]);
 
   const fetchStudentGrades = useCallback(async (opts?: { silent?: boolean }) => {
     try {
@@ -277,17 +290,21 @@ export function InstructorProjectStudentGrades({ embedInDashboard }: { embedInDa
       const query =
         sessionFilter === "all" ? `/api/groups` : `/api/groups?session=${encodeURIComponent(sessionFilter)}`;
 
-      const response = await fetch(query, { headers: getInstructorScopeHeaders() });
-      const data = await response.json();
+      const response = await instructorApiFetch(query, { headers: getInstructorScopeHeaders() });
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error("Failed to fetch groups");
+        throw new Error(typeof data.error === "string" ? data.error : "Failed to fetch groups");
       }
 
-      const scoresResponse = await fetch("/api/projects/list", { headers: getInstructorScopeHeaders() });
-      const scoresData = await scoresResponse.json();
+      const scoresResponse = await instructorApiFetch("/api/projects/list", {
+        headers: getInstructorScopeHeaders(),
+      });
+      const scoresData = await scoresResponse.json().catch(() => ({}));
 
-      const totalsRes = await fetch("/api/projects/vote-totals");
+      const totalsRes = await instructorApiFetch("/api/projects/vote-totals", {
+        headers: getInstructorScopeHeaders(),
+      });
       const totalsJson = (await totalsRes.json().catch(() => ({}))) as {
         byProjectId?: Record<string, { totalScore?: number }>;
       };
@@ -374,7 +391,7 @@ export function InstructorProjectStudentGrades({ embedInDashboard }: { embedInDa
     } finally {
       setLoading(false);
     }
-  }, [sessionFilter, toast]);
+  }, [sessionFilter, toast, courseScopeVersion]);
 
   useEffect(() => {
     void fetchStudentGrades();

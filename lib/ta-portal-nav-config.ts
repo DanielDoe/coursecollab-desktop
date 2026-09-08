@@ -104,7 +104,7 @@ export const TA_NAV_GROUPS: NavGroup[] = [
     icon: BarChart3,
     items: [
       { id: "course-analytics", label: "Manage Results", href: p("/results"), icon: BarChart3 },
-      { id: "student-progress", label: "Student Progress", href: p("/analytics/advanced"), icon: GraduationCap },
+      { id: "student-progress", label: "Class Analytics", href: p("/analytics/advanced"), icon: GraduationCap },
     ],
   },
   {

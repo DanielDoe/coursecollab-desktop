@@ -79,7 +79,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   "learning-center": "Learning Center",
   course: "Course",
   analytics: "Analytics",
-  "student-progress": "Student Progress",
+  "student-progress": "Class Analytics",
   recommendations: "Recommendation Letters",
   discussions: "Course Discussions",
   "teaching-assistants": "Teaching Assistants",

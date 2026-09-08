@@ -7,7 +7,7 @@ import {
   registerAppScheme,
   usePackagedRenderer,
 } from './app-protocol'
-import { buildDesktopUserAgent, resolveStartupPath } from './constants'
+import { buildDesktopUserAgent, resolveInitialStartPath } from './constants'
 import { isAppQuitting, setAppQuitting } from './app-state'
 import {
   setNotificationSyncContext,
@@ -184,7 +184,7 @@ function createWindow() {
     }
   })
 
-  const startPath = readLastDesktopRoute() || resolveStartupPath()
+  const startPath = resolveInitialStartPath(readLastDesktopRoute, app.isPackaged)
   if (usePackagedRenderer()) {
     void contents.loadURL(`${getAppOrigin()}${startPath}`)
     return

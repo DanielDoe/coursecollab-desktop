@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./assessment-context-Di_mlHRp.js";var n=e();function r({children:e,params:r}){let i=[`quiz`,`mid_semester`,`final`,`homework`].includes(r.assessmentType)?r.assessmentType:`quiz`;return(0,n.jsx)(t,{type:i,children:e})}export{r as default};

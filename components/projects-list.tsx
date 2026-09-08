@@ -108,11 +108,12 @@ export function ProjectsList({
   }
 
   const embedRootClass = embedInDashboard
-    ? "flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4"
+    ? "flex min-h-0 flex-1 flex-col gap-4 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 sm:gap-5 sm:p-6"
     : "space-y-3 sm:space-y-4 pt-3 sm:pt-5"
 
   return (
     <div className={cn(embedRootClass)}>
+      <div className={cn(embedInDashboard && "shrink-0 space-y-4")}>
       <h3 className={cn(
         "shrink-0",
         embedInDashboard
@@ -132,18 +133,24 @@ export function ProjectsList({
         transition={{ delay: 0.1 }}
         className="relative shrink-0"
       >
-        <Search className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-3.5 w-3.5 sm:h-4 sm:w-4 dark:text-slate-500" />
+        <Search className={cn(
+          "absolute top-1/2 -translate-y-1/2 text-muted-foreground h-3.5 w-3.5 sm:h-4 sm:w-4 dark:text-slate-500",
+          embedInDashboard ? "left-3.5" : "left-2.5 sm:left-3",
+        )} />
         <Input
           placeholder="Search..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className={cn(
-            "pl-8 sm:pl-10 h-9 sm:h-10 rounded-lg sm:rounded-xl border-2 transition-colors text-sm sm:text-base dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-200 dark:placeholder:text-slate-500",
-            embedInDashboard ? "border-[var(--border)] bg-[var(--muted)]/40 text-[var(--cc-text)]" : "focus:border-indigo-500 dark:focus:border-indigo-400"
+            "h-9 sm:h-10 rounded-lg sm:rounded-xl border-2 transition-colors text-sm sm:text-base dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-200 dark:placeholder:text-slate-500",
+            embedInDashboard
+              ? "border-[var(--border)] bg-[var(--muted)]/40 pl-10 text-[var(--cc-text)] sm:pl-11"
+              : "pl-8 sm:pl-10 focus:border-indigo-500 dark:focus:border-indigo-400"
           )}
           title="Search projects..."
         />
       </motion.div>
+      </div>
 
       {/* Projects Grid */}
       {filteredProjects.length === 0 ? (

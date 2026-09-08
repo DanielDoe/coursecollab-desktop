@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
+import { FACULTY_DASHBOARD_BASE } from "@/lib/faculty-portal-nav-config"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -10,6 +12,11 @@ import { useToast } from "@/components/ui/use-toast"
 import { buildInstructorAuthorizedApiHeaders } from "@/lib/instructor-api-headers"
 import { useInstructorDashboardV2 } from "@/components/instructor/dashboard-v2/InstructorDashboardV2Context"
 import { InstructorAnalyticsPerformanceView } from "@/components/instructor/analytics-performance-view"
+import {
+  ClassAnalyticsOverviewPanels,
+  ClassAnalyticsRosterPanel,
+} from "@/components/instructor/ClassAnalyticsPanels"
+import { useClassAnalytics } from "@/hooks/use-class-analytics"
 import { FacultyModuleSplitLayout } from "@/components/instructor/dashboard-v2/FacultyModuleSplitLayout"
 import { FacultyModuleSideMenu } from "@/components/instructor/dashboard-v2/FacultyModuleSideMenu"
 import {
@@ -28,53 +35,27 @@ import {
 import {
   BarChart3,
   TrendingUp,
-  TrendingDown,
   Users,
   BookOpen,
-  AlertTriangle,
   Clock,
   CheckCircle,
   Download,
   RefreshCw,
-  Calendar,
-  PieChart,
   LineChart,
   Activity,
   Brain,
   Zap,
-  Eye,
-  FileText,
-  UserCheck,
   Star,
-  Trophy,
-  Lightbulb,
-  Settings,
-  Filter,
-  ArrowUp,
-  ArrowDown,
-  Minus,
-  ArrowLeft
 } from "lucide-react"
 import {
   LineChart as RechartsLineChart,
   Line,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  PieChart as RechartsPieChart,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar
 } from "recharts"
 
 interface AdvancedAnalyticsData {
@@ -225,6 +206,7 @@ export function InstructorAdvancedAnalytics({
   const [searchQuery, setSearchQuery] = useState("")
   const { toast } = useToast()
   const { courseScopeVersion } = useInstructorDashboardV2()
+  const classAnalytics = useClassAnalytics(courseScopeVersion)
 
   useEffect(() => {
     fetchAnalytics()
@@ -377,6 +359,7 @@ export function InstructorAdvancedAnalytics({
   const cardHeaderBase = cn("flex items-center gap-2", "text-[var(--cc-text)]")
   const cardIconBase = cn("p-2 rounded-lg shrink-0", fp.iconBg)
   const cardIcon = cn("h-4 w-4", fp.iconText)
+  const classAnalyticsChrome = { cardBase, cardHeaderBase, cardIconBase, cardIcon }
 
   const toolbar = (
     <FacultyIntegratedToolbar
@@ -455,6 +438,20 @@ export function InstructorAdvancedAnalytics({
         <div className="flex-1 min-w-0 overflow-x-hidden">
         {activeTab === "overview" && (
         <div className="space-y-6">
+          {classAnalytics.loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className={cn("h-6 w-6", AN_SPINNER)} />
+            </div>
+          ) : (
+            <ClassAnalyticsOverviewPanels
+              overview={classAnalytics.overview}
+              engagementDistribution={classAnalytics.engagementDistribution}
+              weeklyTrend={classAnalytics.weeklyTrend}
+              rosterCount={classAnalytics.rows.length}
+              chrome={classAnalyticsChrome}
+            />
+          )}
+
           {/* Completion Rate */}
           <Card className={cardBase}>
             <CardHeader className="pb-4">
@@ -604,85 +601,17 @@ export function InstructorAdvancedAnalytics({
 
         {activeTab === "students" && (
         <div className="space-y-6">
-          <Card className={cardBase}>
-            <CardHeader className="pb-4">
-              <CardTitle className={cardHeaderBase}>
-                <div className={cardIconBase}>
-                  <Trophy className={cardIcon} />
-                </div>
-                Top performers
-              </CardTitle>
-              <CardDescription className="text-slate-600 dark:text-slate-400">
-                Highest-scoring students
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {data.topStudents.length === 0 ? (
-                  <AnalyticsSectionEmpty message="No graded attempts to rank students in this period." />
-                ) : (
-                data.topStudents.map((student, index) => (
-                  <div key={student.id} className="flex items-center justify-between p-4 rounded-lg border border-slate-200/60 dark:border-white/[0.06] bg-green-50/50 dark:bg-green-500/5 border-green-200/50 dark:border-green-500/20">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-teal-500/20 dark:bg-teal-500/30 flex items-center justify-center font-bold text-teal-700 dark:text-teal-300 text-sm">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <div className="font-medium text-slate-800 dark:text-slate-200">{student.first_name} {student.last_name}</div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">{student.session_code}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4 sm:gap-6">
-                      <div className="text-right"><p className="text-xs text-slate-500 dark:text-slate-400">Attempts</p><p className="font-medium">{student.total_attempts}</p></div>
-                      <div className="text-right"><p className="text-xs text-slate-500 dark:text-slate-400">Avg</p><span className={`font-semibold ${getScoreColor(student.avg_score)}`}>{formatNumber(student.avg_score)}%</span></div>
-                      <div className="text-right"><p className="text-xs text-slate-500 dark:text-slate-400">Highest</p><span className="font-semibold text-green-600 dark:text-green-400">{student.highest_score}%</span></div>
-                    </div>
-                  </div>
-                ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className={cardBase}>
-            <CardHeader className="pb-4">
-              <CardTitle className={cardHeaderBase}>
-                <div className={cardIconBase}>
-                  <AlertTriangle className={cardIcon} />
-                </div>
-                Needing support
-              </CardTitle>
-              <CardDescription className="text-slate-600 dark:text-slate-400">
-                Students who may need extra help
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {data.strugglingStudents.length === 0 ? (
-                  <AnalyticsSectionEmpty message="No students below 60% average in this period — or no attempts yet." />
-                ) : (
-                data.strugglingStudents.map((student, index) => (
-                  <div key={student.id} className="flex items-center justify-between p-4 rounded-lg border border-slate-200/60 dark:border-white/[0.06] bg-red-50/50 dark:bg-red-500/5 border-red-200/50 dark:border-red-500/20">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-slate-200/80 dark:bg-white/10 flex items-center justify-center font-bold text-slate-600 dark:text-slate-400 text-sm">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <div className="font-medium text-slate-800 dark:text-slate-200">{student.first_name} {student.last_name}</div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">{student.session_code}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4 sm:gap-6">
-                      <div className="text-right"><p className="text-xs text-slate-500 dark:text-slate-400">Attempts</p><p className="font-medium">{student.total_attempts}</p></div>
-                      <div className="text-right"><p className="text-xs text-slate-500 dark:text-slate-400">Avg</p><span className={`font-semibold ${getScoreColor(student.avg_score)}`}>{formatNumber(student.avg_score)}%</span></div>
-                      <div className="text-right"><p className="text-xs text-slate-500 dark:text-slate-400">Lowest</p><span className="font-semibold text-red-600 dark:text-red-400">{student.lowest_score}%</span></div>
-                    </div>
-                  </div>
-                ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          {classAnalytics.loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className={cn("h-6 w-6", AN_SPINNER)} />
+            </div>
+          ) : (
+            <ClassAnalyticsRosterPanel
+              rows={classAnalytics.rows}
+              searchQuery={searchQuery}
+              chrome={classAnalyticsChrome}
+            />
+          )}
         </div>
         )}
 
@@ -772,6 +701,29 @@ export function InstructorAdvancedAnalytics({
 
         {activeTab === "ai-tutor" && (
         <div className="space-y-6">
+          <Card className={cardBase}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Shared Cora data</CardTitle>
+              <CardDescription>
+                Only students who opted in appear in monitoring and insights. Open those modules for
+                struggles, common errors, and who needs help.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              <Button asChild size="sm" className={cn("h-9 gap-2", facultyEmbedChrome("advanced-analytics").solid)}>
+                <Link href={`${FACULTY_DASHBOARD_BASE}/analytics/ai-monitoring`}>
+                  <Activity className="h-3.5 w-3.5" />
+                  AI Monitoring
+                </Link>
+              </Button>
+              <Button asChild size="sm" className={cn("h-9 gap-2", facultyEmbedChrome("advanced-analytics").quiet)}>
+                <Link href={`${FACULTY_DASHBOARD_BASE}/analytics/ai-insights`}>
+                  <Brain className="h-3.5 w-3.5" />
+                  AI Insights
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Card className={cardBase}>
               <CardHeader className="pb-2 pt-4 px-4">
@@ -865,13 +817,13 @@ export function InstructorAdvancedAnalytics({
         menu={
           <FacultyModuleSideMenu
             moduleId="advanced-analytics"
-            title="Analytics"
+            title="Class Analytics"
             activeId={activeTab}
             onSelect={setActiveTab}
             items={[
               { id: "overview", label: "Overview", icon: BarChart3 },
               { id: "performance", label: "Performance", icon: TrendingUp },
-              { id: "students", label: "Students", icon: Users },
+              { id: "students", label: "Class roster", icon: Users },
               { id: "assessments", label: "Assessments", icon: BookOpen },
               { id: "trends", label: "Trends", icon: LineChart },
               { id: "ai-tutor", label: "AI Tutor", icon: Brain },

@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./use-prevent-back-D2gqlm1p.js";import{t as n}from"./instructor-ai-evaluation-manager-Ck671rPI.js";var r=e();function i(){return t(`/instructor/login`),(0,r.jsx)(n,{variant:`standalone`})}export{i as default};

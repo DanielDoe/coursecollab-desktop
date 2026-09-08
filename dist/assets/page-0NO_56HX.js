@@ -1,1 +1,0 @@
-import{zt as e}from"./index-Bk6sIswz.js";function t(){e(`/student/dashboard-v2/ai-notetaker`)}export{t as default};

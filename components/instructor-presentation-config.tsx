@@ -8,7 +8,15 @@ import { useToast } from "@/hooks/use-toast";
 import { Calendar, Save, RefreshCw, Plus } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
-import { getProjectModuleSessionCodes, PROJECT_MODULE_SESSIONS } from "@/lib/project-module-sessions";
+import {
+  getProjectModuleSessionCodesForCourse,
+  getProjectModuleSessionsForCourse,
+} from "@/lib/project-module-sessions";
+import { instructorApiFetch } from "@/lib/instructor-api-headers";
+import {
+  presentationSessionBelongsToCourse,
+  readFacultySelectedCourseCode,
+} from "@/lib/project-presentation-course-scope";
 import type { DayScheduleEntry } from "@/lib/presentation-window-time";
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome";
 import { portalListStripe } from "@/lib/portal-module-themes";
@@ -26,7 +34,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { facultyModuleSpinnerClass } from "@/lib/faculty-module-themes";
-import { getInstructorScopeHeaders } from "@/lib/instructor-client-scope-headers";
 import { useInstructorDashboardV2 } from "@/components/instructor/dashboard-v2/InstructorDashboardV2Context";
 
 function formatDayScheduleWindows(
@@ -83,7 +90,9 @@ export function InstructorPresentationConfig({ embedInDashboard }: { embedInDash
     location: "New Electrical Engineering Bldg 119",
   });
 
-  const allSessions = getProjectModuleSessionCodes();
+  const selectedCourseCode = readFacultySelectedCourseCode();
+  const courseSessions = getProjectModuleSessionsForCourse(selectedCourseCode);
+  const allSessions = getProjectModuleSessionCodesForCourse(selectedCourseCode);
   const allDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
   useEffect(() => {
@@ -93,13 +102,17 @@ export function InstructorPresentationConfig({ embedInDashboard }: { embedInDash
   const fetchConfigs = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/projects/presentation-config", {
-        headers: getInstructorScopeHeaders(),
-      });
+      const response = await instructorApiFetch("/api/projects/presentation-config");
       const data = await response.json();
       
       if (response.ok) {
-        setConfigs(data.configs || []);
+        const courseCode = readFacultySelectedCourseCode()
+        const rows = (data.configs || []) as PresentationConfig[]
+        setConfigs(
+          courseCode
+            ? rows.filter((c) => presentationSessionBelongsToCourse(c.session, courseCode))
+            : rows,
+        )
       } else {
         toast({
           title: "Error",
@@ -231,9 +244,9 @@ export function InstructorPresentationConfig({ embedInDashboard }: { embedInDash
       const instructorSession = localStorage.getItem("instructorSession");
       const instructorId = instructorSession ? JSON.parse(instructorSession).databaseId : null;
 
-      const response = await fetch("/api/projects/presentation-config", {
+      const response = await instructorApiFetch("/api/projects/presentation-config", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...getInstructorScopeHeaders() },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           session: formData.session,
           presentationStartDate: formData.presentationStartDate,
@@ -288,13 +301,13 @@ export function InstructorPresentationConfig({ embedInDashboard }: { embedInDash
       if (dayFilter !== "all" && !config.lecture_days.includes(dayFilter)) return false;
       if (!query) return true;
       const label =
-        PROJECT_MODULE_SESSIONS.find((x) => x.code === config.session)?.label ?? config.session;
+        courseSessions.find((x) => x.code === config.session)?.label ?? config.session;
       const haystack = [label, config.session, config.location, config.lecture_days.join(" ")]
         .join(" ")
         .toLowerCase();
       return haystack.includes(query);
     });
-  }, [configs, searchQuery, sessionFilter, dayFilter]);
+  }, [configs, searchQuery, sessionFilter, dayFilter, courseSessions]);
 
   const formatDateRange = (start: string, end: string) => {
     const startDate = new Date(start);
@@ -330,7 +343,7 @@ export function InstructorPresentationConfig({ embedInDashboard }: { embedInDash
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All sessions</SelectItem>
-                {PROJECT_MODULE_SESSIONS.map(({ code, label }) => (
+                {courseSessions.map(({ code, label }) => (
                   <SelectItem key={code} value={code}>
                     {label}
                   </SelectItem>
@@ -403,7 +416,7 @@ export function InstructorPresentationConfig({ embedInDashboard }: { embedInDash
               <div className="min-w-0">
                 <h4 className={cn("font-semibold flex items-center gap-2", PORTAL_TEXT)}>
                   <Calendar className={cn("h-4 w-4", fp.iconText)} />
-                  {PROJECT_MODULE_SESSIONS.find((x) => x.code === config.session)?.label ??
+                  {courseSessions.find((x) => x.code === config.session)?.label ??
                     `Session ${config.session}`}
                 </h4>
                 <p className={cn("text-xs mt-1", PORTAL_TEXT_MUTED)}>
@@ -517,7 +530,7 @@ export function InstructorPresentationConfig({ embedInDashboard }: { embedInDash
                       .filter((s) => !configs.some((c) => c.session === s))
                       .map((session) => (
                         <SelectItem key={session} value={session}>
-                          {PROJECT_MODULE_SESSIONS.find((x) => x.code === session)?.label ?? session}
+                          {courseSessions.find((x) => x.code === session)?.label ?? session}
                         </SelectItem>
                       ))}
                   </SelectContent>

@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
-import { FileText, Plus, BarChart3, TrendingUp, Users, BookOpen, LineChart, Brain, Code2 } from "lucide-react"
-import { FacultyCodebenchStudioAnalytics } from "@/components/instructor/analytics/FacultyCodebenchStudioAnalytics"
+import { FileText, Plus, BarChart3, TrendingUp, Users, BookOpen, LineChart, Brain } from "lucide-react"
 import { FacultyModuleSplitLayout } from "@/components/instructor/dashboard-v2/FacultyModuleSplitLayout"
 import { FacultyModuleSideMenu } from "@/components/instructor/dashboard-v2/FacultyModuleSideMenu"
 import { InstructorAdvancedAnalytics } from "@/components/instructor-advanced-analytics"
@@ -72,7 +71,7 @@ export function FacultyAnalyticsHub() {
           menu={
             <FacultyModuleSideMenu
               moduleId="advanced-analytics"
-              title="Student Progress"
+              title="Class Analytics"
               activeId={activeSub}
               onSelect={(id) => {
                 setActiveSub(id)
@@ -81,30 +80,25 @@ export function FacultyAnalyticsHub() {
               items={[
                 { id: "overview", label: "Overview", icon: BarChart3 },
                 { id: "performance", label: "Performance", icon: TrendingUp },
-                { id: "students", label: "Students", icon: Users },
+                { id: "students", label: "Class roster", icon: Users },
                 { id: "assessments", label: "Assessments", icon: BookOpen },
                 { id: "trends", label: "Trends", icon: LineChart },
                 { id: "ai-tutor", label: "AI Tutor", icon: Brain },
-                { id: "codebench", label: "CodeBench", icon: Code2 },
               ]}
             />
           }
         >
-          {activeSub === "codebench" ? (
-            <FacultyCodebenchStudioAnalytics />
-          ) : (
-            <InstructorAdvancedAnalytics
-              key="student-progress"
-              embedInDashboard
-              embedInHub
-              activeTab={activeSub}
-              onActiveTabChange={(tab) => {
-                setActiveSub(tab)
-                syncSub(tab)
-              }}
-              hideSideMenu
-            />
-          )}
+          <InstructorAdvancedAnalytics
+            key="student-progress"
+            embedInDashboard
+            embedInHub
+            activeTab={activeSub}
+            onActiveTabChange={(tab) => {
+              setActiveSub(tab)
+              syncSub(tab)
+            }}
+            hideSideMenu
+          />
         </FacultyModuleSplitLayout>
       ) : null}
 

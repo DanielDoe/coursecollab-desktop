@@ -1,12 +1,16 @@
 "use client"
 
-import { memo, useEffect, useRef, useState, type ReactNode } from "react"
+import { Children, memo, useEffect, useRef, useState, type ReactNode } from "react"
 import { Search, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PORTAL_CARD } from "@/lib/appearance/portal-nav-classes"
 import { FacultyViewOrganizer } from "@/components/instructor/dashboard-v2/FacultyViewOrganizer"
 
 const SEARCH_DEBOUNCE_MS = 200
+
+function hasVisibleChildren(node: ReactNode): boolean {
+  return Children.toArray(node).length > 0
+}
 
 export type FacultyIntegratedToolbarProps = {
   moduleId: string
@@ -162,10 +166,22 @@ export function FacultyIntegratedToolbar({
 }: FacultyIntegratedToolbarProps) {
   const showSearch = onSearchChange !== undefined
   const showViewOrganizer = viewMode !== undefined && onViewModeChange !== undefined
-  const hasControlsRow = showSearch || filters || showViewOrganizer || trailing
+  const hasFilters = hasVisibleChildren(filters)
+  const hasTrailing = hasVisibleChildren(trailing)
+  const hasChips = hasVisibleChildren(chips)
+  const hasControlsRow = showSearch || hasFilters || showViewOrganizer || hasTrailing
+  const showMeta = Boolean(meta)
+  const showChips = hasChips
+
+  if (!hasControlsRow && !showMeta && !showChips) return null
 
   return (
-    <div className={cn("space-y-2", className)}>
+    <div
+      className={cn(
+        hasControlsRow && (showMeta || showChips) ? "space-y-3" : undefined,
+        className,
+      )}
+    >
       {hasControlsRow ? (
         <div
           className={cn(
@@ -189,7 +205,7 @@ export function FacultyIntegratedToolbar({
             />
           ) : null}
 
-          {filters ? (
+          {hasFilters ? (
             <div
               className={cn(
                 "flex shrink-0 flex-nowrap items-center gap-1.5",
@@ -209,7 +225,7 @@ export function FacultyIntegratedToolbar({
             />
           ) : null}
 
-          {trailing ? (
+          {hasTrailing ? (
             <div
               className={cn(
                 "ml-auto flex shrink-0 flex-nowrap items-center gap-1.5",
@@ -223,8 +239,8 @@ export function FacultyIntegratedToolbar({
         </div>
       ) : null}
 
-      {meta ? <div className="px-0.5 pb-2 sm:pb-3">{meta}</div> : null}
-      {chips ? <div className="flex flex-wrap gap-1.5 px-0.5">{chips}</div> : null}
+      {showMeta ? <div className="px-2 sm:px-2.5">{meta}</div> : null}
+      {hasChips ? <div className="flex flex-wrap gap-1.5 px-2 sm:px-2.5">{chips}</div> : null}
     </div>
   )
 }

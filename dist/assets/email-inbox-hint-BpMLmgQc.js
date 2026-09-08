@@ -1,1 +1,0 @@
-var e=`If you do not see our email within a few minutes, check your spam or junk folder and mark CourseCollab as not spam.`;export{e as t};

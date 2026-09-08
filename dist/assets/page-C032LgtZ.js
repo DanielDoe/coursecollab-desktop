@@ -1,1 +1,0 @@
-import{zt as e}from"./index-Bk6sIswz.js";function t(){e(`/institutions/briefing`)}export{t as default};

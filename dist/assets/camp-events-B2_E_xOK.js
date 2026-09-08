@@ -1,1 +1,0 @@
-function e(){typeof window<`u`&&window.dispatchEvent(new CustomEvent(`camp-xp-updated`))}export{e as notifyCampXpUpdated};

@@ -1,6 +1,7 @@
 "use client"
 
 import { instructorApiFetch } from "@/lib/instructor-api-headers"
+import { useInstructorDashboardV2 } from "@/components/instructor/dashboard-v2/InstructorDashboardV2Context"
 import { useCallback, useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import {
@@ -108,6 +109,7 @@ const likertLabels = Object.fromEntries(
 
 export function CourseEvaluationOverviewPanel() {
   const { toast } = useToast()
+  const { courseScopeVersion } = useInstructorDashboardV2()
   const [loading, setLoading] = useState(true)
   const [analytics, setAnalytics] = useState<CourseEvaluationAnalytics | null>(null)
 
@@ -127,7 +129,7 @@ export function CourseEvaluationOverviewPanel() {
 
   useEffect(() => {
     void load()
-  }, [load])
+  }, [load, courseScopeVersion])
 
   if (loading) {
     return (

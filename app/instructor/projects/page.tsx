@@ -20,7 +20,9 @@ import {
   RefreshCw,
 } from "lucide-react";
 import type { Project } from "@/lib/types/project";
-import { PROJECT_MODULE_SESSIONS } from "@/lib/project-module-sessions";
+import { getProjectModuleSessionsForCourse } from "@/lib/project-module-sessions";
+import { readFacultySelectedCourseCode } from "@/lib/project-presentation-course-scope";
+import { instructorApiFetch } from "@/lib/instructor-api-headers";
 import { ProjectStarVoting } from "@/components/project-star-voting";
 import { InstructorProjectsManagement } from "@/components/instructor-projects-management";
 import { InstructorPresentationsSchedule } from "@/components/instructor-presentations-schedule";
@@ -83,6 +85,11 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
   const [scoreProjectsPage, setScoreProjectsPage] = useState(1);
   const [scoreProjectsPageSize, setScoreProjectsPageSize] = useState<ProjectListPageSize>(30);
 
+  const courseSessions = useMemo(
+    () => getProjectModuleSessionsForCourse(readFacultySelectedCourseCode()),
+    [courseScopeVersion],
+  );
+
   useEffect(() => {
     const instructorSession = localStorage.getItem("instructorSession");
     if (instructorSession) {
@@ -96,27 +103,47 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
   }, []);
 
   useEffect(() => {
-    fetchProjects();
+    setSelectedSession(null);
+    setOverviewSearch("");
+    setOverviewRatingFilter("all");
+    setSelectedProject(null);
+    setProjects([]);
+    setScores([]);
+    void fetchProjects();
   }, [courseScopeVersion]);
 
   useEffect(() => {
     setScoreProjectsPage(1);
-  }, [selectedSession, scoreProjectsPageSize, overviewSearch, overviewRatingFilter]);
+  }, [selectedSession, scoreProjectsPageSize, overviewSearch, overviewRatingFilter, courseScopeVersion]);
 
   useEffect(() => {
     if (projects.length > 0) {
-      fetchScores();
+      void fetchScores();
+    } else {
+      setScores([]);
     }
-  }, [projects]);
+  }, [projects, courseScopeVersion]);
 
   const fetchProjects = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/projects/list", { headers: getInstructorScopeHeaders() });
-      const data = await response.json();
+      const response = await instructorApiFetch("/api/projects/list", {
+        headers: getInstructorScopeHeaders(),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setProjects([]);
+        toast({
+          title: "Failed to load projects",
+          description: typeof data.error === "string" ? data.error : undefined,
+          variant: "destructive",
+        });
+        return;
+      }
       setProjects(data.projects || []);
     } catch (error) {
       console.error("Failed to fetch projects:", error);
+      setProjects([]);
       toast({
         title: "Failed to load projects",
         variant: "destructive",
@@ -128,7 +155,9 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
 
   const fetchScores = async () => {
     try {
-      const totalsRes = await fetch("/api/projects/vote-totals");
+      const totalsRes = await instructorApiFetch("/api/projects/vote-totals", {
+        headers: getInstructorScopeHeaders(),
+      });
       const totalsJson = (await totalsRes.json().catch(() => ({}))) as {
         byProjectId?: Record<
           string,
@@ -333,6 +362,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                   search={overviewSearch}
                   onSearchChange={setOverviewSearch}
                   onSearchClear={() => setOverviewSearch("")}
+                  searchResetToken={courseScopeVersion}
                   searchPlaceholder="Search projects, groups, or leaders…"
                   filters={
                     <>
@@ -350,7 +380,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All sessions</SelectItem>
-                          {PROJECT_MODULE_SESSIONS.map(({ code, label }) => (
+                          {courseSessions.map(({ code, label }) => (
                             <SelectItem key={code} value={code}>
                               {label}
                             </SelectItem>
@@ -508,6 +538,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                   search={overviewSearch}
                   onSearchChange={setOverviewSearch}
                   onSearchClear={() => setOverviewSearch("")}
+                  searchResetToken={courseScopeVersion}
                   searchPlaceholder="Search projects, groups, or leaders…"
                   filters={
                     <>
@@ -522,7 +553,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All sessions</SelectItem>
-                          {PROJECT_MODULE_SESSIONS.map(({ code, label }) => (
+                          {courseSessions.map(({ code, label }) => (
                             <SelectItem key={code} value={code}>
                               {label}
                             </SelectItem>
@@ -623,6 +654,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                   search={overviewSearch}
                   onSearchChange={setOverviewSearch}
                   onSearchClear={() => setOverviewSearch("")}
+                  searchResetToken={courseScopeVersion}
                   searchPlaceholder="Search projects, groups, or leaders…"
                   filters={
                     <>
@@ -640,7 +672,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All sessions</SelectItem>
-                          {PROJECT_MODULE_SESSIONS.map(({ code, label }) => (
+                          {courseSessions.map(({ code, label }) => (
                             <SelectItem key={code} value={code}>
                               {label}
                             </SelectItem>

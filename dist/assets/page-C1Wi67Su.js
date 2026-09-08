@@ -1,1 +1,0 @@
-import{kt as e,zt as t}from"./index-Bk6sIswz.js";function n({searchParams:n}){let r=new URLSearchParams;n.plan&&r.set(`plan`,n.plan),n.cadence&&r.set(`cadence`,n.cadence);let i=r.toString()?`?${r.toString()}`:``;t(`${e}/cancel${i}`)}export{n as default};

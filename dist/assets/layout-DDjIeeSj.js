@@ -1,1 +1,0 @@
-import{zt as e}from"./index-Bk6sIswz.js";import{n as t}from"./camper-nav-BD-e5hqy.js";function n({children:n}){return e(t),n}export{n as default};

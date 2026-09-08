@@ -130,7 +130,11 @@ export function InstructorFlashcardsPanel() {
       {activeMenu === "configuration" ? <InstructorFlashcardsConfigView /> : null}
 
       {activeMenu === "student-activity" ? (
-        <InstructorModuleStudentActivityView module="flashcards" moduleId={FLASHCARD_MODULE_ID} />
+        <InstructorModuleStudentActivityView
+          module="flashcards"
+          moduleId={FLASHCARD_MODULE_ID}
+          embedInDashboard
+        />
       ) : null}
 
       {activeMenu === "deleted" ? <InstructorFlashcardsDeletedView onRestored={reload} /> : null}

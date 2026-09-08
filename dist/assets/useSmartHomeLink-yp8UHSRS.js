@@ -1,1 +1,0 @@
-import{o as e}from"./rolldown-runtime-C0FnF6B9.js";import{t}from"./react-CxYj4QkW.js";import{c as n,o as r,s as i}from"./auth-hypwfdfU.js";import{r as a}from"./student-dashboard-paths-fPv1MMO1.js";var o=e(t());r();function s(){let[e,t]=(0,o.useState)(`/`);return(0,o.useEffect)(()=>{let e=i(),r=n();t(e?`/admin/dashboard-v2`:r?a():`/`)},[]),e}export{s as t};

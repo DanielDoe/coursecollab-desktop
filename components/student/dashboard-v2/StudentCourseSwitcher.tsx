@@ -240,6 +240,8 @@ export function StudentCourseSwitcher({ className }: { className?: string }) {
       courseId: next.courseId,
       section: next.section,
       studentRowId: next.studentRowId,
+      sessionId: next.sessionId,
+      academicTermId: next.academicTermId,
     })
       .then((ok) => {
         if (!ok) {

@@ -178,21 +178,40 @@ export function InstructorProjectsManagement({ embedInDashboard }: { embedInDash
   }, []);
 
   useEffect(() => {
+    setSelectedSession("all");
+    setListPage(1);
+  }, [courseScopeVersion]);
+
+  useEffect(() => {
     setListPage(1);
   }, [selectedSession, statusFilter, searchQuery, listPageSize]);
 
   useEffect(() => {
-    fetchProjects();
+    void fetchProjects();
   }, [selectedSession, statusFilter, courseScopeVersion]);
 
   const fetchProjects = async () => {
     try {
+      setLoading(true);
       const url = buildProjectsListUrl(selectedSession, statusFilter);
-      const response = await fetch(url, { headers: getInstructorScopeHeaders() });
-      const data = await response.json();
+      const response = await instructorApiFetch(url, { headers: getInstructorScopeHeaders() });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setProjects([]);
+        toast({
+          title: "❌ Failed to Load Projects",
+          description:
+            typeof data.error === "string"
+              ? data.error
+              : "Could not retrieve project data from the database. Please refresh the page or check your connection.",
+          variant: "destructive",
+        });
+        return;
+      }
       setProjects(data.projects || []);
     } catch (error) {
       console.error("[v0] Failed to fetch projects:", error);
+      setProjects([]);
       toast({
         title: "❌ Failed to Load Projects",
         description:

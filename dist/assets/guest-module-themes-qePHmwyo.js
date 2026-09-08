@@ -1,1 +1,0 @@
-import{h as e}from"./portal-module-themes-DLVU7pU0.js";function t(){return e(`brand`)}function n(){let e=t();return`${e.page.softBg} ${e.page.iconText} border ${e.page.border} shadow-sm`}export{n,t};

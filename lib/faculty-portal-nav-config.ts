@@ -44,6 +44,7 @@ import {
   ClipboardCheck,
   CreditCard,
   Share2,
+  Activity,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { NavGroup, NavItem } from "@/lib/portal-nav-config"
@@ -133,9 +134,11 @@ export const FACULTY_NAV_REGISTRY: FacultyNavGroupDef[] = [
     icon: BarChart3,
     items: [
       { id: "results", label: "Manage Results", href: p("/analytics?section=results"), icon: ClipboardList, requiredPermissions: ["view_analytics"] },
-      { id: "advanced-analytics", label: "Student Progress", href: p("/analytics?section=student-progress"), icon: BarChart3, requiredPermissions: ["view_analytics"] },
+      { id: "advanced-analytics", label: "Class Analytics", href: p("/analytics?section=student-progress"), icon: BarChart3, requiredPermissions: ["view_analytics"] },
       { id: "reports", label: "Manage Reports", href: p("/analytics?section=reports"), icon: FileText, requiredPermissions: ["view_analytics"] },
       { id: "progress-reviews", label: "Progress Reviews", href: p("/analytics?section=progress-reviews"), icon: Sparkles, requiredPermissions: ["view_analytics"] },
+      { id: "ai-monitoring", label: "AI Monitoring", href: p("/analytics/ai-monitoring"), icon: Activity, requiredPermissions: ["view_analytics"] },
+      { id: "ai-insights", label: "AI Insights", href: p("/analytics/ai-insights"), icon: Bot, requiredPermissions: ["view_analytics"] },
     ],
   },
   {

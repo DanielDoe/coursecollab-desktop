@@ -10,6 +10,14 @@ import { AnnouncementDetailModal } from "./announcement-detail-modal"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import {
   Search, Filter, X, CheckCircle2,
   AlertCircle, Inbox, LayoutGrid, List, SlidersHorizontal
 } from "lucide-react"
@@ -95,6 +103,11 @@ export function AnnouncementsFeedRedesign({
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [showUnreadOnlyInternal, setShowUnreadOnlyInternal] = useState(false)
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'mostViewed'>('newest')
+  const [page, setPage] = useState(1)
+
+  const listPageSize = 6
+  const gridPageSize = 6
+  const pageSize = viewMode === "grid" ? gridPageSize : listPageSize
 
   const searchQuery = searchQueryProp ?? searchQueryInternal
   const setSearchQuery = onSearchQueryChange ?? setSearchQueryInternal
@@ -168,6 +181,17 @@ export function AnnouncementsFeedRedesign({
 
     return filtered
   }, [announcements, searchQuery, selectedCategories, showUnreadOnly, sortBy])
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, selectedCategories, showUnreadOnly, sortBy, viewMode])
+
+  const totalPages = Math.max(1, Math.ceil(filteredAnnouncements.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const pageStart = (safePage - 1) * pageSize
+  const pagedAnnouncements = filteredAnnouncements.slice(pageStart, pageStart + pageSize)
+  const rangeStart = filteredAnnouncements.length === 0 ? 0 : pageStart + 1
+  const rangeEnd = Math.min(pageStart + pageSize, filteredAnnouncements.length)
 
   const unreadCount = announcements.filter(a => !a.is_read).length
   const activeFiltersCount = selectedCategories.length + (showUnreadOnly && !hubLayout ? 1 : 0)
@@ -309,7 +333,7 @@ export function AnnouncementsFeedRedesign({
         </div>
       )}
 
-      <div className="flex items-center gap-1.5 sm:gap-2">
+      <div className={cn("flex items-center gap-1.5 sm:gap-2", hubLayout && "justify-end")}>
         {!hubLayout ? (
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--cc-text-muted)]" />
@@ -336,16 +360,7 @@ export function AnnouncementsFeedRedesign({
             </Button>
           )}
         </div>
-        ) : (
-          <div className="flex min-w-0 flex-1 items-center gap-0.5">
-            <Button variant="ghost" onClick={() => setViewMode("list")} size="icon" className={cn("h-8 w-8", viewMode === "list" && "bg-[var(--muted)]")} aria-label="List view">
-              <List className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" onClick={() => setViewMode("grid")} size="icon" className={cn("h-8 w-8", viewMode === "grid" && "bg-[var(--muted)]")} aria-label="Grid view">
-              <LayoutGrid className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
+        ) : null}
 
         <div className="flex shrink-0 items-center gap-0.5">
           {categories.length > 0 && (
@@ -482,7 +497,7 @@ export function AnnouncementsFeedRedesign({
               : "space-y-2 p-4 sm:p-5",
           )}
         >
-          {filteredAnnouncements.map((announcement, index) => (
+          {pagedAnnouncements.map((announcement, index) => (
             <motion.div
               key={announcement.id}
               layout
@@ -509,6 +524,58 @@ export function AnnouncementsFeedRedesign({
     </AnimatePresence>
   )
 
+  const pagination =
+    filteredAnnouncements.length > pageSize ? (
+      <div className="flex flex-col gap-2 border-t border-[var(--border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <p className="text-center text-xs tabular-nums text-[var(--cc-text-muted)] sm:text-left">
+          {rangeStart}–{rangeEnd} of {filteredAnnouncements.length}
+        </p>
+        <Pagination className="mx-0 w-auto justify-center sm:justify-end">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault()
+                  if (safePage > 1) setPage(safePage - 1)
+                }}
+                className={safePage <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                aria-disabled={safePage <= 1}
+              />
+            </PaginationItem>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
+              <PaginationItem key={pageNumber} className="hidden sm:list-item">
+                <PaginationLink
+                  href="#"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    setPage(pageNumber)
+                  }}
+                  isActive={safePage === pageNumber}
+                  className="cursor-pointer"
+                >
+                  {pageNumber}
+                </PaginationLink>
+              </PaginationItem>
+            ))}
+            <PaginationItem>
+              <PaginationNext
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault()
+                  if (safePage < totalPages) setPage(safePage + 1)
+                }}
+                className={
+                  safePage >= totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"
+                }
+                aria-disabled={safePage >= totalPages}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      </div>
+    ) : null
+
   return (
     <div className="space-y-5 w-full min-w-0 overflow-visible">
       <StaleRefreshHint visible={refreshFailed} onRetry={() => void refetch()} />
@@ -516,6 +583,7 @@ export function AnnouncementsFeedRedesign({
         <>
           {announcements.length > 0 ? <div className="mb-3">{toolbar}</div> : null}
           {feedBody}
+          {pagination}
         </>
       ) : embedInDashboard ? (
         <motion.section
@@ -526,6 +594,7 @@ export function AnnouncementsFeedRedesign({
         >
           <div className="p-4 sm:p-5">{toolbar}</div>
           {feedBody}
+          {pagination}
         </motion.section>
       ) : (
         <>
@@ -538,6 +607,7 @@ export function AnnouncementsFeedRedesign({
             {toolbar}
           </motion.div>
           {feedBody}
+          {pagination}
         </>
       )}
 

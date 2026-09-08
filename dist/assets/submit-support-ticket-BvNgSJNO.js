@@ -1,1 +1,0 @@
-import{a as e,o as t,v as n}from"./auth-hypwfdfU.js";t();async function r(t){let r=e();return n(`/api/student/support-tickets`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({studentId:r?.databaseId??null,subject:t.subject,description:t.description,category:t.category??`general`,priority:t.priority??`medium`,audience:`guest`})})}export{r as t};

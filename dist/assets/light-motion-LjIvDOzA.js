@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./utils-jU4PRXjo.js";var n=e();function r({children:e,className:r,...i}){return(0,n.jsx)(`div`,{className:t(`w-full min-w-0`,r),...i,children:e})}export{r as t};

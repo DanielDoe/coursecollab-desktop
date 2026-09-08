@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./FacultySettingsHub-Bi2Bs3sY.js";var n=e();function r(){return(0,n.jsx)(t,{initialSection:`help`})}export{r as default};

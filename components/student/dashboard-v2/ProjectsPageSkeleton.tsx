@@ -10,7 +10,7 @@ function Shimmer({ className }: { className?: string }) {
 export function ProjectsListPanelSkeleton({ rows = 4 }: { rows?: number }) {
   return (
     <div
-      className={cn(CC_MODULE_SKELETON_SURFACE, "space-y-3 overflow-hidden p-3 sm:p-4")}
+      className={cn(CC_MODULE_SKELETON_SURFACE, "space-y-3 overflow-hidden p-5 sm:space-y-4 sm:p-6")}
       aria-busy
       aria-label="Loading projects list"
     >

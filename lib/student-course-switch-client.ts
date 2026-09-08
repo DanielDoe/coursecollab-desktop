@@ -11,6 +11,8 @@ export type StudentCourseSwitchRequest = {
   courseId: number
   section?: string | null
   studentRowId?: number | null
+  sessionId?: number | null
+  academicTermId?: number | null
 }
 
 export async function bindStudentActiveEnrollment(
@@ -23,6 +25,8 @@ export async function bindStudentActiveEnrollment(
       courseId: request.courseId,
       section: request.section,
       studentRowId: request.studentRowId,
+      sessionId: request.sessionId,
+      academicTermId: request.academicTermId,
     }),
   })
   if (!res.ok) return false

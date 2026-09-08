@@ -1,6 +1,0 @@
-import{n as e}from"./math-markdown-Pgu2Atcu.js";var t=`⁰¹²³⁴⁵⁶⁷⁸⁹`;function n(e){let n=``;for(let r of e)n+=r===`-`?`⁻`:r===`+`?`⁺`:r>=`0`&&r<=`9`?t[+r]:r;return n}function r(t){if(!t)return t;let r=t.replace(/\\n/g,`
-`);return e(r)?r:(r=r.replace(/(\d+(?:\.\d+)?)\s*[×x]\s*10\^([+-]?\d+)/gi,(e,t,r)=>`${t} × 10${n(r)}`),r=r.replace(/10\^([+-]?\d+)/g,(e,t)=>`10${n(t)}`),r=r.replace(/\bbold\s+([A-Za-z])\b/g,`**$1**`),r=r.replace(/\b([a-zA-Z])\s*\(\s*t\s*\)/g,`*$1*(t)`),r)}var i=/^\(([a-z])\)\s*(.*)$/;function a(e){if(!e?.trim())return e;let t=e.split(`
-`),n=[],r=0;for(;r<t.length;){if(!t[r].match(i)){n.push(t[r]),r++;continue}let e=[];for(;r<t.length;){let n=t[r].match(i);if(!n)break;e.push({label:n[1],body:n[2].trim()}),r++}let a=n.map(e=>e.trim()).filter(Boolean).at(-1)??``;if(!(e.length>=2||/[:?]\s*$/.test(a))){for(let t of e)n.push(`(${t.label}) ${t.body}`);continue}n.length>0&&n[n.length-1].trim()!==``&&n.push(``);for(let t of e)n.push(`- **(${t.label})** ${t.body}`);n.push(``)}return n.join(`
-`).replace(/\n{3,}/g,`
-
-`).trimEnd()}export{a as n,r as t};

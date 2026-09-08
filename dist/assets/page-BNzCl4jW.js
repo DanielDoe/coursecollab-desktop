@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./LegacyFacultyRedirect-DTGBQxNW.js";var n=e();function r(){return(0,n.jsx)(t,{href:`/faculty/dashboard/assessments/grades`})}export{r as default};

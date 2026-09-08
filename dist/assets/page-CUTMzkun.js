@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./SystemMonitorContent-1ktY2bAt.js";var n=e();function r(){return(0,n.jsx)(`div`,{className:`container mx-auto px-6 py-8`,children:(0,n.jsx)(t,{})})}export{r as default};

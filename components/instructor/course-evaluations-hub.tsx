@@ -9,14 +9,16 @@ export type { CourseEvaluationNavSection } from "@/components/instructor/course-
 
 export function InstructorCourseEvaluations({
   activeSection = "overview",
+  onOpenEvaluations,
 }: {
   activeSection?: CourseEvaluationNavSection
+  onOpenEvaluations?: () => void
 }) {
   if (activeSection === "evaluations") {
     return <CourseEvaluationEvaluationsPanel />
   }
   if (activeSection === "pending-approval") {
-    return <CourseEvaluationPendingPanel />
+    return <CourseEvaluationPendingPanel onOpenEvaluations={onOpenEvaluations} />
   }
   return <CourseEvaluationOverviewPanel />
 }

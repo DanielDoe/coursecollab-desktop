@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./AdminPlaceholderPage-Dac0Pdqr.js";var n=e();function r(){return(0,n.jsx)(t,{title:`Financial Reports`,description:`Institution-wide financial reporting.`})}export{r as default};

@@ -90,8 +90,9 @@ export default function StudentSelectCoursePage() {
     setError("")
     const current = getStudentData()
     const sameCourse =
-      current?.courseId === course.courseId &&
-      (!course.section || !current.section || course.section === current.section)
+      course.studentRowId != null &&
+      current?.databaseId != null &&
+      String(course.studentRowId) === String(current.databaseId)
     if (sameCourse) {
       await continueAfterPick()
       return
@@ -100,6 +101,8 @@ export default function StudentSelectCoursePage() {
       courseId: course.courseId,
       section: course.section,
       studentRowId: course.studentRowId,
+      sessionId: course.sessionId,
+      academicTermId: course.academicTermId,
     })
     if (!ok) {
       setError("Could not open that course. Try again.")

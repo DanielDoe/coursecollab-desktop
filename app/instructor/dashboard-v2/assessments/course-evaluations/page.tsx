@@ -41,7 +41,10 @@ export default function InstructorCourseEvaluationsPage() {
               />
             }
           >
-            <InstructorCourseEvaluations activeSection={activeSection} />
+            <InstructorCourseEvaluations
+              activeSection={activeSection}
+              onOpenEvaluations={() => setActiveSection("evaluations")}
+            />
           </FacultyModuleSplitLayout>
         </div>
       </EmbedModuleCard>
