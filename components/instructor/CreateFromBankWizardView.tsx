@@ -190,7 +190,7 @@ export function CreateFromBankWizardView(props: CreateFromBankWizardViewProps) {
             <div className="space-y-2">
               <Label className={eLabel}>Difficulty</Label>
               <Select value={randomConfig.difficulty} onValueChange={(value) => setRandomConfig({ ...randomConfig, difficulty: value })}>
-                <SelectTrigger className={embeddedList ? "h-11 rounded-lg" : "h-11 border-slate-200 rounded-xl"}>
+                <SelectTrigger className={embeddedList ? cn(eInput, "h-11 w-full") : "h-11 border-slate-200 rounded-xl"}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -204,7 +204,7 @@ export function CreateFromBankWizardView(props: CreateFromBankWizardViewProps) {
             <div className="space-y-2 sm:col-span-2 lg:col-span-1">
               <Label className={eLabel}>Topic</Label>
               <Select value={randomConfig.topic} onValueChange={(value) => setRandomConfig({ ...randomConfig, topic: value })}>
-                <SelectTrigger className={embeddedList ? "h-11 rounded-lg" : "h-11 border-slate-200 rounded-xl"}>
+                <SelectTrigger className={embeddedList ? cn(eInput, "h-11 w-full") : "h-11 border-slate-200 rounded-xl"}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -230,7 +230,7 @@ export function CreateFromBankWizardView(props: CreateFromBankWizardViewProps) {
               <div className="space-y-2">
                 <Label className={eLabel}>Difficulty</Label>
                 <Select value={manualFilters.difficulty} onValueChange={(value) => setManualFilters({ ...manualFilters, difficulty: value })}>
-                  <SelectTrigger className={embeddedList ? "h-10 rounded-lg" : "h-11 rounded-xl border-slate-200 bg-white"}>
+                  <SelectTrigger className={embeddedList ? cn(eInput, "h-10 w-full") : "h-11 rounded-xl border-slate-200 bg-white"}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -244,7 +244,7 @@ export function CreateFromBankWizardView(props: CreateFromBankWizardViewProps) {
               <div className="space-y-2">
                 <Label className={eLabel}>Topic</Label>
                 <Select value={manualFilters.topic} onValueChange={(value) => setManualFilters({ ...manualFilters, topic: value })}>
-                  <SelectTrigger className={embeddedList ? "h-10 rounded-lg" : "h-11 rounded-xl border-slate-200 bg-white"}>
+                  <SelectTrigger className={embeddedList ? cn(eInput, "h-10 w-full") : "h-11 rounded-xl border-slate-200 bg-white"}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -342,8 +342,8 @@ export function CreateFromBankWizardView(props: CreateFromBankWizardViewProps) {
   )
 
   const renderStep1Fields = () => (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <div className="space-y-4">
+    <div className="grid min-h-0 flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-stretch">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         <div className="space-y-2">
           <Label htmlFor="bank-title" className={eLabel}>
             {assessmentLabel} title *
@@ -356,7 +356,7 @@ export function CreateFromBankWizardView(props: CreateFromBankWizardViewProps) {
             className={eInput}
           />
         </div>
-        <div className="space-y-2">
+        <div className="flex min-h-0 flex-1 flex-col space-y-2">
           <Label htmlFor="bank-description" className={eLabel}>
             Description
           </Label>
@@ -365,11 +365,11 @@ export function CreateFromBankWizardView(props: CreateFromBankWizardViewProps) {
             value={quizData.description}
             onChange={(e) => setQuizData({ ...quizData, description: e.target.value })}
             placeholder="Optional instructions for students"
-            className={eTextarea}
+            className={cn(eTextarea, "min-h-[120px] flex-1 resize-none lg:min-h-[160px]")}
           />
         </div>
       </div>
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4 lg:min-h-0">
         <div className="space-y-2">
           <Label htmlFor="bank-from" className={eLabel}>
             Available from
@@ -395,7 +395,7 @@ export function CreateFromBankWizardView(props: CreateFromBankWizardViewProps) {
           />
         </div>
         {isEmbedded ? (
-          <p className={cn("text-xs leading-relaxed", PORTAL_TEXT_MUTED)}>
+          <p className={cn("text-sm leading-relaxed text-[color-mix(in_srgb,var(--cc-text)_55%,var(--cc-text-muted))]")}>
             Leave dates empty to open immediately with no end date. You can adjust session access after creation.
           </p>
         ) : null}
@@ -508,21 +508,21 @@ export function CreateFromBankWizardView(props: CreateFromBankWizardViewProps) {
     }
 
     return (
-      <div className={cn(PORTAL_CARD, "overflow-hidden")}>
-        <div className="flex flex-col gap-2 border-b border-[var(--border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div className={cn(PORTAL_CARD, "flex min-h-0 flex-1 flex-col overflow-hidden")}>
+        <div className="flex shrink-0 flex-col gap-2 border-b border-[var(--border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <div className="min-w-0">
             <h2 className={cn("text-sm font-semibold", PORTAL_TEXT)}>Create from question bank</h2>
-            <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
+            <p className={cn("text-xs leading-relaxed", PORTAL_TEXT_MUTED)}>
               Build a new {assessmentLabel.toLowerCase()} from your course bank
             </p>
           </div>
-          <Badge variant="outline" className="w-fit shrink-0 border-[var(--cc-accent)]/30 text-[var(--cc-accent)]">
+          <Badge variant="outline" className="w-fit shrink-0 border-[var(--cc-accent)]/30 text-[var(--cc-accent-dark)] dark:text-[var(--cc-accent)]">
             Step {currentStep} of 3
           </Badge>
         </div>
 
-        <div className="flex min-h-[min(560px,70vh)] flex-col lg:flex-row">
-          <nav className="border-b border-[var(--border)] p-3 lg:w-52 lg:border-b-0 lg:border-r lg:p-4">
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row lg:items-stretch">
+          <nav className="shrink-0 border-b border-[var(--border)] p-3 lg:w-56 lg:border-b-0 lg:border-r lg:p-4">
             <ol className="flex gap-2 overflow-x-auto pb-0.5 lg:flex-col lg:gap-1 lg:overflow-visible">
               {workflowSteps.map((step) => {
                 const done = currentStep > step.number
@@ -537,21 +537,23 @@ export function CreateFromBankWizardView(props: CreateFromBankWizardViewProps) {
                       className={cn(
                         "flex w-full min-w-[148px] items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors lg:min-w-0",
                         active && "bg-[var(--cc-accent)]/10",
-                        !active && !done && "opacity-55",
+                        !active && !done && "cursor-default",
                         done && "cursor-pointer hover:bg-[var(--cc-accent-soft)]/45",
                       )}
                     >
                       <span
                         className={cn(
                           "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold",
-                          done || active ? chrome.solid : "bg-muted text-[var(--cc-text-muted)]",
+                          done || active ? chrome.solid : "bg-muted/80 text-[color-mix(in_srgb,var(--cc-text)_45%,var(--cc-text-muted))]",
                         )}
                       >
                         {done ? <Check className="h-4 w-4" /> : <Icon className="h-3.5 w-3.5" />}
                       </span>
                       <span className="min-w-0">
-                        <p className={cn("truncate text-xs font-semibold", active ? PORTAL_TEXT : PORTAL_TEXT_MUTED)}>{step.title}</p>
-                        <p className={cn("truncate text-[10px]", PORTAL_TEXT_MUTED)}>{step.description}</p>
+                        <p className={cn("text-xs font-semibold leading-snug lg:line-clamp-2", active || done ? PORTAL_TEXT : "text-[color-mix(in_srgb,var(--cc-text)_62%,var(--cc-text-muted))]")}>
+                          {step.title}
+                        </p>
+                        <p className={cn("text-xs leading-snug lg:line-clamp-2", active ? PORTAL_TEXT_MUTED : "text-[color-mix(in_srgb,var(--cc-text)_48%,var(--cc-text-muted))]")}>{step.description}</p>
                       </span>
                     </button>
                   </li>
@@ -561,7 +563,7 @@ export function CreateFromBankWizardView(props: CreateFromBankWizardViewProps) {
           </nav>
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-4 sm:p-5">
               {questionsLoading ? (
                 <div className="space-y-3">
                   <Skeleton className="h-8 w-48 rounded-lg" />
@@ -571,7 +573,11 @@ export function CreateFromBankWizardView(props: CreateFromBankWizardViewProps) {
                 </div>
               ) : (
                 <>
-                  {currentStep === 1 && renderStep1Fields()}
+                  {currentStep === 1 && (
+                    <div className="flex min-h-0 flex-1 flex-col">
+                      {renderStep1Fields()}
+                    </div>
+                  )}
                   {currentStep === 2 && (
                     <div className="space-y-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -613,7 +619,7 @@ export function CreateFromBankWizardView(props: CreateFromBankWizardViewProps) {
               )}
             </div>
 
-            <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] bg-muted/20 px-4 py-3 sm:px-5">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[var(--border)] bg-[var(--muted)]/35 px-4 py-3 sm:px-5">
               {currentStep > 1 ? (
                 <Button variant="outline" onClick={() => setCurrentStep(currentStep - 1)} className={quietBtn}>
                   <ChevronLeft className="mr-1.5 h-4 w-4" />
@@ -652,7 +658,7 @@ export function CreateFromBankWizardView(props: CreateFromBankWizardViewProps) {
             </div>
           </div>
 
-          <aside className="hidden border-t border-[var(--border)] p-4 xl:block xl:w-56 xl:border-t-0 xl:border-l">
+          <aside className="hidden shrink-0 border-t border-[var(--border)] p-4 xl:flex xl:w-56 xl:flex-col xl:border-t-0 xl:border-l">
             <p className={cn("mb-3 text-[10px] font-semibold uppercase tracking-[0.14em]", PORTAL_TEXT_MUTED)}>At a glance</p>
             <div className="space-y-2">
               <SummaryStat label="Bank size" value={questions.length} icon={Database} />

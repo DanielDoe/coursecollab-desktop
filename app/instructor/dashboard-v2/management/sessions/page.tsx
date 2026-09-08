@@ -1,18 +1,12 @@
 "use client"
 
 import { AcademicTermsManagement } from "@/components/academic-terms-management"
-import { EmbedModuleCard } from "@/components/student/dashboard-v2/embed-module-ui"
-import { PageEnter } from "@/components/student/dashboard-v2/light-motion"
-import { dashboardV2PageRootClass } from "@/lib/dashboard-v2-layout"
+import { StudentDashboardModulePage } from "@/components/student/dashboard-v2/StudentDashboardModulePage"
 
 export default function ManagementSessionsPage() {
   return (
-    <PageEnter className={dashboardV2PageRootClass}>
-      <EmbedModuleCard>
-        <div className="w-full min-w-0 p-3 sm:p-4 md:p-5">
-          <AcademicTermsManagement userType="instructor" embedInDashboard />
-        </div>
-      </EmbedModuleCard>
-    </PageEnter>
+    <StudentDashboardModulePage scrollMode="panel">
+      <AcademicTermsManagement userType="instructor" embedInDashboard />
+    </StudentDashboardModulePage>
   )
 }

@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{zn as t}from"./index-Bk6sIswz.js";import{t as n}from"./instructor-office-hours-panel-C6qz0UOG.js";var r=e();function i(){return(0,r.jsx)(t.div,{initial:{opacity:0,y:8},animate:{opacity:1,y:0},transition:{duration:.4},className:`w-full min-w-0 overflow-x-hidden`,children:(0,r.jsx)(n,{embedInDashboard:!0})})}export{i as default};

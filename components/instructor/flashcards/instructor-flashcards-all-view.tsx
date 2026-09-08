@@ -179,7 +179,7 @@ export function InstructorFlashcardsAllView({
 
   if (selectedDeckId) {
     return (
-      <div className="space-y-3 min-w-0">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
         <button
           type="button"
           onClick={() => onSelectDeck(null)}
@@ -218,8 +218,9 @@ export function InstructorFlashcardsAllView({
   }
 
   return (
-    <div className="space-y-3 min-w-0">
-      <FacultyIntegratedToolbar
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+      <div className="shrink-0">
+        <FacultyIntegratedToolbar
         moduleId={MODULE_ID}
         search={search}
         onSearchChange={setSearch}
@@ -280,9 +281,10 @@ export function InstructorFlashcardsAllView({
           </p>
         }
       />
+      </div>
 
       {viewMode === "list" ? (
-        <section className={cn(PORTAL_CARD, "flex flex-col gap-3 p-4")}>
+        <section className={cn(PORTAL_CARD, "flex min-h-0 flex-1 flex-col gap-3 p-4")}>
           {topicFilter ? (
             <div className="flex items-center gap-1.5 rounded-lg bg-[var(--sidebar-accent)]/50 px-2 py-1.5 text-xs">
               <span className="truncate flex-1">{topicFilter}</span>
@@ -296,7 +298,7 @@ export function InstructorFlashcardsAllView({
             </div>
           ) : null}
           {filteredDecks.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[var(--border)] px-3 py-10 text-center">
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border)] px-3 py-10 text-center">
               <Layers className="mx-auto h-7 w-7 text-muted-foreground/50" />
               <p className="mt-2 text-sm text-muted-foreground">No decks match your filters.</p>
               <Button size="sm" className={cn("mt-4", chrome.cta)} onClick={() => void createDeck()}>
@@ -306,23 +308,27 @@ export function InstructorFlashcardsAllView({
             </div>
           ) : (
             <>
-              <FlashcardDeckList
-                decks={pageDeckItems}
-                selectedDeckId={selectedDeckId}
-                onSelectDeck={onSelectDeck}
-              />
-              <FacultySidebarPagination
-                page={listPage}
-                totalPages={totalListPages}
-                totalItems={orderedDecks.length}
-                pageSize={FLASHCARD_DECK_PAGE_SIZE}
-                onPageChange={setListPage}
-              />
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <FlashcardDeckList
+                  decks={pageDeckItems}
+                  selectedDeckId={selectedDeckId}
+                  onSelectDeck={onSelectDeck}
+                />
+              </div>
+              <div className="shrink-0">
+                <FacultySidebarPagination
+                  page={listPage}
+                  totalPages={totalListPages}
+                  totalItems={orderedDecks.length}
+                  pageSize={FLASHCARD_DECK_PAGE_SIZE}
+                  onPageChange={setListPage}
+                />
+              </div>
             </>
           )}
         </section>
       ) : (
-        <section className={cn(PORTAL_CARD, "flex min-w-0 flex-col gap-3 p-4")}>
+        <section className={cn(PORTAL_CARD, "flex min-h-0 min-w-0 flex-1 flex-col gap-3 p-4")}>
           {topicFilter ? (
             <div className="flex items-center gap-1.5 rounded-lg bg-[var(--sidebar-accent)]/50 px-2 py-1.5 text-xs">
               <span className="truncate flex-1">{topicFilter}</span>
@@ -336,35 +342,39 @@ export function InstructorFlashcardsAllView({
             </div>
           ) : null}
           {filteredDecks.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[var(--border)] px-3 py-10 text-center">
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border)] px-3 py-10 text-center">
               <Layers className="mx-auto h-7 w-7 text-muted-foreground/50" />
               <p className="mt-2 text-sm text-muted-foreground">No decks match your filters.</p>
             </div>
           ) : (
             <>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {pageDeckItems.map((deck) => (
-                  <FlashcardDeckCard
-                    key={deck.id}
-                    title={deck.title}
-                    description={deck.description}
-                    topic={deck.topic}
-                    cardCount={deck.cardCount}
-                    isPublished={deck.isPublished}
-                    showInPracticeHub={deck.showInPracticeHub}
-                    updatedAt={deck.updatedAt}
-                    selected={selectedDeckId === deck.id}
-                    onSelect={() => onSelectDeck(deck.id)}
-                  />
-                ))}
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {pageDeckItems.map((deck) => (
+                    <FlashcardDeckCard
+                      key={deck.id}
+                      title={deck.title}
+                      description={deck.description}
+                      topic={deck.topic}
+                      cardCount={deck.cardCount}
+                      isPublished={deck.isPublished}
+                      showInPracticeHub={deck.showInPracticeHub}
+                      updatedAt={deck.updatedAt}
+                      selected={selectedDeckId === deck.id}
+                      onSelect={() => onSelectDeck(deck.id)}
+                    />
+                  ))}
+                </div>
               </div>
-              <FacultySidebarPagination
-                page={listPage}
-                totalPages={totalListPages}
-                totalItems={orderedDecks.length}
-                pageSize={FLASHCARD_DECK_PAGE_SIZE}
-                onPageChange={setListPage}
-              />
+              <div className="shrink-0">
+                <FacultySidebarPagination
+                  page={listPage}
+                  totalPages={totalListPages}
+                  totalItems={orderedDecks.length}
+                  pageSize={FLASHCARD_DECK_PAGE_SIZE}
+                  onPageChange={setListPage}
+                />
+              </div>
             </>
           )}
         </section>

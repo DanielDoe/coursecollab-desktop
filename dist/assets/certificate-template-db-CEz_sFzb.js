@@ -1,1 +1,0 @@
-import{u as e}from"./certificate-template-utils-Bv3iyVcH.js";import{t}from"./page-BWJjCWb_.js";export{e as formatCertificateNumber,t as getCampCertificateTemplate};

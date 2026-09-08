@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{n as t}from"./assessment-context-Bm1GQlNu.js";import{t as n}from"./quiz-management-DnFagPrP.js";var r=e();function i(){let{type:e}=t();return(0,r.jsx)(n,{assessmentType:e})}export{i as default};

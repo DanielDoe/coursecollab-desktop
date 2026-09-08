@@ -220,6 +220,7 @@ interface LeaderboardStats {
 }
 
 const SESSIONS_PER_PAGE = 6
+const QUESTIONS_PER_PAGE = 20
 
 export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDashboard?: boolean } = {}) {
   const chrome = facultyEmbedChrome("playground")
@@ -238,6 +239,7 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
   const [clearConfirmPhrase, setClearConfirmPhrase] = useState("")
   const [clearingSessions, setClearingSessions] = useState(false)
   const [sessionsPage, setSessionsPage] = useState(1)
+  const [questionsPage, setQuestionsPage] = useState(1)
   const [sessionSearch, setSessionSearch] = useState("")
   const [sessionViewMode, setSessionViewMode] = useState<"grid" | "list">("grid")
   const [openedSessionId, setOpenedSessionId] = useState<number | null>(null)
@@ -1122,11 +1124,31 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
   }
 
   // Filtered questions based on search and selected topics
-  const filteredQuestions = questions.filter((q) => {
-    const matchesSearch = !searchTerm || q.questionText.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesTopic = selectedTopics.length === 0 || selectedTopics.includes(q.topic)
-    return matchesSearch && matchesTopic
-  })
+  const filteredQuestions = useMemo(
+    () =>
+      questions.filter((q) => {
+        const matchesSearch = !searchTerm || q.questionText.toLowerCase().includes(searchTerm.toLowerCase())
+        const matchesTopic = selectedTopics.length === 0 || selectedTopics.includes(q.topic)
+        return matchesSearch && matchesTopic
+      }),
+    [questions, searchTerm, selectedTopics],
+  )
+
+  const totalQuestionsPages = Math.max(1, Math.ceil(filteredQuestions.length / QUESTIONS_PER_PAGE))
+  const paginatedQuestions = useMemo(() => {
+    const start = (questionsPage - 1) * QUESTIONS_PER_PAGE
+    return filteredQuestions.slice(start, start + QUESTIONS_PER_PAGE)
+  }, [filteredQuestions, questionsPage])
+
+  useEffect(() => {
+    setQuestionsPage(1)
+  }, [searchTerm, selectedTopics, selectedDifficulty, selectedQuestionTypes])
+
+  useEffect(() => {
+    if (questionsPage > totalQuestionsPages) {
+      setQuestionsPage(totalQuestionsPages)
+    }
+  }, [questionsPage, totalQuestionsPages])
 
   const editorBankQuestions = questions.filter((q) => {
     if (!editorAddSearch.trim()) return true
@@ -1217,7 +1239,7 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
     <div
       className={
         embedInDashboard
-          ? "w-full min-w-0"
+          ? "flex min-h-0 w-full min-w-0 flex-1 flex-col"
           : "w-full max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6"
       }
     >
@@ -1233,6 +1255,8 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
       )}
 
       <FacultyModuleSplitLayout
+        scrollMode={embedInDashboard ? "panel" : "page"}
+        className={embedInDashboard ? "min-h-0 flex-1" : undefined}
         menu={
           openedSession && activeTab === "sessions" ? null : (
           <FacultyModuleSideMenu
@@ -1249,9 +1273,15 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
         }
       >
         {/* Main Content */}
-        <div className="min-w-0 flex-1 space-y-4 sm:space-y-6">
+        <div
+          className={
+            embedInDashboard
+              ? "flex min-h-0 min-w-0 flex-1 flex-col gap-4 sm:gap-6"
+              : "min-w-0 flex-1 space-y-4 sm:space-y-6"
+          }
+        >
           {activePasscodeSessions.length > 0 && !(openedSession && activeTab === "sessions") && (
-            <div className="space-y-2">
+            <div className={cn("space-y-2", embedInDashboard && "shrink-0")}>
               {activePasscodeSessions.map((session) => (
                 <PlaygroundPasscodeBanner
                   key={session.id}
@@ -1457,7 +1487,8 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
               </section>
             </div>
           ) : activeTab === "sessions" ? (
-            <div className="space-y-4">
+            <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4"}>
+              <div className={embedInDashboard ? "shrink-0" : undefined}>
               <FacultyIntegratedToolbar
                 moduleId="playground"
                 search={sessionSearch}
@@ -1500,9 +1531,18 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
                   </>
                 }
               />
+              </div>
 
+              <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col" : undefined}>
               {filteredSessions.length === 0 ? (
-                <div className={cn(cardBase, "p-8 text-center sm:p-10")}>
+                <div
+                  className={cn(
+                    cardBase,
+                    embedInDashboard
+                      ? "flex min-h-0 flex-1 flex-col items-center justify-center border-dashed px-4 py-10 text-center"
+                      : "p-8 text-center sm:p-10",
+                  )}
+                >
                   <Gamepad2 className="mx-auto mb-3 h-12 w-12 text-muted-foreground/50" />
                   <h4 className={cn("mb-1 font-semibold", PORTAL_TEXT)}>
                     {sessionSearch.trim() ? "No sessions found" : "No playground sessions"}
@@ -1524,12 +1564,14 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
                   ) : null}
                 </div>
               ) : (
+                <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4"}>
                 <div
-                  className={
+                  className={cn(
+                    embedInDashboard && "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2",
                     sessionViewMode === "grid"
                       ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
-                      : "space-y-3"
-                  }
+                      : "space-y-3",
+                  )}
                 >
                   {paginatedSessions.map((session) => (
                     <PlaygroundSessionCard
@@ -1548,10 +1590,9 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
                     />
                   ))}
                 </div>
-              )}
 
               {totalSessionsPages > 1 && (
-                <div className="flex flex-col items-center justify-between gap-4 pt-2 sm:flex-row">
+                <div className={cn("flex flex-col items-center justify-between gap-4 pt-2 sm:flex-row", embedInDashboard && "shrink-0")}>
                   <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>
                     Showing {(sessionsPage - 1) * SESSIONS_PER_PAGE + 1}-
                     {Math.min(sessionsPage * SESSIONS_PER_PAGE, filteredSessions.length)} of {filteredSessions.length}{" "}
@@ -1602,6 +1643,9 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
                   </Pagination>
                 </div>
               )}
+                </div>
+              )}
+              </div>
             </div>
           ) : null}
 
@@ -1876,24 +1920,64 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {filteredQuestions.map((question) => (
-                    <PlaygroundQuestionCard
-                      key={question.id}
-                      questionText={question.questionText}
-                      questionType={question.questionType}
-                      topic={question.topic}
-                      difficulty={question.difficulty}
-                      selected={selectedQuestionIds.includes(question.id)}
-                      onToggle={() => toggleQuestion(question.id)}
-                    />
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {paginatedQuestions.map((question) => (
+                      <PlaygroundQuestionCard
+                        key={question.id}
+                        questionText={question.questionText}
+                        questionType={question.questionType}
+                        topic={question.topic}
+                        difficulty={question.difficulty}
+                        selected={selectedQuestionIds.includes(question.id)}
+                        onToggle={() => toggleQuestion(question.id)}
+                      />
+                    ))}
+                  </div>
+
+                  {totalQuestionsPages > 1 ? (
+                    <div className="flex flex-col items-center justify-between gap-4 pt-2 sm:flex-row">
+                      <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>
+                        Showing {(questionsPage - 1) * QUESTIONS_PER_PAGE + 1}-
+                        {Math.min(questionsPage * QUESTIONS_PER_PAGE, filteredQuestions.length)} of{" "}
+                        {filteredQuestions.length} questions
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1 px-2.5"
+                          disabled={questionsPage <= 1}
+                          onClick={() => setQuestionsPage((page) => Math.max(1, page - 1))}
+                        >
+                          Previous
+                        </Button>
+                        <p className={cn("min-w-[4.5rem] text-center text-xs tabular-nums", PORTAL_TEXT_MUTED)}>
+                          {questionsPage} / {totalQuestionsPages}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1 px-2.5"
+                          disabled={questionsPage >= totalQuestionsPages}
+                          onClick={() =>
+                            setQuestionsPage((page) => Math.min(totalQuestionsPages, page + 1))
+                          }
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                </>
               )}
             </div>
           )}
 
           {activeTab === "performance" && (
+            <div className={embedInDashboard ? "flex min-h-0 min-w-0 flex-1 flex-col" : undefined}>
             <InstructorPlaygroundPerformanceTab
               sessions={sessions}
               selectedSessionId={selectedPerformanceSessionId}
@@ -1916,10 +2000,12 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
               }}
               getSessionDisplayLabel={(session) => getSessionDisplayLabel(session as Session)}
             />
+            </div>
           )}
 
           {/* Leaderboard Tab */}
           {activeTab === "leaderboard" && (
+            <div className={embedInDashboard ? "flex min-h-0 min-w-0 flex-1 flex-col" : undefined}>
             <InstructorPlaygroundLeaderboardTab
               sessions={sessions}
               selectedLeaderboardSession={selectedLeaderboardSession}
@@ -1934,6 +2020,7 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
               onRefresh={() => fetchLeaderboard()}
               getSessionDisplayLabel={(session) => getSessionDisplayLabel(session as Session)}
             />
+            </div>
           )}
 
           {/* Configuration Tab */}

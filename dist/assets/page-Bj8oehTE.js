@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{zn as t}from"./index-Bk6sIswz.js";import"./light-motion-LjIvDOzA.js";import{t as n}from"./student-notifications-panel-DQBV8Btu.js";var r=e();function i(){return(0,r.jsx)(t.div,{initial:{opacity:0,y:8},animate:{opacity:1,y:0},className:`space-y-6`,children:(0,r.jsx)(n,{})})}export{i as default};

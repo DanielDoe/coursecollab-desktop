@@ -107,9 +107,14 @@ export function ProjectsList({
     );
   }
 
+  const embedRootClass = embedInDashboard
+    ? "flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4"
+    : "space-y-3 sm:space-y-4 pt-3 sm:pt-5"
+
   return (
-    <div className={cn(embedInDashboard ? "space-y-3 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4" : "space-y-3 sm:space-y-4 pt-3 sm:pt-5")}>
+    <div className={cn(embedRootClass)}>
       <h3 className={cn(
+        "shrink-0",
         embedInDashboard
           ? "text-sm font-semibold text-[var(--cc-text)]"
           : "text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-200",
@@ -125,7 +130,7 @@ export function ProjectsList({
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="relative"
+        className="relative shrink-0"
       >
         <Search className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-3.5 w-3.5 sm:h-4 sm:w-4 dark:text-slate-500" />
         <Input
@@ -146,7 +151,11 @@ export function ProjectsList({
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="text-center py-12"
+          className={cn(
+            embedInDashboard
+              ? "flex min-h-[280px] flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border)] bg-[color-mix(in_srgb,var(--cc-ui-skeleton,var(--muted))_12%,transparent)] px-4 py-12 text-center"
+              : "py-12 text-center",
+          )}
         >
           <div className={cn(
             "p-4 rounded-2xl inline-block mb-4",
@@ -171,7 +180,7 @@ export function ProjectsList({
       ) : (
         <div className={cn(
           "flex flex-col overflow-y-auto pr-1",
-          embedInDashboard ? "max-h-[70vh] gap-2" : "gap-5 max-h-[70vh] pr-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent",
+          embedInDashboard ? "min-h-0 flex-1 gap-2" : "gap-5 max-h-[70vh] pr-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent",
         )}>
           {filteredProjects.map((project, index) => (
             <motion.div

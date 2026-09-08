@@ -49,7 +49,7 @@ export function CodebenchInlineEditor({ className, initialTool = null }: Props) 
         "flex min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)]",
         expanded
           ? "fixed inset-3 z-[70] shadow-2xl sm:inset-4"
-          : "h-[min(720px,75vh)] min-h-[min(560px,70vh)]",
+          : "h-full min-h-0 flex-1",
         className,
       )}
     >

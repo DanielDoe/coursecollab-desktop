@@ -396,10 +396,14 @@ export function StudentAuthForm({
         <div
           className={cn(
             alertClass,
-            "border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3 flex gap-2 text-sm text-amber-900 dark:text-amber-100",
+            isDesktop
+              ? cn(desktopAuth.alert, desktopAuth.alertWarning)
+              : cn("border p-3 text-sm", desktopAuth.alertWarning),
+            "flex items-start gap-2",
           )}
+          role="status"
         >
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
           <span>Your session expired. Please sign in again.</span>
         </div>
       ) : null}
@@ -420,10 +424,15 @@ export function StudentAuthForm({
         <div
           className={cn(
             alertClass,
-            "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-3 whitespace-pre-line",
+            isDesktop
+              ? cn(desktopAuth.alert, desktopAuth.alertError)
+              : cn("border p-3 text-sm", desktopAuth.alertError),
+            "flex items-start gap-2 whitespace-pre-line",
           )}
+          role="alert"
         >
-          {error}
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
+          <span>{error}</span>
         </div>
       ) : null}
 

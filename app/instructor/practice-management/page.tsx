@@ -2,7 +2,7 @@
 
 
 import { instructorApiFetch } from "@/lib/instructor-api-headers"
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
@@ -75,6 +75,8 @@ import {
   InstructorPracticeHubPoliciesPanel,
   useInstructorPracticeHubPolicy,
 } from "@/components/instructor/InstructorPracticeHubPoliciesPanel"
+import { ProjectListPaginationBar } from "@/components/project-list-pagination-bar"
+import type { ProjectListPageSize } from "@/lib/pagination-ui"
 
 type MenuTab = "topics" | "students" | "analytics" | "activity"
 
@@ -208,6 +210,8 @@ export default function InstructorPracticeManagementPage({ embedInDashboard }: {
   const [activeTab, setActiveTab] = useState<MenuTab>("topics")
   const [searchQuery, setSearchQuery] = useState("")
   const [topicSearchQuery, setTopicSearchQuery] = useState("")
+  const [topicsPage, setTopicsPage] = useState(1)
+  const [topicsPageSize, setTopicsPageSize] = useState<ProjectListPageSize>(12)
   const [selectedSession, setSelectedSession] = useState("ALL")
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [selectedStudent, setSelectedStudent] = useState<StudentProgress | null>(null)
@@ -670,6 +674,18 @@ export default function InstructorPracticeManagementPage({ embedInDashboard }: {
     topic.name.toLowerCase().includes(topicSearchQuery.trim().toLowerCase()),
   )
 
+  useEffect(() => {
+    setTopicsPage(1)
+  }, [topicSearchQuery, selectedSession, viewMode, topicsPageSize])
+
+  const topicsTotalPages = Math.max(1, Math.ceil(filteredTopics.length / topicsPageSize))
+  const topicsPageClamped = Math.min(topicsPage, topicsTotalPages)
+
+  const paginatedTopics = useMemo(() => {
+    const start = (topicsPageClamped - 1) * topicsPageSize
+    return filteredTopics.slice(start, start + topicsPageSize)
+  }, [filteredTopics, topicsPageClamped, topicsPageSize])
+
   const menuItems = [
     { id: "topics" as const, label: "Topics", icon: Brain, badge: topics.length || undefined },
     {
@@ -817,13 +833,14 @@ export default function InstructorPracticeManagementPage({ embedInDashboard }: {
                 </div>
               ) : (
                 <div
+                  key={`topics-page-${topicsPageClamped}`}
                   className={
                     viewMode === "card"
                       ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
                       : cn(cardBase, "divide-y divide-[var(--border)] overflow-hidden")
                   }
                 >
-                  {filteredTopics.map((topic, index) => {
+                  {paginatedTopics.map((topic, index) => {
                     const sessionAvailability = topic.availability[selectedSession]
                     const sessionKeys = Object.keys(topic.availability)
                     return (
@@ -851,6 +868,16 @@ export default function InstructorPracticeManagementPage({ embedInDashboard }: {
                   })}
                 </div>
               )}
+
+              {filteredTopics.length > 0 ? (
+                <ProjectListPaginationBar
+                  totalItems={filteredTopics.length}
+                  page={topicsPage}
+                  pageSize={topicsPageSize}
+                  onPageChange={setTopicsPage}
+                  onPageSizeChange={setTopicsPageSize}
+                />
+              ) : null}
             </div>
           )}
 

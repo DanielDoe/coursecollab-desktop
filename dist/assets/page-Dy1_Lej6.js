@@ -1,1 +1,0 @@
-import{bt as e}from"./index-BFIBYwc9.js";async function t({params:t}){let{id:n}=await t;e(`/admin/dashboard-v2/institutions/${n}`)}export{t as default};

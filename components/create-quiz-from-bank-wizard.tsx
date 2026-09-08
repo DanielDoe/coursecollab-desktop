@@ -66,10 +66,25 @@ export function CreateQuizFromBankWizard({ onSuccess, assessmentType = "quiz", v
   const stepCard = isEmbedded ? AM_PANEL : "border-slate-200/60 shadow-sm bg-white/80 backdrop-blur-sm rounded-2xl border"
   const eLabel = isEmbedded ? cn("text-sm font-medium", PORTAL_TEXT) : "text-sm font-semibold text-slate-700"
   const eInput = isEmbedded
-    ? "h-11 rounded-lg border-[var(--border)] bg-[var(--card)] focus-visible:ring-2 focus-visible:ring-[var(--cc-accent)]/25 focus-visible:border-[var(--cc-accent)]"
+    ? cn(
+        "h-11 rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--cc-text)] shadow-none",
+        "placeholder:text-[color-mix(in_srgb,var(--cc-text)_38%,var(--cc-text-muted))]",
+        "[&::-webkit-datetime-edit-fields-wrapper]:text-[color-mix(in_srgb,var(--cc-text)_38%,var(--cc-text-muted))]",
+        "[&::-webkit-datetime-edit]:text-[color-mix(in_srgb,var(--cc-text)_38%,var(--cc-text-muted))]",
+        "[&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-80",
+        "focus-visible:ring-2 focus-visible:ring-[var(--cc-accent)]/25 focus-visible:border-[var(--cc-accent)]",
+        "focus-visible:[&::-webkit-datetime-edit-fields-wrapper]:text-[var(--cc-text)]",
+        "focus-visible:[&::-webkit-datetime-edit]:text-[var(--cc-text)]",
+        "[:not([value=''])]:[&::-webkit-datetime-edit-fields-wrapper]:text-[var(--cc-text)]",
+        "[:not([value=''])]:[&::-webkit-datetime-edit]:text-[var(--cc-text)]",
+      )
     : "h-12 border-slate-200 focus:border-blue-300 focus:ring-blue-200 rounded-xl text-base"
   const eTextarea = isEmbedded
-    ? "min-h-[100px] rounded-lg border-[var(--border)] bg-[var(--card)] focus-visible:ring-2 focus-visible:ring-[var(--cc-accent)]/25 focus-visible:border-[var(--cc-accent)]"
+    ? cn(
+        "min-h-[120px] rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--cc-text)] shadow-none",
+        "placeholder:text-[color-mix(in_srgb,var(--cc-text)_38%,var(--cc-text-muted))]",
+        "focus-visible:ring-2 focus-visible:ring-[var(--cc-accent)]/25 focus-visible:border-[var(--cc-accent)]",
+      )
     : "border-slate-200 focus:border-blue-300 focus:ring-blue-200 rounded-xl min-h-[100px]"
   const tabListClass = isEmbedded
     ? "grid h-11 w-full grid-cols-2 gap-1 rounded-xl border border-[var(--border)] bg-muted/30 p-1"

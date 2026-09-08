@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./instructor-office-hours-panel-C6qz0UOG.js";var n=e();function r(){return(0,n.jsx)(`div`,{className:`min-h-screen bg-slate-50 dark:bg-[#0B1120] p-4 sm:p-6`,children:(0,n.jsx)(t,{})})}export{r as default};

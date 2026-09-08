@@ -1,6 +1,7 @@
 "use client"
 
-import { BookOpen, Bug, Eraser, FileCode, GraduationCap, Lightbulb, Loader2, MessageSquare, Sparkles, Wand2, Zap } from "lucide-react"
+import { BookOpen, Bug, ChevronsRight, Eraser, FileCode, GraduationCap, Lightbulb, Loader2, MessageSquare, Sparkles, Wand2, Zap } from "lucide-react"
+import { useCodebenchCoraPanel } from "@/components/codebench/codebench-cora-panel-context"
 import {
   Select,
   SelectContent,
@@ -65,6 +66,7 @@ export function CodebenchCoraBar({
   onClear,
 }: Props) {
   const { accent } = useCodebenchChrome()
+  const coraPanel = useCodebenchCoraPanel()
   const trigger = cn(
     "h-6 min-h-6 max-h-6 min-w-0 rounded-md border-0 shadow-none text-[11px] font-medium gap-1.5 px-2.5",
     "data-[size=sm]:h-6 data-[size=sm]:min-h-6",
@@ -140,20 +142,37 @@ export function CodebenchCoraBar({
             </SelectContent>
           </Select>
         ) : null}
-      {activeTool && onClear ? (
-        <button
-          type="button"
-          onClick={onClear}
-          className={cn(
-            "inline-flex h-6 shrink-0 items-center gap-1 rounded-md px-2 text-[11px] font-medium",
-            "bg-[var(--muted)] text-[var(--cc-text-muted)] hover:bg-[color-mix(in_srgb,var(--cc-text)_6%,var(--muted))] hover:text-[var(--cc-text)]",
-          )}
-          aria-label="Clear Cora output"
-        >
-          <Eraser className="h-3 w-3" />
-          Clear
-        </button>
-      ) : null}
+      <div className="ml-auto flex shrink-0 items-center gap-1">
+        {activeTool && onClear ? (
+          <button
+            type="button"
+            onClick={onClear}
+            className={cn(
+              "inline-flex h-6 shrink-0 items-center gap-1 rounded-md px-2 text-[11px] font-medium",
+              "bg-[var(--muted)] text-[var(--cc-text-muted)] hover:bg-[color-mix(in_srgb,var(--cc-text)_6%,var(--muted))] hover:text-[var(--cc-text)]",
+            )}
+            aria-label="Clear Cora output"
+          >
+            <Eraser className="h-3 w-3" />
+            Clear
+          </button>
+        ) : null}
+        {coraPanel ? (
+          <button
+            type="button"
+            onClick={coraPanel.toggleCollapse}
+            className={cn(
+              "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+              "bg-[var(--muted)] text-[var(--cc-text-muted)] hover:bg-[color-mix(in_srgb,var(--cc-text)_6%,var(--muted))] hover:text-[var(--cc-text)]",
+            )}
+            aria-label="Collapse Cora panel"
+            aria-expanded={!coraPanel.collapsed}
+            title="Collapse Cora panel"
+          >
+            <ChevronsRight className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
+      </div>
     </div>
   )
 }

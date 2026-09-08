@@ -45,6 +45,8 @@ import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 import { FACULTY_DASHBOARD_BASE } from "@/lib/faculty-portal-nav-config"
 import { PORTAL_CARD, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
 import { FacultyIntegratedToolbar, facultyToolbarFilterButtonClass } from "@/components/instructor/dashboard-v2/FacultyIntegratedToolbar"
+import { ProjectListPaginationBar } from "@/components/project-list-pagination-bar"
+import type { ProjectListPageSize } from "@/lib/pagination-ui"
 
 interface Announcement {
   id: number
@@ -101,6 +103,7 @@ export function InstructorAnnouncementsContent({ embedInDashboard }: { embedInDa
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [unpinAllDialogOpen, setUnpinAllDialogOpen] = useState(false)
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null)
   const [viewModalOpen, setViewModalOpen] = useState(false)
   
@@ -110,6 +113,8 @@ export function InstructorAnnouncementsContent({ embedInDashboard }: { embedInDa
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'mostViewed'>('newest')
   const [activeMenu, setActiveMenu] = useState<"overview" | "pinned">("overview")
+  const [listPage, setListPage] = useState(1)
+  const [listPageSize, setListPageSize] = useState<ProjectListPageSize>(10)
 
   const fetchAnnouncements = () => {
     void announcementsQuery.refetch()
@@ -149,6 +154,28 @@ export function InstructorAnnouncementsContent({ embedInDashboard }: { embedInDa
   const handleDelete = (announcement: Announcement) => {
     setSelectedAnnouncement(announcement)
     setDeleteDialogOpen(true)
+  }
+
+  const confirmUnpinAll = async () => {
+    try {
+      const count = await announcementsQuery.unpinAllAnnouncements.mutateAsync()
+      setUnpinAllDialogOpen(false)
+      setActiveMenu("overview")
+      toast({
+        title: "Success",
+        description:
+          count > 0
+            ? `Unpinned ${count} announcement${count === 1 ? "" : "s"}`
+            : "No pinned announcements to update",
+      })
+    } catch (error) {
+      console.error("Error unpinning announcements:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to unpin announcements",
+        variant: "destructive",
+      })
+    }
   }
 
   const confirmDelete = async () => {
@@ -345,6 +372,18 @@ export function InstructorAnnouncementsContent({ embedInDashboard }: { embedInDa
 
     return filtered
   }, [announcements, searchQuery, selectedCategories, sortBy, activeMenu])
+
+  useEffect(() => {
+    setListPage(1)
+  }, [searchQuery, selectedCategories, sortBy, activeMenu, listPageSize])
+
+  const listTotalPages = Math.max(1, Math.ceil(filteredAnnouncements.length / listPageSize))
+  const listPageClamped = Math.min(listPage, listTotalPages)
+
+  const paginatedAnnouncements = useMemo(() => {
+    const start = (listPageClamped - 1) * listPageSize
+    return filteredAnnouncements.slice(start, start + listPageSize)
+  }, [filteredAnnouncements, listPageClamped, listPageSize])
 
   const clearFilters = () => {
     setSearchQuery("")
@@ -579,6 +618,18 @@ export function InstructorAnnouncementsContent({ embedInDashboard }: { embedInDa
                 }
                 trailing={
                   <>
+                    {stats.pinned > 0 ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={announcementsQuery.unpinAllAnnouncements.isPending}
+                        onClick={() => setUnpinAllDialogOpen(true)}
+                        className={facultyToolbarFilterButtonClass()}
+                      >
+                        <Pin className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                        <span className="hidden sm:inline">Unpin all</span>
+                      </Button>
+                    ) : null}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -602,7 +653,10 @@ export function InstructorAnnouncementsContent({ embedInDashboard }: { embedInDa
               />
 
             {/* Announcements List */}
-            <div className={cn(viewMode === "grid" ? "grid grid-cols-1 gap-4 auto-rows-fr md:grid-cols-2 lg:grid-cols-3" : "flex flex-col gap-3")}>
+            <div
+              key={`announcements-page-${listPageClamped}`}
+              className={cn(viewMode === "grid" ? "grid grid-cols-1 gap-4 auto-rows-fr md:grid-cols-2 lg:grid-cols-3" : "flex flex-col gap-3")}
+            >
               <AnimatePresence mode="popLayout">
                 {filteredAnnouncements.length === 0 ? (
                   <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}>
@@ -619,7 +673,7 @@ export function InstructorAnnouncementsContent({ embedInDashboard }: { embedInDa
                     </div>
                   </motion.div>
                 ) : (
-                  filteredAnnouncements.map((announcement, index) => (
+                  paginatedAnnouncements.map((announcement, index) => (
                     <motion.div key={announcement.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -50 }} transition={{ delay: index * 0.03 }} className={viewMode === 'grid' ? "h-full" : ""}>
                       <AnnouncementCardRedesign
                         announcement={{ ...announcement, is_read: true, category: announcement.category || 'General' }}
@@ -637,6 +691,15 @@ export function InstructorAnnouncementsContent({ embedInDashboard }: { embedInDa
                 )}
               </AnimatePresence>
             </div>
+            {filteredAnnouncements.length > 0 ? (
+              <ProjectListPaginationBar
+                totalItems={filteredAnnouncements.length}
+                page={listPage}
+                pageSize={listPageSize}
+                onPageChange={setListPage}
+                onPageSizeChange={setListPageSize}
+              />
+            ) : null}
         </div>
 
         {/* Modals */}
@@ -675,6 +738,21 @@ export function InstructorAnnouncementsContent({ embedInDashboard }: { embedInDa
             )}
           </DialogContent>
         </Dialog>
+        <AlertDialog open={unpinAllDialogOpen} onOpenChange={setUnpinAllDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Unpin all announcements?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This clears the pinned flag on {stats.pinned} announcement{stats.pinned === 1 ? "" : "s"} in this course.
+                You can pin individual posts again from the card menu.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmUnpinAll}>Unpin all</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>

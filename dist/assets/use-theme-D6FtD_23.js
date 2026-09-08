@@ -1,0 +1,1 @@
+import{On as e}from"./index-Bk6sIswz.js";function t(){let{isDark:t,toggleLightDark:n,ready:r}=e();return{theme:t?`dark`:`light`,toggleTheme:n,ready:r}}export{t};

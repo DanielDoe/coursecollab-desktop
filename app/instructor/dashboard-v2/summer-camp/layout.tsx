@@ -5,6 +5,11 @@ import { Sun, LayoutGrid, MessageCircle, Award } from "lucide-react"
 import { FacultyModuleSplitLayout } from "@/components/instructor/dashboard-v2/FacultyModuleSplitLayout"
 import { FacultyModuleSideMenu } from "@/components/instructor/dashboard-v2/FacultyModuleSideMenu"
 import { FACULTY_DASHBOARD_BASE } from "@/lib/faculty-portal-nav-config"
+import {
+  DASHBOARD_V2_PANEL_SCROLL_ATTR,
+  dashboardV2ModuleShellClass,
+} from "@/lib/dashboard-v2-layout"
+import { cn } from "@/lib/utils"
 
 const CAMP_BASE = `${FACULTY_DASHBOARD_BASE}/summer-camp`
 
@@ -25,14 +30,22 @@ export default function SummerCampLayout({ children }: { children: React.ReactNo
   const activeId = activeSummerCampId(pathname)
   const isTrainingDetail =
     pathname.includes("/summer-camp/training/") || pathname.includes("/summer-camp/module/")
+  const shellClass = dashboardV2ModuleShellClass("panel")
+  const panelAttrs = { [DASHBOARD_V2_PANEL_SCROLL_ATTR]: "panel" } as const
 
   if (isTrainingDetail) {
-    return <div className="w-full min-w-0 overflow-x-hidden">{children}</div>
+    return (
+      <div className={cn(shellClass, "overflow-x-hidden")} {...panelAttrs}>
+        {children}
+      </div>
+    )
   }
 
   return (
-    <div className="w-full min-w-0 overflow-x-hidden p-3 sm:p-4 md:p-5 lg:p-6">
+    <div className={cn(shellClass, "overflow-hidden")} {...panelAttrs}>
       <FacultyModuleSplitLayout
+        scrollMode="panel"
+        className="min-h-0 flex-1"
         menu={
           <FacultyModuleSideMenu
             moduleId="summer-camp"

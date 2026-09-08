@@ -14,6 +14,7 @@ import {
   toPresentationConfigLike,
 } from "@/lib/presentation-sequential-booking";
 import type { PresentationSqlTagged } from "@/lib/presentation-sequential-booking";
+import { resolveGroupProjectTermScope } from "@/lib/group-project-term-scope";
 
 // GET - Fetch all presentations or filter by query params
 export const dynamic = 'force-dynamic'
@@ -23,12 +24,14 @@ export async function GET(request: NextRequest) {
   try {
     const scope = await requireProjectsListScope(request)
     if (!scope.ok) return scope.response
+    const gCourseScope = scope.gCourseScope
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get("projectId");
     const groupId = searchParams.get("groupId");
     const date = searchParams.get("date");
     const status = searchParams.get("status") || "scheduled";
     const session = searchParams.get("session");
+    const gTermScope = await resolveGroupProjectTermScope(request, scope.courseId, session)
 
 
     // Build WHERE conditions
@@ -73,6 +76,7 @@ export async function GET(request: NextRequest) {
         WHERE pp.project_id = ${parseInt(projectId)}
           AND pp.session = ${session}
           AND pp.status = ${status}
+          AND (${gCourseScope}) AND (${gTermScope})
         ORDER BY pp.scheduled_date ASC, pp.start_time ASC
       `;
     } else if (projectId && session) {
@@ -87,6 +91,7 @@ export async function GET(request: NextRequest) {
         WHERE pp.project_id = ${parseInt(projectId)}
           AND pp.session = ${session}
           AND pp.status != 'cancelled'
+          AND (${gCourseScope}) AND (${gTermScope})
         ORDER BY pp.scheduled_date ASC, pp.start_time ASC
       `;
     } else if (projectId && groupId && date && status && status !== "all") {
@@ -101,6 +106,7 @@ export async function GET(request: NextRequest) {
           AND pp.group_id = ${parseInt(groupId)}
           AND pp.scheduled_date = ${date}
           AND pp.status = ${status}
+          AND (${gCourseScope}) AND (${gTermScope})
         ORDER BY pp.scheduled_date ASC, pp.start_time ASC
       `;
     } else if (status && status !== "all") {
@@ -112,6 +118,7 @@ export async function GET(request: NextRequest) {
         JOIN groups g ON pp.group_id = g.id
         LEFT JOIN students s ON pp.created_by = s.id
         WHERE pp.status = ${status}
+          AND (${gCourseScope}) AND (${gTermScope})
         ORDER BY pp.scheduled_date ASC, pp.start_time ASC
       `;
     } else {
@@ -124,6 +131,7 @@ export async function GET(request: NextRequest) {
         JOIN projects p ON pp.project_id = p.id
         JOIN groups g ON pp.group_id = g.id
         LEFT JOIN students s ON pp.created_by = s.id
+        WHERE (${gCourseScope}) AND (${gTermScope})
         ORDER BY pp.scheduled_date ASC, pp.start_time ASC
       `;
     }

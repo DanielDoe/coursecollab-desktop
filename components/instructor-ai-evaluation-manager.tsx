@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -35,10 +35,15 @@ import type { AssessmentType } from "@/context/assessment-context"
 import { buildInstructorAuthorizedApiHeaders, instructorApiFetch } from "@/lib/instructor-api-headers"
 import { cn } from "@/lib/utils"
 import {
+  AM_PANEL,
+  AM_PANEL_FILL,
+  AM_PANEL_SCROLL,
+  AM_PANEL_SECTION,
   PORTAL_CTA,
   PORTAL_TEXT,
   PORTAL_TEXT_MUTED,
 } from "@/lib/assessments/assessment-management-surface-classes"
+import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 
 interface FailedEvaluation {
   id: number
@@ -66,12 +71,39 @@ interface InstructorAiEvaluationManagerProps {
   assessmentTypeFilter?: AssessmentType
   assessmentLabel?: string
   variant?: "standalone" | "embedded"
+  panelLayout?: boolean
+}
+
+const QUEUE_TAB_TRIGGER = cn(
+  "group flex flex-1 items-center justify-center gap-1.5 rounded-lg border-0 px-2 py-1.5 text-xs font-medium shadow-none transition-colors sm:gap-2 sm:px-3 sm:text-sm",
+  "text-[var(--cc-text-muted)] hover:text-[var(--cc-text)]",
+  "data-[state=active]:bg-[var(--card)] data-[state=active]:text-[var(--cc-text)] data-[state=active]:shadow-sm",
+)
+
+const QUEUE_TAB_BADGE = cn(
+  "inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
+  "bg-[var(--muted)] text-[var(--cc-text-muted)]",
+  "group-data-[state=active]:bg-[var(--cc-accent)]/12 group-data-[state=active]:text-[var(--cc-accent-dark)] dark:group-data-[state=active]:text-[var(--cc-accent)]",
+)
+
+function facultyModuleIdFromAssessment(type?: AssessmentType): string {
+  switch (type) {
+    case "homework":
+      return "homeworks"
+    case "mid_semester":
+      return "mid-semester"
+    case "final":
+      return "final-exams"
+    default:
+      return "quizzes"
+  }
 }
 
 export function InstructorAiEvaluationManager({
   assessmentTypeFilter,
   assessmentLabel,
   variant = "standalone",
+  panelLayout = false,
 }: InstructorAiEvaluationManagerProps) {
   const { toast } = useToast()
   const [failedEvaluations, setFailedEvaluations] = useState<FailedEvaluation[]>([])
@@ -85,6 +117,9 @@ export function InstructorAiEvaluationManager({
   const [submittingManual, setSubmittingManual] = useState(false)
 
   const isStandalone = variant === "standalone"
+  const isPanel = panelLayout && !isStandalone
+  const embedChrome = isPanel ? facultyEmbedChrome(facultyModuleIdFromAssessment(assessmentTypeFilter)) : null
+  const tabContentClass = isPanel ? cn(AM_PANEL_SECTION, AM_PANEL_SCROLL, "mt-0 gap-3 p-4 sm:p-5") : "space-y-4"
 
   useEffect(() => {
     void fetchFailedEvaluations()
@@ -352,137 +387,238 @@ export function InstructorAiEvaluationManager({
 
   const containerClass = isStandalone
     ? "min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900"
-    : "space-y-6"
+    : isPanel
+      ? AM_PANEL_SECTION
+      : "space-y-6"
 
-  const contentWrapperClass = isStandalone ? "container mx-auto px-4 py-8" : "space-y-6"
+  const contentWrapperClass = isStandalone
+    ? "container mx-auto px-4 py-8"
+    : isPanel
+      ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+      : "space-y-6"
 
-  const renderContent = () => (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h2 className={cn(
-            isStandalone
-              ? "text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent"
-              : cn("text-sm font-semibold", PORTAL_TEXT),
-          )}>
-            {headingTitle}
-          </h2>
-          <p className={cn("text-xs sm:text-sm", isStandalone ? "text-slate-600 dark:text-slate-400" : PORTAL_TEXT_MUTED)}>
-            {headingDescription}
-          </p>
-          {assessmentTypeFilter && (
-            <p className={cn("mt-1 text-xs", PORTAL_TEXT_MUTED)}>
-              Filtering by <span className="font-medium">{assessmentLabel ?? assessmentTypeFilter}</span>
-            </p>
-          )}
+  const renderEmptyState = (icon: ReactNode, title: string, description: string) => {
+    if (isPanel) {
+      return (
+        <div className={cn(AM_PANEL, "flex min-h-0 flex-1 flex-col overflow-hidden")}>
+          <div className={cn(AM_PANEL_FILL, "gap-3 px-4 py-16 text-center")}>
+            {icon}
+            <p className={cn("text-sm font-semibold", PORTAL_TEXT)}>{title}</p>
+            <p className={cn("max-w-sm text-xs leading-relaxed", PORTAL_TEXT_MUTED)}>{description}</p>
+          </div>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <Button onClick={() => fetchFailedEvaluations()} variant="outline" size="sm" className="gap-2 h-9">
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
-          {failedEvaluations.length > 0 && (
-            <Button
-              onClick={handleBulkRetry}
-              disabled={bulkRetrying}
-              size="sm"
-              className={cn("gap-2 h-9", isStandalone ? "bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white" : PORTAL_CTA)}
-            >
-              {bulkRetrying ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <Bot className="h-4 w-4" />
-                  Bulk Retry ({failedEvaluations.length})
-                </>
+      )
+    }
+
+    return (
+      <Card>
+        <CardContent className="py-12">
+          <div className="text-center">
+            {icon}
+            <p className="text-slate-600 dark:text-slate-300 font-medium">{title}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">{description}</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const renderLoadingState = () => {
+    if (isPanel) {
+      return (
+        <div className={cn(AM_PANEL, "flex min-h-0 flex-1 flex-col overflow-hidden")}>
+          <div className={cn(AM_PANEL_FILL, "gap-3 px-4 py-16")}>
+            <Loader2 className="h-8 w-8 animate-spin text-[var(--cc-accent)]" />
+            <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>Loading AI evaluation queue…</p>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <Card>
+        <CardContent className="py-12">
+          <div className="flex flex-col items-center justify-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+            <p className="text-slate-600 dark:text-slate-300">Loading AI evaluation queue...</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const renderQueueTabs = (compactHeader: boolean) => (
+    <Tabs defaultValue="pending" className={cn(isPanel ? AM_PANEL_SECTION : "space-y-6")}>
+      <div
+        className={cn(
+          "shrink-0 border-b border-[var(--border)]",
+          compactHeader ? "space-y-3 px-4 py-3 sm:px-5" : "space-y-4",
+        )}
+      >
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h2
+              className={cn(
+                isStandalone
+                  ? "text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent"
+                  : cn("text-sm font-semibold", PORTAL_TEXT),
               )}
+            >
+              {headingTitle}
+            </h2>
+            <p
+              className={cn(
+                "text-xs sm:text-sm",
+                isStandalone ? "text-slate-600 dark:text-slate-400" : PORTAL_TEXT_MUTED,
+              )}
+            >
+              {headingDescription}
+              {assessmentTypeFilter ? (
+                <>
+                  {" "}
+                  Filtering by{" "}
+                  <span className="font-medium text-[var(--cc-text)]">
+                    {assessmentLabel ?? assessmentTypeFilter}
+                  </span>
+                  .
+                </>
+              ) : null}
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button
+              onClick={() => fetchFailedEvaluations()}
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-9 gap-2",
+                isPanel && embedChrome ? embedChrome.quiet : undefined,
+              )}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
             </Button>
-          )}
+            {failedEvaluations.length > 0 && (
+              <Button
+                onClick={handleBulkRetry}
+                disabled={bulkRetrying}
+                size="sm"
+                className={cn(
+                  "gap-2 h-9",
+                  isStandalone
+                    ? "bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+                    : PORTAL_CTA,
+                )}
+              >
+                {bulkRetrying ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Bot className="h-4 w-4" />
+                    Bulk Retry ({failedEvaluations.length})
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
 
-      <Tabs defaultValue="pending" className="space-y-6">
-        <TabsList className="grid w-full max-w-3xl grid-cols-3 bg-white dark:bg-slate-800">
-          <TabsTrigger value="pending" className="gap-2">
-            <Clock className="h-4 w-4" />
-            Pending ({pendingEvaluations.length})
+        <TabsList
+          className={cn(
+            "h-auto w-full gap-1 p-1 shadow-none",
+            isPanel
+              ? "inline-flex rounded-xl border border-[var(--border)] bg-[var(--muted)]/35"
+              : "grid max-w-3xl grid-cols-3 rounded-xl border border-[var(--border)] bg-white dark:bg-slate-800",
+          )}
+        >
+          <TabsTrigger value="pending" className={isPanel ? QUEUE_TAB_TRIGGER : "gap-2"}>
+            <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            {isPanel ? (
+              <>
+                <span>Pending</span>
+                <span className={QUEUE_TAB_BADGE}>{pendingEvaluations.length}</span>
+              </>
+            ) : (
+              <>Pending ({pendingEvaluations.length})</>
+            )}
           </TabsTrigger>
-          <TabsTrigger value="retried" className="gap-2">
-            <RefreshCw className="h-4 w-4" />
-            Retried ({retriedEvaluations.length})
+          <TabsTrigger value="retried" className={isPanel ? QUEUE_TAB_TRIGGER : "gap-2"}>
+            <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            {isPanel ? (
+              <>
+                <span>Retried</span>
+                <span className={QUEUE_TAB_BADGE}>{retriedEvaluations.length}</span>
+              </>
+            ) : (
+              <>Retried ({retriedEvaluations.length})</>
+            )}
           </TabsTrigger>
-          <TabsTrigger value="failed" className="gap-2">
-            <AlertTriangle className="h-4 w-4" />
-            Failed ({failedPermanently.length})
+          <TabsTrigger value="failed" className={isPanel ? QUEUE_TAB_TRIGGER : "gap-2"}>
+            <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            {isPanel ? (
+              <>
+                <span>Failed</span>
+                <span className={QUEUE_TAB_BADGE}>{failedPermanently.length}</span>
+              </>
+            ) : (
+              <>Failed ({failedPermanently.length})</>
+            )}
           </TabsTrigger>
         </TabsList>
+      </div>
 
-        {loading ? (
-          <Card>
-            <CardContent className="py-12">
-              <div className="flex flex-col items-center justify-center gap-4">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                <p className="text-slate-600">Loading AI evaluation queue...</p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            <TabsContent value="pending" className="space-y-4">
-              {pendingEvaluations.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12">
-                    <div className="text-center">
-                      <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                      <p className="text-slate-600 font-medium">No pending evaluations</p>
-                      <p className="text-sm text-slate-500 mt-2">All AI evaluations are up to date!</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                pendingEvaluations.map((evaluation) => renderEvaluationCard(evaluation))
-              )}
-            </TabsContent>
+      {loading ? (
+        renderLoadingState()
+      ) : (
+        <>
+          <TabsContent value="pending" className={tabContentClass}>
+            {pendingEvaluations.length === 0
+              ? renderEmptyState(
+                  <CheckCircle className="h-10 w-10 text-[var(--cc-sem-success)]" />,
+                  "No pending evaluations",
+                  "All AI evaluations are up to date!",
+                )
+              : pendingEvaluations.map((evaluation) => renderEvaluationCard(evaluation))}
+          </TabsContent>
 
-            <TabsContent value="retried" className="space-y-4">
-              {retriedEvaluations.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12">
-                    <div className="text-center">
-                      <TrendingUp className="h-12 w-12 text-purple-500 mx-auto mb-4" />
-                      <p className="text-slate-600 font-medium">No retried evaluations</p>
-                      <p className="text-sm text-slate-500 mt-2">Everything here has either succeeded or awaits processing.</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                retriedEvaluations.map((evaluation) => renderEvaluationCard(evaluation))
-              )}
-            </TabsContent>
+          <TabsContent value="retried" className={tabContentClass}>
+            {retriedEvaluations.length === 0
+              ? renderEmptyState(
+                  <TrendingUp className="h-10 w-10 text-[var(--cc-accent)]" />,
+                  "No retried evaluations",
+                  "Everything here has either succeeded or awaits processing.",
+                )
+              : retriedEvaluations.map((evaluation) => renderEvaluationCard(evaluation))}
+          </TabsContent>
 
-            <TabsContent value="failed" className="space-y-4">
-              {failedPermanently.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12">
-                    <div className="text-center">
-                      <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                      <p className="text-slate-600 font-medium">No permanent failures</p>
-                      <p className="text-sm text-slate-500 mt-2">The AI has not encountered unrecoverable issues.</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                failedPermanently.map((evaluation) => renderEvaluationCard(evaluation))
-              )}
-            </TabsContent>
-          </>
-        )}
-      </Tabs>
-    </div>
+          <TabsContent value="failed" className={tabContentClass}>
+            {failedPermanently.length === 0
+              ? renderEmptyState(
+                  <CheckCircle2 className="h-10 w-10 text-[var(--cc-sem-success)]" />,
+                  "No permanent failures",
+                  "The AI has not encountered unrecoverable issues.",
+                )
+              : failedPermanently.map((evaluation) => renderEvaluationCard(evaluation))}
+          </TabsContent>
+        </>
+      )}
+    </Tabs>
   )
+
+  const renderContent = () => {
+    if (isPanel) {
+      return renderQueueTabs(true)
+    }
+
+    return (
+      <div className="space-y-4 sm:space-y-6">
+        {renderQueueTabs(false)}
+      </div>
+    )
+  }
 
   const renderEvaluationCard = (evaluation: FailedEvaluation) => (
     <Card key={evaluation.id} className="border-l-4 border-l-yellow-500">

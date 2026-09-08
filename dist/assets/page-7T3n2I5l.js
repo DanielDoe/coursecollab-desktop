@@ -1,1 +1,0 @@
-import{o as e}from"./rolldown-runtime-C0FnF6B9.js";import{t}from"./react-C21x__mS.js";import{Ct as n}from"./index-BFIBYwc9.js";var r=e(t());function i(){let e=n();return(0,r.useEffect)(()=>{e.replace(`/guest/settings?section=appearance`)},[e]),null}export{i as default};

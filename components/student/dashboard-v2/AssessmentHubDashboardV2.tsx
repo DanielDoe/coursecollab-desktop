@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select"
 import { ExtendSelfServiceClosedBanner } from "@/components/student/ExtendSelfServiceClosedBanner"
 import { ModuleListSkeleton, StaleRefreshHint } from "@/components/data/module-list-skeleton"
+import { ModulePageSkeleton } from "@/components/student/dashboard-v2/ModulePageSkeleton"
 import { StudentModuleHubLayout } from "@/components/student/dashboard-v2/StudentModuleHubLayout"
 import { useAssessmentType } from "@/context/assessment-type-context"
 import { usePersistedState } from "@/hooks/use-persisted-state"
@@ -30,12 +31,12 @@ import type { QuizHubMeta } from "@/components/quiz-list"
 
 const QuizList = dynamic(
   () => import("@/components/quiz-list").then((m) => ({ default: m.QuizList })),
-  { ssr: false },
+  { ssr: false, loading: () => <ModulePageSkeleton className="min-h-[360px]" /> },
 )
 
 const QuizIssuesPanel = dynamic(
   () => import("@/components/quiz-issues-panel").then((m) => ({ default: m.QuizIssuesPanel })),
-  { ssr: false },
+  { ssr: false, loading: () => <ModulePageSkeleton className="min-h-[240px]" /> },
 )
 
 const HUB_TITLE = {
@@ -227,35 +228,38 @@ export function AssessmentHubDashboardV2() {
         headerAction={headerAction}
         toolbar={toolbar}
         hideSideMenu
+        scrollMode="panel"
         footer={footer}
         menuView={HUB_MODULE_ID[assessmentType]}
         onMenuSelect={() => {}}
         menuItems={[]}
       >
-        <div className="grid w-full min-w-0 grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] 2xl:items-start">
-          <div className="flex min-w-0 flex-col">
-            <div className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--muted)]/25">
-              {showListSkeleton ? <ModuleListSkeleton rows={6} className="min-h-[280px]" /> : null}
-              <QuizList
+        <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
+          <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)] xl:items-stretch xl:gap-5">
+            <div className="flex min-h-0 min-w-0 flex-col">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--muted)]/25">
+                {showListSkeleton ? <ModuleListSkeleton rows={6} className="min-h-[280px]" /> : null}
+                <QuizList
+                  assessmentType={assessmentType}
+                  hubLayout
+                  hubFilters={{
+                    searchQuery,
+                    filterType: "all",
+                    filterStatus,
+                    viewMode,
+                    sortBy,
+                  }}
+                  onHubMetaChange={handleHubMetaChange}
+                />
+              </div>
+            </div>
+            <div className="@container/issues flex min-h-0 min-w-0 flex-col">
+              <QuizIssuesPanel
                 assessmentType={assessmentType}
-                hubLayout
-                hubFilters={{
-                  searchQuery,
-                  filterType: "all",
-                  filterStatus,
-                  viewMode,
-                  sortBy,
-                }}
-                onHubMetaChange={handleHubMetaChange}
+                embedInDashboard
+                onCountsChange={handleIssueCountsChange}
               />
             </div>
-          </div>
-          <div className="@container/issues min-w-0">
-            <QuizIssuesPanel
-              assessmentType={assessmentType}
-              embedInDashboard
-              onCountsChange={handleIssueCountsChange}
-            />
           </div>
         </div>
       </StudentModuleHubLayout>

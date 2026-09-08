@@ -14,7 +14,7 @@ const QuizList = dynamic(
 
 const QuizIssuesPanel = dynamic(
   () => import("@/components/quiz-issues-panel").then((m) => ({ default: m.QuizIssuesPanel })),
-  { loading: () => null },
+  { loading: () => <ModulePageSkeleton className="min-h-[240px]" /> },
 )
 
 type Props = { assessmentType: "quiz" | "homework" | "mid_semester" | "final" }

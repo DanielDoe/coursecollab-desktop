@@ -1,4 +1,5 @@
 import { lazy, Suspense, type ComponentType } from 'react'
+import { ModulePageSkeleton } from '@/components/student/dashboard-v2/ModulePageSkeleton'
 
 type DynamicOptions = {
   loading?: () => React.ReactNode
@@ -6,6 +7,10 @@ type DynamicOptions = {
 }
 
 type Loader<T extends ComponentType<unknown>> = () => Promise<{ default: T } | T>
+
+function defaultLoadingFallback() {
+  return <ModulePageSkeleton className="min-h-[280px]" />
+}
 
 export default function dynamic<T extends ComponentType<unknown>>(
   loader: Loader<T>,
@@ -23,8 +28,9 @@ export default function dynamic<T extends ComponentType<unknown>>(
   })
 
   return function DynamicComponent(props: React.ComponentProps<T>) {
+    const fallback = options?.loading ? options.loading() : defaultLoadingFallback()
     return (
-      <Suspense fallback={options?.loading?.() ?? null}>
+      <Suspense fallback={fallback}>
         <LazyComponent {...props} />
       </Suspense>
     )

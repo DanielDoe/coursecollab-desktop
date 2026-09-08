@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{S as t}from"./index-Bk6sIswz.js";var n=e();function r({className:e,size:r=`default`}){return(0,n.jsx)(t,{size:r===`lg`?`lg`:r===`sm`?`xs`:`sm`,className:e})}export{r as t};

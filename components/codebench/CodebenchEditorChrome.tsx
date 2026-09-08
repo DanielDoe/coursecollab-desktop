@@ -1,6 +1,7 @@
 "use client"
 
 import { Code2, Circle, Loader2 } from "lucide-react"
+import { useCodebenchCoraPanel } from "@/components/codebench/codebench-cora-panel-context"
 import { cn } from "@/lib/utils"
 import { useCodebenchChrome } from "@/hooks/use-codebench-chrome"
 
@@ -41,6 +42,7 @@ export function CodebenchEditorChrome({
 }: Props) {
   const isLight = theme === "light"
   const { accent } = useCodebenchChrome()
+  const coraPanel = useCodebenchCoraPanel()
   const tabs = openFiles.length > 0 ? openFiles : [{ id: "current", name: fileName, dirty }]
 
   return (
@@ -98,7 +100,12 @@ export function CodebenchEditorChrome({
           </span>
         ) : null}
       </div>
-      <div className="flex shrink-0 items-center gap-2 text-[11px] text-[var(--cc-text-muted)]">
+      <div
+        className={cn(
+          "flex shrink-0 items-center gap-2 text-[11px] text-[var(--cc-text-muted)]",
+          coraPanel?.collapsed && "pr-2",
+        )}
+      >
         {learningMode && !compact ? (
           <span
             className="hidden rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize @[40rem]/cb-chrome:inline-flex"

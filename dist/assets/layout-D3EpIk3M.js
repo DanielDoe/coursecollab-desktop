@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./brand-surface-chrome-sync-DcFSiRUi.js";import{t as n}from"./auth-context-Xf8YTKR1.js";var r=e();function i({children:e}){return(0,r.jsxs)(n,{children:[(0,r.jsx)(t,{}),(0,r.jsx)(`div`,{className:`cc-brand-surface cc-brand-auth min-h-[100dvh]`,children:e})]})}export{i as default};

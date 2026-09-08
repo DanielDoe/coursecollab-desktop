@@ -1,1 +1,0 @@
-import{o as e}from"./rolldown-runtime-C0FnF6B9.js";import{t}from"./react-C21x__mS.js";import{a as n,c as r,l as i}from"./desktop-auth-policy-zq3VwfOv.js";import{Ct as a}from"./index-BFIBYwc9.js";var o=e(t());n();function s(e,t=`/auth/welcome`){let n=a();(0,o.useEffect)(()=>{r()&&(i(e),n.replace(t))},[e,t,n])}export{s as t};

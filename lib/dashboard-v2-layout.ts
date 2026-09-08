@@ -6,8 +6,25 @@
 /** `<main>` padding around breadcrumbs + page (both instructor & student). */
 export const dashboardV2ShellMainClass = "p-3 sm:p-4 md:p-5 lg:p-5"
 
-/** Motion / page root inside a route. */
-export const dashboardV2PageRootClass = "w-full min-w-0 overflow-x-hidden"
+/** Motion / page root inside a route — shrink-0 so flex `main` scrolls instead of clipping overflow-hidden cards. */
+export const dashboardV2PageRootClass = "w-full min-w-0 shrink-0 overflow-x-hidden"
+
+/**
+ * Dashboard module scroll modes (merged shell):
+ * - `page` (default): content grows naturally; `<main>` scrolls (forms, evaluation, syllabus, …).
+ * - `panel`: module fills the viewport; split panes scroll internally (messages, quizzes, calendar, …).
+ */
+export type DashboardV2ModuleScrollMode = "page" | "panel"
+
+/** Set on panel-mode page roots — merged `<main>` uses this to disable page scroll. */
+export const DASHBOARD_V2_PANEL_SCROLL_ATTR = "data-scroll-mode"
+
+/** Wrapper classes for StudentDashboardModulePage / hub shells. */
+export function dashboardV2ModuleShellClass(mode: DashboardV2ModuleScrollMode = "page") {
+  return mode === "panel"
+    ? "flex min-h-0 w-full min-w-0 flex-1 flex-col"
+    : "w-full min-w-0 shrink-0"
+}
 
 /** Inner padding inside CardWrapper (one layer only). */
 export const dashboardV2CardBodyClass =

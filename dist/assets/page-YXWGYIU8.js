@@ -1,0 +1,1 @@
+import{zt as e}from"./index-Bk6sIswz.js";function t(){e(`/guest/cora-career/access`)}export{t as default};

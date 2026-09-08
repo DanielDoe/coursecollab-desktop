@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{Bt as t}from"./index-Bk6sIswz.js";import{t as n}from"./quiz-preview-CvlhKaF2.js";var r=e();function i(){let e=t().id;return(0,r.jsx)(n,{quizId:e})}export{i as default};

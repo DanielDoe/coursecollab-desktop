@@ -375,7 +375,7 @@ Please review the updated schedule and contact the instructor immediately if you
       ${content},
       ${instructorId},
       ${request.course_id},
-      true,
+      false,
       true,
       true,
       '[]'::jsonb,

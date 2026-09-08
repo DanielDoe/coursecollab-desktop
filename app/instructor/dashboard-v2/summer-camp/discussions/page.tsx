@@ -1,6 +1,5 @@
 "use client"
 
-import { FacultySummerCampShell } from "@/components/instructor/FacultySummerCampShell"
 import { FacultyCampDiscussions } from "@/components/summer-camp/FacultyCampDiscussions"
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 import { PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
@@ -11,9 +10,8 @@ export default function InstructorSummerCampDiscussionsPage() {
   const { iconBadge } = facultyEmbedChrome("summer-camp")
 
   return (
-    <FacultySummerCampShell>
-    <div className="space-y-4">
-      <div className="flex items-start gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="flex shrink-0 items-start gap-3">
         <span className={iconBadge("md")}>
           <MessageCircle className="h-5 w-5" />
         </span>
@@ -24,8 +22,9 @@ export default function InstructorSummerCampDiscussionsPage() {
           </p>
         </div>
       </div>
-      <FacultyCampDiscussions showTrainingLabel />
+      <div className="flex min-h-0 flex-1 flex-col">
+        <FacultyCampDiscussions showTrainingLabel embedInDashboard />
+      </div>
     </div>
-    </FacultySummerCampShell>
   )
 }

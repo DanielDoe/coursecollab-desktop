@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./AdminPlaceholderPage-C1bcW2f8.js";var n=e();function r(){return(0,n.jsx)(t,{title:`Faculty Workload`})}export{r as default};

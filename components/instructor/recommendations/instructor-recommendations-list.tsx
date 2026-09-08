@@ -23,6 +23,11 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { PORTAL_CARD, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
+import {
+  AM_PANEL_FILL,
+  AM_PANEL_SCROLL,
+  AM_PANEL_SECTION,
+} from "@/lib/assessments/assessment-management-surface-classes"
 import { CardWrapper } from "@/components/student/dashboard-v2/CardWrapper"
 import {
   FacultyIntegratedToolbar,
@@ -70,7 +75,12 @@ type SortKey = "recent" | "deadline_asc" | "name_asc"
 
 function EmptyPanel({ title, description }: { title: string; description: string }) {
   return (
-    <div className="col-span-full rounded-2xl border border-dashed border-slate-200/90 dark:border-white/[0.12] bg-slate-50/70 dark:bg-white/[0.03] px-6 py-12 text-center">
+    <div
+      className={cn(
+        "rounded-2xl border border-dashed border-slate-200/90 dark:border-white/[0.12] bg-slate-50/70 dark:bg-white/[0.03] px-6 py-12 text-center",
+        AM_PANEL_FILL,
+      )}
+    >
       <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-slate-200/60 dark:bg-white/10 text-slate-500 dark:text-slate-400 mb-3">
         <Inbox className="h-5 w-5" aria-hidden />
       </div>
@@ -447,10 +457,14 @@ export function InstructorRecommendationsList({ bucket }: { bucket: InstructorRe
     return (
       <div
         className={cn(
-          "grid items-stretch gap-4",
-          viewMode === "grid" &&
-            "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4",
-          viewMode === "list" && "grid-cols-1",
+          filtered.length === 0
+            ? cn(AM_PANEL_SECTION, "min-h-0 flex-1")
+            : cn(
+                "grid items-stretch gap-4",
+                viewMode === "grid" && "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4",
+                viewMode === "list" && "grid-cols-1",
+                AM_PANEL_SCROLL,
+              ),
         )}
       >
         {filtered.length === 0 ? (
@@ -476,7 +490,7 @@ export function InstructorRecommendationsList({ bucket }: { bucket: InstructorRe
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="w-full min-w-0"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden w-full min-w-0"
     >
       <InstructorRequestReviewModal
         requestId={modalId}
@@ -519,14 +533,15 @@ export function InstructorRecommendationsList({ bucket }: { bucket: InstructorRe
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="space-y-3">
+      <div className={cn(AM_PANEL_SECTION, "gap-3")}>
         {err && (
-          <p className="text-sm text-red-600 dark:text-red-400 rounded-lg border border-red-200/80 dark:border-red-900/50 bg-red-50/80 dark:bg-red-950/30 px-3 py-2">
+          <p className="shrink-0 text-sm text-red-600 dark:text-red-400 rounded-lg border border-red-200/80 dark:border-red-900/50 bg-red-50/80 dark:bg-red-950/30 px-3 py-2">
             {err}
           </p>
         )}
 
-        <FacultyIntegratedToolbar
+        <div className="shrink-0">
+          <FacultyIntegratedToolbar
           moduleId="recommendations"
           search={search}
           onSearchChange={setSearch}
@@ -552,6 +567,7 @@ export function InstructorRecommendationsList({ bucket }: { bucket: InstructorRe
             </span>
           }
         />
+        </div>
 
         <BucketPanel b={bucket} />
       </div>

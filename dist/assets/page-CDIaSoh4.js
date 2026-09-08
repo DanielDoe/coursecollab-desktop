@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./InstitutionRequestForm-DO-tt8GZ.js";var n=e();function r(){return(0,n.jsx)(t,{defaultKind:`demo`,title:`Request a demo`})}export{r as default};

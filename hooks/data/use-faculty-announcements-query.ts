@@ -78,6 +78,54 @@ export function useFacultyAnnouncementsQuery(instructorId: string, courseId?: st
     },
   })
 
+  const unpinAllAnnouncements = useMutation({
+    mutationFn: async () => {
+      let announcements = queryClient.getQueryData<FacultyAnnouncement[]>(key) ?? []
+      if (announcements.length === 0) {
+        announcements = await fetchFacultyAnnouncements(instructorId, facultyScope.courseId)
+      }
+      const pinned = announcements.filter((row) => row.pinned)
+      if (pinned.length === 0) return 0
+
+      const bulkRes = await instructorApiFetch("/api/announcements/unpin-all", {
+        method: "POST",
+        headers: { "x-instructor-id": instructorId },
+      })
+      if (bulkRes.ok) {
+        const data = await readJson<{ unpinnedCount?: number }>(bulkRes)
+        return Number(data.unpinnedCount ?? pinned.length)
+      }
+
+      if (bulkRes.status !== 404 && bulkRes.status !== 405) {
+        await readJson(bulkRes)
+      }
+
+      await Promise.all(
+        pinned.map(async (announcement) => {
+          const res = await instructorApiFetch(`/api/announcements/${announcement.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", "x-instructor-id": instructorId },
+            body: JSON.stringify({ pinned: false }),
+          })
+          await readJson(res)
+        }),
+      )
+      return pinned.length
+    },
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: key })
+      return beginOptimistic<FacultyAnnouncement[]>(queryClient, key, (current = []) =>
+        current.map((row) => ({ ...row, pinned: false })),
+      )
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx) rollbackOptimistic(queryClient, ctx)
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: key })
+    },
+  })
+
   const setAnnouncements = (next: FacultyAnnouncement[]) => {
     queryClient.setQueryData(key, next)
   }
@@ -90,6 +138,7 @@ export function useFacultyAnnouncementsQuery(instructorId: string, courseId?: st
     refetch: query.refetch,
     deleteAnnouncement,
     pinAnnouncement,
+    unpinAllAnnouncements,
     setAnnouncements,
   }
 }

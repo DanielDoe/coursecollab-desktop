@@ -14,6 +14,8 @@ type Props = {
   children: React.ReactNode
   moduleName?: string
   fallbackTitle?: string
+  /** When any key changes, clear a caught error (e.g. route pathname on desktop navigation). */
+  resetKeys?: readonly unknown[]
 }
 
 type State = {
@@ -32,7 +34,25 @@ export class SystemErrorBoundary extends React.Component<Props, State> {
     if (isBrowserExtensionDomNoise(error.message, stack)) {
       return { hasError: false, error: null }
     }
+    if (isChunkLoadErrorMessage(error.message, error.name)) {
+      return { hasError: false, error: null }
+    }
     return { hasError: true, error }
+  }
+
+  componentDidUpdate(prevProps: Props) {
+    if (!this.state.hasError || !this.props.resetKeys?.length) return
+
+    const prevKeys = prevProps.resetKeys
+    const nextKeys = this.props.resetKeys
+    const keysChanged =
+      !prevKeys ||
+      prevKeys.length !== nextKeys.length ||
+      prevKeys.some((key, index) => key !== nextKeys[index])
+
+    if (keysChanged) {
+      this.setState({ hasError: false, error: null })
+    }
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {

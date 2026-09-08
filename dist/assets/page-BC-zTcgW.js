@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./LegacyFacultyRedirect-DTGBQxNW.js";var n=e();function r(){return(0,n.jsx)(t,{href:`/faculty/dashboard/assessments/quizzes/issues`})}export{r as default};

@@ -4,17 +4,18 @@ import dynamic from "next/dynamic"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { StudentModuleHubLayout } from "@/components/student/dashboard-v2/StudentModuleHubLayout"
+import { ModulePageSkeleton } from "@/components/student/dashboard-v2/ModulePageSkeleton"
 import { getStudentData, studentApiFetch } from "@/lib/auth"
 import { buildStudentScopedSearchParams } from "@/lib/student-session-ids"
 
 const GroupsManager = dynamic(
   () => import("@/components/groups-manager").then((m) => ({ default: m.GroupsManager })),
-  { ssr: false },
+  { ssr: false, loading: () => <ModulePageSkeleton className="min-h-[360px]" /> },
 )
 
 const GroupRequestsPanel = dynamic(
   () => import("@/components/group-requests-panel").then((m) => ({ default: m.GroupRequestsPanel })),
-  { ssr: false },
+  { ssr: false, loading: () => <ModulePageSkeleton className="min-h-[240px]" /> },
 )
 
 type SectionGroup = {
@@ -199,6 +200,7 @@ export function GroupsDashboardV2() {
         title="Groups"
         metaLine="Loading section…"
         hideSideMenu
+        scrollMode="panel"
         menuView="groups"
         onMenuSelect={() => {}}
         menuItems={[]}
@@ -225,13 +227,14 @@ export function GroupsDashboardV2() {
       metaLine={metaLine}
       metaSuffix="propose or join a group that's open"
       hideSideMenu
+      scrollMode="panel"
       menuView="groups"
       onMenuSelect={() => {}}
       menuItems={[]}
       loading={loading}
     >
-      <div className="grid w-full min-w-0 grid-cols-1 gap-3 lg:grid-cols-3 lg:items-stretch">
-        <div className="flex min-h-0 min-w-0 flex-col lg:col-span-2">
+      <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-3 lg:items-stretch">
+        <div className="flex h-full min-h-0 min-w-0 flex-col lg:col-span-2">
           <GroupsManager
             studentDatabaseId={studentDatabaseId}
             studentSection={studentSection}
@@ -240,7 +243,7 @@ export function GroupsDashboardV2() {
             onSectionDataChange={() => void loadSectionData()}
           />
         </div>
-        <div className="flex min-h-0 min-w-0 flex-col">
+        <div className="flex h-full min-h-0 min-w-0 flex-col">
           <GroupRequestsPanel
             studentDatabaseId={studentDatabaseId}
             studentSection={studentSection}

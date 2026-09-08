@@ -52,7 +52,7 @@ type TrainingRow = {
   faculty_role?: string
 }
 
-export function InstructorSummerCampHub() {
+export function InstructorSummerCampHub({ embedInDashboard }: { embedInDashboard?: boolean } = {}) {
   const { p: fp, iconBadge, card, solid } = facultyEmbedChrome("summer-camp")
 
   const [camps, setCamps] = useState<CampRow[]>([])
@@ -201,7 +201,7 @@ export function InstructorSummerCampHub() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
+      <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4"}>
         <div className="flex items-start gap-3">
           <Skeleton className="h-12 w-12 rounded-xl" />
           <div className="flex-1 space-y-2">
@@ -210,19 +210,27 @@ export function InstructorSummerCampHub() {
           </div>
         </div>
         <Skeleton className="h-11 w-full rounded-xl" />
-        <div className="space-y-2">
+        <div className={cn("space-y-2", embedInDashboard && "flex min-h-0 flex-1 flex-col")}>
           {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+            <Skeleton key={i} className={cn("h-20 w-full rounded-2xl", embedInDashboard && i === 2 && "min-h-0 flex-1")} />
           ))}
         </div>
       </div>
     )
   }
 
+  const panelTab = embedInDashboard
+  const rootClass = panelTab ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4"
+  const scrollBodyClass = panelTab ? "flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1 sm:pr-2" : "space-y-4"
+  const emptyTracksClass = panelTab
+    ? cn(card, "flex min-h-0 flex-1 flex-col items-center justify-center border-dashed px-4 py-10 text-center")
+    : cn("rounded-2xl px-4 py-10 text-center", fp.softBg)
+
   const metaLine = `${ownedCamps.length} program${ownedCamps.length === 1 ? "" : "s"} · ${trainings.length} track${trainings.length === 1 ? "" : "s"}`
 
   return (
-    <div className="space-y-4">
+    <div className={rootClass}>
+      <div className={panelTab ? "shrink-0 space-y-4" : "space-y-4"}>
       <div className="flex items-start gap-3">
         <span className={iconBadge("md")}>
           <Sun className="h-5 w-5 !text-white" />
@@ -260,7 +268,9 @@ export function InstructorSummerCampHub() {
           </div>
         }
       />
+      </div>
 
+      <div className={scrollBodyClass}>
       {ownedCamps.length > 0 ? (
         <div className={cn(card, "space-y-3 p-3 sm:p-4")}>
           <p className={cn("text-xs font-medium uppercase tracking-wide", PORTAL_TEXT_MUTED)}>
@@ -307,13 +317,13 @@ export function InstructorSummerCampHub() {
         </div>
       ) : null}
 
-      <div className={cn(card, "space-y-3 p-3 sm:p-4")}>
+      <div className={cn(card, "flex flex-col gap-3 p-3 sm:p-4", panelTab && trainings.length === 0 && "min-h-0 flex-1")}>
         <p className={cn("text-xs font-medium uppercase tracking-wide", PORTAL_TEXT_MUTED)}>
           Training tracks
         </p>
 
         {trainings.length === 0 ? (
-          <div className={cn("rounded-2xl px-4 py-10 text-center", fp.softBg)}>
+          <div className={emptyTracksClass}>
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--cc-accent)]">
               <Sun className="h-6 w-6 !text-white" aria-hidden />
             </div>
@@ -387,6 +397,7 @@ export function InstructorSummerCampHub() {
             })}
           </ul>
         )}
+      </div>
       </div>
 
       <Dialog open={campDialogOpen} onOpenChange={setCampDialogOpen}>

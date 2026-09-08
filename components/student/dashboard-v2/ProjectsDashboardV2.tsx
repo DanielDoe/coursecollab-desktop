@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { ClipboardList, Trophy, UserRound, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { StudentModuleHubLayout } from "@/components/student/dashboard-v2/StudentModuleHubLayout"
+import { ModulePageSkeleton } from "@/components/student/dashboard-v2/ModulePageSkeleton"
 import type { Project } from "@/lib/types/project"
 import { getStudentData } from "@/lib/auth"
 import { buildStudentScopedSearchParams } from "@/lib/student-session-ids"
@@ -20,18 +21,18 @@ type SectionGroup = {
 
 const ProjectsManager = dynamic(
   () => import("@/components/projects-manager").then((m) => ({ default: m.ProjectsManager })),
-  { ssr: false },
+  { ssr: false, loading: () => <ModulePageSkeleton className="min-h-[360px]" /> },
 )
 const ProjectsList = dynamic(
   () => import("@/components/projects-list").then((m) => ({ default: m.ProjectsList })),
-  { ssr: false },
+  { ssr: false, loading: () => <ModulePageSkeleton className="min-h-[360px]" /> },
 )
 const ProjectPresentationScheduler = dynamic(
   () =>
     import("@/components/project-presentation-scheduler").then((m) => ({
       default: m.ProjectPresentationScheduler,
     })),
-  { ssr: false },
+  { ssr: false, loading: () => <ModulePageSkeleton className="min-h-[360px]" /> },
 )
 
 type MenuView = "all" | "mine" | "schedule"
@@ -143,6 +144,7 @@ export function ProjectsDashboardV2() {
           { id: "schedule", label: "Schedule", icon: Calendar },
         ]}
         loading
+        scrollMode="panel"
       >
         {null}
       </StudentModuleHubLayout>
@@ -183,6 +185,7 @@ export function ProjectsDashboardV2() {
         },
       ]}
       loading={loading}
+      scrollMode="panel"
     >
       {menuView === "all" ? (
         <ProjectsList
@@ -218,10 +221,10 @@ export function ProjectsDashboardV2() {
           </div>
         </section>
       ) : (
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--muted)]/30 px-4 py-10 text-center">
-          <Calendar className="mx-auto h-8 w-8 text-[var(--cc-accent)]" />
-          <p className="mt-2 text-sm font-medium text-[var(--cc-text)]">No approved project yet</p>
-          <p className="mt-1 text-xs text-[var(--cc-text-muted)]">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border)] bg-[color-mix(in_srgb,var(--cc-ui-skeleton,var(--muted))_12%,transparent)] px-4 py-12 text-center">
+          <Calendar className="h-8 w-8 text-[var(--cc-accent)]" />
+          <p className="text-sm font-medium text-[var(--cc-text)]">No approved project yet</p>
+          <p className="text-xs text-[var(--cc-text-muted)]">
             Once your group project is approved, you can book a presentation slot here.
           </p>
         </div>

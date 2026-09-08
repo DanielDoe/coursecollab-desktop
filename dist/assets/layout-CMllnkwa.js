@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./assessment-context-Di_mlHRp.js";var n=e();async function r({children:e,params:r}){let{assessmentType:i}=await r;return(0,n.jsx)(t,{type:i,children:e})}export{r as default};

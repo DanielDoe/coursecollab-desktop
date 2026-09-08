@@ -53,6 +53,7 @@ import { RolloverUpgradeModal } from "@/components/rollover-upgrade-modal"
 import { RolloverConfirmModal, type RolloverPolicyForModal } from "@/components/rollover-confirm-modal"
 import { AssessmentActionButtons } from "@/components/assessment-action-buttons"
 import { EmbeddedAssessmentCard } from "@/components/student/dashboard-v2/EmbeddedAssessmentCard"
+import { ModulePageSkeleton } from "@/components/student/dashboard-v2/ModulePageSkeleton"
 import { ExtendSelfServiceClosedBanner } from "@/components/student/ExtendSelfServiceClosedBanner"
 import { stripAssessmentInstructions } from "@/lib/student-assessment-hub"
 import {
@@ -816,7 +817,9 @@ export function QuizList({
   }, [quizzes, filteredQuizzes.length, onHubMetaChange, loading])
 
   if (loading) {
-    if (hubLayout) return null
+    if (hubLayout) {
+      return <ModulePageSkeleton className="min-h-[280px]" />
+    }
     return (
       <div className="flex items-center justify-center py-20">
         <div className={cn(embedInDashboard ? "text-[var(--cc-text-muted)]" : "text-slate-600 dark:text-slate-400")}>

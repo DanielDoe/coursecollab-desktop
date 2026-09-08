@@ -15,6 +15,8 @@ type InstructorPolicySurfaceCardProps = {
   footer?: ReactNode
   /** card = bordered surface; section = flat block (no nested card chrome) */
   variant?: "card" | "section"
+  /** Stretch to fill a panel-mode dashboard pane. */
+  fillHeight?: boolean
   /** @deprecated accent glow removed — portal tokens only */
   accent?: string
 }
@@ -26,6 +28,7 @@ export function InstructorPolicySurfaceCard({
   className,
   footer,
   variant = "card",
+  fillHeight = false,
 }: InstructorPolicySurfaceCardProps) {
   const header =
     title || description ? (
@@ -46,8 +49,15 @@ export function InstructorPolicySurfaceCard({
   }
 
   return (
-    <div className={cn(PORTAL_CARD, "w-full rounded-xl p-4 sm:rounded-2xl sm:p-5", className)}>
-      <div className="space-y-4">
+    <div
+      className={cn(
+        PORTAL_CARD,
+        "w-full rounded-xl p-4 sm:rounded-2xl sm:p-5",
+        fillHeight && "flex min-h-0 flex-1 flex-col",
+        className,
+      )}
+    >
+      <div className={cn(fillHeight ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4")}>
         {header}
         {children}
         {footer}

@@ -269,6 +269,38 @@ export function OfficeHoursDashboardV2() {
       : "Describe what you need help with"
   }, [loading, requests.length])
 
+  const stepGuide = (
+    <div className="grid grid-cols-1 gap-3 rounded-xl border border-[var(--border)] bg-[var(--muted)]/30 p-4 sm:gap-4 md:grid-cols-3">
+      <div className="flex min-w-0 gap-3">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cc-accent-soft)] text-xs font-semibold text-[var(--cc-accent-dark)]">
+          1
+        </span>
+        <div className="min-w-0">
+          <p className="font-medium text-[var(--cc-text)]">Submit</p>
+          <p className="text-xs text-[var(--cc-text-muted)]">Topic, description, optional code.</p>
+        </div>
+      </div>
+      <div className="flex min-w-0 gap-3">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cc-accent-soft)] text-xs font-semibold text-[var(--cc-accent-dark)]">
+          2
+        </span>
+        <div className="min-w-0">
+          <p className="font-medium text-[var(--cc-text)]">Review</p>
+          <p className="text-xs text-[var(--cc-text-muted)]">Instructor approves or schedules a time.</p>
+        </div>
+      </div>
+      <div className="flex min-w-0 gap-3">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cc-accent-soft)] text-xs font-semibold text-[var(--cc-accent-dark)]">
+          3
+        </span>
+        <div className="min-w-0">
+          <p className="font-medium text-[var(--cc-text)]">Meet</p>
+          <p className="text-xs text-[var(--cc-text-muted)]">Join via link or in-person venue.</p>
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <>
       <StudentModuleHubLayout
@@ -281,37 +313,14 @@ export function OfficeHoursDashboardV2() {
         menuView="office-hours"
         onMenuSelect={() => {}}
         menuItems={[]}
-        footer={
-          <div className="grid gap-3 sm:grid-cols-3 text-sm rounded-xl border border-[var(--border)] bg-[var(--muted)]/30 p-4">
-            <div className="flex gap-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cc-accent-soft)] text-xs font-semibold text-[var(--cc-accent-dark)]">1</span>
-              <div>
-                <p className="font-medium text-[var(--cc-text)]">Submit</p>
-                <p className="text-xs text-[var(--cc-text-muted)]">Topic, description, optional code.</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cc-accent-soft)] text-xs font-semibold text-[var(--cc-accent-dark)]">2</span>
-              <div>
-                <p className="font-medium text-[var(--cc-text)]">Review</p>
-                <p className="text-xs text-[var(--cc-text-muted)]">Instructor approves or schedules a time.</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cc-accent-soft)] text-xs font-semibold text-[var(--cc-accent-dark)]">3</span>
-              <div>
-                <p className="font-medium text-[var(--cc-text)]">Meet</p>
-                <p className="text-xs text-[var(--cc-text-muted)]">Join via link or in-person venue.</p>
-              </div>
-            </div>
-          </div>
-        }
       >
-        <div className="grid gap-5 xl:grid-cols-2 xl:items-start">
-        <section className="rounded-xl bg-[var(--muted)]/30 p-4 sm:p-5">
+        <div className="flex min-h-0 w-full min-w-0 flex-col gap-5">
+          {stepGuide}
+          <div className="grid min-h-0 w-full min-w-0 grid-cols-1 gap-5 lg:grid-cols-2 lg:items-stretch">
+        <section className="flex min-h-0 flex-col rounded-xl bg-[var(--muted)]/30 p-4 sm:p-5">
           <h2 className="text-sm font-semibold text-[var(--cc-text)]">New request</h2>
           <p className="mt-0.5 mb-4 text-xs text-[var(--cc-text-muted)]">Describe what you need help with</p>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
             <div className="space-y-2">
               <Label htmlFor="topic" className="text-[var(--cc-text)]">Topic / area of concern *</Label>
               <Input
@@ -322,7 +331,7 @@ export function OfficeHoursDashboardV2() {
                 className="rounded-lg border-[var(--border)] bg-[var(--muted)]/40"
               />
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="area" className="text-[var(--cc-text)]">Specific area (optional)</Label>
                 <Input
@@ -446,14 +455,16 @@ export function OfficeHoursDashboardV2() {
                 className="min-h-[72px] rounded-lg border-[var(--border)] bg-[var(--muted)]/40 font-mono text-sm"
               />
             </div>
-            <Button type="submit" disabled={submitting} className={cn("rounded-full", PORTAL_CTA)}>
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-              Submit request
-            </Button>
+            <div className="mt-auto border-t border-[var(--border)] pt-4">
+              <Button type="submit" disabled={submitting} className={cn("w-full rounded-full sm:w-auto", PORTAL_CTA)}>
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+                Submit request
+              </Button>
+            </div>
           </form>
         </section>
 
-        <section className="rounded-xl bg-[var(--muted)]/30 overflow-hidden min-h-[320px] flex flex-col">
+        <section className="flex h-full min-h-[280px] flex-col overflow-hidden rounded-xl bg-[var(--muted)]/30">
           <div className="px-4 pt-4 pb-2 sm:px-5">
             <h2 className="text-sm font-semibold text-[var(--cc-text)]">My requests</h2>
             <p className="text-xs text-[var(--cc-text-muted)]">Track status and meeting details</p>
@@ -530,6 +541,7 @@ export function OfficeHoursDashboardV2() {
             )}
           </div>
         </section>
+          </div>
         </div>
       </StudentModuleHubLayout>
 

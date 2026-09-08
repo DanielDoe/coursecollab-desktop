@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -81,6 +82,8 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
   const pageTheme = theme.page
   const iconAccent = pageTheme.iconText
   const panelCard = cn("rounded-2xl border shadow-sm", PORTAL_CARD)
+  const peerExchangeCard = cn(panelCard, "flex h-full flex-col p-4 sm:p-5")
+  const peerExchangeIconWrap = "rounded-lg bg-[var(--muted)] p-2 ring-1 ring-[var(--border)]"
   const softTile = cn("rounded-xl border", pageTheme.softBg, pageTheme.border)
   const progressTrack = "bg-[var(--muted)] [&_[data-slot=progress-indicator]]:!bg-[var(--cc-accent)]"
   const optionActive = cn(
@@ -790,6 +793,12 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
   const tabContentNarrow = embedInDashboard
     ? "w-full min-w-0 space-y-6"
     : "w-full max-w-xl mx-auto space-y-6"
+  const embedTabPanelsScroll = embedInDashboard
+    ? "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain min-w-0"
+    : ""
+  const embedTabsShellClass = embedInDashboard
+    ? "flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden"
+    : "w-full min-w-0"
 
   const tradeCenterTabTriggerClass = embedInDashboard
     ? cn(
@@ -820,7 +829,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
   )
 
   const tabPanels = (
-        <div className="min-w-0 flex-1">
+        <div className={cn("min-w-0", embedTabPanelsScroll)}>
         {/* Overview Tab */}
         <TabsContent value="overview" className="mt-0">
           <div className={tabSectionOuter}>
@@ -1457,19 +1466,21 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
               </div>
 
               {/* Donate & Request cards */}
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid items-stretch gap-4 md:grid-cols-2 md:gap-5">
                 {/* Donate to Peer */}
-                <div className={cn("rounded-2xl border p-6 shadow-sm", pageTheme.softBg, pageTheme.border)}>
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                <div className={peerExchangeCard}>
+                  <div className="mb-4 flex min-h-11 items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <div className={cn("p-2 rounded-lg", theme.page.iconBg)}>
+                      <div className={peerExchangeIconWrap}>
                         <Gift className={cn("h-5 w-5", theme.page.iconText)} />
                       </div>
                       <h4 className="font-semibold text-[var(--cc-text)]">Donate to Peer</h4>
                     </div>
-                    <div className="flex items-center gap-1">{syncRefreshButtons}</div>
+                    {!embedInDashboard ? (
+                      <div className="flex shrink-0 items-center gap-1">{syncRefreshButtons}</div>
+                    ) : null}
                   </div>
-                  <div className="space-y-4">
+                  <div className="flex flex-1 flex-col gap-4">
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-[var(--cc-text)]">Recipient</Label>
                       <Select value={donationRecipientId} onValueChange={setDonationRecipientId}>
@@ -1518,11 +1529,15 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
                         className="rounded-xl border-[var(--border)] h-11"
                       />
                     </div>
+                    <div className="pointer-events-none invisible space-y-2 select-none" aria-hidden>
+                      <Label className="text-sm font-medium text-[var(--cc-text)]">Message (optional)</Label>
+                      <div className="min-h-[88px] rounded-xl border border-[var(--border)]" />
+                    </div>
                     <Button
                       onClick={handleDonate}
                       disabled={donating || !donationPoints || parseInt(donationPoints) < 100 || !donationRecipientId}
                       variant="ghost"
-                      className={cn("w-full rounded-xl h-11", PORTAL_CTA)}
+                      className={cn("mt-auto w-full shrink-0 rounded-xl h-11", PORTAL_CTA)}
                     >
                       {donating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Gift className="h-4 w-4 mr-2" />}
                       {donating ? "Submitting..." : "Submit Donation Request"}
@@ -1531,14 +1546,14 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
                 </div>
 
                 {/* Request Points from Peer */}
-                <div className={cn("rounded-2xl border p-6 shadow-sm", pageTheme.softBg, pageTheme.border)}>
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className={cn("p-2 rounded-lg", theme.page.iconBg)}>
+                <div className={peerExchangeCard}>
+                  <div className="mb-4 flex min-h-11 items-center gap-2">
+                    <div className={peerExchangeIconWrap}>
                       <Send className={cn("h-5 w-5", theme.page.iconText)} />
                     </div>
                     <h4 className="font-semibold text-[var(--cc-text)]">Request Points</h4>
                   </div>
-                  <div className="space-y-4">
+                  <div className="flex flex-1 flex-col gap-4">
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-[var(--cc-text)]">Request From</Label>
                       <Select value={requestPeerId} onValueChange={setRequestPeerId}>
@@ -1587,18 +1602,19 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-[var(--cc-text)]">Message (optional)</Label>
-                      <Input
+                      <Textarea
                         value={requestMessage}
                         onChange={(e) => setRequestMessage(e.target.value)}
                         placeholder="e.g. I need a few more points for EC..."
-                        className="rounded-xl border-[var(--border)] h-11"
+                        rows={3}
+                        className="min-h-[88px] resize-none rounded-xl border-[var(--border)]"
                       />
                     </div>
                     <Button
                       onClick={handleRequestPoints}
                       disabled={requesting || !requestPoints || parseInt(requestPoints) < 100 || !requestPeerId}
                       variant="ghost"
-                      className={cn("w-full rounded-xl h-11", PORTAL_CTA)}
+                      className={cn("mt-auto w-full shrink-0 rounded-xl h-11", PORTAL_CTA)}
                     >
                       {requesting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
                       {requesting ? "Sending..." : "Send Request"}
@@ -1708,8 +1724,9 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
         menuItems={tradeCenterMenuItems}
         loading={loading}
         loadingRows={8}
+        scrollMode="panel"
       >
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full min-w-0">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className={embedTabsShellClass}>
           {tabPanels}
         </Tabs>
       </StudentModuleHubLayout>

@@ -1,0 +1,1 @@
+import{Ot as e,zt as t}from"./index-Bk6sIswz.js";function n(){t(`${e}/administration/teaching-assistants`)}export{n as default};

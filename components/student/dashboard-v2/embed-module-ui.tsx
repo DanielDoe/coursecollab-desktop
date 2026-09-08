@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 
 /** Outer shell — matches announcements / messages; visible edge in light + dark */
 export const EMBED_CARD = cn(
-  "rounded-xl bg-[var(--card)] overflow-hidden",
+  "rounded-xl bg-[var(--card)] overflow-x-hidden",
   "border border-[color-mix(in_srgb,var(--cc-text)_14%,transparent)]",
   "shadow-[0_1px_2px_rgba(15,23,42,0.06),0_10px_28px_rgba(15,23,42,0.09)]",
   "dark:border-white/[0.10]",

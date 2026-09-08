@@ -14,7 +14,7 @@ const CalendarDashboardV2 = dynamic(
 
 export default function DashboardV2CalendarPage() {
   return (
-    <StudentDashboardModulePage>
+    <StudentDashboardModulePage scrollMode="panel">
       <CalendarDashboardV2 />
     </StudentDashboardModulePage>
   )

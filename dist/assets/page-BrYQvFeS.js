@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./light-motion-LjIvDOzA.js";import{o as n}from"./dashboard-v2-layout-BB4irAmI.js";import{RoleDashboardPage as r}from"./RoleDashboardPage-CrQuP-DL.js";var i=e();function a(){return(0,i.jsx)(t,{className:n,children:(0,i.jsx)(r,{portal:`faculty`})})}export{a as default};

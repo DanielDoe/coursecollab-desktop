@@ -1,8 +1,6 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { EmbedModuleCard } from "@/components/student/dashboard-v2/embed-module-ui"
-import { PageEnter } from "@/components/student/dashboard-v2/light-motion"
 import {
   InstructorClassroomPoints,
   type ClassroomPointsNavSection,
@@ -10,7 +8,7 @@ import {
 import { ClipboardList, BarChart3, Clock, History, Users, Settings } from "lucide-react"
 import { FacultyModuleSplitLayout } from "@/components/instructor/dashboard-v2/FacultyModuleSplitLayout"
 import { FacultyModuleSideMenu } from "@/components/instructor/dashboard-v2/FacultyModuleSideMenu"
-import { dashboardV2PageRootClass } from "@/lib/dashboard-v2-layout"
+import { StudentDashboardModulePage } from "@/components/student/dashboard-v2/StudentDashboardModulePage"
 
 const SECTIONS: {
   id: ClassroomPointsNavSection
@@ -30,25 +28,23 @@ export default function AssessmentsClassroomPointsPage() {
   const [activeSection, setActiveSection] = useState<ClassroomPointsNavSection>("overview")
 
   return (
-    <PageEnter className={dashboardV2PageRootClass}>
-      <EmbedModuleCard>
-        <div className="w-full min-w-0 overflow-x-hidden p-3 sm:p-4 md:p-5">
-          <FacultyModuleSplitLayout
-            menu={
-              <FacultyModuleSideMenu
-                moduleId="classroom-points"
-                title="Classroom Points"
-                accent="theme"
-                activeId={activeSection}
-                onSelect={(id) => setActiveSection(id as ClassroomPointsNavSection)}
-                items={SECTIONS}
-              />
-            }
-          >
-            <InstructorClassroomPoints onRefreshRef={refreshRef} activeSection={activeSection} />
-          </FacultyModuleSplitLayout>
-        </div>
-      </EmbedModuleCard>
-    </PageEnter>
+    <StudentDashboardModulePage scrollMode="panel">
+      <FacultyModuleSplitLayout
+        scrollMode="panel"
+        className="min-h-0 flex-1"
+        menu={
+          <FacultyModuleSideMenu
+            moduleId="classroom-points"
+            title="Classroom Points"
+            accent="theme"
+            activeId={activeSection}
+            onSelect={(id) => setActiveSection(id as ClassroomPointsNavSection)}
+            items={SECTIONS}
+          />
+        }
+      >
+        <InstructorClassroomPoints onRefreshRef={refreshRef} activeSection={activeSection} />
+      </FacultyModuleSplitLayout>
+    </StudentDashboardModulePage>
   )
 }

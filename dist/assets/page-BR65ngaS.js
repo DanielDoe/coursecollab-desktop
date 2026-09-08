@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./create-question-form-CQT0f_Nz.js";var n=e();function r(){return(0,n.jsx)(t,{})}export{r as default};

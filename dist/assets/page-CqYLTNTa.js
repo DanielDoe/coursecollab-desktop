@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./redirect-to-course-analytics-DOr1XguE.js";var n=e();function r(){return(0,n.jsx)(t,{})}export{r as default};

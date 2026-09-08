@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils"
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 import { facultyModuleSpinnerClass } from "@/lib/faculty-module-themes"
 import { PORTAL_CARD, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
-import { FacultyIntegratedToolbar } from "@/components/instructor/dashboard-v2/FacultyIntegratedToolbar"
+import { FacultyIntegratedToolbar, facultyToolbarFilterButtonClass } from "@/components/instructor/dashboard-v2/FacultyIntegratedToolbar"
 import { buildPodiumEntries } from "@/lib/playground-podium"
 import { PlaygroundLeaderboardPodium } from "@/components/playground/PlaygroundLeaderboardPodium"
 import { usePlaygroundPodiumReveal } from "@/hooks/use-playground-podium-reveal"
@@ -211,65 +211,79 @@ export function InstructorPlaygroundLeaderboardTab({
   }, [leaderboardData, studentSearch])
 
   return (
-    <div className="space-y-4">
-      <FacultyIntegratedToolbar
-        moduleId="playground"
-        filters={
-          <Select value={selectedLeaderboardSession || undefined} onValueChange={onSelectSession}>
-            <SelectTrigger className="h-9 w-full min-w-[220px] rounded-lg border-0 bg-muted/50 shadow-none sm:min-w-[280px]">
-              <SelectValue placeholder="Select playground session" />
-            </SelectTrigger>
-            <SelectContent>
-              {sortedSessions.map((session) => (
-                <SelectItem key={session.id} value={session.id.toString()}>
-                  <span className="font-mono">{session.session_code}</span>
-                  <span className="mx-1.5 text-[var(--cc-text-muted)]">·</span>
-                  <span>{getSessionDisplayLabel(session)}</span>
-                  {session.is_active && (
-                    <Badge variant="secondary" className="ml-2 text-[10px]">
-                      Live
-                    </Badge>
-                  )}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        }
-        meta={
-          leaderboardSessionIsLive ? (
-            <p className={cn("text-xs", fp.iconText)}>
-              Session is live — auto-refreshing every 8s
-              {refreshingLeaderboard ? " · Updating…" : ""}
-            </p>
-          ) : (
-            <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>Rankings for the selected session</p>
-          )
-        }
-        trailing={
-          <Button variant="outline" size="sm" onClick={onRefresh} disabled={loadingLeaderboard} className="h-9 gap-1.5 rounded-lg">
-            <RefreshCw className={cn("h-3.5 w-3.5", loadingLeaderboard && "animate-spin")} />
-            Refresh
-          </Button>
-        }
-      />
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="shrink-0">
+        <FacultyIntegratedToolbar
+          moduleId="playground"
+          filters={
+            <Select value={selectedLeaderboardSession || undefined} onValueChange={onSelectSession}>
+              <SelectTrigger
+                className={cn(
+                  facultyToolbarFilterButtonClass(Boolean(selectedLeaderboardSession)),
+                  "h-9 w-full min-w-[220px] rounded-full px-3 text-sm text-[var(--cc-text)] shadow-none sm:min-w-[280px] [&>span]:line-clamp-1 data-[placeholder]:text-[var(--cc-text-secondary)]",
+                )}
+              >
+                <SelectValue placeholder="Select playground session" />
+              </SelectTrigger>
+              <SelectContent>
+                {sortedSessions.map((session) => (
+                  <SelectItem key={session.id} value={session.id.toString()}>
+                    <span className="font-mono">{session.session_code}</span>
+                    <span className="mx-1.5 text-[var(--cc-text-muted)]">·</span>
+                    <span>{getSessionDisplayLabel(session)}</span>
+                    {session.is_active && (
+                      <Badge variant="secondary" className="ml-2 text-[10px]">
+                        Live
+                      </Badge>
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
+          meta={
+            leaderboardSessionIsLive ? (
+              <p className={cn("text-xs", fp.iconText)}>
+                Session is live — auto-refreshing every 8s
+                {refreshingLeaderboard ? " · Updating…" : ""}
+              </p>
+            ) : (
+              <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>Rankings for the selected session</p>
+            )
+          }
+          trailing={
+            <Button variant="outline" size="sm" onClick={onRefresh} disabled={loadingLeaderboard} className="h-9 gap-1.5 rounded-lg">
+              <RefreshCw className={cn("h-3.5 w-3.5", loadingLeaderboard && "animate-spin")} />
+              Refresh
+            </Button>
+          }
+        />
+      </div>
 
-          {/* Podium — always visible when we have top performers */}
-          {!loadingLeaderboard && leaderboardData.length > 0 && !isSearching && podiumEntries.length > 0 ? (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {!loadingLeaderboard && leaderboardData.length > 0 && !isSearching && podiumEntries.length > 0 ? (
+          <div className="shrink-0">
             <PlaygroundLeaderboardPodium
               entries={podiumEntries}
               listRevealed={listRevealed || isSearching}
               celebrationKey={selectedLeaderboardSession}
             />
-          ) : null}
+          </div>
+        ) : null}
 
-          {/* Student list */}
-          {loadingLeaderboard && leaderboardData.length === 0 ? (
-            <div className="text-center py-16">
-              <Loader className={cn("h-8 w-8 mx-auto animate-spin", facultyModuleSpinnerClass("playground"))} />
-              <p className={cn("mt-3 text-sm", PORTAL_TEXT_MUTED)}>Loading leaderboard…</p>
-            </div>
-          ) : leaderboardData.length > 0 ? (
-            <div className="space-y-4">
+        {loadingLeaderboard && leaderboardData.length === 0 ? (
+          <div
+            className={cn(
+              PORTAL_CARD,
+              "flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-10 text-center",
+            )}
+          >
+            <Loader className={cn("mx-auto h-8 w-8 animate-spin", facultyModuleSpinnerClass("playground"))} />
+            <p className={cn("mt-3 text-sm", PORTAL_TEXT_MUTED)}>Loading leaderboard…</p>
+          </div>
+        ) : leaderboardData.length > 0 ? (
+          <div className="flex min-h-0 flex-1 flex-col gap-4">
+            <div className="shrink-0">
               <FacultyIntegratedToolbar
                 moduleId="playground"
                 search={studentSearch}
@@ -282,29 +296,29 @@ export function InstructorPlaygroundLeaderboardTab({
                   </p>
                 }
               />
+            </div>
 
-              <AnimatePresence>
-                {(listRevealed || isSearching) && (
-                  <motion.div
-                    key={`list-${selectedLeaderboardSession}`}
-                    initial={{ opacity: 0, y: 24 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 12 }}
-                    transition={{ duration: 0.45, ease: "easeOut" }}
-                    className="space-y-2"
-                  >
-                    <div className="max-h-[min(70vh,640px)] overflow-auto">
-                      <AnimatePresence mode="popLayout">
-                        {filteredStudents.length === 0 ? (
-                          <motion.p
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className={cn(PORTAL_CARD, "p-8 text-center text-sm", PORTAL_TEXT_MUTED)}
-                          >
-                            No students match &ldquo;{studentSearch}&rdquo;
-                          </motion.p>
-                        ) : (
-                          filteredStudents.map((entry, idx) => {
+            <AnimatePresence>
+              {(listRevealed || isSearching) && (
+                <motion.div
+                  key={`list-${selectedLeaderboardSession}`}
+                  initial={{ opacity: 0, y: 24 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 12 }}
+                  transition={{ duration: 0.45, ease: "easeOut" }}
+                  className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 sm:pr-2"
+                >
+                  <AnimatePresence mode="popLayout">
+                    {filteredStudents.length === 0 ? (
+                      <motion.p
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className={cn(PORTAL_CARD, "p-8 text-center text-sm", PORTAL_TEXT_MUTED)}
+                      >
+                        No students match &ldquo;{studentSearch}&rdquo;
+                      </motion.p>
+                    ) : (
+                      filteredStudents.map((entry, idx) => {
                         const rank = entry.rank
                         const displayName = entry.studentName || entry.displayName
                         return (
@@ -387,24 +401,27 @@ export function InstructorPlaygroundLeaderboardTab({
                       })
                     )}
                   </AnimatePresence>
-                </div>
-              </motion.div>
+                </motion.div>
               )}
-              </AnimatePresence>
-            </div>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className={cn(PORTAL_CARD, "py-16 text-center")}
-            >
-              <Trophy className="mx-auto mb-3 h-12 w-12 text-muted-foreground/50" />
-              <p className={cn("text-lg font-semibold", PORTAL_TEXT)}>No leaderboard data</p>
-              <p className={cn("text-sm mt-1 max-w-sm mx-auto", PORTAL_TEXT_MUTED)}>
-                Students need to join and play this session before rankings appear here.
-              </p>
-            </motion.div>
-          )}
+            </AnimatePresence>
+          </div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={cn(
+              PORTAL_CARD,
+              "flex min-h-0 flex-1 flex-col items-center justify-center border-dashed px-4 py-10 text-center",
+            )}
+          >
+            <Trophy className="mx-auto mb-3 h-12 w-12 text-muted-foreground/50" />
+            <p className={cn("text-lg font-semibold", PORTAL_TEXT)}>No leaderboard data</p>
+            <p className={cn("mx-auto mt-1 max-w-sm text-sm", PORTAL_TEXT_MUTED)}>
+              Students need to join and play this session before rankings appear here.
+            </p>
+          </motion.div>
+        )}
+      </div>
     </div>
   )
 }

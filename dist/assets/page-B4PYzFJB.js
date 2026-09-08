@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./SystemLogsContent-Czj6ujZF.js";var n=e();function r(){return(0,n.jsx)(`div`,{className:`container mx-auto px-6 py-8`,children:(0,n.jsx)(t,{portal:`instructor`})})}export{r as default};

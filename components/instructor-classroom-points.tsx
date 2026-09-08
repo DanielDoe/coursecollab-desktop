@@ -1292,12 +1292,22 @@ export function InstructorClassroomPoints({
     </div>
   );
 
+  const panelSection = isTabbedLayout ? "flex min-h-0 flex-1 flex-col overflow-hidden" : undefined
+  const panelScroll = isTabbedLayout ? "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2" : undefined
+  const panelFill = isTabbedLayout ? "flex min-h-0 flex-1 flex-col items-center justify-center" : undefined
+  const panelTileFill = isTabbedLayout ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "overflow-hidden"
+  const toolbarClass = isTabbedLayout ? "shrink-0" : undefined
+
   return (
-    <div className="space-y-3" id="classroom-points-root">
+    <div
+      className={cn(isTabbedLayout ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "space-y-3")}
+      id="classroom-points-root"
+    >
       {sectionVisible("code-submissions") && (
-      <>
+      <div className={panelSection}>
       {isTabbedLayout && (
         <FacultyIntegratedToolbar
+          className={toolbarClass}
           moduleId="classroom-points"
           filters={
             <>
@@ -1328,7 +1338,7 @@ export function InstructorClassroomPoints({
         />
       )}
       {showCreateSubmission && (
-        <div className={cn(CP_TILE, "space-y-4 p-4 sm:p-5")}>
+        <div className={cn(CP_TILE, "space-y-4 p-4 sm:p-5", isTabbedLayout && "shrink-0")}>
           <ClassroomAssignmentFormFields values={createFormValues} onChange={setCreateFormValues} />
           <ClassroomAssignmentAvailabilityFields
             values={createFormValues}
@@ -1355,7 +1365,7 @@ export function InstructorClassroomPoints({
         </div>
       )}
       {submissions.length === 0 && !showCreateSubmission ? (
-        <div className={cn(chrome.card, "px-4 py-10 text-center")}>
+        <div className={cn(chrome.card, "px-4 py-10 text-center", panelFill)}>
           <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
             <ClipboardList className="h-5 w-5 !text-white" />
           </div>
@@ -1370,7 +1380,7 @@ export function InstructorClassroomPoints({
         </div>
       ) : null}
       {submissions.length > 0 && (
-        <div className="space-y-3">
+        <div className={cn(isTabbedLayout ? "flex min-h-0 flex-1 flex-col overflow-hidden gap-3" : "space-y-3")}>
           {submissions.length > submissionsPerPage ? (
             <div className="flex justify-end">
               <p className={cn("text-xs tabular-nums", PORTAL_TEXT_MUTED)}>
@@ -1378,7 +1388,7 @@ export function InstructorClassroomPoints({
               </p>
             </div>
           ) : null}
-          <div className={cn(chrome.card, "divide-y divide-[var(--border)] overflow-hidden")}>
+          <div className={cn(chrome.card, "divide-y divide-[var(--border)] overflow-hidden", panelScroll)}>
                 {paginatedSubmissions.length === 0 ? (
                   <p className={cn("py-8 text-center text-sm", PORTAL_TEXT_MUTED)}>
                     No submissions match this filter
@@ -1488,11 +1498,11 @@ export function InstructorClassroomPoints({
         </div>
       )}
 
-      </>
+      </div>
       )}
 
       {sectionVisible("overview") && (
-      <>
+      <div className={cn(panelSection, panelScroll, "space-y-3 sm:space-y-4")}>
       <motion.div
         className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4"
         initial={{ opacity: 0, y: 12 }}
@@ -1527,13 +1537,14 @@ export function InstructorClassroomPoints({
         loading={loading}
         pointsForFullGrade={classroomPointsForFullGrade}
       />
-      </>
+      </div>
       )}
 
       {/* Combined Pending Approvals Section - All types in one container */}
       {sectionVisible("pending-approvals") && (
-        <>
+        <div className={panelSection}>
         <FacultyIntegratedToolbar
+          className={toolbarClass}
           moduleId="classroom-points"
           filters={sessionFilterControl}
           meta={
@@ -1585,14 +1596,14 @@ export function InstructorClassroomPoints({
             ) : undefined
           }
         />
-        <div className={cn(CP_TILE, "overflow-hidden")}>
-          <div className="border-b border-[var(--border)]/60 px-4 py-3">
+        <div className={cn(CP_TILE, panelTileFill)}>
+          <div className="shrink-0 border-b border-[var(--border)]/60 px-4 py-3">
             <p className={cn("text-sm font-semibold", PORTAL_TEXT)}>Pending approvals</p>
             <p className={cn("mt-0.5 text-xs", PORTAL_TEXT_MUTED)}>
               Review submissions before points are awarded to students.
             </p>
           </div>
-          <div className="divide-y divide-[var(--border)]">
+          <div className={cn("divide-y divide-[var(--border)]", isTabbedLayout && "min-h-0 flex-1 overflow-y-auto")}>
               {/* Code Submission Approvals */}
               {pendingApprovals.map((point) => {
                 const pointType =
@@ -2022,7 +2033,7 @@ export function InstructorClassroomPoints({
                 )
               })}
             {pendingApprovals.length === 0 && pendingPracticePoints.length === 0 && (
-              <div className="px-4 py-10 text-center">
+              <div className={cn("px-4 py-10 text-center", panelFill)}>
                 <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
                   <Clock className="h-5 w-5 !text-white" />
                 </div>
@@ -2034,12 +2045,13 @@ export function InstructorClassroomPoints({
             )}
           </div>
         </div>
-        </>
+        </div>
       )}
 
       {sectionVisible("students") && (
-      <>
+      <div className={panelSection}>
       <FacultyIntegratedToolbar
+        className={toolbarClass}
         moduleId="classroom-points"
         search={searchQuery}
         onSearchChange={setSearchQuery}
@@ -2094,23 +2106,14 @@ export function InstructorClassroomPoints({
         }
       />
 
-      {!loading && podiumEntries.length > 0 ? (
-        <PortalLeaderboardPodium
-          entries={podiumEntries}
-          heading="Top students"
-          className="mb-4 sm:mb-5"
-        />
-      ) : null}
-
-      {/* Students Table */}
       {loading ? (
-        <div className="space-y-2 py-2">
+        <div className={cn("space-y-2 py-2", panelFill)}>
           <Skeleton className="h-11 w-full" />
           <Skeleton className="h-11 w-full" />
           <Skeleton className="h-11 w-2/3" />
         </div>
       ) : students.length === 0 ? (
-        <div className={cn(CP_PANEL, "text-center py-10")}>
+        <div className={cn(CP_PANEL, "py-10 text-center", panelFill)}>
           <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
             <Users className="h-5 w-5 !text-white" />
           </div>
@@ -2122,7 +2125,7 @@ export function InstructorClassroomPoints({
           </p>
         </div>
       ) : filteredStudents.length === 0 ? (
-        <div className={cn(CP_PANEL, "text-center py-10")}>
+        <div className={cn(CP_PANEL, "py-10 text-center", panelFill)}>
           <Search className="mx-auto mb-3 h-10 w-10 opacity-40 text-[var(--cc-text-muted)]" />
           <p className={cn("text-sm font-medium", PORTAL_TEXT)}>No matches</p>
           <p className={cn("mt-1 text-xs", PORTAL_TEXT_MUTED)}>
@@ -2130,12 +2133,25 @@ export function InstructorClassroomPoints({
           </p>
         </div>
       ) : (
-        <Card className={cn(CP_TILE, "overflow-hidden border-[var(--border)]")}>
-          <CardContent className="p-0">
-            {/* Simple Clean Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                               <thead className="border-b border-[var(--border)]/60 bg-[var(--muted)]/20">
+        <div className={cn(panelScroll, isTabbedLayout ? "space-y-4 pb-1" : "space-y-4")}>
+          {!loading && podiumEntries.length > 0 ? (
+            <PortalLeaderboardPodium
+              entries={podiumEntries}
+              heading="Top students"
+              className={cn(isTabbedLayout ? "mb-0 shrink-0" : "mb-4 sm:mb-5")}
+            />
+          ) : null}
+
+          <Card className={cn(CP_TILE, "shrink-0 overflow-hidden border-[var(--border)]")}>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead
+                    className={cn(
+                      "border-b border-[var(--border)]/60 bg-[var(--muted)]/20",
+                      isTabbedLayout && "sticky top-0 z-10 bg-[var(--card)]",
+                    )}
+                  >
                   <tr>
                     <th className={cn("text-left px-4 py-3 text-xs font-semibold w-14", PORTAL_TEXT_MUTED)}>
                       #
@@ -2168,7 +2184,7 @@ export function InstructorClassroomPoints({
                         Awards
                       </div>
                     </th>
-                    <th className={cn("text-left px-4 py-3 text-xs font-semibold", PORTAL_TEXT_MUTED)}>
+                    <th className={cn("text-left px-4 py-3 text-xs font-semibold pr-5", PORTAL_TEXT_MUTED)}>
                       Action
                     </th>
                   </tr>
@@ -2215,7 +2231,7 @@ export function InstructorClassroomPoints({
                             </span>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 pr-5">
                           <Dialog open={showAwardDialog && selectedStudent?.student_id === student.student_id} onOpenChange={(open) => {
                             setShowAwardDialog(open);
                             if (!open) setSelectedStudent(null);
@@ -2313,7 +2329,7 @@ export function InstructorClassroomPoints({
             </div>
 
             {/* Pagination */}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+            <div className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
               <div className="text-sm text-slate-600 dark:text-slate-400">
                 Showing {startIndex + 1} to {Math.min(endIndex, filteredStudents.length)} of {filteredStudents.length} students
               </div>
@@ -2394,13 +2410,15 @@ export function InstructorClassroomPoints({
             </div>
           </CardContent>
         </Card>
+        </div>
       )}
-      </>
+      </div>
       )}
 
       {sectionVisible("recent-awards") && (
-        <>
+        <div className={panelSection}>
         <FacultyIntegratedToolbar
+          className={toolbarClass}
           moduleId="classroom-points"
           filters={sessionFilterControl}
           meta={
@@ -2409,17 +2427,17 @@ export function InstructorClassroomPoints({
             </p>
           }
         />
-        <div className={cn(CP_TILE, "overflow-hidden")}>
-          <div className="border-b border-[var(--border)]/60 px-4 py-3">
+        <div className={cn(CP_TILE, panelTileFill)}>
+          <div className="shrink-0 border-b border-[var(--border)]/60 px-4 py-3">
             <p className={cn("text-sm font-semibold flex items-center gap-2", PORTAL_TEXT)}>
               <History className="h-4 w-4 opacity-70" />
               Recent awards
             </p>
             <p className={cn("mt-0.5 text-xs", PORTAL_TEXT_MUTED)}>Latest classroom points awarded</p>
           </div>
-          <div className="p-4">
+          <div className={cn("p-4", isTabbedLayout && "flex min-h-0 flex-1 flex-col overflow-hidden")}>
             {recentAwards.length === 0 ? (
-              <div className="py-10 text-center">
+              <div className={cn("py-10 text-center", panelFill)}>
                 <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
                   <History className="h-5 w-5 !text-white" />
                 </div>
@@ -2430,7 +2448,7 @@ export function InstructorClassroomPoints({
               </div>
             ) : (
             <>
-            <div className="divide-y divide-[var(--border)]">
+            <div className={cn("divide-y divide-[var(--border)]", isTabbedLayout && "min-h-0 flex-1 overflow-y-auto")}>
               {paginatedAwards.map((award, idx) => {
                 const stripe = portalListStripe(idx, chrome.theme.family)
                 return (
@@ -2476,7 +2494,7 @@ export function InstructorClassroomPoints({
               })}
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 mt-4 border-t border-[var(--border)]/60">
+            <div className="mt-4 flex shrink-0 flex-col gap-3 border-t border-[var(--border)]/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
               <div className={cn("text-xs", PORTAL_TEXT_MUTED)}>
                 {awardsStartIndex + 1}–{Math.min(awardsEndIndex, recentAwards.length)} of{" "}
                 {recentAwards.length}
@@ -2528,7 +2546,7 @@ export function InstructorClassroomPoints({
             )}
           </div>
         </div>
-        </>
+        </div>
       )}
 
       <Dialog
@@ -2680,7 +2698,9 @@ export function InstructorClassroomPoints({
       />
 
       {sectionVisible("configuration") && (
-        <InstructorClassroomPointsRulesHub embedded />
+        <div className={cn(panelSection, panelScroll)}>
+          <InstructorClassroomPointsRulesHub embedded />
+        </div>
       )}
     </div>
   );

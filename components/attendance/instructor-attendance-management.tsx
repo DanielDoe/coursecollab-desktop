@@ -62,6 +62,7 @@ import {
   ATTENDANCE_TILE,
   ATTENDANCE_INPUT,
   ATTENDANCE_TABLE_HEAD,
+  ATTENDANCE_TABLE_HEAD_CELL,
   ATTENDANCE_TABLE_ROW,
   PORTAL_TEXT,
   PORTAL_TEXT_MUTED,
@@ -95,8 +96,124 @@ interface RosterStudentRow {
   section: string;
 }
 
+function AttendanceTablePagination({
+  currentPage,
+  totalPages,
+  totalItems,
+  startIndex,
+  endIndex,
+  itemsPerPage,
+  onPageChange,
+  onItemsPerPageChange,
+  itemLabel = "records",
+  className,
+}: {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  startIndex: number;
+  endIndex: number;
+  itemsPerPage: number;
+  onPageChange: (page: number) => void;
+  onItemsPerPageChange: (size: number) => void;
+  itemLabel?: string;
+  className?: string;
+}) {
+  if (totalItems === 0) return null;
+
+  return (
+    <div
+      className={cn(
+        "flex shrink-0 flex-col gap-3 border-t border-[var(--border)] px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-3",
+        className,
+      )}
+    >
+      <div className={cn("text-xs sm:text-sm", PORTAL_TEXT_MUTED)}>
+        Showing {startIndex + 1} to {Math.min(endIndex, totalItems)} of {totalItems} {itemLabel}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+          disabled={currentPage === 1}
+          className="h-8 w-8 p-0"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+
+        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+          let pageNumber: number;
+          if (totalPages <= 5) {
+            pageNumber = i + 1;
+          } else if (currentPage <= 3) {
+            pageNumber = i + 1;
+          } else if (currentPage >= totalPages - 2) {
+            pageNumber = totalPages - 4 + i;
+          } else {
+            pageNumber = currentPage - 2 + i;
+          }
+
+          return (
+            <Button
+              key={pageNumber}
+              variant={currentPage === pageNumber ? "default" : "outline"}
+              size="sm"
+              onClick={() => onPageChange(pageNumber)}
+              className={cn(
+                "h-8 w-8 p-0",
+                currentPage === pageNumber &&
+                  "bg-[var(--cc-accent)] !text-white hover:bg-[var(--cc-accent-hover)]",
+              )}
+            >
+              {pageNumber}
+            </Button>
+          );
+        })}
+
+        {totalPages > 5 && currentPage < totalPages - 2 ? (
+          <>
+            <span className="text-slate-400">...</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onPageChange(totalPages)}
+              className="h-8 w-8 p-0"
+            >
+              {totalPages}
+            </Button>
+          </>
+        ) : null}
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+          disabled={currentPage === totalPages}
+          className="h-8 w-8 p-0"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+
+        <Select value={itemsPerPage.toString()} onValueChange={(v) => onItemsPerPageChange(Number(v))}>
+          <SelectTrigger className="ml-0 h-8 w-[100px] sm:ml-2">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="10">10 / page</SelectItem>
+            <SelectItem value="15">15 / page</SelectItem>
+            <SelectItem value="20">20 / page</SelectItem>
+            <SelectItem value="50">50 / page</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+}
+
 interface InstructorAttendanceManagementProps {
   instructorId?: string;
+  embedInDashboard?: boolean;
 }
 
 function resolveInstructorId(propId?: string): string | null {
@@ -110,6 +227,7 @@ function resolveInstructorId(propId?: string): string | null {
 
 export function InstructorAttendanceManagement({
   instructorId,
+  embedInDashboard,
 }: InstructorAttendanceManagementProps) {
   const { toast } = useToast();
   const { courseScopeVersion } = useInstructorDashboardV2();
@@ -465,6 +583,17 @@ export function InstructorAttendanceManagement({
     setCurrentPage(1);
   }, [searchQuery, sectionFilter, statusFilter]);
 
+  const filteredRosterStudents = useMemo(() => {
+    const q = manualStudentSearch.trim().toLowerCase();
+    return rosterStudents.filter((stu) => {
+      if (!q) return true;
+      return (
+        stu.fullName.toLowerCase().includes(q) ||
+        stu.studentNumber.toLowerCase().includes(q)
+      );
+    });
+  }, [rosterStudents, manualStudentSearch]);
+
   const fetchRecords = async (opts?: { silent?: boolean }) => {
     const instId = effectiveInstructorId;
     if (!instId) return;
@@ -716,9 +845,9 @@ export function InstructorAttendanceManagement({
   const paginatedRecords = filteredRecords.slice(startIndex, endIndex);
 
   return (
-    <div className="space-y-4">
-      <Tabs defaultValue="mark" className="w-full">
-        <TabsList className="grid h-10 w-full max-w-md grid-cols-2 rounded-lg bg-[var(--muted)] p-1">
+    <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "space-y-4"}>
+      <Tabs defaultValue="mark" className={embedInDashboard ? "flex min-h-0 flex-1 flex-col" : "w-full"}>
+        <TabsList className={cn("grid h-10 w-full max-w-md grid-cols-2 rounded-lg bg-[var(--muted)] p-1", embedInDashboard && "shrink-0")}>
           <TabsTrigger
             value="mark"
             className="gap-1.5 text-xs sm:text-sm !text-[var(--cc-text)] data-[state=inactive]:!bg-transparent data-[state=inactive]:!text-[var(--cc-text)] data-[state=active]:!bg-[var(--cc-accent)] data-[state=active]:!text-white data-[state=active]:border-transparent"
@@ -735,10 +864,13 @@ export function InstructorAttendanceManagement({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="mark" className="mt-4 space-y-0">
-          <Card className={ATTENDANCE_TILE}>
-            <CardContent className="space-y-3 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <TabsContent
+          value="mark"
+          className={cn("mt-4 space-y-0", embedInDashboard && "flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden")}
+        >
+          <Card className={cn(ATTENDANCE_TILE, embedInDashboard && "flex min-h-0 flex-1 flex-col")}>
+            <CardContent className={cn("space-y-3 p-3", embedInDashboard && "flex min-h-0 flex-1 flex-col")}>
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2">
                 <div className="flex min-w-0 items-center gap-2">
                   <UserPlus className={cn("h-4 w-4 shrink-0", chrome.accentIcon)} />
                   <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>
@@ -758,7 +890,7 @@ export function InstructorAttendanceManagement({
                 </div>
               </div>
 
-              <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-2 sm:p-2.5">
+              <div className="shrink-0 rounded-xl border border-[var(--border)] bg-[var(--card)] p-2 sm:p-2.5">
                 <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
                   <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center min-w-0">
                     <Select
@@ -853,43 +985,38 @@ export function InstructorAttendanceManagement({
           ) : rosterStudents.length === 0 ? (
             <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>No students in this section.</p>
           ) : (
-            <>
-              <div className="flex items-center justify-between gap-2 pt-1">
+            <div className={cn(embedInDashboard && "flex min-h-0 flex-1 flex-col gap-2")}>
+              <div className="flex shrink-0 items-center justify-between gap-2 pt-1">
                 <p className="text-xs font-medium text-[var(--cc-text)]">
-                  {rosterStudents.filter((stu) => {
-                    const q = manualStudentSearch.trim().toLowerCase();
-                    if (!q) return true;
-                    return (
-                      stu.fullName.toLowerCase().includes(q) ||
-                      stu.studentNumber.toLowerCase().includes(q)
-                    );
-                  }).length}{" "}
-                  students
+                  {filteredRosterStudents.length} students
                   {manualSessionId ? "" : " · pick a class meeting to mark"}
                 </p>
               </div>
-              <div className="overflow-hidden rounded-lg border border-[var(--border)]">
-                <div className="max-h-[32rem] overflow-y-auto overflow-x-auto">
+              <div
+                className={cn(
+                  "overflow-hidden rounded-lg border border-[var(--border)]",
+                  embedInDashboard && "flex min-h-0 flex-1 flex-col",
+                )}
+              >
+                <div
+                  className={cn(
+                    "overflow-x-auto",
+                    embedInDashboard
+                      ? "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2"
+                      : "max-h-[32rem] overflow-y-auto",
+                  )}
+                >
                   <table className="w-full min-w-[520px] text-sm">
                     <thead className={cn("sticky top-0 z-10", ATTENDANCE_TABLE_HEAD)}>
-                      <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-[var(--cc-text)]">
-                        <th className="px-3 py-2.5">Student</th>
-                        <th className="hidden w-28 px-3 py-2.5 md:table-cell">ID</th>
-                        <th className="w-32 px-3 py-2.5">Status</th>
-                        <th className="w-[10.5rem] px-3 py-2.5 text-right">Actions</th>
+                      <tr>
+                        <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "text-left")}>Student</th>
+                        <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "hidden text-left md:table-cell")}>ID</th>
+                        <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "text-left")}>Status</th>
+                        <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "text-right")}>Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--border)]">
-              {rosterStudents
-                .filter((stu) => {
-                  const q = manualStudentSearch.trim().toLowerCase();
-                  if (!q) return true;
-                  return (
-                    stu.fullName.toLowerCase().includes(q) ||
-                    stu.studentNumber.toLowerCase().includes(q)
-                  );
-                })
-                .map((stu) => {
+              {filteredRosterStudents.map((stu) => {
                   const mark = sessionMarks[stu.studentId];
                   return (
                   <tr
@@ -944,14 +1071,17 @@ export function InstructorAttendanceManagement({
                   </table>
                 </div>
               </div>
-            </>
+            </div>
           )}
         </CardContent>
       </Card>
         </TabsContent>
 
-        <TabsContent value="log" className="mt-4 space-y-4">
-          <Card className={ATTENDANCE_TILE}>
+        <TabsContent
+          value="log"
+          className={cn("mt-4", embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-4 data-[state=inactive]:hidden" : "space-y-4")}
+        >
+          <Card className={cn(ATTENDANCE_TILE, embedInDashboard && "shrink-0")}>
             <CardHeader className="pb-2">
               <CardTitle className={cn("flex items-center gap-2 text-sm", PORTAL_TEXT)}>
                 <ClipboardList className={cn("h-4 w-4", chrome.accentIcon)} />
@@ -1022,8 +1152,8 @@ export function InstructorAttendanceManagement({
           </Card>
 
           {/* Records table */}
-          <Card className={ATTENDANCE_TILE}>
-        <CardContent className="p-0">
+          <Card className={cn(ATTENDANCE_TILE, embedInDashboard && "flex min-h-0 flex-1 flex-col")}>
+        <CardContent className={cn("p-0", embedInDashboard && "flex min-h-0 flex-1 flex-col")}>
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <FacultyAttendanceLoading />
@@ -1042,29 +1172,16 @@ export function InstructorAttendanceManagement({
             </div>
           ) : (
             <>
-              {/* Clean Table */}
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className={ATTENDANCE_TABLE_HEAD}>
+                  <thead className={cn("sticky top-0 z-10", ATTENDANCE_TABLE_HEAD)}>
                     <tr>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-[var(--cc-text-secondary)]">
-                        Student
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-[var(--cc-text-secondary)]">
-                        ID
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-[var(--cc-text-secondary)]">
-                        Date
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-[var(--cc-text-secondary)]">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-[var(--cc-text-secondary)]">
-                        Verification
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-[var(--cc-text-secondary)]">
-                        Actions
-                      </th>
+                      <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "px-6 text-left")}>Student</th>
+                      <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "px-6 text-left")}>ID</th>
+                      <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "px-6 text-left")}>Date</th>
+                      <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "px-6 text-left")}>Status</th>
+                      <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "px-6 text-left")}>Verification</th>
+                      <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "px-6 text-left")}>Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border)]">
@@ -1142,92 +1259,19 @@ export function InstructorAttendanceManagement({
                 </table>
               </div>
 
-              {/* Pagination */}
-              <div className="flex items-center justify-between border-t border-[var(--border)] px-6 py-4">
-                <div className={cn("text-sm", PORTAL_TEXT_MUTED)}>
-                  Showing {startIndex + 1} to {Math.min(endIndex, filteredRecords.length)} of{" "}
-                  {filteredRecords.length} records
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="h-8 w-8 p-0"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNumber;
-                    if (totalPages <= 5) {
-                      pageNumber = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNumber = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNumber = totalPages - 4 + i;
-                    } else {
-                      pageNumber = currentPage - 2 + i;
-                    }
-
-                    return (
-                      <Button
-                        key={pageNumber}
-                        variant={currentPage === pageNumber ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setCurrentPage(pageNumber)}
-                        className={`h-8 w-8 p-0 ${
-                          currentPage === pageNumber
-                            ? "bg-[var(--cc-accent)] !text-white hover:bg-[var(--cc-accent-hover)]"
-                            : ""
-                        }`}
-                      >
-                        {pageNumber}
-                      </Button>
-                    );
-                  })}
-
-                  {totalPages > 5 && currentPage < totalPages - 2 && (
-                    <>
-                      <span className="text-slate-400">...</span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(totalPages)}
-                        className="h-8 w-8 p-0"
-                      >
-                        {totalPages}
-                      </Button>
-                    </>
-                  )}
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="h-8 w-8 p-0"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-
-                  <Select
-                    value={itemsPerPage.toString()}
-                    onValueChange={(v) => setItemsPerPage(Number(v))}
-                  >
-                    <SelectTrigger className="h-8 w-[100px] ml-2">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5 / page</SelectItem>
-                      <SelectItem value="10">10 / page</SelectItem>
-                      <SelectItem value="20">20 / page</SelectItem>
-                      <SelectItem value="50">50 / page</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              <AttendanceTablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredRecords.length}
+                startIndex={startIndex}
+                endIndex={endIndex}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                onItemsPerPageChange={(size) => {
+                  setItemsPerPage(size);
+                  setCurrentPage(1);
+                }}
+              />
             </>
           )}
         </CardContent>

@@ -53,6 +53,7 @@ export function SettingsBrowseShell({ children }: { children: ReactNode }) {
   return (
     <StudentModuleHubLayout
       moduleId="settings"
+      scrollMode="page"
       title="Settings"
       metaLine={metaLine}
       metaSuffix="profile, security, and app preferences"

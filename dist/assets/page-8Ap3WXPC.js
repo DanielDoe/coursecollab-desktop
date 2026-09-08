@@ -1,0 +1,1 @@
+import{r as e}from"./chunk-BV7QT456-BO9MhW5U.js";import{t}from"./jsx-runtime-BdxMnOeJ.js";var n=t();function r(){return(0,n.jsx)(e,{to:`/auth/welcome`,replace:!0})}export{r as default};

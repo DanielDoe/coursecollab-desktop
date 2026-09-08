@@ -34,9 +34,9 @@ export function AssessmentDashboardShell({
         </div>
         <div className="flex w-full min-w-0 flex-col gap-3">
           <ExtendSelfServiceClosedBanner />
-          <div className="grid w-full min-w-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)] xl:items-start">
-            <div className="min-w-0">{main}</div>
-            {sidebar ? <div className="min-w-0">{sidebar}</div> : null}
+          <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)] xl:items-stretch xl:gap-5">
+            <div className="flex min-h-0 min-w-0 flex-col">{main}</div>
+            {sidebar ? <div className="flex min-h-0 min-w-0 flex-col">{sidebar}</div> : null}
           </div>
         </div>
       </div>

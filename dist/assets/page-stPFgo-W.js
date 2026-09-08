@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./instructor-attendance-content-sbyk13__.js";import{t as n}from"./StudentDashboardModulePage-DtNNMI5b.js";var r=e();function i(){return(0,r.jsx)(n,{scrollMode:`panel`,children:(0,r.jsx)(t,{embedInDashboard:!0})})}export{i as default};

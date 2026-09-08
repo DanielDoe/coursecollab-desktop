@@ -339,45 +339,73 @@ export function CodeBenchHubDashboardV2() {
     />
   )
 
+  const isEditorView = browseView === "editor"
+  const hubOuterClass = isEditorView
+    ? "flex min-h-0 flex-1 flex-col overflow-hidden p-2 sm:p-3"
+    : "flex min-h-0 flex-1 flex-col overflow-hidden min-w-0"
+  const hubScrollClass =
+    "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain min-w-0"
+  const hubContentClass = "min-w-0 space-y-4 p-4 sm:space-y-5 sm:p-5"
+  const splitLayoutClass = cn(
+    "gap-2 sm:gap-3 lg:gap-4",
+    isEditorView ? "flex min-h-0 flex-1 flex-col" : "lg:min-h-[min(560px,65vh)]",
+  )
+  const splitContentClass = cn("min-w-0", isEditorView && "flex min-h-0 flex-1 flex-col")
+
   if (loading) {
-    return (
-      <div className="min-w-0 space-y-4 p-4 sm:space-y-5 sm:p-5">
-        <FacultyModuleSplitLayout
-          className="gap-2 sm:gap-3 lg:min-h-[min(560px,65vh)] lg:gap-4"
-          menuWidthClass="lg:w-52"
-          menu={browseMenu}
-        >
-          <div className="min-w-0">
-            {browseView === "editor" ? (
-              <CodebenchInlineEditor key={editorTool || "editor"} initialTool={editorTool} />
-            ) : browseView === "tools" ? (
-              <CodebenchCoraToolsStudio studentId={studentId} />
-            ) : browseView === "badges" ? (
-              <BadgesTab embedInDashboard />
-            ) : browseView === "leaderboard" ? (
-              <LeaderboardTab embedInDashboard />
-            ) : browseView === "streak" ? (
-              <StreakTab embedInDashboard />
-            ) : browseView === "analytics" ? (
-              studentId ? (
-                <AnalyticsTab
-                  studentId={studentId}
-                  embedInDashboard
-                  onOpenEditor={() => {
-                    setEditorTool(null)
-                    setBrowseView("editor")
-                  }}
-                />
-              ) : (
-                <CodebenchAnalyticsSkeleton />
-              )
-            ) : browseView === "challenge" ? (
-              <CodebenchChallengeSkeleton />
+    const loadingSplit = (
+      <FacultyModuleSplitLayout
+        className={splitLayoutClass}
+        scrollMode={isEditorView ? "panel" : "page"}
+        menuWidthClass="lg:w-52"
+        menu={browseMenu}
+      >
+        <div className={splitContentClass}>
+          {browseView === "editor" ? (
+            <CodebenchInlineEditor
+              key={editorTool || "editor"}
+              initialTool={editorTool}
+              className="h-full min-h-0 flex-1"
+            />
+          ) : browseView === "tools" ? (
+            <CodebenchCoraToolsStudio studentId={studentId} />
+          ) : browseView === "badges" ? (
+            <BadgesTab embedInDashboard />
+          ) : browseView === "leaderboard" ? (
+            <LeaderboardTab embedInDashboard />
+          ) : browseView === "streak" ? (
+            <StreakTab embedInDashboard />
+          ) : browseView === "analytics" ? (
+            studentId ? (
+              <AnalyticsTab
+                studentId={studentId}
+                embedInDashboard
+                onOpenEditor={() => {
+                  setEditorTool(null)
+                  setBrowseView("editor")
+                }}
+              />
             ) : (
-              <CodebenchOverviewSkeleton />
-            )}
+              <CodebenchAnalyticsSkeleton />
+            )
+          ) : browseView === "challenge" ? (
+            <CodebenchChallengeSkeleton />
+          ) : (
+            <CodebenchOverviewSkeleton />
+          )}
+        </div>
+      </FacultyModuleSplitLayout>
+    )
+
+    return (
+      <div className={hubOuterClass}>
+        {isEditorView ? (
+          loadingSplit
+        ) : (
+          <div className={hubScrollClass}>
+            <div className={hubContentClass}>{loadingSplit}</div>
           </div>
-        </FacultyModuleSplitLayout>
+        )}
       </div>
     )
   }
@@ -439,7 +467,13 @@ export function CodeBenchHubDashboardV2() {
     setBrowseView("editor")
   }
 
-  const editorPane = <CodebenchInlineEditor key={editorTool || "editor"} initialTool={editorTool} />
+  const editorPane = (
+    <CodebenchInlineEditor
+      key={editorTool || "editor"}
+      initialTool={editorTool}
+      className="h-full min-h-0 flex-1"
+    />
+  )
 
   const editorHero = (
     <div
@@ -596,34 +630,42 @@ export function CodeBenchHubDashboardV2() {
       )
   }
 
-  return (
-    <div
-      className={cn(
-        "min-w-0",
-        browseView === "editor" ? "p-2 sm:p-3" : "space-y-4 p-4 sm:space-y-5 sm:p-5",
-      )}
-      onTouchStart={(event) => {
-        if (typeof window !== "undefined" && window.scrollY <= 4) {
-          pullStartY.current = event.touches[0]?.clientY ?? null
-        } else {
-          pullStartY.current = null
-        }
-      }}
-      onTouchEnd={(event) => {
-        const start = pullStartY.current
-        pullStartY.current = null
-        if (start == null || refreshing) return
-        const end = event.changedTouches[0]?.clientY ?? start
-        if (end - start > 70) void handleRefresh()
-      }}
+  const hubSplit = (
+    <FacultyModuleSplitLayout
+      className={splitLayoutClass}
+      scrollMode={isEditorView ? "panel" : "page"}
+      menuWidthClass="lg:w-52"
+      menu={browseMenu}
     >
-      <FacultyModuleSplitLayout
-        className="gap-2 sm:gap-3 lg:min-h-[min(560px,65vh)] lg:gap-4"
-        menuWidthClass="lg:w-52"
-        menu={browseMenu}
-      >
-        <div className="min-w-0">{detail}</div>
-      </FacultyModuleSplitLayout>
+      <div className={splitContentClass}>{detail}</div>
+    </FacultyModuleSplitLayout>
+  )
+
+  return (
+    <div className={hubOuterClass}>
+      {isEditorView ? (
+        hubSplit
+      ) : (
+        <div
+          className={hubScrollClass}
+          onTouchStart={(event) => {
+            if (typeof window !== "undefined" && window.scrollY <= 4) {
+              pullStartY.current = event.touches[0]?.clientY ?? null
+            } else {
+              pullStartY.current = null
+            }
+          }}
+          onTouchEnd={(event) => {
+            const start = pullStartY.current
+            pullStartY.current = null
+            if (start == null || refreshing) return
+            const end = event.changedTouches[0]?.clientY ?? start
+            if (end - start > 70) void handleRefresh()
+          }}
+        >
+          <div className={hubContentClass}>{hubSplit}</div>
+        </div>
+      )}
 
       {stats.challenge ? (
         <CodebenchChallengeCoraDrawer

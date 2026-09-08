@@ -1,0 +1,1 @@
+import{zt as e}from"./index-Bk6sIswz.js";async function t({params:t}){let{id:n}=await t;e(`/admin/dashboard-v2/institutions/${n}`)}export{t as default};

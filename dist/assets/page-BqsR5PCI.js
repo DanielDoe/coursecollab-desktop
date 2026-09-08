@@ -1,1 +1,0 @@
-import{bt as e}from"./index-BFIBYwc9.js";function t(){e(`/faculty/change-password`)}export{t as default};

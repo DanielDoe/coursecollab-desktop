@@ -22,26 +22,46 @@ export function FacultyAttendancePanel({
   children,
   action,
   className,
+  fillHeight = false,
+  bodyClassName,
 }: {
   title: string
   children: React.ReactNode
   action?: React.ReactNode
   className?: string
+  fillHeight?: boolean
+  bodyClassName?: string
 }) {
   return (
-    <div className={cn(ATTENDANCE_TILE, "flex h-full flex-col p-3 sm:p-4", className)}>
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <div
+      className={cn(
+        ATTENDANCE_TILE,
+        "flex flex-col p-3 sm:p-4",
+        fillHeight && "min-h-0 flex-1",
+        className,
+      )}
+    >
+      <div className="mb-3 flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] pb-3">
         <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>{title}</h3>
         {action}
       </div>
-      {children}
+      <div
+        className={cn(
+          fillHeight && "flex min-h-0 flex-1 flex-col overflow-hidden",
+          fillHeight &&
+            "rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--muted)_55%,var(--card))]",
+          bodyClassName,
+        )}
+      >
+        {children}
+      </div>
     </div>
   )
 }
 
-export function FacultyAttendanceLoading() {
+export function FacultyAttendanceLoading({ fillHeight = false }: { fillHeight?: boolean } = {}) {
   return (
-    <div className="space-y-3 py-2">
+    <div className={cn(fillHeight ? "flex min-h-0 flex-1 flex-col justify-center gap-3 py-2" : "space-y-3 py-2")}>
       <Skeleton className="h-11 w-full" />
       <Skeleton className="h-11 w-full" />
       <Skeleton className="h-11 w-2/3" />
@@ -110,16 +130,38 @@ const BADGE_TONE: Record<string, string> = {
 export function FacultyAttendanceInsightList({
   emptyMessage,
   children,
+  fillHeight = false,
 }: {
   emptyMessage: string
   children: React.ReactNode
+  fillHeight?: boolean
 }) {
   const flat = (Array.isArray(children) ? children : [children]).flat()
   const hasChildren = flat.some((child) => child != null && child !== false)
   if (!hasChildren) {
-    return <p className={cn("py-8 text-center text-sm", PORTAL_TEXT_MUTED)}>{emptyMessage}</p>
+    return (
+      <p
+        className={cn(
+          "text-center text-sm",
+          fillHeight ? "flex min-h-0 flex-1 items-center justify-center p-6" : "py-8",
+          PORTAL_TEXT_MUTED,
+        )}
+      >
+        {emptyMessage}
+      </p>
+    )
   }
-  return <div className="-mx-3 -mb-3 divide-y divide-[var(--border)] overflow-hidden sm:-mx-4 sm:-mb-4">{children}</div>
+  return (
+    <div
+      className={cn(
+        fillHeight
+          ? "min-h-0 flex-1 divide-y divide-[var(--border)] overflow-y-auto"
+          : "-mx-3 -mb-3 divide-y divide-[var(--border)] overflow-hidden sm:-mx-4 sm:-mb-4",
+      )}
+    >
+      {children}
+    </div>
+  )
 }
 
 export function FacultyAttendanceInsightRow({
@@ -139,7 +181,7 @@ export function FacultyAttendanceInsightRow({
 }) {
   const stripe = portalListStripe(rank != null ? rank - 1 : index, attendanceFamily)
   return (
-    <div className="flex items-center gap-3 px-3 py-2 transition-colors hover:bg-[var(--cc-accent-soft)]/45 sm:px-4">
+    <div className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-[var(--cc-accent-soft)]/45 sm:px-4 sm:py-3">
       {rank != null ? (
         <span
           className={cn(
@@ -162,6 +204,42 @@ export function FacultyAttendanceInsightRow({
       <Badge variant="outline" className={cn("shrink-0 tabular-nums", BADGE_TONE[badgeTone])}>
         {badge}
       </Badge>
+    </div>
+  )
+}
+
+export function FacultyAttendanceFactGrid({
+  items,
+  columns = 2,
+}: {
+  items: { label: string; value: string; icon: LucideIcon }[]
+  columns?: 1 | 2
+}) {
+  return (
+    <div
+      className={cn(
+        "grid gap-2 p-3 sm:p-4",
+        columns === 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1",
+      )}
+    >
+      {items.map((fact, index) => {
+        const stripe = portalListStripe(index, attendanceFamily)
+        const Icon = fact.icon
+        return (
+          <div
+            key={fact.label}
+            className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2.5"
+          >
+            <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-xl", stripe.iconBg)}>
+              <Icon className={cn("h-4 w-4", stripe.iconText)} />
+            </span>
+            <div className="min-w-0">
+              <p className={cn("text-[11px] font-medium", PORTAL_TEXT_MUTED)}>{fact.label}</p>
+              <p className={cn("truncate text-sm font-semibold", PORTAL_TEXT)}>{fact.value}</p>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

@@ -12,6 +12,10 @@ import {
   DesktopChromeTitleActions,
 } from "@/components/desktop/DesktopLangSmithChrome"
 import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
+import {
+  dashboardV2ModuleShellClass,
+  type DashboardV2ModuleScrollMode,
+} from "@/lib/dashboard-v2-layout"
 import { cn } from "@/lib/utils"
 
 type Props = {
@@ -30,6 +34,8 @@ type Props = {
   loadingRows?: number
   /** Single-pane modules skip the browse side menu but keep the hub header. */
   hideSideMenu?: boolean
+  /** Match StudentDashboardModulePage: page scroll vs panel-internal scroll. */
+  scrollMode?: DashboardV2ModuleScrollMode
 }
 
 export function StudentModuleHubLayout({
@@ -47,8 +53,10 @@ export function StudentModuleHubLayout({
   loading = false,
   loadingRows = 6,
   hideSideMenu = false,
+  scrollMode = "page",
 }: Props) {
   const desktopChrome = isDesktopAppShell()
+  const panelShell = dashboardV2ModuleShellClass(scrollMode)
 
   const desktopChromeSlots = desktopChrome ? (
     <>
@@ -68,10 +76,15 @@ export function StudentModuleHubLayout({
   ) : null
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-3 border-t border-[color-mix(in_srgb,var(--cc-text)_10%,transparent)] pt-3 sm:pt-4">
+    <div
+      className={cn(
+        "flex w-full min-w-0 flex-col gap-3 border-t border-[color-mix(in_srgb,var(--cc-text)_10%,transparent)] pt-3 sm:pt-4",
+        scrollMode === "panel" && "min-h-0 flex-1",
+      )}
+    >
       <div
         className={cn(
-          "flex min-w-0 flex-col gap-3",
+          "flex min-w-0 shrink-0 flex-col gap-3",
           desktopChrome
             ? "border-0 bg-transparent p-0"
             : "rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4",
@@ -102,15 +115,16 @@ export function StudentModuleHubLayout({
       </div>
 
       {hideSideMenu ? (
-        <div className="@container/student-hub relative min-h-[280px] min-w-0 flex-1">
+        <div className={cn("@container/student-hub relative min-w-0 w-full", panelShell)}>
           {loading ? <ModuleListSkeleton rows={loadingRows} className="min-h-[280px]" /> : null}
-          <div className={cn(loading && "hidden")}>{children}</div>
+          <div className={cn(panelShell, loading && "hidden")}>{children}</div>
         </div>
       ) : (
         <FacultyModuleSplitLayout
           className="gap-3"
           splitMode="container"
           containerName="student-hub"
+          scrollMode={scrollMode}
           menuWidthClass="w-full @[720px]/student-hub:w-44 @[880px]/student-hub:w-52"
           menu={
             <FacultyModuleSideMenu
@@ -125,14 +139,21 @@ export function StudentModuleHubLayout({
             />
           }
         >
-          <div className="relative min-h-[280px] min-w-0 flex-1">
+          <div
+            className={cn(
+              "relative min-w-0 w-full",
+              scrollMode === "panel" ? "flex min-h-0 flex-1 flex-col" : "w-full",
+            )}
+          >
             {loading ? <ModuleListSkeleton rows={loadingRows} className="min-h-[280px]" /> : null}
-            <div className={cn(loading && "hidden")}>{children}</div>
+            <div className={cn(scrollMode === "panel" && "flex min-h-0 flex-1 flex-col", loading && "hidden")}>
+              {children}
+            </div>
           </div>
         </FacultyModuleSplitLayout>
       )}
 
-      {footer ? <div>{footer}</div> : null}
+      {footer ? <div className="shrink-0">{footer}</div> : null}
     </div>
   )
 }

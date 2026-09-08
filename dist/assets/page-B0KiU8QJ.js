@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./GuestModulePage-CYepH-DE.js";import n from"./page-Cuk4K9Qq.js";var r=e();function i(){return(0,r.jsx)(t,{bare:!0,children:(0,r.jsx)(n,{})})}export{i as default};

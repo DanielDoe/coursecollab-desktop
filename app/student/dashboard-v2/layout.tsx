@@ -35,7 +35,7 @@ import { hasStudentExplicitSignOut } from "@/lib/student-session-restore-client"
 import { clearLeftoverClientSessions, clearAllClientSessionsIncludingRefresh } from "@/lib/session-restore-guard"
 import { restoreStudentSessionWithRetry } from "@/lib/student-session-restore-retry"
 import { syncAppearanceSetupFromServer } from "@/lib/appearance/appearance-setup"
-import { Loader2 } from "lucide-react"
+import { CcBookLoader } from "@/components/ui/cc-book-loader"
 
 /** Close mobile drawer on route change; desktop rail stays as the user left it. */
 function MobileSidebarCloseOnNavigate() {
@@ -108,14 +108,16 @@ function DashboardContent({
       : merged
         ? magnificMergedMainClass
         : dashboardV2ShellMainClass
+  // Long modules use scrollMode="page" (default) and grow naturally in `<main>`.
+  // Split hubs use scrollMode="panel" and scroll inside their panes instead.
   const mainLayoutClass =
     isCodebenchIde || isLectureViewer || coraImmersive
       ? "flex-1 flex min-h-0 flex-col overflow-x-hidden overflow-y-hidden"
       : isPracticeQuiz
         ? "flex-1 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain"
         : merged
-          ? "min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
-          : "flex-1 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto"
+          ? "flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain has-[_[data-scroll-mode=panel]]:overflow-y-hidden"
+          : "flex-1 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto has-[_[data-scroll-mode=panel]]:overflow-y-hidden"
   return (
     <main
       data-tour="main-content"
@@ -300,7 +302,7 @@ export default function DashboardV2Layout({ children }: { children: React.ReactN
   if (!authReady || !sessionValid) {
     return (
       <div className="flex h-[100dvh] items-center justify-center bg-[var(--cc-background)] text-[var(--cc-text-muted)]">
-        <Loader2 className="h-8 w-8 animate-spin text-[var(--cc-accent)]" aria-label="Loading session" />
+        <CcBookLoader size="md" label="Loading session" />
       </div>
     )
   }

@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";var t=e();function n({children:e}){return(0,t.jsx)(`div`,{className:`flex min-h-0 w-full min-w-0 flex-1 flex-col gap-4 overflow-x-hidden sm:gap-6`,children:e})}export{n as default};

@@ -19,6 +19,11 @@ import { facultyModuleSpinnerClass } from "@/lib/faculty-module-themes"
 import { buildInstructorAuthorizedApiHeaders, instructorApiFetch } from "@/lib/instructor-api-headers"
 import { PORTAL_CARD, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
 import {
+  AM_PANEL_FILL,
+  AM_PANEL_SCROLL,
+  AM_PANEL_SECTION,
+} from "@/lib/assessments/assessment-management-surface-classes"
+import {
   FacultyIntegratedToolbar,
   facultyToolbarFilterButtonClass,
   facultyToolbarIconButtonClass,
@@ -214,15 +219,15 @@ export function FacultyCourseDiscussions() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-16">
+      <div className={cn(AM_PANEL_SECTION, AM_PANEL_FILL, "w-full min-w-0")}>
         <Loader2 className={cn("h-8 w-8 animate-spin", spinner)} />
       </div>
     )
   }
 
   return (
-    <div className="space-y-4 min-w-0">
-      <div className="flex items-start gap-3">
+    <div className={cn(AM_PANEL_SECTION, "gap-4 min-w-0 w-full")}>
+      <div className="flex shrink-0 items-start gap-3">
         <span className={chrome.iconBadge("md")}>
           <MessageCircle className="h-5 w-5" />
         </span>
@@ -236,6 +241,7 @@ export function FacultyCourseDiscussions() {
         </div>
       </div>
 
+      <div className="shrink-0">
       <FacultyIntegratedToolbar
         moduleId="discussions"
         search={search}
@@ -272,18 +278,19 @@ export function FacultyCourseDiscussions() {
           </p>
         }
       />
+      </div>
 
       {threads.length === 0 ? (
-        <div className={cn(PORTAL_CARD, "px-6 py-14 text-center")}>
+        <div className={cn(PORTAL_CARD, AM_PANEL_FILL, "px-6 py-14 text-center min-h-0 flex-1")}>
           <MessageCircle className={cn("mx-auto mb-3 h-8 w-8 opacity-40", PORTAL_TEXT_MUTED)} />
           <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>
             No forum threads match your filters. Students post from the Forum Hub.
           </p>
         </div>
       ) : (
-        <div className="grid min-h-[28rem] grid-cols-1 gap-3 lg:grid-cols-[minmax(13rem,18rem)_minmax(0,1fr)] lg:gap-4">
-          <div className={cn(PORTAL_CARD, "overflow-hidden p-1.5")}>
-            <ul className="max-h-[min(560px,70vh)] space-y-0.5 overflow-y-auto">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-[minmax(13rem,18rem)_minmax(0,1fr)] lg:gap-4">
+          <div className={cn(PORTAL_CARD, "flex min-h-0 flex-col overflow-hidden p-1.5")}>
+            <ul className={cn(AM_PANEL_SCROLL, "space-y-0.5 pr-1")}>
               {threads.map((t) => {
                 const active = t.id === selectedId
                 return (
@@ -315,7 +322,7 @@ export function FacultyCourseDiscussions() {
             </ul>
           </div>
 
-          <div className={cn(PORTAL_CARD, "flex min-h-[28rem] min-w-0 flex-col overflow-hidden")}>
+          <div className={cn(PORTAL_CARD, "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden")}>
             {!selectedThread ? (
               <div className="flex flex-1 items-center justify-center p-6">
                 <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>Select a thread</p>
@@ -326,7 +333,7 @@ export function FacultyCourseDiscussions() {
               </div>
             ) : (
               <>
-                <div className="space-y-3 p-4 sm:p-5">
+                <div className={cn(AM_PANEL_SCROLL, "space-y-3 p-4 sm:p-5")}>
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">

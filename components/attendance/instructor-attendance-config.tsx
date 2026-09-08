@@ -30,10 +30,11 @@ import { cn } from "@/lib/utils";
 const chrome = facultyEmbedChrome("attendance");
 
 interface InstructorAttendanceConfigProps {
-  instructorId: string;
+  instructorId?: string
+  embedInDashboard?: boolean
 }
 
-export function InstructorAttendanceConfig({ instructorId }: InstructorAttendanceConfigProps) {
+export function InstructorAttendanceConfig({ instructorId, embedInDashboard }: InstructorAttendanceConfigProps) {
   const { toast } = useToast();
   const { courseScopeVersion } = useInstructorDashboardV2();
   const instHeaders = (): Record<string, string> => ({
@@ -92,7 +93,7 @@ export function InstructorAttendanceConfig({ instructorId }: InstructorAttendanc
 
       if (response.ok) {
         const data = await response.json();
-        setRecentSessions(data.sessions.slice(0, 5));
+        setRecentSessions(data.sessions.slice(0, 12));
       }
     } catch (error) {
     }
@@ -226,11 +227,17 @@ export function InstructorAttendanceConfig({ instructorId }: InstructorAttendanc
   };
 
   return (
-    <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <FacultyAttendancePanel title="New session">
-              <form onSubmit={handleSubmit} className="space-y-3">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className={cn("grid grid-cols-1 gap-3 lg:grid-cols-3", embedInDashboard && "min-h-0 flex-1 lg:items-stretch")}>
+        <div className={cn("lg:col-span-2", embedInDashboard && "flex min-h-0 flex-col")}>
+          <FacultyAttendancePanel title="New session" fillHeight={embedInDashboard}>
+              <form
+                onSubmit={handleSubmit}
+                className={cn(
+                  "space-y-4",
+                  embedInDashboard && "flex min-h-0 flex-1 flex-col p-3 sm:p-4",
+                )}
+              >
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label htmlFor="classTitle">Title</Label>
                     <Input
@@ -267,7 +274,7 @@ export function InstructorAttendanceConfig({ instructorId }: InstructorAttendanc
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="startDate">Date</Label>
                     <Input
@@ -309,6 +316,12 @@ export function InstructorAttendanceConfig({ instructorId }: InstructorAttendanc
                   </div>
                 </div>
 
+                <div
+                  className={cn(
+                    "rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4 space-y-3",
+                    embedInDashboard && "flex-1",
+                  )}
+                >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Switch
@@ -389,7 +402,14 @@ export function InstructorAttendanceConfig({ instructorId }: InstructorAttendanc
                     </div>
                   )}
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                </div>
+
+                <div
+                  className={cn(
+                    "grid grid-cols-1 gap-4 border-t border-[var(--border)] pt-4 sm:grid-cols-[1fr_auto] sm:items-end",
+                    embedInDashboard && "mt-auto shrink-0",
+                  )}
+                >
                   <div className="space-y-1.5">
                     <Label htmlFor="qrExpiryMinutes">QR expiry (min after end)</Label>
                     <Input
@@ -419,20 +439,28 @@ export function InstructorAttendanceConfig({ instructorId }: InstructorAttendanc
           </FacultyAttendancePanel>
         </div>
 
-        <div>
-          <FacultyAttendancePanel title="Recent sessions">
+        <div className={embedInDashboard ? "flex min-h-0 flex-col" : undefined}>
+          <FacultyAttendancePanel
+            title="Recent sessions"
+            fillHeight={embedInDashboard}
+            action={
+              recentSessions.length > 0 ? (
+                <span className={cn("text-xs tabular-nums", PORTAL_TEXT_MUTED)}>{recentSessions.length}</span>
+              ) : undefined
+            }
+          >
               {recentSessions.length === 0 ? (
-                <p className={cn("py-8 text-center text-sm", PORTAL_TEXT_MUTED)}>
+                <p className={cn("text-center text-sm", embedInDashboard ? "flex min-h-0 flex-1 items-center justify-center p-6" : "py-8", PORTAL_TEXT_MUTED)}>
                   No sessions yet
                 </p>
               ) : (
-                <div className="-mx-3 -mb-3 divide-y divide-[var(--border)] overflow-hidden sm:-mx-4 sm:-mb-4">
+                <div className={cn("divide-y divide-[var(--border)]", embedInDashboard && "min-h-0 flex-1 overflow-y-auto")}>
                   {recentSessions.map((session, index) => {
                     const stripe = portalListStripe(index, chrome.theme.family)
                     return (
                     <div
                       key={session.id}
-                      className="flex items-start gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--cc-accent-soft)]/45 sm:px-5"
+                      className="flex items-start gap-3 px-3 py-3 transition-colors hover:bg-[var(--cc-accent-soft)]/45 sm:px-4"
                     >
                       <span className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl", stripe.iconBg)}>
                         <Calendar className={cn("h-4 w-4", stripe.iconText)} />

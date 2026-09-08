@@ -351,12 +351,16 @@ export function GroupRequestsPanel({
   }
 
   const cardClass = embedInDashboard
-    ? "overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-none"
+    ? "flex min-h-0 flex-1 flex-col gap-0 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] py-0 shadow-none"
     : "h-[600px] sm:h-[650px] md:h-[700px] border border-slate-200/60 dark:border-slate-700/60 bg-white/85 dark:bg-slate-800/85 backdrop-blur-sm shadow-[0_8px_32px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)] rounded-xl sm:rounded-2xl overflow-hidden"
+
+  const tabPanelScrollClass = embedInDashboard
+    ? "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2"
+    : "overflow-y-auto max-h-[400px] sm:max-h-[450px] pr-1 sm:pr-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent"
 
   return (
     <Card className={cardClass}>
-      <CardHeader className={cn(embedInDashboard ? "p-3 sm:p-4 pb-3" : "pb-3 sm:pb-4 p-4 sm:p-6")}>
+      <CardHeader className={cn(embedInDashboard ? "shrink-0 p-3 sm:p-4 pb-3" : "pb-3 sm:pb-4 p-4 sm:p-6")}>
         <CardTitle className={cn(
           embedInDashboard
             ? "text-sm font-semibold text-[var(--cc-text)]"
@@ -400,10 +404,10 @@ export function GroupRequestsPanel({
         </div>
       </CardHeader>
 
-      <CardContent className="pt-0 px-4 sm:px-6 pb-4 sm:pb-6">
-        <Tabs defaultValue="discover" className="w-full">
+      <CardContent className={cn("pt-0 px-4 sm:px-6 pb-4 sm:pb-6", embedInDashboard && "flex min-h-0 flex-1 flex-col px-3 sm:px-4 pb-3 sm:pb-4")}>
+        <Tabs defaultValue="discover" className={cn("w-full", embedInDashboard && "flex min-h-0 flex-1 flex-col")}>
           <TabsList className={cn(
-            "w-full rounded-xl mb-4 sm:mb-6 p-1 gap-0.5 sm:gap-1 grid grid-cols-3 h-10 sm:h-11 min-h-10 overflow-hidden",
+            "w-full shrink-0 rounded-xl mb-4 sm:mb-6 p-1 gap-0.5 sm:gap-1 grid grid-cols-3 h-10 sm:h-11 min-h-10 overflow-hidden",
             embedInDashboard
               ? "border border-[var(--border)] bg-[var(--muted)]/40"
               : "bg-slate-100/80 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 dark:bg-slate-800/80 dark:border-slate-700/60",
@@ -439,7 +443,7 @@ export function GroupRequestsPanel({
           </TabsList>
 
           {/* DISCOVER TAB */}
-          <TabsContent value="discover" className="space-y-6 sm:space-y-8 overflow-y-auto max-h-[400px] sm:max-h-[450px] pr-1 sm:pr-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent">
+          <TabsContent value="discover" className={cn("space-y-6 sm:space-y-8", tabPanelScrollClass)}>
             <section>
               <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
                 <div className={cn(
@@ -581,7 +585,7 @@ export function GroupRequestsPanel({
           </TabsContent>
 
           {/* OPEN CALLS TAB */}
-          <TabsContent value="open-calls" className="space-y-4 sm:space-y-6 overflow-y-auto max-h-[400px] sm:max-h-[450px] pr-1 sm:pr-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent">
+          <TabsContent value="open-calls" className={cn("space-y-4 sm:space-y-6", tabPanelScrollClass)}>
             <Button 
               className={cn(
                 "rounded-lg sm:rounded-xl w-full mb-3 sm:mb-4 px-4 sm:px-6 py-2 sm:py-3 font-semibold gap-1.5 sm:gap-2 text-xs sm:text-sm md:text-base h-10 sm:h-11",

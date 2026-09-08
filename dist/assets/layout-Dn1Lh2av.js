@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./instructor-recommendations-module-shell-DQ8qI1cf.js";var n=e();function r({children:e}){return(0,n.jsx)(t,{children:e})}export{r as default};

@@ -1,1 +1,0 @@
-import{bt as e}from"./index-BFIBYwc9.js";function t(){e(`/faculty/dashboard/analytics?section=reports`)}export{t as default};

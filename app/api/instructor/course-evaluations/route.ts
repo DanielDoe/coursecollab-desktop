@@ -3,7 +3,7 @@ import { sql } from "@/lib/db"
 import { computeCourseEvaluationAnalytics } from "@/lib/course-evaluation-analytics"
 import {
   COURSE_EVALUATION_SESSION_JOIN,
-  courseEvaluationCoursePredicate,
+  courseEvaluationCourseAndClause,
   evaluationTextBelongsToCourse,
 } from "@/lib/course-evaluation-course-scope"
 import { ensureCourseEvaluationSchema } from "@/lib/ensure-course-evaluation-schema"
@@ -49,16 +49,16 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const sessionRaw = (searchParams.get("session") ?? "all").trim()
     const sessionCode = sessionRaw.toLowerCase() === "all" || !sessionRaw ? "all" : sessionRaw
-    const status = (searchParams.get("status") ?? "pending").trim().toLowerCase()
+    const statusRaw = (searchParams.get("status") ?? "pending").trim().toLowerCase()
+    const status = ["all", "pending", "approved", "rejected", "draft"].includes(statusRaw)
+      ? statusRaw
+      : "pending"
     const view = (searchParams.get("view") ?? "").trim()
     const idRaw = searchParams.get("id")
     const evalId = idRaw ? parseInt(idRaw, 10) : NaN
     const courseScope = await resolveCourseScope(request)
     if (!courseScope.ok) return courseScope.response
-    const courseClause =
-      courseScope.courseId != null && courseScope.courseCode
-        ? sql`AND ${courseEvaluationCoursePredicate(courseScope.courseId, courseScope.courseCode)}`
-        : sql``
+    const courseClause = courseEvaluationCourseAndClause(courseScope.courseId, courseScope.courseCode)
 
     if (view === "analytics") {
       const analytics = await computeCourseEvaluationAnalytics(sessionCode, {
@@ -115,8 +115,8 @@ export async function GET(request: NextRequest) {
     }
 
     const statusClause =
-      status === "all" ? sql`ce.id > 0` : sql`ce.status = ${status}`
-    const listOrderClause = sql`ORDER BY ce.submitted_at ASC NULLS LAST`
+      status === "all" ? sql.unsafe("ce.id > 0") : sql.unsafe(`ce.status = '${status.replace(/'/g, "''")}'`)
+    const listOrderClause = sql.unsafe("ORDER BY ce.submitted_at ASC NULLS LAST")
 
     let rows
     if (sessionCode === "all" || !sessionCode) {

@@ -223,7 +223,7 @@ export function FacultyIntegratedToolbar({
         </div>
       ) : null}
 
-      {meta ? <div className="px-0.5">{meta}</div> : null}
+      {meta ? <div className="px-0.5 pb-2 sm:pb-3">{meta}</div> : null}
       {chips ? <div className="flex flex-wrap gap-1.5 px-0.5">{chips}</div> : null}
     </div>
   )

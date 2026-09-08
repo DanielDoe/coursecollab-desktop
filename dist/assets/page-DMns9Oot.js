@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./InstructorLegacyAdminRedirect-n57a897J.js";var n=e();function r(){return(0,n.jsx)(t,{})}export{r as default};

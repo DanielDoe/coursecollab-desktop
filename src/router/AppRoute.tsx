@@ -1,6 +1,6 @@
 import { Suspense, lazy, useMemo, type ComponentType, type LazyExoticComponent, type ReactNode } from 'react'
 import { useLocation, Navigate } from 'react-router-dom'
-import { PageLoading } from '@/components/ui/page-loading'
+import { ModulePageSkeleton } from '@/components/student/dashboard-v2/ModulePageSkeleton'
 import { RouteParamsContext } from '@/src/shims/next-navigation'
 import {
   defaultDesktopPath,
@@ -13,7 +13,15 @@ import {
 } from './page-resolver'
 
 function LoadingFallback() {
-  return <PageLoading label="Loading CourseCollab" className="min-h-[100dvh]" />
+  return <ModulePageSkeleton className="min-h-[280px]" />
+}
+
+function RouteModuleShell({ children }: { children: ReactNode }) {
+  return (
+    <div data-route-module-shell className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
+      {children}
+    </div>
+  )
 }
 
 function NotFound() {
@@ -89,9 +97,11 @@ export function AppRoute() {
   }
 
   const page = (
-    <Suspense key={pageModule} fallback={<LoadingFallback />}>
-      <Page params={Promise.resolve(routeParams)} />
-    </Suspense>
+    <RouteModuleShell>
+      <Suspense key={pageModule} fallback={<LoadingFallback />}>
+        <Page params={Promise.resolve(routeParams)} />
+      </Suspense>
+    </RouteModuleShell>
   )
 
   return (

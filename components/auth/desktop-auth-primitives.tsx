@@ -14,7 +14,7 @@ export const desktopAuth = {
   subtitle: "text-[13px] leading-snug text-[var(--cc-text-secondary)]",
   label: "text-[13px] font-medium text-[var(--cc-text)]",
   input:
-    "h-9 rounded-md border border-[var(--border)] bg-[var(--cc-background)] px-3 text-[13px] text-[var(--cc-text)] placeholder:text-[var(--cc-text-muted)] shadow-none focus-visible:border-[var(--cc-accent)] focus-visible:ring-1 focus-visible:ring-[var(--cc-accent)]/25",
+    "h-9 rounded-md border border-[var(--border)] bg-[var(--cc-background)] px-3 text-[13px] text-[var(--cc-text)] placeholder:text-[var(--cc-text-muted)] shadow-none selection:bg-[var(--cc-auth-field-selection-bg,var(--cc-accent-soft))] selection:text-[var(--cc-auth-field-selection-text,var(--cc-text))] focus-visible:border-[var(--cc-accent)] focus-visible:ring-1 focus-visible:ring-[var(--cc-accent)]/25",
   button:
     "h-9 w-full rounded-md bg-[var(--cc-accent)] text-[13px] font-semibold text-white shadow-none transition-colors hover:bg-[var(--cc-accent-hover)] active:scale-[0.995]",
   /** Wrap primary CTA + DesktopAuthBackLink. Keeps Back tight under Sign in / Continue. */
@@ -22,6 +22,11 @@ export const desktopAuth = {
   hint: "text-[12px] leading-snug text-[var(--cc-text-secondary)]",
   footerLink: "text-[12px] font-medium text-[var(--cc-accent)] hover:text-[var(--cc-accent-hover)]",
   alert: "rounded-md border p-2.5 text-[13px]",
+  /** Brand-locked auth surfaces — use --cc-auth-alert-* (see globals.css), not --cc-sem-danger-*. */
+  alertError:
+    "border-[var(--cc-auth-alert-error-border)] bg-[var(--cc-auth-alert-error-bg)] text-[var(--cc-auth-alert-error-text)]",
+  alertWarning:
+    "border-[var(--cc-auth-alert-warning-border)] bg-[var(--cc-auth-alert-warning-bg)] text-[var(--cc-auth-alert-warning-text)]",
   identityMedia: "flex shrink-0 items-center justify-center",
   identityMediaFramed:
     "h-8 w-8 rounded-md bg-[var(--cc-accent-soft)] ring-1 ring-inset ring-[var(--border)]",

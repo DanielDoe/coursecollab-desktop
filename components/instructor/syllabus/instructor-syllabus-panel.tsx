@@ -27,7 +27,7 @@ const MENU_ITEMS = [
   { id: "student-activity" as const, label: "Student Activity", icon: Users },
 ]
 
-export function InstructorSyllabusPanel() {
+export function InstructorSyllabusPanel({ embedInDashboard }: { embedInDashboard?: boolean } = {}) {
   const router = useRouter()
   const [courseId, setCourseId] = useState<number | null>(null)
   const [activeMenu, setActiveMenu] = useState<SyllabusMenu>("structured")
@@ -68,9 +68,13 @@ export function InstructorSyllabusPanel() {
   )
 
   return (
-    <FacultyModuleSplitLayout menu={sidebar}>
+    <FacultyModuleSplitLayout
+      scrollMode={embedInDashboard ? "panel" : "page"}
+      className={embedInDashboard ? "min-h-0 flex-1" : undefined}
+      menu={sidebar}
+    >
       {activeMenu === "student-activity" ? (
-        <InstructorModuleStudentActivityView module="syllabus" moduleId={MODULE_ID} />
+        <InstructorModuleStudentActivityView module="syllabus" moduleId={MODULE_ID} embedInDashboard={embedInDashboard} />
       ) : courseId != null ? (
         <CourseSyllabusPanel
           courseId={courseId}
@@ -80,9 +84,12 @@ export function InstructorSyllabusPanel() {
           buildHeaders={buildInstructorApiHeaders}
           editorPanel={editorPanel}
           onSyllabusStatusChange={setStatus}
+          embedInDashboard={embedInDashboard}
         />
       ) : (
-        <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>Select a course to manage its syllabus.</p>
+        <p className={cn("text-sm", embedInDashboard ? "flex min-h-0 flex-1 items-center justify-center" : undefined, PORTAL_TEXT_MUTED)}>
+          Select a course to manage its syllabus.
+        </p>
       )}
     </FacultyModuleSplitLayout>
   )

@@ -30,7 +30,10 @@ import {
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 import {
   AM_EMPTY,
+  AM_EMPTY_FILL,
   AM_ROW,
+  AM_PANEL_SECTION,
+  AM_PANEL_SCROLL,
   PORTAL_TEXT,
   PORTAL_TEXT_MUTED,
 } from "@/lib/assessments/assessment-management-surface-classes"
@@ -304,8 +307,13 @@ export function CamperManagement({ portal }: Props) {
     </div>
   )
 
+  const isPanel = portal === "faculty"
+  const panelSection = isPanel ? AM_PANEL_SECTION : undefined
+  const panelScroll = isPanel ? AM_PANEL_SCROLL : undefined
+  const emptyState = isPanel ? AM_EMPTY_FILL : AM_EMPTY
+
   const mainContent = (
-    <div className="min-w-0 flex-1 space-y-3">
+    <div className={cn("min-w-0", isPanel ? cn(panelSection, "gap-3") : "flex-1 space-y-3")}>
       {activeMenu !== "settings" ? (
         <FacultyIntegratedToolbar
           moduleId="campers"
@@ -357,17 +365,17 @@ export function CamperManagement({ portal }: Props) {
 
       {activeMenu === "campers" ? (
         loading ? (
-          <div className={cn(AM_EMPTY, "py-10")}>
+          <div className={cn(emptyState, !isPanel && "py-10")}>
             <Loader2 className="mx-auto h-8 w-8 animate-spin text-[var(--cc-accent)]" />
           </div>
         ) : filteredCampers.length === 0 ? (
-          <div className={AM_EMPTY}>
+          <div className={emptyState}>
             <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>
               {campers.length === 0 ? "No approved campers yet." : "No campers match your search."}
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className={cn(isPanel ? cn(chrome.card, "divide-y divide-[var(--border)] overflow-hidden", panelScroll) : "space-y-2")}>
             {filteredCampers.map((c) => (
               <article key={String(c.id)} className={cn(AM_ROW, "items-center gap-3")}>
                 <div className="min-w-0 flex-1">
@@ -392,15 +400,15 @@ export function CamperManagement({ portal }: Props) {
         )
       ) : activeMenu === "requests" ? (
         requests.length === 0 ? (
-          <div className={AM_EMPTY}>
+          <div className={emptyState}>
             <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>No account or password reset requests.</p>
           </div>
         ) : filteredRequests.length === 0 ? (
-          <div className={AM_EMPTY}>
+          <div className={emptyState}>
             <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>No requests match your filters.</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className={cn(isPanel ? cn(chrome.card, "divide-y divide-[var(--border)] overflow-hidden", panelScroll) : "space-y-2")}>
             {filteredRequests.map((r) => (
               <article key={String(r.id)} className={cn(AM_ROW, "gap-3")}>
                 <div className="min-w-0 flex-1 space-y-1">
@@ -447,7 +455,7 @@ export function CamperManagement({ portal }: Props) {
           </div>
         )
       ) : (
-        <div className={cn(AM_ROW, "max-w-md flex-col items-stretch gap-4")}>
+        <div className={cn(AM_ROW, "max-w-md flex-col items-stretch gap-4", isPanel && panelScroll)}>
           <div className="flex items-center justify-between gap-3">
             <Label htmlFor="autoApprove">Auto-approve new camper accounts</Label>
             <Switch id="autoApprove" checked={autoApprove} onCheckedChange={setAutoApprove} />
@@ -465,8 +473,14 @@ export function CamperManagement({ portal }: Props) {
   )
 
   return (
-    <div className="space-y-3">
-      <FacultyModuleSplitLayout menu={sidebar}>{mainContent}</FacultyModuleSplitLayout>
+    <div className={cn(isPanel ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "space-y-3")}>
+      <FacultyModuleSplitLayout
+        scrollMode={isPanel ? "panel" : "page"}
+        className={isPanel ? "min-h-0 flex-1" : undefined}
+        menu={sidebar}
+      >
+        {mainContent}
+      </FacultyModuleSplitLayout>
 
       {resetId != null && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">

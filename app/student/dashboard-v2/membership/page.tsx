@@ -47,6 +47,7 @@ import { portalOutlineButtonClass } from "@/lib/portal-module-themes"
 import { PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
 import { cn } from "@/lib/utils"
 import { StudentSemesterDiscountPrice } from "@/components/student/membership/StudentSemesterDiscountPrice"
+import { MembershipDashboardSkeleton } from "@/components/student/membership/MembershipDashboardSkeleton"
 import { formatSemesterPrice } from "@/lib/student-membership-catalog"
 
 interface UserMembership {
@@ -328,129 +329,7 @@ export default function DashboardV2MembershipPage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-0 w-full pb-8">
-        <div className="max-w-7xl mx-auto space-y-4 sm:space-y-5 md:space-y-6 animate-pulse">
-          {/* Hero + plan skeleton (single card) */}
-          <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 md:p-6 space-y-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
-                <div className="flex size-11 sm:size-12 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-                  <Crown className="h-5 w-5 sm:h-6 sm:w-6" />
-                </div>
-                <div className="min-w-0 space-y-2.5 flex-1 pt-0.5">
-                  <div className="h-7 w-48 sm:w-64 rounded-lg bg-muted" />
-                  <div className="h-4 w-full max-w-md rounded-md bg-muted/80" />
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    <div className="h-6 w-24 rounded-full bg-muted" />
-                    <div className="h-6 w-16 rounded-full bg-muted" />
-                    <div className="h-6 w-28 rounded-full bg-muted" />
-                  </div>
-                </div>
-              </div>
-              <div className="h-10 w-36 rounded-xl bg-muted shrink-0" />
-            </div>
-            <div className="h-4 w-32 rounded-md bg-muted/80" />
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="rounded-2xl border border-border bg-background p-3.5 sm:p-4 space-y-3">
-                  <div className="flex justify-between gap-2">
-                    <div className="space-y-2 flex-1">
-                      <div className="h-3 w-16 rounded bg-muted" />
-                      <div className="h-7 w-20 rounded bg-muted" />
-                      <div className="h-3 w-24 rounded bg-muted/70" />
-                    </div>
-                    <div className="size-9 rounded-xl bg-muted" />
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-muted" />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Cora usage skeleton */}
-          <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 md:p-6 space-y-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3 flex-1">
-                <div className="size-10 rounded-2xl bg-primary/10" />
-                <div className="space-y-2 flex-1 pt-0.5">
-                  <div className="h-5 w-28 rounded-md bg-muted" />
-                  <div className="h-3.5 w-56 max-w-full rounded-md bg-muted/80" />
-                </div>
-              </div>
-              <div className="h-6 w-32 rounded-full bg-muted shrink-0" />
-            </div>
-            <div className="grid grid-cols-4 gap-1 rounded-2xl border border-border bg-muted/40 p-1">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-10 rounded-xl bg-background/80 border border-border/60" />
-              ))}
-            </div>
-            <div className="grid gap-2.5 sm:grid-cols-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="rounded-2xl border border-border bg-background p-4 space-y-2">
-                  <div className="h-3 w-20 rounded bg-muted" />
-                  <div className="h-7 w-28 rounded bg-muted" />
-                  <div className="h-3 w-24 rounded bg-muted/70" />
-                </div>
-              ))}
-            </div>
-            <div className="grid gap-3 lg:grid-cols-5">
-              <div className="lg:col-span-3 rounded-2xl border border-border bg-background p-4 space-y-3">
-                <div className="h-4 w-40 rounded bg-muted" />
-                <div className="h-3 w-56 rounded bg-muted/70" />
-                <div className="h-48 rounded-xl bg-muted/40" />
-              </div>
-              <div className="lg:col-span-2 rounded-2xl border border-border bg-background p-4 space-y-3">
-                <div className="h-4 w-36 rounded bg-muted" />
-                <div className="h-3 w-48 rounded bg-muted/70" />
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="space-y-1.5">
-                    <div className="flex gap-2.5 items-center">
-                      <div className="size-8 rounded-xl bg-muted" />
-                      <div className="flex-1 space-y-1.5">
-                        <div className="h-3.5 w-full rounded bg-muted" />
-                        <div className="h-2.5 w-2/3 rounded bg-muted/70" />
-                      </div>
-                    </div>
-                    <div className="h-1.5 ml-10 rounded-full bg-muted" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Plans skeleton */}
-          <div className="space-y-3">
-            <div className="mx-auto h-6 w-40 rounded-md bg-muted" />
-            <div className="mx-auto h-3.5 w-64 max-w-full rounded-md bg-muted/80" />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 pt-2">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="rounded-2xl border border-border bg-card p-4 sm:p-5 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <div className="size-9 rounded-lg bg-muted" />
-                    <div className="space-y-1.5 flex-1">
-                      <div className="h-4 w-24 rounded bg-muted" />
-                      <div className="h-3 w-full rounded bg-muted/70" />
-                    </div>
-                  </div>
-                  <div className="h-8 w-20 rounded bg-muted" />
-                  <div className="space-y-2">
-                    {Array.from({ length: 4 }).map((__, j) => (
-                      <div key={j} className="h-3 w-full rounded bg-muted/70" />
-                    ))}
-                  </div>
-                  <div className="h-9 w-full rounded-lg bg-muted" />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <p className="text-center text-xs text-muted-foreground pt-1">
-            Loading membership & plans…
-          </p>
-        </div>
-      </div>
-    )
+    return <MembershipDashboardSkeleton />
   }
 
   return (

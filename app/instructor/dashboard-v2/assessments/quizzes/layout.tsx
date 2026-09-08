@@ -31,7 +31,7 @@ export default function QuizzesLayout({ children }: { children: React.ReactNode 
     pathname.startsWith(`${QUIZZES_BASE}/question-bank/`)
 
   if (isManagePage || isQuestionBankPage) {
-    return <div className="w-full min-w-0">{children}</div>
+    return <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">{children}</div>
   }
 
   return (

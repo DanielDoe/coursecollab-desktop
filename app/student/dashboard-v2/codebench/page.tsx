@@ -1,16 +1,21 @@
 "use client"
 
-import { CodeBenchHubDashboardV2 } from "@/components/student/dashboard-v2/CodeBenchHubDashboardV2"
-import { dashboardV2PageRootClass } from "@/lib/dashboard-v2-layout"
-import { EmbedModuleCard } from "@/components/student/dashboard-v2/embed-module-ui"
-import { PageEnter } from "@/components/student/dashboard-v2/light-motion"
+import dynamic from "next/dynamic"
+import { StudentDashboardModulePage } from "@/components/student/dashboard-v2/StudentDashboardModulePage"
+import { ModulePageSkeleton } from "@/components/student/dashboard-v2/ModulePageSkeleton"
+
+const CodeBenchHubDashboardV2 = dynamic(
+  () =>
+    import("@/components/student/dashboard-v2/CodeBenchHubDashboardV2").then((m) => ({
+      default: m.CodeBenchHubDashboardV2,
+    })),
+  { loading: () => <ModulePageSkeleton className="min-h-0 flex-1" /> },
+)
 
 export default function DashboardV2CodebenchPage() {
   return (
-    <PageEnter className={dashboardV2PageRootClass}>
-      <EmbedModuleCard>
-        <CodeBenchHubDashboardV2 />
-      </EmbedModuleCard>
-    </PageEnter>
+    <StudentDashboardModulePage scrollMode="panel">
+      <CodeBenchHubDashboardV2 />
+    </StudentDashboardModulePage>
   )
 }

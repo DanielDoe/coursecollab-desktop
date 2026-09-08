@@ -39,7 +39,7 @@ export function getAuthRouteDepth(pathname: string): number {
 export function isDesktopAuthRoute(pathname: string) {
   return (
     pathname.startsWith('/auth') ||
-    pathname.startsWith('/faculty/login') ||
+    pathname === '/faculty/login' ||
     pathname === '/admin/login' ||
     pathname.startsWith('/student/login/guest') ||
     pathname.startsWith('/student/login/summer-camp')
@@ -83,8 +83,8 @@ export function createAuthRoutePushVariants(reduceMotion: boolean): Variants {
   if (reduceMotion) {
     return {
       initial: { opacity: 0 },
-      animate: { opacity: 1, x: 0 },
-      exit: { opacity: 0 },
+      animate: { opacity: 1, x: 0, pointerEvents: 'auto' },
+      exit: { opacity: 0, pointerEvents: 'none' },
     }
   }
 
@@ -96,10 +96,14 @@ export function createAuthRoutePushVariants(reduceMotion: boolean): Variants {
     animate: {
       x: 0,
       opacity: 1,
+      pointerEvents: 'auto',
     },
     exit: (direction: RouteTransitionDirection) => ({
       x: direction === 'back' ? '10%' : direction === 'forward' ? '-10%' : 0,
       opacity: direction === 'none' ? 0 : 0.88,
+      // Exiting auth panes are full-viewport; without this, popLayout keeps them
+      // pointer-active and they eat clicks/typing on the incoming login form.
+      pointerEvents: 'none',
     }),
   }
 }

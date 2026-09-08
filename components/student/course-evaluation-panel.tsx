@@ -422,7 +422,7 @@ export function CourseEvaluationPanel({
   const StatusIcon = statusTone?.icon
 
   return (
-    <div className="w-full min-w-0 space-y-5 pt-2 pb-2">
+    <div className="w-full min-w-0 space-y-5 pb-6 pt-2">
       {/* Hero */}
       <div className={cn(JEANS, "p-4 sm:p-5")}>
         <div className="flex flex-wrap items-start gap-4">

@@ -23,6 +23,7 @@ import { FacultyAttendancePanel, FacultyAttendanceLoading } from "@/components/a
 import {
   ATTENDANCE_INPUT,
   ATTENDANCE_TABLE_HEAD,
+  ATTENDANCE_TABLE_HEAD_CELL,
   ATTENDANCE_TABLE_ROW,
   PORTAL_CTA,
   PORTAL_TEXT,
@@ -83,6 +84,7 @@ interface RosterStudentRow {
 
 interface InstructorAttendanceGradebookProps {
   instructorId: string;
+  embedInDashboard?: boolean;
 }
 
 /** PATCH requires a section for roster auth — use filter, or each row’s section when viewing all sections. */
@@ -95,7 +97,7 @@ function resolvePatchAuthSection(
   return fromRow || null;
 }
 
-export function InstructorAttendanceGradebook({ instructorId }: InstructorAttendanceGradebookProps) {
+export function InstructorAttendanceGradebook({ instructorId, embedInDashboard }: InstructorAttendanceGradebookProps) {
   const { toast } = useToast();
   const { courseScopeVersion } = useInstructorDashboardV2();
 
@@ -413,9 +415,10 @@ export function InstructorAttendanceGradebook({ instructorId }: InstructorAttend
   });
 
   return (
-    <div className="space-y-3">
+    <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col" : "space-y-3"}>
       <FacultyAttendancePanel
         title="Attendance %"
+        fillHeight={embedInDashboard}
         action={
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -438,7 +441,12 @@ export function InstructorAttendanceGradebook({ instructorId }: InstructorAttend
           </div>
         }
       >
-        <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div
+          className={cn(
+            embedInDashboard && "flex min-h-0 flex-1 flex-col",
+          )}
+        >
+        <div className={cn("flex flex-wrap items-center gap-2 border-b border-[var(--border)] p-3 sm:p-4", embedInDashboard && "shrink-0")}>
             <div className="relative min-w-[180px] flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--cc-text-muted)]" />
               <Input
@@ -463,9 +471,9 @@ export function InstructorAttendanceGradebook({ instructorId }: InstructorAttend
             </Select>
         </div>
           {loadingGradebook ? (
-            <FacultyAttendanceLoading />
+            <FacultyAttendanceLoading fillHeight={embedInDashboard} />
           ) : filteredGradebookRows.length === 0 ? (
-            <div className="px-4 py-10 text-center">
+            <div className={cn("px-4 text-center", embedInDashboard ? "flex min-h-0 flex-1 flex-col items-center justify-center py-8" : "py-10")}>
               <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
                 <BookOpen className="h-5 w-5 !text-white" />
               </div>
@@ -481,15 +489,15 @@ export function InstructorAttendanceGradebook({ instructorId }: InstructorAttend
               ) : null}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className={cn("overflow-x-auto", embedInDashboard && "min-h-0 flex-1 overflow-y-auto")}>
               <table className="w-full text-sm">
-                <thead className={ATTENDANCE_TABLE_HEAD}>
+                <thead className={cn("sticky top-0 z-10", ATTENDANCE_TABLE_HEAD)}>
                   <tr>
-                    <th className={cn("px-3 py-2 text-left font-medium", PORTAL_TEXT_MUTED)}>Student</th>
-                    <th className={cn("px-3 py-2 text-left font-medium", PORTAL_TEXT_MUTED)}>ID</th>
-                    <th className={cn("px-3 py-2 text-left font-medium", PORTAL_TEXT_MUTED)}>Section</th>
-                    <th className={cn("px-3 py-2 text-right font-medium", PORTAL_TEXT_MUTED)}>%</th>
-                    <th className={cn("w-16 px-3 py-2 text-right font-medium", PORTAL_TEXT_MUTED)}></th>
+                    <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "text-left")}>Student</th>
+                    <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "text-left")}>ID</th>
+                    <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "text-left")}>Section</th>
+                    <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "text-right")}>%</th>
+                    <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "w-16 text-right")} aria-label="Actions" />
                   </tr>
                 </thead>
                 <tbody>
@@ -519,6 +527,7 @@ export function InstructorAttendanceGradebook({ instructorId }: InstructorAttend
               </table>
             </div>
           )}
+        </div>
       </FacultyAttendancePanel>
 
       <Dialog open={gbEditRow !== null} onOpenChange={(open) => !open && setGbEditRow(null)}>

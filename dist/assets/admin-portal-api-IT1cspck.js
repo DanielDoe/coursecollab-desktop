@@ -1,1 +1,0 @@
-import{n as e,o as t}from"./auth-Ts69qjRi.js";import{t as n}from"./admin-api-headers-C8oiqM1H.js";t();function r(){let t=e();return t?.id==null?null:String(t.id)}function i(e){let t=r(),i=n(e);return t&&(i[`x-admin-id`]=t),{headers:i,adminId:t}}function a(e,t){return t?`${e}${e.includes(`?`)?`&`:`?`}adminId=${encodeURIComponent(t)}`:e}export{a as n,i as t};

@@ -1,1 +1,0 @@
-import{bt as e}from"./index-BFIBYwc9.js";function t(){e(`/admin/dashboard-v2/institution-quotes`)}export{t as default};

@@ -25,6 +25,7 @@ type SyllabusPdfUploadSectionProps = {
   uploading?: boolean
   onUpload: (file: File) => Promise<void>
   onRemove?: () => Promise<void>
+  fillHeight?: boolean
 }
 
 export function SyllabusPdfUploadSection({
@@ -34,6 +35,7 @@ export function SyllabusPdfUploadSection({
   uploading = false,
   onUpload,
   onRemove,
+  fillHeight = false,
 }: SyllabusPdfUploadSectionProps) {
   const chrome = facultyEmbedChrome("syllabus")
   const inputRef = useRef<HTMLInputElement>(null)
@@ -53,8 +55,8 @@ export function SyllabusPdfUploadSection({
   }
 
   return (
-    <div className="space-y-4">
-      <div className={cn(PORTAL_CARD, "space-y-4 p-4 sm:p-5")}>
+    <div className={cn(fillHeight && "flex min-h-0 flex-1 flex-col gap-4")}>
+      <div className={cn(PORTAL_CARD, "space-y-4 p-4 sm:p-5", fillHeight && !hasPdf && "flex min-h-0 flex-1 flex-col")}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             <div className={chrome.iconBadge("sm")}>
@@ -108,6 +110,7 @@ export function SyllabusPdfUploadSection({
             SYLLABUS_DROPZONE,
             dragActive && SYLLABUS_DROPZONE_ACTIVE,
             uploading && "pointer-events-none opacity-60",
+            fillHeight && !hasPdf && "flex min-h-0 flex-1 flex-col items-center justify-center",
           )}
           onDragOver={(e) => {
             e.preventDefault()

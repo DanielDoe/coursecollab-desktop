@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./student-management-BLEyTK5e.js";var n=e();function r(){return(0,n.jsx)(`div`,{className:`min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 overflow-x-hidden`,children:(0,n.jsx)(t,{userType:`instructor`})})}export{r as default};

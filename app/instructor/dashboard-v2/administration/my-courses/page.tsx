@@ -12,6 +12,7 @@ export default function InstructorMyCoursesPage() {
       icon={BookOpen}
       moduleId="my-courses"
       showHeader={false}
+      scrollMode="panel"
     >
       <InstructorMyCoursesHub />
     </InstructorAdministrationModulePage>

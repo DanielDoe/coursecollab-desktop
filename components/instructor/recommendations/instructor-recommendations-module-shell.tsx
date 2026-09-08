@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 import { FacultyModuleSplitLayout } from "@/components/instructor/dashboard-v2/FacultyModuleSplitLayout"
 import { FacultyModuleSideMenu } from "@/components/instructor/dashboard-v2/FacultyModuleSideMenu"
+import { StudentDashboardModulePage } from "@/components/student/dashboard-v2/StudentDashboardModulePage"
 
 export const INSTRUCTOR_RECOMMENDATIONS_MODULE_BASE = "/instructor/dashboard-v2/recommendations"
 
@@ -41,17 +42,21 @@ export function InstructorRecommendationModuleShell({ children }: { children: Re
     })?.id ?? "all"
 
   return (
-    <FacultyModuleSplitLayout
-      menu={
-        <FacultyModuleSideMenu
-          moduleId="recommendations"
-          title="Letters"
-          activeId={activeId}
-          items={NAV.map(({ id, href, label, icon }) => ({ id, label, icon, href }))}
-        />
-      }
-    >
-      <div className="min-w-0 space-y-3">{children}</div>
-    </FacultyModuleSplitLayout>
+    <StudentDashboardModulePage scrollMode="panel">
+      <FacultyModuleSplitLayout
+        scrollMode="panel"
+        className="min-h-0 flex-1"
+        menu={
+          <FacultyModuleSideMenu
+            moduleId="recommendations"
+            title="Letters"
+            activeId={activeId}
+            items={NAV.map(({ id, href, label, icon }) => ({ id, label, icon, href }))}
+          />
+        }
+      >
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden min-w-0">{children}</div>
+      </FacultyModuleSplitLayout>
+    </StudentDashboardModulePage>
   )
 }

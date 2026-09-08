@@ -58,7 +58,21 @@ type AnalyticsPayload = {
       title: string
     }>
   }
-  cora: CodebenchCoraRead
+}
+
+function normalizePerformance(raw: AnalyticsPayload["performance"] | undefined): AnalyticsPayload["performance"] {
+  return {
+    submissionCount: raw?.submissionCount ?? 0,
+    avgScore: raw?.avgScore ?? 0,
+    approvedCount: raw?.approvedCount ?? 0,
+    xpEarned: raw?.xpEarned ?? 0,
+    streakDays: raw?.streakDays ?? 0,
+    scoreTrend: raw?.scoreTrend ?? [],
+    activityByDay: raw?.activityByDay ?? [],
+    statusMix: raw?.statusMix ?? [],
+    sourceCounts: raw?.sourceCounts ?? { codebench: 0, practice: 0, challenge: 0 },
+    recent: raw?.recent ?? [],
+  }
 }
 
 export function AnalyticsTab({
@@ -87,8 +101,8 @@ export function AnalyticsTab({
           const body = await res.json().catch(() => ({}))
           throw new Error(body.error || "Failed to load analytics")
         }
-        const payload = (await res.json()) as AnalyticsPayload
-        setData(payload)
+        const payload = (await res.json()) as { performance?: AnalyticsPayload["performance"] }
+        setData({ performance: normalizePerformance(payload.performance) })
       } catch (err) {
         console.error(err)
         setError(err instanceof Error ? err.message : "Failed to load analytics")
@@ -105,12 +119,10 @@ export function AnalyticsTab({
     return () => window.removeEventListener("codebench-studio-analytics", bump)
   }, [])
 
-  const cora = useMemo(() => {
-    if (!data) return null
-    if (!studentId) return data.cora
-    const local = getStudioSnapshot(studentId)
-    const hasLocal = local.runs + local.compileErrors + local.saves + local.suggestFixes > 0
-    return hasLocal ? buildCodebenchCoraRead(data.performance, local) : data.cora
+  const cora = useMemo<CodebenchCoraRead | null>(() => {
+    if (!data?.performance) return null
+    const local = getStudioSnapshot(studentId ?? "local")
+    return buildCodebenchCoraRead(data.performance, local)
   }, [data, studentId, localTick])
 
   const Section = ({
@@ -157,10 +169,14 @@ export function AnalyticsTab({
   }
 
   const { performance } = data
-  const hasScoreTrend = performance.scoreTrend.length > 0
-  const hasActivity = performance.activityByDay.some((d) => d.count > 0)
-  const hasStatus = performance.statusMix.some((d) => d.value > 0)
-  const hasWorkshop = cora.workshopBars.some((d) => d.value > 0)
+  const workshopBars = cora.workshopBars ?? []
+  const strengths = cora.strengths ?? []
+  const weaknesses = cora.weaknesses ?? []
+  const tasks = cora.tasks ?? []
+  const hasScoreTrend = (performance.scoreTrend ?? []).length > 0
+  const hasActivity = (performance.activityByDay ?? []).some((d) => d.count > 0)
+  const hasStatus = (performance.statusMix ?? []).some((d) => d.value > 0)
+  const hasWorkshop = workshopBars.some((d) => d.value > 0)
   const hasWork = performance.submissionCount > 0 || hasWorkshop
 
   return (
@@ -218,16 +234,16 @@ export function AnalyticsTab({
         ))}
       </div>
 
-      {(cora.strengths.length > 0 || cora.weaknesses.length > 0) && (
+      {(strengths.length > 0 || weaknesses.length > 0) && (
         <Section title="Strengths & focus areas" icon={Sparkles} thumbIndex={2}>
           <div className="grid gap-4 sm:grid-cols-2">
-            {cora.strengths.length > 0 ? (
+            {strengths.length > 0 ? (
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--cc-success)]">
                   Strengths
                 </h4>
                 <div className="flex flex-wrap gap-2">
-                  {cora.strengths.map((item) => (
+                  {strengths.map((item) => (
                     <span
                       key={item}
                       className="rounded-[6px] bg-[var(--cc-success)]/10 px-3 py-1.5 text-sm font-medium text-[var(--cc-success)]"
@@ -238,13 +254,13 @@ export function AnalyticsTab({
                 </div>
               </div>
             ) : null}
-            {cora.weaknesses.length > 0 ? (
+            {weaknesses.length > 0 ? (
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--cc-warning)]">
                   Focus areas
                 </h4>
                 <div className="flex flex-wrap gap-2">
-                  {cora.weaknesses.map((item) => (
+                  {weaknesses.map((item) => (
                     <span
                       key={item}
                       className="rounded-[6px] bg-[var(--cc-warning)]/10 px-3 py-1.5 text-sm font-medium text-[var(--cc-warning)]"
@@ -259,10 +275,10 @@ export function AnalyticsTab({
         </Section>
       )}
 
-      {cora.tasks.length > 0 ? (
+      {tasks.length > 0 ? (
         <Section title="Next up" icon={Target} thumbIndex={1}>
           <ul className="space-y-2">
-            {cora.tasks.map((task, idx) => (
+            {tasks.map((task, idx) => (
               <li key={idx} className="flex items-start gap-3">
                 <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--cc-accent-soft)] text-xs font-bold text-[var(--cc-accent-dark)]">
                   {idx + 1}
@@ -278,7 +294,7 @@ export function AnalyticsTab({
         <div className="grid gap-5 lg:grid-cols-2">
           {hasWorkshop ? (
             <Section title="Workshop mix" icon={BarChart3} thumbIndex={3}>
-              <WorkshopMixChart data={cora.workshopBars} />
+              <WorkshopMixChart data={workshopBars} />
             </Section>
           ) : null}
           {hasScoreTrend ? (

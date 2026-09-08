@@ -45,6 +45,12 @@ const forumTheme = getStudentModuleTheme("forum")
 const FORUM_SECTION_CARD =
   "min-w-0 border border-slate-200/70 dark:border-white/[0.08] bg-white/90 dark:bg-white/[0.03] rounded-2xl shadow-sm dark:shadow-none"
 
+const FORUM_EMPTY_STATE =
+  "flex min-h-[280px] flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200 bg-[color-mix(in_srgb,var(--cc-ui-skeleton,var(--muted))_12%,transparent)] px-4 py-12 text-center dark:border-white/10"
+
+const FORUM_TAB_PANE = (isEmpty: boolean) =>
+  cn(isEmpty ? "flex min-h-0 flex-1 flex-col" : "space-y-4")
+
 type Thread = {
   id: number
   student_id: number
@@ -111,8 +117,8 @@ function ForumLeaderboard({
   onViewChange: (view: "weekly" | "alltime") => void
 }) {
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className={cn(FORUM_TAB_PANE(rows.length === 0))}>
+      <div className="flex flex-wrap items-end justify-between gap-3 shrink-0">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-[var(--cc-text-muted)]">
             {view === "weekly" ? "This week" : "All time"}
@@ -152,9 +158,13 @@ function ForumLeaderboard({
       </div>
 
       {rows.length === 0 ? (
-        <p className="py-10 text-center text-sm text-[var(--cc-text-muted)]">
-          No rankings yet. Start a thread or reply to appear here.
-        </p>
+        <div className={FORUM_EMPTY_STATE}>
+          <Trophy className="h-8 w-8 text-slate-300 dark:text-slate-600" />
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-300">No rankings yet</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Start a thread or reply to appear here.
+          </p>
+        </div>
       ) : (
         <>
           <div className="flex items-end justify-center gap-2 sm:gap-3">
@@ -530,12 +540,13 @@ export default function ForumHub() {
       menuView={activeTab}
       onMenuSelect={(id) => navigateTab(id as ForumTab)}
       menuItems={forumMenuItems}
+      scrollMode="panel"
     >
-      <div className="w-full min-w-0 overflow-x-hidden">
+      <div className="flex min-h-0 flex-1 flex-col w-full min-w-0 overflow-x-hidden">
                   {activeTab === "discussions" && (
-                    <div className="space-y-4">
+                    <div className={FORUM_TAB_PANE(threads.length === 0)}>
             {threads.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-slate-200 dark:border-white/10 px-4 py-12 text-center">
+              <div className={FORUM_EMPTY_STATE}>
                 <MessageSquare className="h-8 w-8 text-slate-300 dark:text-slate-600" />
                 <p className="text-sm font-medium text-slate-600 dark:text-slate-300">No discussions yet</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -632,9 +643,9 @@ export default function ForumHub() {
                   )}
 
                   {activeTab === "tutoring" && (
-                    <div className="space-y-4">
+                    <div className={FORUM_TAB_PANE(tutoringOffers.length === 0)}>
             {tutoringOffers.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-slate-200 dark:border-white/10 px-4 py-12 text-center">
+              <div className={FORUM_EMPTY_STATE}>
                 <Users className="h-8 w-8 text-slate-300 dark:text-slate-600" />
                 <p className="text-sm font-medium text-slate-600 dark:text-slate-300">No tutoring offers yet</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -704,11 +715,15 @@ export default function ForumHub() {
                   )}
 
                   {activeTab === "leaderboard" && (
+                    <div className={FORUM_TAB_PANE(
+                      (leaderboardView === "weekly" ? weeklyLeaderboard : allTimeLeaderboard).length === 0,
+                    )}>
                     <ForumLeaderboard
                       rows={leaderboardView === "weekly" ? weeklyLeaderboard : allTimeLeaderboard}
                       view={leaderboardView}
                       onViewChange={setLeaderboardView}
                     />
+                    </div>
                   )}
 
         <Dialog open={showNewThread} onOpenChange={setShowNewThread}>

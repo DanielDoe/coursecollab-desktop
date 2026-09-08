@@ -1,0 +1,1 @@
+import{o as e}from"./rolldown-runtime-C0FnF6B9.js";import{t}from"./react-CxYj4QkW.js";import{Ht as n}from"./index-Bk6sIswz.js";var r=e(t());function i(){let e=n();return(0,r.useEffect)(()=>{e.replace(`/student/dashboard-v2/settings/purchases`)},[e]),null}export{i as default};

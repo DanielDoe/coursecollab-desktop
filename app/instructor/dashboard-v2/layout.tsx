@@ -15,9 +15,7 @@ import { cn } from "@/lib/utils"
 import { FacultyPermissionRouteGuard } from "@/components/instructor/FacultyPermissionRouteGuard"
 import { FacultyCourseScopeContentGate } from "@/components/instructor/FacultyCourseScopeContentGate"
 import { PlatformActivityTracker } from "@/components/platform-activity-tracker"
-import { NavSidebarCollapseEffect } from "@/components/dashboard-v2/NavSidebarCollapseEffect"
 import { PresenceSelfProvider } from "@/components/presence/PresenceSelfProvider"
-import { FACULTY_DASHBOARD_BASE } from "@/lib/faculty-portal-nav-config"
 import { FacultyModuleThemeProvider } from "@/components/instructor/dashboard-v2/FacultyModuleThemeProvider"
 import {
   facultySessionNeedsPasswordChange,
@@ -34,19 +32,6 @@ import {
   DashboardChromeTitleSlots,
 } from "@/components/dashboard-v2/DashboardChromeTitlePortal"
 import { FacultyExchangeProvenanceStrip } from "@/components/instructor/FacultyExchangeProvenanceStrip"
-
-const FACULTY_DASHBOARD_LANDING_PATHS = [FACULTY_DASHBOARD_BASE]
-
-function NavSidebarCollapseEffectWrapper() {
-  const { setSidebarCollapsed, setMobileSidebarOpen } = useInstructorDashboardV2()
-  return (
-    <NavSidebarCollapseEffect
-      landingPaths={FACULTY_DASHBOARD_LANDING_PATHS}
-      setSidebarCollapsed={setSidebarCollapsed}
-      setMobileSidebarOpen={setMobileSidebarOpen}
-    />
-  )
-}
 
 function ImmersivePreviewSidebarEffect() {
   const pathname = usePathname()
@@ -74,6 +59,7 @@ function CoraImmersiveSidebarEffect() {
   return null
 }
 
+/** Close mobile drawer on route change; desktop rail stays as the user left it. */
 function MobileSidebarCloseOnNavigate() {
   const pathname = usePathname()
   const { setMobileSidebarOpen } = useInstructorDashboardV2()
@@ -102,7 +88,7 @@ function DashboardContent({
   const mainLayoutClass = isImmersive
     ? "flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-hidden"
     : merged
-      ? "min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
+      ? "flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain has-[_[data-scroll-mode=panel]]:overflow-y-hidden"
       : "min-h-0 flex-1 min-w-0 overflow-x-hidden overflow-y-auto"
 
   return (
@@ -111,11 +97,13 @@ function DashboardContent({
       {showBreadcrumbs ? <FacultyExchangeProvenanceStrip /> : null}
       {showBreadcrumbs ? <FacultyAccessRequestsMobileStrip className="mb-3 lg:hidden" /> : null}
       {merged && !isImmersive ? <DashboardChromeTitleSlots /> : null}
-      <FacultyModuleThemeProvider>
-        <FacultyPermissionRouteGuard>
-          <FacultyCourseScopeContentGate>{children}</FacultyCourseScopeContentGate>
-        </FacultyPermissionRouteGuard>
-      </FacultyModuleThemeProvider>
+      <div className={cn(!isImmersive && "flex min-h-0 min-w-0 flex-1 flex-col")}>
+        <FacultyModuleThemeProvider>
+          <FacultyPermissionRouteGuard>
+            <FacultyCourseScopeContentGate>{children}</FacultyCourseScopeContentGate>
+          </FacultyPermissionRouteGuard>
+        </FacultyModuleThemeProvider>
+      </div>
     </main>
   )
 }
@@ -169,7 +157,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
       <ImmersivePreviewSidebarEffect />
       <CoraImmersiveSidebarEffect />
-      <NavSidebarCollapseEffectWrapper />
       <MobileSidebarCloseOnNavigate />
       <DashboardShellBody>{children}</DashboardShellBody>
     </div>

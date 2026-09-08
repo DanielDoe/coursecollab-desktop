@@ -2,7 +2,7 @@ import { sql } from "@/lib/db"
 import { SURVEY_OTHER_OPTION } from "@/lib/course-evaluation-survey"
 import {
   COURSE_EVALUATION_SESSION_JOIN,
-  courseEvaluationCoursePredicate,
+  courseEvaluationCourseAndClause,
 } from "@/lib/course-evaluation-course-scope"
 
 export type CourseEvaluationAnalytics = {
@@ -87,10 +87,7 @@ export async function computeCourseEvaluationAnalytics(
   const sessionTrim = (session ?? "all").trim()
   const courseId = opts?.courseId != null && Number.isFinite(opts.courseId) ? opts.courseId : null
   const courseCode = String(opts?.courseCode ?? "").trim()
-  const courseClause =
-    courseId != null && courseCode
-      ? sql`AND ${courseEvaluationCoursePredicate(courseId, courseCode)}`
-      : sql``
+  const courseClause = courseEvaluationCourseAndClause(courseId, courseCode)
 
   let rows: AnalyticsRow[]
   if (!sessionTrim || sessionTrim === "all") {

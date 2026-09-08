@@ -258,11 +258,22 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
     { id: "grades", label: "Student Grades", icon: Users },
   ];
 
+  const panelTab = embedInDashboard;
+  const tabSectionClass = panelTab ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4";
+  const tabBodyClass = panelTab ? "flex min-h-0 flex-1 flex-col" : undefined;
+  const emptyPanelClass = panelTab
+    ? cn(cardBase, "flex min-h-0 flex-1 flex-col items-center justify-center border-dashed px-4 py-10 text-center")
+    : cn(cardBase, "p-8 text-center sm:p-10");
+  const loadingPanelClass = panelTab
+    ? cn(cardBase, "flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-10")
+    : cn(cardBase, "py-12 text-center");
+  const scrollListClass = panelTab ? "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2" : undefined;
+
   return (
     <div
       className={
         embedInDashboard
-          ? "w-full min-w-0"
+          ? "flex min-h-0 w-full min-w-0 flex-1 flex-col"
           : "w-full max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6"
       }
     >
@@ -278,6 +289,8 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
       )}
 
       <FacultyModuleSplitLayout
+        scrollMode={embedInDashboard ? "panel" : "page"}
+        className={embedInDashboard ? "min-h-0 flex-1" : undefined}
         menu={
           selectedProject && activeMenu === "rate" ? null : (
           <FacultyModuleSideMenu
@@ -294,9 +307,8 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
               <div className="hidden lg:block">
                 <p className={cn("mb-2 text-xs font-medium", PORTAL_TEXT)}>Scoring</p>
                 <p className={cn("text-[11px] leading-relaxed", PORTAL_TEXT_MUTED)}>
-                  Students: 30+ votes = 30 pts · Avg × 6
-                  <br />
-                  Instructor: 1 score = 20 pts · Stars × 4
+                  <span className="block whitespace-nowrap">Students: 30+ votes = 30 pts · Avg × 6</span>
+                  <span className="block whitespace-nowrap">Instructor: 1 score = 20 pts · Stars × 4</span>
                 </p>
               </div>
             }
@@ -305,10 +317,17 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
         }
       >
         {/* Main Content */}
-        <div className="min-w-0 flex-1 space-y-6">
+        <div
+          className={
+            embedInDashboard
+              ? "flex min-h-0 min-w-0 flex-1 flex-col gap-4 sm:gap-6"
+              : "min-w-0 flex-1 space-y-6"
+          }
+        >
             {/* Scores Overview */}
             {activeMenu === "overview" && (
-              <div className="space-y-4">
+              <div className={tabSectionClass}>
+                <div className={panelTab ? "shrink-0" : undefined}>
                 <FacultyIntegratedToolbar
                   moduleId="projects"
                   search={overviewSearch}
@@ -376,12 +395,14 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                     </Button>
                   }
                 />
+                </div>
+                <div className={tabBodyClass}>
                 {loading ? (
-                  <div className={cn(cardBase, "py-12 text-center")}>
+                  <div className={loadingPanelClass}>
                     <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>Loading scores…</p>
                   </div>
                 ) : sortedScores.length === 0 ? (
-                  <div className={cn(cardBase, "p-8 text-center sm:p-10")}>
+                  <div className={emptyPanelClass}>
                     <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
                       <Star className="h-5 w-5 !text-white" />
                     </div>
@@ -389,7 +410,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                     <p className={cn("mt-1 text-sm", PORTAL_TEXT_MUTED)}>Scores appear after students vote and you rate projects.</p>
                   </div>
                 ) : overviewScores.length === 0 ? (
-                  <div className={cn(cardBase, "p-8 text-center sm:p-10")}>
+                  <div className={emptyPanelClass}>
                     <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
                       <Star className="h-5 w-5 !text-white" />
                     </div>
@@ -397,7 +418,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                     <p className={cn("mt-1 text-sm", PORTAL_TEXT_MUTED)}>Try a different search or clear the session and rating filters.</p>
                   </div>
                 ) : (
-                  <div className={cn(cardBase, "divide-y divide-[var(--border)] overflow-hidden")}>
+                  <div className={cn(cardBase, "divide-y divide-[var(--border)] overflow-hidden", scrollListClass)}>
                     {overviewScores.map((score, index) => (
                       <ProjectOverviewCard
                         key={score.projectId}
@@ -417,6 +438,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                     ))}
                   </div>
                 )}
+                </div>
               </div>
             )}
 
@@ -479,7 +501,8 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                 </section>
               </div>
             ) : activeMenu === "rate" ? (
-              <div className="space-y-4">
+              <div className={tabSectionClass}>
+                <div className={panelTab ? "shrink-0" : undefined}>
                 <FacultyIntegratedToolbar
                   moduleId="projects"
                   search={overviewSearch}
@@ -535,9 +558,11 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                     </p>
                   }
                 />
+                </div>
 
+                <div className={tabBodyClass}>
                 {filteredProjectsForScoring.length === 0 ? (
-                  <div className={cn(cardBase, "p-8 text-center sm:p-10")}>
+                  <div className={emptyPanelClass}>
                     <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
                       <FolderKanban className="h-5 w-5 !text-white" />
                     </div>
@@ -550,11 +575,12 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                 ) : (
                   <>
                     <div
-                      className={
+                      className={cn(
                         viewMode === "grid"
                           ? "grid grid-cols-1 gap-3 md:grid-cols-2"
-                          : cn(cardBase, "divide-y divide-[var(--border)] overflow-hidden")
-                      }
+                          : cn(cardBase, "divide-y divide-[var(--border)] overflow-hidden"),
+                        scrollListClass,
+                      )}
                     >
                       {pagedScoreProjects.map((project, index) => {
                         const projectScore = scores.find((s) => s.projectId === project.id)
@@ -573,6 +599,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                         )
                       })}
                     </div>
+                    <div className={panelTab ? "shrink-0" : undefined}>
                     <ProjectListPaginationBar
                       totalItems={filteredProjectsForScoring.length}
                       page={scoreProjectsPage}
@@ -580,14 +607,17 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                       onPageChange={setScoreProjectsPage}
                       onPageSizeChange={setScoreProjectsPageSize}
                     />
+                    </div>
                   </>
                 )}
+                </div>
               </div>
             ) : null}
 
             {/* Leaderboard */}
             {activeMenu === "leaderboard" && (
-              <div className="space-y-4">
+              <div className={tabSectionClass}>
+                <div className={panelTab ? "shrink-0 space-y-4" : "space-y-4"}>
                 <FacultyIntegratedToolbar
                   moduleId="projects"
                   search={overviewSearch}
@@ -665,16 +695,18 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                 <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>
                   Combined student (30 pts) + instructor (20 pts) scores for approved projects.
                 </p>
+                </div>
 
+                <div className={tabBodyClass}>
                 {loading ? (
-                  <div className={cn(cardBase, "flex items-center justify-center py-16")}>
+                  <div className={loadingPanelClass}>
                     <div
                       className="size-8 animate-spin rounded-full border-2 border-[var(--cc-accent)] border-t-transparent"
                       aria-hidden
                     />
                   </div>
                 ) : leaderboardScores.length === 0 ? (
-                  <div className={cn(cardBase, "py-14 text-center")}>
+                  <div className={emptyPanelClass}>
                     <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
                       <Trophy className="h-5 w-5 !text-white" />
                     </div>
@@ -686,7 +718,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className={cn("space-y-4", scrollListClass)}>
                     {podiumEntries.length > 0 ? (
                       <PortalLeaderboardPodium
                         entries={podiumEntries}
@@ -712,13 +744,14 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                     ) : null}
                   </div>
                 )}
+                </div>
               </div>
             )}
 
-            {activeMenu === "manage" && <InstructorProjectsManagement />}
-            {activeMenu === "presentations" && <InstructorPresentationsSchedule />}
-            {activeMenu === "config" && <InstructorPresentationConfig />}
-            {activeMenu === "grades" && <InstructorProjectStudentGrades />}
+            {activeMenu === "manage" && <InstructorProjectsManagement embedInDashboard={embedInDashboard} />}
+            {activeMenu === "presentations" && <InstructorPresentationsSchedule embedInDashboard={embedInDashboard} />}
+            {activeMenu === "config" && <InstructorPresentationConfig embedInDashboard={embedInDashboard} />}
+            {activeMenu === "grades" && <InstructorProjectStudentGrades embedInDashboard={embedInDashboard} />}
         </div>
       </FacultyModuleSplitLayout>
     </div>

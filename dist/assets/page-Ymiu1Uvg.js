@@ -1,0 +1,1 @@
+import{zt as e}from"./index-Bk6sIswz.js";function t(){e(`/instructor/dashboard-v2/recommendations/settings`)}export{t as default};

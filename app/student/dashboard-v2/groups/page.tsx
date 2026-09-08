@@ -14,7 +14,7 @@ const GroupsDashboardV2 = dynamic(
 
 export default function DashboardV2GroupsPage() {
   return (
-    <StudentDashboardModulePage>
+    <StudentDashboardModulePage scrollMode="panel">
       <GroupsDashboardV2 />
     </StudentDashboardModulePage>
   )

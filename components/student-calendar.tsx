@@ -143,6 +143,8 @@ const THEMED_EVENT_TYPE_BADGE =
   "text-xs font-medium border-[var(--cc-accent-border)] text-[var(--cc-accent-dark)] bg-[var(--cc-accent-soft)]"
 const THEMED_PANEL_SUBTEXT = "text-sm text-white/85"
 
+const AGENDA_UPCOMING_PAGE_SIZE = 5
+
 function isClassMeetingEvent(event: CalendarEvent): boolean {
   return event.isClassMeeting === true || event.event_type === "class_meeting"
 }
@@ -176,6 +178,7 @@ export function StudentCalendar({ studentId, embedInDashboard = false, hubLayout
   })
   const [showClassMeetingDialog, setShowClassMeetingDialog] = useState(false)
   const [viewingClassMeeting, setViewingClassMeeting] = useState<CalendarEvent | null>(null)
+  const [agendaUpcomingPage, setAgendaUpcomingPage] = useState(0)
 
   const [formData, setFormData] = useState({
     title: '',
@@ -217,6 +220,10 @@ export function StudentCalendar({ studentId, embedInDashboard = false, hubLayout
       document.removeEventListener("visibilitychange", onVisibility)
     }
   }, [studentId])
+
+  useEffect(() => {
+    setAgendaUpcomingPage(0)
+  }, [events.length, classMeetings.length])
 
   const fetchEventsAndClassSchedule = async () => {
     setLoading(true)
@@ -544,6 +551,19 @@ export function StudentCalendar({ studentId, embedInDashboard = false, hubLayout
     return eventDate > now && !e.is_completed
   }).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
 
+  const agendaUpcomingTotalPages = Math.max(1, Math.ceil(upcomingEvents.length / AGENDA_UPCOMING_PAGE_SIZE))
+  const agendaUpcomingSafePage = Math.min(agendaUpcomingPage, agendaUpcomingTotalPages - 1)
+  const paginatedUpcomingEvents = upcomingEvents.slice(
+    agendaUpcomingSafePage * AGENDA_UPCOMING_PAGE_SIZE,
+    (agendaUpcomingSafePage + 1) * AGENDA_UPCOMING_PAGE_SIZE,
+  )
+  const agendaUpcomingRangeStart =
+    upcomingEvents.length === 0 ? 0 : agendaUpcomingSafePage * AGENDA_UPCOMING_PAGE_SIZE + 1
+  const agendaUpcomingRangeEnd = Math.min(
+    (agendaUpcomingSafePage + 1) * AGENDA_UPCOMING_PAGE_SIZE,
+    upcomingEvents.length,
+  )
+
   const activeGoals = studyGoals.filter(g => !g.is_completed)
   const completedToday = allEvents.filter(e => isToday(new Date(e.start_time)) && e.is_completed).length
   const totalEvents = allEvents.filter(e => !e.is_completed).length
@@ -801,7 +821,7 @@ export function StudentCalendar({ studentId, embedInDashboard = false, hubLayout
             </div>
           )}
 
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)] xl:items-start">
+          <div className="grid min-h-0 w-full grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)] lg:items-stretch">
             <section className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
                 <h3 className="text-sm font-semibold text-[var(--cc-text)]">{monthLabel}</h3>
@@ -835,12 +855,12 @@ export function StudentCalendar({ studentId, embedInDashboard = false, hubLayout
               <div className="p-3 sm:p-4">{renderCalendarGrid(true)}</div>
             </section>
 
-            <section className="flex min-h-[360px] flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
-              <div className="border-b border-[var(--border)] px-4 py-3">
+            <section className="flex h-full min-h-[380px] flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+              <div className="shrink-0 border-b border-[var(--border)] px-4 py-3">
                 <h3 className="text-sm font-semibold text-[var(--cc-text)]">Agenda</h3>
                 <p className="text-xs text-[var(--cc-text-muted)]">Today, then what’s next</p>
               </div>
-              <ScrollArea className="flex-1">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <p className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cc-text-muted)]">
                   Today
                 </p>
@@ -849,13 +869,52 @@ export function StudentCalendar({ studentId, embedInDashboard = false, hubLayout
                 ) : (
                   todayEvents.map(renderAgendaItem)
                 )}
-                <p className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cc-text-muted)]">
-                  Coming up
-                </p>
+                <div className="flex items-center justify-between gap-2 px-4 pb-1 pt-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cc-text-muted)]">
+                    Coming up
+                  </p>
+                  {upcomingEvents.length > AGENDA_UPCOMING_PAGE_SIZE ? (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0"
+                        disabled={agendaUpcomingSafePage <= 0}
+                        aria-label="Previous upcoming events"
+                        onClick={() => setAgendaUpcomingPage((page) => Math.max(0, page - 1))}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="min-w-[4.5rem] text-center text-[10px] tabular-nums text-[var(--cc-text-muted)]">
+                        {agendaUpcomingRangeStart}–{agendaUpcomingRangeEnd} of {upcomingEvents.length}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0"
+                        disabled={agendaUpcomingSafePage >= agendaUpcomingTotalPages - 1}
+                        aria-label="Next upcoming events"
+                        onClick={() =>
+                          setAgendaUpcomingPage((page) =>
+                            Math.min(agendaUpcomingTotalPages - 1, page + 1),
+                          )
+                        }
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : upcomingEvents.length > 0 ? (
+                    <span className="text-[10px] tabular-nums text-[var(--cc-text-muted)]">
+                      {upcomingEvents.length} total
+                    </span>
+                  ) : null}
+                </div>
                 {upcomingEvents.length === 0 ? (
                   <p className="px-4 py-3 text-sm text-[var(--cc-text-muted)]">No upcoming events.</p>
                 ) : (
-                  upcomingEvents.slice(0, 10).map(renderAgendaItem)
+                  paginatedUpcomingEvents.map(renderAgendaItem)
                 )}
                 <div className="border-t border-[var(--border)] px-4 py-3">
                   <div className="mb-2 flex items-center justify-between">
@@ -889,7 +948,7 @@ export function StudentCalendar({ studentId, embedInDashboard = false, hubLayout
                     </ul>
                   )}
                 </div>
-              </ScrollArea>
+              </div>
             </section>
           </div>
         </>

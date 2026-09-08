@@ -149,7 +149,7 @@ export async function dispatchProgressReview(opts: DispatchOptions): Promise<Dis
           ${announcementContent},
           ${opts.instructorId},
           ${opts.courseId},
-          true,
+          false,
           false,
           false,
           ${opts.studentDbId}

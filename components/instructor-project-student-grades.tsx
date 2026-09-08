@@ -239,7 +239,7 @@ function MemberProjectScoreEditor({
   );
 }
 
-export function InstructorProjectStudentGrades() {
+export function InstructorProjectStudentGrades({ embedInDashboard }: { embedInDashboard?: boolean } = {}) {
   const chrome = facultyEmbedChrome("projects");
   const fp = chrome.p;
   const cardBase = chrome.card;
@@ -484,8 +484,15 @@ export function InstructorProjectStudentGrades() {
     return "F";
   };
 
+  const emptyPanelClass = embedInDashboard
+    ? cn(cardBase, "flex min-h-0 flex-1 flex-col items-center justify-center border-dashed px-4 py-10 text-center")
+    : cn(cardBase, "p-8 text-center sm:p-10");
+  const loadingPanelClass = embedInDashboard
+    ? cn(cardBase, "flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-10")
+    : cn(cardBase, "flex items-center justify-center min-h-[280px] p-8");
+
   return (
-    <div className="space-y-4 min-w-0 max-w-full">
+    <div className={cn(embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4", "min-w-0 max-w-full")}>
       <FacultyIntegratedToolbar
         moduleId="projects"
         search={searchQuery}
@@ -560,16 +567,16 @@ export function InstructorProjectStudentGrades() {
       />
 
       {loading ? (
-        <div className={cn(cardBase, "flex items-center justify-center min-h-[280px] p-8")}>
+        <div className={loadingPanelClass}>
           <div className="text-center space-y-4">
             <div className={cn("h-8 w-8 animate-spin rounded-full border-2 border-t-transparent mx-auto", facultyModuleSpinnerClass("projects"))} />
             <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>Loading project grades…</p>
           </div>
         </div>
       ) : (
-        <div className="min-w-0 max-w-full space-y-3">
+        <div className={cn("min-w-0 max-w-full space-y-3", embedInDashboard && "flex min-h-0 flex-1 flex-col")}>
             {sortedGrades.length === 0 ? (
-              <div className={cn(cardBase, "p-8 text-center sm:p-10")}>
+              <div className={emptyPanelClass}>
                 <Users className="mx-auto mb-3 h-12 w-12 text-muted-foreground/50" />
                 <p className={cn("font-semibold", PORTAL_TEXT)}>
                   {searchQuery ? `No students match “${searchQuery}”` : "No project grades to show"}
@@ -579,7 +586,7 @@ export function InstructorProjectStudentGrades() {
                 </p>
               </div>
             ) : (
-              <div className={cn(cardBase, "divide-y divide-[var(--border)] overflow-hidden")}>
+              <div className={cn(cardBase, "divide-y divide-[var(--border)] overflow-hidden", embedInDashboard && "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2")}>
                 {paginatedGrades.map((student, index) => {
                   const pct = Math.min(100, Math.max(0, (student.effectiveScore / 50) * 100));
                   return (

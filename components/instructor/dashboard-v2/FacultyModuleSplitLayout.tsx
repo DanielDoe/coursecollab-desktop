@@ -1,6 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
+import type { DashboardV2ModuleScrollMode } from "@/lib/dashboard-v2-layout"
 import { cn } from "@/lib/utils"
 
 type FacultyModuleSplitLayoutProps = {
@@ -13,6 +14,8 @@ type FacultyModuleSplitLayoutProps = {
   /** Container queries use available pane width (better inside dashboard shells). */
   splitMode?: "viewport" | "container"
   containerName?: string
+  /** `page` — content grows; `panel` — fill viewport and scroll inside panes. */
+  scrollMode?: DashboardV2ModuleScrollMode
 }
 
 /** Tailwind must see full class names — do not build @container utilities from variables. */
@@ -44,21 +47,30 @@ export function FacultyModuleSplitLayout({
   layout = "split",
   splitMode = "viewport",
   containerName = "faculty-split",
+  scrollMode = "panel",
 }: FacultyModuleSplitLayoutProps) {
+  const panelContentClass =
+    "flex min-h-0 min-w-0 w-full flex-1 flex-col self-stretch"
+  const pageContentClass = "min-w-0 w-full flex-1 shrink-0 self-stretch"
+  const contentClass = scrollMode === "panel" ? panelContentClass : pageContentClass
+
   if (layout === "stack") {
     return (
       <div className={cn("w-full min-w-0 space-y-4 overflow-x-hidden", className)}>
         {menu}
-        <div className="min-w-0 flex-1">{children}</div>
+        <div className={cn("min-w-0", scrollMode === "panel" ? "flex-1" : "w-full shrink-0")}>
+          {children}
+        </div>
       </div>
     )
   }
 
   if (splitMode === "container") {
     const shell = CONTAINER_SHELL[containerName] ?? CONTAINER_SHELL["faculty-split"]
+    const panelShellClass = scrollMode === "panel" ? "flex min-h-0 flex-1 flex-col" : ""
     return (
-      <div className={cn(shell.root, "w-full min-w-0 overflow-x-hidden", className)}>
-        <div className={cn("flex w-full min-w-0 flex-col gap-3", shell.row)}>
+      <div className={cn(shell.root, "w-full min-w-0 overflow-x-hidden", panelShellClass, className)}>
+        <div className={cn("flex w-full min-w-0 flex-col gap-3", shell.row, panelShellClass)}>
           {menu ? (
             <div
               className={cn(
@@ -69,7 +81,7 @@ export function FacultyModuleSplitLayout({
               {menu}
             </div>
           ) : null}
-          <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col self-stretch">{children}</div>
+          <div className={contentClass}>{children}</div>
         </div>
       </div>
     )
@@ -78,14 +90,17 @@ export function FacultyModuleSplitLayout({
   return (
     <div
       className={cn(
-        "flex flex-col lg:flex-row lg:items-stretch gap-4 lg:gap-6 w-full min-w-0 overflow-x-hidden",
+        "flex w-full min-w-0 overflow-x-hidden",
+        scrollMode === "panel"
+          ? "min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-6"
+          : "flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-6",
         className,
       )}
     >
       {menu ? (
         <div className={cn("flex h-full min-h-0 w-full shrink-0 flex-col self-stretch", menuWidthClass)}>{menu}</div>
       ) : null}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col self-stretch">{children}</div>
+      <div className={contentClass}>{children}</div>
     </div>
   )
 }

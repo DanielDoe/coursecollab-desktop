@@ -9,7 +9,7 @@ import { ModuleListSkeleton } from "@/components/data/module-list-skeleton"
 
 const MessagesInbox = dynamic(
   () => import("@/components/messages/MessagesInbox").then((m) => ({ default: m.MessagesInbox })),
-  { ssr: false },
+  { ssr: false, loading: () => <ModuleListSkeleton rows={8} className="min-h-[520px]" /> },
 )
 
 export function MessagesDashboardV2() {
@@ -41,6 +41,7 @@ export function MessagesDashboardV2() {
       metaSuffix="pick a thread or start a new conversation"
       headerAction={headerAction}
       hideSideMenu
+      scrollMode="panel"
       menuView="inbox"
       onMenuSelect={() => {}}
       menuItems={[]}

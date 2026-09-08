@@ -4,22 +4,38 @@ import { join } from 'node:path'
 import { resolveAppIcon } from './icon-utils'
 import { installLanguageEnvironments, scanLanguageEnvironments } from './codebench/language-setup'
 
-const SETUP_VERSION = 1
+const SETUP_VERSION = 2
 
 type SetupState = {
   version: number
   completedAt: string
+  /** OS + CPU profile that finished setup (darwin/win32/linux × arch). */
+  platform: NodeJS.Platform
+  arch: string
 }
 
 function setupStatePath(): string {
+  // Lives under Electron userData (%APPDATA%/CourseCollab on Windows), not in the repo or installer bundle.
   return join(app.getPath('userData'), 'codebench-setup.json')
+}
+
+/** Stable key for the machine profile CodeBench setup applies to. */
+export function setupProfileKey(): string {
+  return `${process.platform}-${process.arch}`
+}
+
+function setupMatchesCurrentProfile(parsed: SetupState): boolean {
+  return parsed.platform === process.platform && parsed.arch === process.arch
 }
 
 export function isFirstRunSetupComplete(): boolean {
   try {
     const raw = readFileSync(setupStatePath(), 'utf8')
     const parsed = JSON.parse(raw) as SetupState
-    return parsed.version === SETUP_VERSION && Boolean(parsed.completedAt)
+    if (parsed.version !== SETUP_VERSION || !parsed.completedAt) return false
+    // Older global flags (e.g. copied from another OS) must not skip setup here.
+    if (!parsed.platform || !parsed.arch) return false
+    return setupMatchesCurrentProfile(parsed)
   } catch {
     return false
   }
@@ -27,7 +43,12 @@ export function isFirstRunSetupComplete(): boolean {
 
 export function markFirstRunSetupComplete(): void {
   mkdirSync(app.getPath('userData'), { recursive: true })
-  const state: SetupState = { version: SETUP_VERSION, completedAt: new Date().toISOString() }
+  const state: SetupState = {
+    version: SETUP_VERSION,
+    completedAt: new Date().toISOString(),
+    platform: process.platform,
+    arch: process.arch,
+  }
   writeFileSync(setupStatePath(), `${JSON.stringify(state, null, 2)}\n`, 'utf8')
 }
 

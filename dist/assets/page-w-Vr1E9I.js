@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./AdminPlaceholderPage-Dac0Pdqr.js";var n=e();function r(){return(0,n.jsx)(t,{title:`Platform Configuration`,description:`Global environment and platform settings.`})}export{r as default};

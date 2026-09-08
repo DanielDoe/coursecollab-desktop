@@ -168,3 +168,12 @@ export function getLayoutLoader(modulePath: string) {
 export function defaultDesktopPath(): string {
   return '/auth/welcome'
 }
+
+/** Warm the Vite chunk for a desktop route before navigation (sidebar hover / focus). */
+export function prefetchPageModule(pathname: string): void {
+  const modulePath = resolvePageModule(pathname)
+  if (!modulePath) return
+  const loader = getPageLoader(modulePath)
+  if (!loader) return
+  void loader()
+}

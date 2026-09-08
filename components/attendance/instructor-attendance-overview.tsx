@@ -38,6 +38,7 @@ function num(value: unknown): number {
 
 export function InstructorAttendanceOverview({
   instructorId,
+  embedInDashboard,
   onNavigate,
 }: InstructorAttendanceOverviewProps) {
   const { courseScopeVersion } = useInstructorDashboardV2()
@@ -110,10 +111,10 @@ export function InstructorAttendanceOverview({
         badgeTone: "info",
       })
     }
-    return rows.slice(0, 8)
+    return rows
   }, [analytics])
 
-  if (loading) return <FacultyAttendanceLoading />
+  if (loading) return <FacultyAttendanceLoading fillHeight={embedInDashboard} />
 
   const overall = analytics?.overall ?? {}
   const enrolled = num(analytics?.studentSummaries?.length)
@@ -131,8 +132,8 @@ export function InstructorAttendanceOverview({
   ]
 
   return (
-    <div className="space-y-3">
-      <div className={cn(chrome.card, "flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4")}>
+    <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3"}>
+      <div className={cn(chrome.card, "flex shrink-0 flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4")}>
         <div className="grid min-w-0 flex-1 grid-cols-3 gap-2">
           {stats.map((stat, index) => {
             const stripe = portalListStripe(index, chrome.theme.family)
@@ -158,8 +159,16 @@ export function InstructorAttendanceOverview({
         ) : null}
       </div>
 
-      <FacultyAttendancePanel title="Needs follow-up">
-        <FacultyAttendanceInsightList emptyMessage="No students need follow-up right now.">
+      <FacultyAttendancePanel
+        title="Needs follow-up"
+        fillHeight={embedInDashboard}
+        action={
+          followUps.length > 0 ? (
+            <span className={cn("text-xs tabular-nums", PORTAL_TEXT_MUTED)}>{followUps.length} students</span>
+          ) : undefined
+        }
+      >
+        <FacultyAttendanceInsightList emptyMessage="No students need follow-up right now." fillHeight={embedInDashboard}>
           {followUps.map((row, index) => (
             <FacultyAttendanceInsightRow
               key={row.id}

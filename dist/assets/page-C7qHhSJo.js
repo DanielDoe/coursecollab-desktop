@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./redirect-to-course-analytics-DHVLBeGL.js";var n=e();function r(){return(0,n.jsx)(t,{href:`/admin/dashboard-v2/results`})}export{r as default};

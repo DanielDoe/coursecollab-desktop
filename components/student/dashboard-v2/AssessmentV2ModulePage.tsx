@@ -18,7 +18,7 @@ type AssessmentType = "quiz" | "homework" | "mid_semester" | "final"
 export function AssessmentV2ModulePage({ assessmentType }: { assessmentType: AssessmentType }) {
   return (
     <AssessmentTypeProvider assessmentType={assessmentType}>
-      <StudentDashboardModulePage>
+      <StudentDashboardModulePage scrollMode="panel">
         <AssessmentHubDashboardV2 />
       </StudentDashboardModulePage>
     </AssessmentTypeProvider>

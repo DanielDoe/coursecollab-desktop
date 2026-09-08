@@ -26,6 +26,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { facultyModuleSpinnerClass } from "@/lib/faculty-module-themes";
+import { getInstructorScopeHeaders } from "@/lib/instructor-client-scope-headers";
+import { useInstructorDashboardV2 } from "@/components/instructor/dashboard-v2/InstructorDashboardV2Context";
 
 function formatDayScheduleWindows(
   entry: DayScheduleEntry | undefined,
@@ -54,11 +56,12 @@ interface PresentationConfig {
   schedule_by_day?: Record<string, DayScheduleEntry> | null;
 }
 
-export function InstructorPresentationConfig() {
+export function InstructorPresentationConfig({ embedInDashboard }: { embedInDashboard?: boolean } = {}) {
   const chrome = facultyEmbedChrome("projects");
   const fp = chrome.p;
   const cardBase = chrome.card;
   const { toast } = useToast();
+  const { courseScopeVersion } = useInstructorDashboardV2();
   const [configs, setConfigs] = useState<PresentationConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -85,12 +88,14 @@ export function InstructorPresentationConfig() {
 
   useEffect(() => {
     fetchConfigs();
-  }, []);
+  }, [courseScopeVersion]);
 
   const fetchConfigs = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/projects/presentation-config");
+      const response = await fetch("/api/projects/presentation-config", {
+        headers: getInstructorScopeHeaders(),
+      });
       const data = await response.json();
       
       if (response.ok) {
@@ -228,7 +233,7 @@ export function InstructorPresentationConfig() {
 
       const response = await fetch("/api/projects/presentation-config", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getInstructorScopeHeaders() },
         body: JSON.stringify({
           session: formData.session,
           presentationStartDate: formData.presentationStartDate,
@@ -297,8 +302,15 @@ export function InstructorPresentationConfig() {
     return `${startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
   };
 
+  const emptyPanelClass = embedInDashboard
+    ? cn(cardBase, "flex min-h-0 flex-1 flex-col items-center justify-center border-dashed px-4 py-10 text-center")
+    : cn(cardBase, "p-10 text-center", viewMode === "grid" && "md:col-span-2");
+  const loadingPanelClass = embedInDashboard
+    ? cn(cardBase, "flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-10")
+    : cn(cardBase, "flex items-center justify-center py-16");
+
   return (
-    <div className="space-y-4">
+    <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4"}>
       <FacultyIntegratedToolbar
         moduleId="projects"
         search={searchQuery}
@@ -373,11 +385,18 @@ export function InstructorPresentationConfig() {
       />
 
       {loading ? (
-        <div className={cn(cardBase, "flex items-center justify-center py-16")}>
+        <div className={loadingPanelClass}>
           <div className={cn("h-8 w-8 animate-spin rounded-full border-2 border-t-transparent", facultyModuleSpinnerClass("projects"))} />
         </div>
       ) : (
-      <div className={viewMode === "grid" ? "grid grid-cols-1 gap-3 md:grid-cols-2" : "space-y-3"}>
+      <div
+        className={cn(
+          embedInDashboard && filteredConfigs.length === 0 && !editingSession
+            ? "flex min-h-0 flex-1 flex-col"
+            : undefined,
+          viewMode === "grid" ? "grid grid-cols-1 gap-3 md:grid-cols-2" : "space-y-3",
+        )}
+      >
         {filteredConfigs.map((config) => (
           <div key={config.session} className={cn(cardBase, "p-4 sm:p-5")}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -457,7 +476,7 @@ export function InstructorPresentationConfig() {
           </div>
         ))}
         {filteredConfigs.length === 0 && !editingSession ? (
-          <div className={cn(cardBase, "p-10 text-center", viewMode === "grid" && "md:col-span-2")}>
+          <div className={emptyPanelClass}>
             <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
               <Calendar className="h-5 w-5 !text-white" />
             </div>

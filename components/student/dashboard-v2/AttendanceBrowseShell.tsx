@@ -85,6 +85,7 @@ export function AttendanceBrowseShell({ children }: { children: ReactNode }) {
   return (
     <StudentModuleHubLayout
       moduleId="attendance"
+      scrollMode="page"
       title="Attendance"
       metaLine={metaLine}
       metaSuffix="check in, track sessions, and view insights"

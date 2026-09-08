@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./edit-question-form-DzQwEZUB.js";var n=e();function r({params:e}){return(0,n.jsx)(t,{questionId:e.id})}export{r as default};

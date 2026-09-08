@@ -71,6 +71,12 @@ function applyUiPrimitiveTokens(root: HTMLElement, tokens: AppThemeTokens): void
   set("--cc-ui-skeleton", tokens.isDark ? "rgba(255,255,255,0.08)" : tokens.selected)
   set("--cc-ui-calendar-selected", "var(--cc-sem-calendar)")
   set("--cc-ui-calendar-today-bg", "var(--cc-sem-calendar-soft)")
+  set("--cc-ui-scrollbar-track", hexToRgba(tokens.accent, tokens.isDark ? 0.1 : 0.08))
+  set("--cc-ui-scrollbar-thumb", hexToRgba(tokens.accent, tokens.isDark ? 0.42 : 0.35))
+  set(
+    "--cc-ui-scrollbar-thumb-hover",
+    hexToRgba(tokens.accentHover || tokens.accent, tokens.isDark ? 0.58 : 0.5),
+  )
 }
 
 export function applyWebTheme(tokens: AppThemeTokens, options: ApplyWebThemeOptions = {}): void {

@@ -75,7 +75,7 @@ function PanelHeader({
   action?: React.ReactNode
 }) {
   return (
-    <div className="flex items-start justify-between gap-3">
+    <div className="flex shrink-0 items-start justify-between gap-3">
       <div className="min-w-0">
         <h2 className="text-sm font-semibold text-[var(--cc-text)]">{title}</h2>
         {subtitle ? <p className="mt-0.5 text-xs text-[var(--cc-text-muted)]">{subtitle}</p> : null}
@@ -102,7 +102,10 @@ export function AcademicTermsManagement({
   const fp = userType === "instructor" ? getFacultyModuleTheme("sections").page : null
   const useMergedChromeTitle = embedInDashboard && isDesktopAppShell()
   const embedShellClass = embedInDashboard
-    ? cn("w-full min-w-0", EMBED_MERGED_MODULE_DIVIDER)
+    ? cn(
+        "flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden",
+        EMBED_MERGED_MODULE_DIVIDER,
+      )
     : undefined
   const moduleMeta =
     "Choose a term, then its courses · sections only when a course uses them"
@@ -119,7 +122,17 @@ export function AcademicTermsManagement({
       </div>
     </DesktopChromeTitle>
   ) : null
-  const columnClass = "min-h-[280px] space-y-3 rounded-xl bg-[var(--muted)]/30 p-3 sm:p-4"
+  const columnClass =
+    "flex min-h-0 flex-col gap-3 overflow-hidden rounded-xl bg-[var(--muted)]/30 p-3 sm:p-4"
+  const gridClass = cn(
+    "grid grid-cols-1 items-stretch gap-3 overflow-hidden xl:grid-cols-3",
+    embedInDashboard
+      ? "min-h-0 flex-1 xl:grid-rows-[minmax(0,1fr)]"
+      : "min-h-[280px] max-h-[min(640px,calc(100dvh-13rem))]",
+  )
+  const listScrollClass = "min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain"
+  const emptyStateClass =
+    "flex min-h-[12rem] flex-1 flex-col items-center justify-center py-10 text-center text-sm text-[var(--cc-text-muted)]"
   const selectedRowClass = (selected: boolean) =>
     selected
       ? cn(fp?.border ?? "border-[var(--cc-accent-border)]", fp?.softBg ?? "bg-[var(--cc-accent-soft)]")
@@ -448,9 +461,9 @@ export function AcademicTermsManagement({
   return (
     <>
       {mergedChromeTitle}
-      <div className={cn(embedShellClass, "space-y-4")}>
+      <div className={cn(embedShellClass, !embedInDashboard && "space-y-4")}>
       {!useMergedChromeTitle ? (
-      <div>
+      <div className={cn(embedInDashboard && "shrink-0")}>
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cc-text-muted)]">
           Academic terms
         </p>
@@ -461,7 +474,7 @@ export function AcademicTermsManagement({
       </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+      <div className={gridClass}>
         <section className={columnClass}>
           <PanelHeader
             title="Terms"
@@ -473,7 +486,7 @@ export function AcademicTermsManagement({
               </Button>
             }
           />
-          <div className="max-h-[520px] space-y-2 overflow-y-auto">
+          <div className={listScrollClass}>
             {terms.map((term) => (
               <div
                 key={term.id}
@@ -548,11 +561,11 @@ export function AcademicTermsManagement({
             }
           />
           {!selectedTerm ? (
-            <p className="py-10 text-center text-sm text-[var(--cc-text-muted)]">Select a term.</p>
+            <p className={emptyStateClass}>Select a term.</p>
           ) : termCourses.length === 0 ? (
-            <p className="py-10 text-center text-sm text-[var(--cc-text-muted)]">No courses in this term yet.</p>
+            <p className={emptyStateClass}>No courses in this term yet.</p>
           ) : (
-            <div className="max-h-[520px] space-y-2 overflow-y-auto">
+            <div className={listScrollClass}>
               {termCourses.map((course) => (
                 <div
                   key={course.course_id}
@@ -625,9 +638,9 @@ export function AcademicTermsManagement({
             }
           />
           {!selectedCourse ? (
-            <p className="py-10 text-center text-sm text-[var(--cc-text-muted)]">Select a course.</p>
+            <p className={emptyStateClass}>Select a course.</p>
           ) : !selectedCourse.uses_sections ? (
-            <div className="rounded-xl border border-dashed border-[var(--border)] px-4 py-8 text-center">
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border)] px-4 py-8 text-center">
               <Layers className="mx-auto mb-2 h-6 w-6 text-[var(--cc-text-muted)]" />
               <p className="text-sm font-medium text-[var(--cc-text)]">Single roster</p>
               <p className="mt-1 text-xs text-[var(--cc-text-muted)]">
@@ -635,9 +648,9 @@ export function AcademicTermsManagement({
               </p>
             </div>
           ) : sections.length === 0 ? (
-            <p className="py-10 text-center text-sm text-[var(--cc-text-muted)]">No sections yet.</p>
+            <p className={emptyStateClass}>No sections yet.</p>
           ) : (
-            <div className="max-h-[520px] space-y-2 overflow-y-auto">
+            <div className={listScrollClass}>
               {sections.map((section) => (
                 <div
                   key={section.id}

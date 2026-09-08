@@ -1,1 +1,0 @@
-import{bt as e}from"./index-BFIBYwc9.js";import{r as t}from"./camper-nav-BbWk2dwE.js";async function n({params:n}){let{trainingId:r}=await n;e(t(`/training/${r}`))}export{n as default};

@@ -42,7 +42,19 @@ export const CC_PROGRESS = {
   fill: "bg-[var(--cc-ui-progress-fill,var(--cc-sem-primary))] h-full transition-all",
 } as const
 
+/** Native overflow scrollbars — global CSS uses these vars; opt-in class for narrower bars */
+export const CC_SCROLLBAR =
+  "scrollbar-themed [scrollbar-width:thin] [scrollbar-color:var(--cc-ui-scrollbar-thumb)_var(--cc-ui-scrollbar-track)]"
+
 export const CC_SKELETON = "bg-[var(--cc-ui-skeleton,var(--muted))] animate-pulse rounded-md"
+
+/** Dashboard module loading panels — subtle tint, not solid card flash */
+export const CC_MODULE_SKELETON_SURFACE =
+  "rounded-xl border border-[color-mix(in_srgb,var(--cc-text)_8%,transparent)] bg-[color-mix(in_srgb,var(--cc-ui-skeleton,var(--muted))_20%,transparent)]"
+
+/** Nested tiles inside module skeleton panels */
+export const CC_MODULE_SKELETON_INNER =
+  "rounded-2xl border border-[color-mix(in_srgb,var(--cc-text)_6%,transparent)] bg-[color-mix(in_srgb,var(--cc-ui-skeleton,var(--muted))_12%,transparent)]"
 
 export const CC_CARD =
   "bg-[var(--cc-ui-surface,var(--card))] text-[var(--cc-text)] border border-[var(--cc-ui-border,var(--border))] shadow-sm"

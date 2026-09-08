@@ -9,7 +9,7 @@
     "dev": "node --max-old-space-size=4096 node_modules/next/dist/bin/next dev -p 3000",
     "dev:turbo": "node --max-old-space-size=4096 node_modules/next/dist/bin/next dev --turbo -p 3000",
     "dev:webpack": "node --max-old-space-size=4096 node_modules/next/dist/bin/next dev -p 3000",
-    "dev:webpack:detach": "lsof -ti :3000 | xargs kill -9 2>/dev/null; mkdir -p .next && nohup node --max-old-space-size=4096 node_modules/next/dist/bin/next dev -p 3000 > .next/dev-server.log 2>&1 & echo $! > .next/dev-server.pid && echo \"Detached dev server PID $(cat .next/dev-server.pid) \u2014 http://localhost:3000 (log: .next/dev-server.log)\"",
+    "dev:webpack:detach": "lsof -ti :3000 | xargs kill -9 2>/dev/null; mkdir -p .next && nohup node --max-old-space-size=4096 node_modules/next/dist/bin/next dev -p 3000 > .next/dev-server.log 2>&1 & echo $! > .next/dev-server.pid && echo \"Detached dev server PID $(cat .next/dev-server.pid) — http://localhost:3000 (log: .next/dev-server.log)\"",
     "dev:webpack:stop": "lsof -ti :3000 | xargs kill -9 2>/dev/null; rm -f .next/dev-server.pid; echo Stopped dev server on :3000",
     "dev:clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && node --max-old-space-size=4096 node_modules/next/dist/bin/next dev --turbo -p 3000",
     "clean:dev-cache": "node -e \"require('fs').rmSync('.next/cache',{recursive:true,force:true}); console.log('Cleared .next/cache')\"",
@@ -348,6 +348,7 @@
     "crypto-js": "^4.2.0",
     "date-fns": "latest",
     "date-fns-tz": "^3.2.0",
+    "decimal.js-light": "2.5.1",
     "dotenv": "^17.2.3",
     "electron-updater": "^6.8.9",
     "embla-carousel-react": "latest",
@@ -419,7 +420,7 @@
     "wait-on": "latest"
   },
   "author": "CourseCollab",
-  "description": "CourseCollab desktop app \u2014 the agentic LMS powered by Cora",
+  "description": "CourseCollab desktop app — the agentic LMS powered by Cora",
   "repository": {
     "type": "git",
     "url": "https://github.com/DanielDoe/coursecollab-desktop.git"
@@ -427,7 +428,7 @@
   "build": {
     "appId": "com.coursecollab.desktop",
     "productName": "CourseCollab",
-    "copyright": "Copyright \u00a9 2026 CourseCollab",
+    "copyright": "Copyright © 2026 CourseCollab",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "publish": {
       "provider": "github",
@@ -463,6 +464,12 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
+      "!**/codebench-setup.json",
+      "!**/codebench-toolchain/**",
+      "!**/codebench-workspaces/**",
+      "!**/desktop-last-route.json",
+      "!**/desktop-notification-preferences.json",
+      "!**/desktop-device-id.json",
       "public/**/*",
       "package.json"
     ],

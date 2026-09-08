@@ -133,7 +133,7 @@ export function FacultyModuleSideMenu({
               !toneClass && (isActive ? fp.iconText : "text-[var(--cc-text)]"),
             )}
           />
-          <span className="truncate">{item.label}</span>
+          <span className="min-w-0 truncate lg:whitespace-normal lg:line-clamp-2 lg:leading-snug">{item.label}</span>
         </div>
         {item.badge !== undefined && item.badge !== null && (typeof item.badge !== "number" || item.badge > 0) ? (
           typeof item.badge === "number" ? (

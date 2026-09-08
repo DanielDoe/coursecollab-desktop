@@ -143,6 +143,14 @@
   --chart-4: #fbbf24;
   --chart-5: #fb923c;
   --radius: 0.625rem;
+  --cc-auth-alert-error-bg: #fff1f2;
+  --cc-auth-alert-error-border: #fecdd3;
+  --cc-auth-alert-error-text: #be123c;
+  --cc-auth-alert-warning-bg: #fffbeb;
+  --cc-auth-alert-warning-border: #fde68a;
+  --cc-auth-alert-warning-text: #b45309;
+  --cc-auth-field-selection-bg: var(--cc-accent-soft);
+  --cc-auth-field-selection-text: var(--cc-text);
   --sidebar: #f2e8fc;
   --sidebar-foreground: #582c83;
   --sidebar-primary: #582c83;
@@ -165,6 +173,11 @@
   --cc-modal-surface: #ffffff;
   --cc-modal-muted: #f4f4f5;
   --cc-modal-scrim: rgba(15, 23, 42, 0.72);
+  --cc-ui-scrollbar-track: rgb(88 44 131 / 0.08);
+  --cc-ui-scrollbar-thumb: rgb(88 44 131 / 0.35);
+  --cc-ui-scrollbar-thumb-hover: rgb(88 44 131 / 0.5);
+  --cc-ui-scrollbar-size: 16px;
+  --cc-ui-scrollbar-size-compact: 14px;
 }
 
 /* Added dark mode color definitions — near-black OLED-friendly */
@@ -216,6 +229,9 @@
   --cc-modal-surface: #0f0f0f;
   --cc-modal-muted: #171717;
   --cc-modal-scrim: rgba(0, 0, 0, 0.88);
+  --cc-ui-scrollbar-track: rgb(122 78 186 / 0.1);
+  --cc-ui-scrollbar-thumb: rgb(122 78 186 / 0.42);
+  --cc-ui-scrollbar-thumb-hover: rgb(122 78 186 / 0.58);
 
   /* Tailwind @theme inline tokens — keep utilities (text-foreground, text-muted-foreground, etc.) readable in dark mode */
   --color-background: #050505;
@@ -393,38 +409,58 @@ code[class*="language-"] {
   display: none;
 }
 
-/* Modern minimal scrollbar - thin, subtle */
-.scrollbar-modern {
-  scrollbar-width: thin;
-  scrollbar-color: rgb(203 213 225 / 0.5) transparent;
+/* Themed scrollbars — unlayered so width/color beat Tailwind preflight (vars set by applyWebTheme) */
+html {
+  scrollbar-width: auto;
+  scrollbar-color: var(--cc-ui-scrollbar-thumb) var(--cc-ui-scrollbar-track);
 }
-.scrollbar-modern::-webkit-scrollbar {
-  width: 6px;
+
+html::-webkit-scrollbar,
+html *::-webkit-scrollbar {
+  width: var(--cc-ui-scrollbar-size, 16px);
+  height: var(--cc-ui-scrollbar-size, 16px);
 }
-.scrollbar-modern::-webkit-scrollbar-track {
+
+html::-webkit-scrollbar-track,
+html *::-webkit-scrollbar-track {
+  background: var(--cc-ui-scrollbar-track);
+  border-radius: 9999px;
+}
+
+html::-webkit-scrollbar-thumb,
+html *::-webkit-scrollbar-thumb {
+  background-color: var(--cc-ui-scrollbar-thumb);
+  border-radius: 9999px;
+  min-height: 40px;
+}
+
+html::-webkit-scrollbar-thumb:hover,
+html *::-webkit-scrollbar-thumb:hover {
+  background-color: var(--cc-ui-scrollbar-thumb-hover);
+}
+
+html::-webkit-scrollbar-corner,
+html *::-webkit-scrollbar-corner {
   background: transparent;
 }
-.scrollbar-modern::-webkit-scrollbar-thumb {
-  background: rgb(203 213 225 / 0.5);
-  border-radius: 3px;
+
+.scrollbar-themed,
+.scrollbar-modern {
+  scrollbar-width: auto;
+  scrollbar-color: var(--cc-ui-scrollbar-thumb) var(--cc-ui-scrollbar-track);
 }
-.scrollbar-modern::-webkit-scrollbar-thumb:hover {
-  background: rgb(203 213 225 / 0.7);
-}
-.dark .scrollbar-modern {
-  scrollbar-color: rgb(148 163 184 / 0.3) transparent;
-}
-.dark .scrollbar-modern::-webkit-scrollbar-thumb {
-  background: rgb(148 163 184 / 0.3);
-}
-.dark .scrollbar-modern::-webkit-scrollbar-thumb:hover {
-  background: rgb(148 163 184 / 0.5);
+
+.scrollbar-themed::-webkit-scrollbar,
+.scrollbar-modern::-webkit-scrollbar {
+  width: var(--cc-ui-scrollbar-size-compact, 14px);
+  height: var(--cc-ui-scrollbar-size-compact, 14px);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   html {
     background-color: var(--background, #fafafa);
     color-scheme: light dark;
@@ -1051,6 +1087,11 @@ code[class*="language-"] {
   background: var(--cc-background);
 }
 
+/* Auth route push transitions (App.tsx AnimatePresence) — never block the incoming pane. */
+.cc-auth-route-shell > [data-auth-route-pane] {
+  isolation: isolate;
+}
+
 .cc-brand-auth .cc-auth-card,
 .cc-brand-auth [data-auth-card] {
   background: var(--cc-surface);
@@ -1081,6 +1122,25 @@ code[class*="language-"] {
   --border: #e4e0ea;
   --card: var(--cc-surface);
   --muted: color-mix(in srgb, var(--cc-surface) 88%, var(--cc-text) 12%);
+  /* Auth alerts — never inherit dashboard semantic danger (accent-aliased purple on dark prefs). */
+  --cc-auth-alert-error-bg: #fff1f2;
+  --cc-auth-alert-error-border: #fecdd3;
+  --cc-auth-alert-error-text: #be123c;
+  --cc-auth-alert-warning-bg: #fffbeb;
+  --cc-auth-alert-warning-border: #fde68a;
+  --cc-auth-alert-warning-text: #b45309;
+  --cc-auth-field-selection-bg: var(--cc-accent-soft);
+  --cc-auth-field-selection-text: var(--cc-text);
+}
+
+.cc-brand-auth.cc-brand-surface [data-slot="input"]::selection {
+  background: var(--cc-auth-field-selection-bg);
+  color: var(--cc-auth-field-selection-text);
+}
+
+.cc-brand-auth.cc-brand-surface [data-slot="input"]::-moz-selection {
+  background: var(--cc-auth-field-selection-bg);
+  color: var(--cc-auth-field-selection-text);
 }
 
 .cc-desktop-welcome .cc-desktop-aurora {

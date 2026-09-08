@@ -38,6 +38,10 @@ export async function GET(request: NextRequest) {
     }
   } catch (error) {
     console.error("Error fetching presentation config:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    if (/presentation_config|relation.*does not exist/i.test(message)) {
+      return NextResponse.json({ configs: [] });
+    }
     return NextResponse.json(
       { error: "Failed to fetch configuration" },
       { status: 500 }

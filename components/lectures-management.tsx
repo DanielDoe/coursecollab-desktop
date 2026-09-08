@@ -3,7 +3,7 @@
 
 import { studentApiFetch } from "@/lib/auth"
 import dynamic from "next/dynamic"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -39,6 +39,7 @@ import {
   Calendar,
   Sparkles,
   PenLine,
+  type LucideIcon,
 } from "lucide-react"
 import {
   Pagination,
@@ -177,6 +178,53 @@ interface EngagementData {
     total_comments: number
     total_bookmarks: number
   }
+}
+
+function LecturesTabPanel({
+  embedInDashboard,
+  children,
+  scroll = false,
+}: {
+  embedInDashboard: boolean
+  children: ReactNode
+  scroll?: boolean
+}) {
+  if (!embedInDashboard) return <>{children}</>
+  return (
+    <div className={cn("flex min-h-0 flex-1 flex-col", scroll && "overflow-y-auto pr-1 sm:pr-2")}>
+      {children}
+    </div>
+  )
+}
+
+function LecturesEmptyTabPanel({
+  embedInDashboard,
+  icon: Icon,
+  title,
+  description,
+}: {
+  embedInDashboard: boolean
+  icon: LucideIcon
+  title: string
+  description: string
+}) {
+  return (
+    <LecturesTabPanel embedInDashboard={embedInDashboard}>
+      <div
+        className={cn(
+          PORTAL_CARD,
+          "text-center",
+          embedInDashboard
+            ? "flex min-h-0 flex-1 flex-col items-center justify-center border-dashed px-4 py-10"
+            : "p-8 sm:p-10",
+        )}
+      >
+        <Icon className="mx-auto mb-3 h-12 w-12 text-muted-foreground/50" />
+        <h4 className={cn("mb-1 font-semibold", PORTAL_TEXT)}>{title}</h4>
+        <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>{description}</p>
+      </div>
+    </LecturesTabPanel>
+  )
 }
 
 export function LecturesManagement({ embedInDashboard }: { embedInDashboard?: boolean } = {}) {
@@ -1162,7 +1210,7 @@ export function LecturesManagement({ embedInDashboard }: { embedInDashboard?: bo
     <div
       className={
         embedInDashboard
-          ? "w-full min-w-0"
+          ? "flex min-h-0 w-full min-w-0 flex-1 flex-col"
           : "w-full max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6"
       }
     >
@@ -1178,6 +1226,8 @@ export function LecturesManagement({ embedInDashboard }: { embedInDashboard?: bo
       )}
 
       <FacultyModuleSplitLayout
+        scrollMode={embedInDashboard ? "panel" : "page"}
+        className={embedInDashboard ? "min-h-0 flex-1" : undefined}
         menu={
           <FacultyModuleSideMenu
             moduleId="lectures"
@@ -1191,8 +1241,15 @@ export function LecturesManagement({ embedInDashboard }: { embedInDashboard?: bo
           />
         }
       >
-        <div className="min-w-0 flex-1 space-y-6">
+        <div
+          className={
+            embedInDashboard
+              ? "flex min-h-0 min-w-0 flex-1 flex-col gap-6"
+              : "min-w-0 flex-1 space-y-6"
+          }
+        >
           {creating ? (
+            <div className={embedInDashboard ? "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2" : undefined}>
             <LectureCreatePanel
               chrome={chrome}
               fp={fp}
@@ -1211,9 +1268,11 @@ export function LecturesManagement({ embedInDashboard }: { embedInDashboard?: bo
               codes={codes}
               onJsonUpload={() => void handleJsonLectureUpload()}
             />
+            </div>
           ) : null}
 
           {activeTab === "lectures" && !creating && openedLecture ? (
+            <div className={embedInDashboard ? "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2" : undefined}>
             <LectureDetailPanel
               lecture={openedLecture}
               chrome={chrome}
@@ -1231,8 +1290,10 @@ export function LecturesManagement({ embedInDashboard }: { embedInDashboard?: bo
                 setDeleteDialogOpen(true)
               }}
             />
+            </div>
           ) : activeTab === "lectures" && !creating ? (
-            <div className="space-y-6">
+            <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-6" : "space-y-6"}>
+              <div className={embedInDashboard ? "shrink-0" : undefined}>
               <FacultyIntegratedToolbar
                 moduleId="lectures"
                 search={searchQuery}
@@ -1379,8 +1440,10 @@ export function LecturesManagement({ embedInDashboard }: { embedInDashboard?: bo
                   ) : undefined
                 }
               />
+              </div>
 
       {/* Lectures List */}
+      <div className={embedInDashboard ? "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2" : undefined}>
       {lectures.length === 0 ? (
                 <div className={cn(PORTAL_CARD, "p-8 sm:p-10 text-center")}>
                   <BookOpen className="mx-auto mb-3 h-12 w-12 text-muted-foreground/50" />
@@ -1543,42 +1606,50 @@ export function LecturesManagement({ embedInDashboard }: { embedInDashboard?: bo
                   )}
                 </div>
               )}
+      </div>
             </div>
           ) : null}
 
           {activeTab === "saved" && (
-            <div className={cn(PORTAL_CARD, "p-8 sm:p-10 text-center")}>
-              <Star className="mx-auto mb-3 h-12 w-12 text-muted-foreground/50" />
-              <h4 className={cn("mb-1 font-semibold", PORTAL_TEXT)}>No saved templates</h4>
-              <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>Save lecture templates for quick reuse</p>
-            </div>
-          )}
-
-          {activeTab === "deleted" && (
-            <div className={cn(PORTAL_CARD, "p-8 sm:p-10 text-center")}>
-              <Trash2 className="mx-auto mb-3 h-12 w-12 text-muted-foreground/50" />
-              <h4 className={cn("mb-1 font-semibold", PORTAL_TEXT)}>No deleted items</h4>
-              <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>Deleted lectures will appear here</p>
-            </div>
-          )}
-
-          {activeTab === "issues" && (
-            <div className={cn(PORTAL_CARD, "p-8 sm:p-10 text-center")}>
-              <MessageSquare className="mx-auto mb-3 h-12 w-12 text-muted-foreground/50" />
-              <h4 className={cn("mb-1 font-semibold", PORTAL_TEXT)}>No issues reported</h4>
-              <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>Student issues will appear here</p>
-            </div>
-          )}
-
-          {activeTab === "stats" && (
-            <LectureStatisticsTab
-              initialStats={lectureStats}
-              lectureCountFallback={lectures.length}
+            <LecturesEmptyTabPanel
+              embedInDashboard={Boolean(embedInDashboard)}
+              icon={Star}
+              title="No saved templates"
+              description="Save lecture templates for quick reuse"
             />
           )}
 
+          {activeTab === "deleted" && (
+            <LecturesEmptyTabPanel
+              embedInDashboard={Boolean(embedInDashboard)}
+              icon={Trash2}
+              title="No deleted items"
+              description="Deleted lectures will appear here"
+            />
+          )}
+
+          {activeTab === "issues" && (
+            <LecturesEmptyTabPanel
+              embedInDashboard={Boolean(embedInDashboard)}
+              icon={MessageSquare}
+              title="No issues reported"
+              description="Student issues will appear here"
+            />
+          )}
+
+          {activeTab === "stats" && (
+            <LecturesTabPanel embedInDashboard={Boolean(embedInDashboard)} scroll>
+              <LectureStatisticsTab
+                initialStats={lectureStats}
+                lectureCountFallback={lectures.length}
+              />
+            </LecturesTabPanel>
+          )}
+
           {activeTab === "student-activity" && (
-            <InstructorModuleStudentActivityView module="lectures" moduleId="lectures" />
+            <LecturesTabPanel embedInDashboard={Boolean(embedInDashboard)} scroll>
+              <InstructorModuleStudentActivityView module="lectures" moduleId="lectures" />
+            </LecturesTabPanel>
           )}
         </div>
       </FacultyModuleSplitLayout>

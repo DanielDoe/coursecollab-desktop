@@ -18,6 +18,9 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': resolve(__dirname, '.'),
+        // Recharts imports decimal.js-light as CJS; Vite's prebundle interop can break
+        // `new Decimal()` in tick math. Force the ESM build instead.
+        'decimal.js-light': resolve(__dirname, 'node_modules/decimal.js-light/decimal.mjs'),
         'next/link': resolve(__dirname, 'src/shims/next-link.tsx'),
         'next/navigation': resolve(__dirname, 'src/shims/next-navigation.ts'),
         'next/image': resolve(__dirname, 'src/shims/next-image.tsx'),
@@ -37,6 +40,7 @@ export default defineConfig(({ mode }) => {
     },
     optimizeDeps: {
       exclude: ['pg', '@neondatabase/serverless'],
+      include: ['decimal.js-light', 'recharts'],
     },
     server: {
       host: '127.0.0.1',

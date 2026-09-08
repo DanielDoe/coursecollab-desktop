@@ -22,7 +22,7 @@ import { dbTimeToCDT } from "@/lib/timezone"
 import { cn } from "@/lib/utils"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { AM_PANEL, PORTAL_CARD, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/assessments/assessment-management-surface-classes"
+import { AM_PANEL, AM_PANEL_FILL, AM_PANEL_SCROLL, AM_PANEL_SECTION, PORTAL_CARD, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/assessments/assessment-management-surface-classes"
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 import { useToast } from "@/components/ui/use-toast"
 import { buildInstructorAuthorizedApiHeaders, instructorApiFetch } from "@/lib/instructor-api-headers"
@@ -354,11 +354,45 @@ export function AssessmentResultsViewer({ assessmentType, embedInDashboard, show
   }
 
   const getGradeColor = (percentage: number) => {
+    if (embedInDashboard) {
+      if (percentage >= 90) {
+        return "border border-emerald-400/50 bg-emerald-500/20 text-emerald-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+      }
+      if (percentage >= 80) {
+        return "border border-sky-400/50 bg-sky-500/20 text-sky-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+      }
+      if (percentage >= 70) {
+        return "border border-amber-400/50 bg-amber-500/20 text-amber-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+      }
+      if (percentage >= 60) {
+        return "border border-orange-400/50 bg-orange-500/20 text-orange-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+      }
+      return "border border-rose-400/50 bg-rose-500/20 text-rose-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+    }
     if (percentage >= 90) return "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20"
     if (percentage >= 80) return "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20"
     if (percentage >= 70) return "text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20"
     if (percentage >= 60) return "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20"
     return "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20"
+  }
+
+  const getLetterGradeBadgeClass = (percentage: number) => {
+    if (embedInDashboard) {
+      if (percentage >= 90) return "bg-emerald-500/30 text-emerald-100 ring-1 ring-emerald-400/40"
+      if (percentage >= 80) return "bg-sky-500/30 text-sky-100 ring-1 ring-sky-400/40"
+      if (percentage >= 70) return "bg-amber-500/30 text-amber-50 ring-1 ring-amber-400/40"
+      if (percentage >= 60) return "bg-orange-500/30 text-orange-50 ring-1 ring-orange-400/40"
+      return "bg-rose-500/30 text-rose-100 ring-1 ring-rose-400/40"
+    }
+    return getGradeColor(percentage)
+  }
+
+  const getLetterGradeColor = (percentage: number) => {
+    if (percentage >= 90) return "text-emerald-600 dark:text-emerald-300"
+    if (percentage >= 80) return "text-sky-600 dark:text-sky-300"
+    if (percentage >= 70) return "text-amber-600 dark:text-amber-200"
+    if (percentage >= 60) return "text-orange-600 dark:text-orange-200"
+    return "text-rose-600 dark:text-rose-300"
   }
 
   const getLetterGrade = (percentage: number) => {
@@ -371,7 +405,7 @@ export function AssessmentResultsViewer({ assessmentType, embedInDashboard, show
 
   if (loading && results.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-[320px]">
+      <div className={cn("flex items-center justify-center", embedInDashboard ? cn(AM_PANEL_SECTION, AM_PANEL_FILL) : "min-h-[320px]")}>
         <div className="text-center space-y-3">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[var(--cc-accent)] border-t-transparent" />
           <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>Loading results…</p>
@@ -397,17 +431,32 @@ export function AssessmentResultsViewer({ assessmentType, embedInDashboard, show
   const chrome = embedInDashboard ? facultyEmbedChrome(facultyModuleId) : null
   const outlineBtn = embedInDashboard && chrome ? chrome.quiet : undefined
   const tableCard = embedInDashboard ? PORTAL_CARD : "min-w-0 max-w-full overflow-hidden border border-slate-200 dark:border-slate-800"
-  const theadClass = embedInDashboard ? "border-b border-[var(--border)] bg-muted/40" : "bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800"
-  const thClass = embedInDashboard ? cn("text-left px-4 sm:px-6 py-3 text-xs sm:text-sm font-semibold", PORTAL_TEXT_MUTED) : "text-left px-4 sm:px-6 py-3 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300"
+  const theadClass = embedInDashboard
+    ? "border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--muted)_55%,var(--card))]"
+    : "bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800"
+  const thClass = embedInDashboard
+    ? cn(
+        "text-left px-4 sm:px-6 py-3 text-[11px] sm:text-xs font-semibold uppercase tracking-wide",
+        "text-[color-mix(in_srgb,var(--cc-text)_78%,transparent)]",
+      )
+    : "text-left px-4 sm:px-6 py-3 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300"
   const tbodyClass = embedInDashboard ? "divide-y divide-[var(--border)] bg-[var(--card)]" : "bg-white dark:bg-slate-950 divide-y divide-slate-200 dark:divide-slate-800"
-  const rowHover = embedInDashboard ? "hover:bg-muted/40 transition-colors" : "hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
-  const rowStripe = embedInDashboard ? "bg-muted/20" : "bg-slate-50/30 dark:bg-slate-900/30"
-  const cellPrimary = embedInDashboard ? cn("text-xs sm:text-sm", PORTAL_TEXT) : "text-xs sm:text-sm text-slate-900 dark:text-slate-100"
-  const cellMuted = embedInDashboard ? cn("text-xs sm:text-sm", PORTAL_TEXT_MUTED) : "text-xs sm:text-sm text-slate-600 dark:text-slate-400"
+  const rowHover = embedInDashboard ? "hover:bg-[var(--cc-accent-soft)]/25 transition-colors" : "hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+  const rowStripe = embedInDashboard ? "bg-[color-mix(in_srgb,var(--muted)_22%,transparent)]" : "bg-slate-50/30 dark:bg-slate-900/30"
+  const cellPrimary = embedInDashboard ? cn("text-xs sm:text-sm font-medium", PORTAL_TEXT) : "text-xs sm:text-sm text-slate-900 dark:text-slate-100"
+  const cellSecondary = embedInDashboard
+    ? "text-xs sm:text-sm text-[color-mix(in_srgb,var(--cc-text)_76%,transparent)]"
+    : "text-xs sm:text-sm text-slate-600 dark:text-slate-400"
+  const cellMuted = cellSecondary
 
   return (
-    <div className="w-full min-w-0 max-w-full space-y-4 overflow-x-hidden">
-      <div className={cn(AM_PANEL, "space-y-4")}>
+    <div
+      className={cn(
+        "w-full min-w-0 max-w-full overflow-x-hidden",
+        embedInDashboard && AM_PANEL_SECTION,
+      )}
+    >
+      <div className={cn(AM_PANEL, "space-y-4 shrink-0")}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <h2 className={cn("text-sm font-semibold", PORTAL_TEXT)}>
@@ -483,7 +532,14 @@ export function AssessmentResultsViewer({ assessmentType, embedInDashboard, show
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200/70 bg-slate-50/50 px-3 py-2 dark:border-white/[0.08] dark:bg-white/[0.02] sm:justify-start lg:h-9 lg:py-0">
+            <div
+              className={cn(
+                "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 sm:justify-start lg:h-9 lg:py-0",
+                embedInDashboard
+                  ? "border-[var(--border)] bg-[color-mix(in_srgb,var(--muted)_35%,transparent)]"
+                  : "border-slate-200/70 bg-slate-50/50 dark:border-white/[0.08] dark:bg-white/[0.02]",
+              )}
+            >
               <Label htmlFor="show-all-attempts" className={cn("text-xs font-medium cursor-pointer", PORTAL_TEXT)}>
                 {assessmentType === "homework" ? "All attempts" : "Show all attempts"}
               </Label>
@@ -525,10 +581,10 @@ export function AssessmentResultsViewer({ assessmentType, embedInDashboard, show
       )}
 
       {/* 4. Table - scrolls inside container, no page overflow */}
-      <Card className={cn("min-w-0 max-w-full overflow-hidden", tableCard)}>
-        <CardContent className="min-w-0 max-w-full p-0">
+      <Card className={cn("min-w-0 max-w-full overflow-hidden mt-4", tableCard, embedInDashboard && "flex min-h-0 flex-1 flex-col")}>
+        <CardContent className={cn("min-w-0 max-w-full p-0", embedInDashboard && "flex min-h-0 flex-1 flex-col")}>
           {results.length === 0 ? (
-            <div className="text-center py-16">
+            <div className={cn("text-center py-16", embedInDashboard && AM_PANEL_FILL)}>
               <Users className={cn("h-12 w-12 mx-auto mb-4", embedInDashboard ? "text-[var(--cc-text-muted)] opacity-50" : "text-slate-300")} />
               <p className={cn("font-medium", embedInDashboard ? PORTAL_TEXT : "text-slate-600 dark:text-slate-400")}>No results found</p>
               <p className={cn("text-sm mt-1", embedInDashboard ? PORTAL_TEXT_MUTED : "text-slate-500 dark:text-slate-500")}>
@@ -537,11 +593,21 @@ export function AssessmentResultsViewer({ assessmentType, embedInDashboard, show
             </div>
           ) : (
             <>
-              <div className="min-w-0 w-full max-w-full overflow-x-auto">
-                <table className="w-full min-w-[560px]">
+              <div className={cn("min-w-0 w-full max-w-full overflow-x-auto", embedInDashboard && AM_PANEL_SCROLL)}>
+                <table className="w-full min-w-[760px] table-fixed">
+                  <colgroup>
+                    <col className="w-[26%]" />
+                    <col className="w-[8%]" />
+                    <col className="w-[8%]" />
+                    <col className="w-[15%]" />
+                    <col className="w-[9%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[12%]" />
+                  </colgroup>
                   <thead className={theadClass}>
                     <tr>
-                      <th className={thClass}>
+                      <th className={cn(thClass, "pr-2")}>
                         Student Name
                       </th>
                       <th className={thClass}>
@@ -575,29 +641,51 @@ export function AssessmentResultsViewer({ assessmentType, embedInDashboard, show
                           idx % 2 === 0 ? '' : rowStripe
                         }`}
                       >
-                        <td className={cn("px-4 sm:px-6 py-3 sm:py-4", cellPrimary)}>
-                          {result.studentName}
+                        <td className={cn("px-4 sm:px-6 py-3 sm:py-4 pr-2", cellPrimary)}>
+                          <span className="block truncate font-semibold" title={result.studentName}>
+                            {result.studentName}
+                          </span>
                         </td>
                         <td className={cn("px-4 sm:px-6 py-3 sm:py-4 font-mono", cellMuted)}>
                           {result.studentNumber}
                         </td>
                         <td className="px-4 sm:px-6 py-3 sm:py-4">
-                          <Badge variant="outline" className="text-xs">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-xs font-medium",
+                              embedInDashboard
+                                ? "border-[var(--border)] bg-[color-mix(in_srgb,var(--muted)_40%,transparent)] text-[color-mix(in_srgb,var(--cc-text)_88%,transparent)]"
+                                : undefined,
+                            )}
+                          >
                             {result.section}
                           </Badge>
                         </td>
-                        <td className={cn("px-4 sm:px-6 py-3 sm:py-4 max-w-[120px] sm:max-w-xs truncate", cellPrimary)} title={result.quizTitle || result.examTitle}>
+                        <td
+                          className={cn(
+                            "px-4 sm:px-6 py-3 sm:py-4 truncate",
+                            embedInDashboard ? cellSecondary : cellPrimary,
+                          )}
+                          title={result.quizTitle || result.examTitle}
+                        >
                           {result.quizTitle || result.examTitle}
                         </td>
-                        <td className={cn("px-4 sm:px-6 py-3 sm:py-4", cellPrimary)}>
-                          {result.score.toFixed(1)} / {result.totalPoints}
+                        <td className={cn("px-4 sm:px-6 py-3 sm:py-4 tabular-nums", cellPrimary)}>
+                          <span>{result.score.toFixed(1)}</span>
+                          <span className={cn("ml-1", cellSecondary)}>/ {result.totalPoints}</span>
                         </td>
                         <td className="px-4 sm:px-6 py-3 sm:py-4">
-                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                            <Badge className={`${getGradeColor(result.percentage)} text-xs px-2 py-0.5`}>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Badge className={cn(getGradeColor(result.percentage), "text-xs font-bold px-2.5 py-0.5 tabular-nums")}>
                               {result.percentage}%
                             </Badge>
-                            <span className={cn("text-xs font-semibold tabular-nums", cellMuted)}>
+                            <span
+                              className={cn(
+                                "inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-md px-1.5 text-[11px] font-bold tabular-nums",
+                                embedInDashboard ? getLetterGradeBadgeClass(result.percentage) : cn(getLetterGradeColor(result.percentage), "bg-muted/40"),
+                              )}
+                            >
                               {getLetterGrade(result.percentage)}
                             </span>
                             {result.isFlagged && (

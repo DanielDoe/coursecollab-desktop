@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./recommendation-nav-context-Buzbv7ZF.js";var n=e();function r({children:e}){return(0,n.jsx)(t,{base:`/student/dashboard-v2/recommendations`,children:e})}export{r as default};

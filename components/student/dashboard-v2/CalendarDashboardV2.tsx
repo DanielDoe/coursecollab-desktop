@@ -43,6 +43,7 @@ export function CalendarDashboardV2() {
       metaLine="Personal events, class schedule, and deadlines"
       metaSuffix="plan your week"
       hideSideMenu
+      scrollMode="panel"
       loading={!mounted || !studentId}
       headerAction={headerAction}
       menuView="calendar"

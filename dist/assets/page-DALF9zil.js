@@ -1,0 +1,1 @@
+import{zt as e}from"./index-Bk6sIswz.js";function t(){e(`/faculty/dashboard/analytics?section=reports`)}export{t as default};

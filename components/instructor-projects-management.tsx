@@ -115,7 +115,7 @@ interface ProjectReport {
   student_number: string;
 }
 
-export function InstructorProjectsManagement() {
+export function InstructorProjectsManagement({ embedInDashboard }: { embedInDashboard?: boolean } = {}) {
   const chrome = facultyEmbedChrome("projects")
   const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -770,7 +770,7 @@ export function InstructorProjectsManagement() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16">
+      <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-10" : "flex items-center justify-center py-16"}>
         <div className={cn("flex items-center gap-3 text-sm", PORTAL_TEXT_MUTED)}>
           <div className="size-5 animate-spin rounded-full border-2 border-[var(--cc-accent)] border-t-transparent" aria-hidden />
           Loading projects…
@@ -779,8 +779,12 @@ export function InstructorProjectsManagement() {
     );
   }
 
+  const emptyPanelClass = embedInDashboard
+    ? cn(chrome.card, "flex min-h-0 flex-1 flex-col items-center justify-center border-dashed px-4 py-10 text-center")
+    : cn(chrome.card, "border-dashed py-14 text-center");
+
   return (
-    <div className="space-y-4">
+    <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4"}>
       <FacultyIntegratedToolbar
         moduleId="projects"
         search={searchQuery}
@@ -859,9 +863,9 @@ export function InstructorProjectsManagement() {
       />
 
       {/* Projects Content */}
-      <div>
+      <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col" : undefined}>
         {filteredProjects.length === 0 ? (
-          <div className={cn(chrome.card, "border-dashed py-14 text-center")}>
+          <div className={emptyPanelClass}>
             <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
               <FolderKanban className="h-5 w-5 !text-white" />
             </div>
@@ -873,12 +877,12 @@ export function InstructorProjectsManagement() {
             </p>
           </div>
         ) : viewMode === "card" ? (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-3">
+          <div className={cn("grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-3", embedInDashboard && "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2")}>
             {paginatedProjects.map(renderProjectCard)}
           </div>
         ) : (
           // List View - Compact table-like layout
-          <div className={cn(chrome.card, "divide-y divide-[var(--border)] overflow-hidden")}>
+          <div className={cn(chrome.card, "divide-y divide-[var(--border)] overflow-hidden", embedInDashboard && "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2")}>
             {paginatedProjects.map(renderProjectListItem)}
           </div>
         )}

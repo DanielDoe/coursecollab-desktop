@@ -1,1 +1,0 @@
-import{o as e}from"./rolldown-runtime-C0FnF6B9.js";import{t}from"./react-C21x__mS.js";var n=e(t()),r=1024;function i(){let[e,t]=(0,n.useState)(void 0);return(0,n.useEffect)(()=>{let e=window.matchMedia(`(min-width: ${r}px)`),n=()=>t(window.innerWidth>=r);return e.addEventListener(`change`,n),t(window.innerWidth>=r),()=>e.removeEventListener(`change`,n)},[]),!!e}export{i as t};

@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Codebench2xMultiplierModal } from "@/components/codebench/Codebench2xMultiplierModal"
 import { CodebenchEditorChrome } from "@/components/codebench/CodebenchEditorChrome"
+import { CodebenchEditorCoraSplit } from "@/components/codebench/CodebenchEditorCoraSplit"
 import { CodebenchExplorer } from "@/components/codebench/CodebenchExplorer"
 import { useCodebenchIde } from "@/hooks/use-codebench-ide"
 import { isFileDirty } from "@/lib/codebench-ide-workspace"
@@ -134,6 +135,32 @@ export default function CodeBenchPage({
   const handleExecutionMeta = useCallback((meta: CodeBenchExecutionMeta) => {
     setExecutionMeta(meta)
   }, [])
+
+  const layoutMonacoEditor = useCallback(() => {
+    try {
+      if (!editorRef?.layout) return
+      requestAnimationFrame(() => {
+        editorRef.layout()
+      })
+    } catch {
+      // Ignore layout errors while panels are settling.
+    }
+  }, [editorRef])
+
+  useEffect(() => {
+    if (!editorRef) return
+    const container = editorRef.getDomNode()?.parentElement
+    if (!container) return
+    const observer = new ResizeObserver(() => {
+      try {
+        requestAnimationFrame(() => editorRef.layout())
+      } catch {
+        // Ignore layout errors while panels are settling.
+      }
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [editorRef])
   
   // Initialize Monaco highlight styles
   useEffect(() => {
@@ -1625,7 +1652,7 @@ export default function CodeBenchPage({
           <div
             className={cn(
               "flex min-h-0 min-w-0 w-full flex-1",
-              embedded ? "min-h-[220px]" : "min-h-[280px] h-[clamp(320px,62dvh,720px)] lg:h-[min(720px,calc(100dvh-12rem))]",
+              embedded ? "min-h-0" : "min-h-[280px] h-[clamp(320px,62dvh,720px)] lg:h-[min(720px,calc(100dvh-12rem))]",
             )}
           >
           {ide.explorerOpen ? (
@@ -1646,26 +1673,12 @@ export default function CodeBenchPage({
               onChooseLocalFolder={ide.canUseLocalFiles ? () => void ide.chooseLocalFolder() : undefined}
             />
           ) : null}
-          <div
-            className={cn(
-              "flex min-h-0 min-w-0 flex-1 flex-col",
-              embedded ? "min-h-[220px]" : "",
-            )}
-          >
-          <div
-            className={cn(
-              "flex min-h-0 min-w-0 w-full flex-1 flex-col lg:flex-row",
-              desktopExecution ? "min-h-0" : embedded ? "min-h-[220px]" : "",
-            )}
-          >
-            {/* Code Editor */}
-            <div
-              className={cn(
-                "w-full lg:w-1/2 xl:w-[48%] flex flex-col flex-1 min-h-[200px] lg:min-h-0",
-                "border-b lg:border-b-0 lg:border-r",
-                "border-[var(--border)]",
-              )}
-            >
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <CodebenchEditorCoraSplit
+            embedded={embedded}
+            onPanelResize={layoutMonacoEditor}
+            editor={
+              <>
               <CodebenchEditorChrome
                 lineCount={lineCount}
                 language={currentLanguage.label}
@@ -1703,15 +1716,10 @@ export default function CodeBenchPage({
                   options={codebenchEditorOptions()}
                 />
               </div>
-            </div>
-
-            {/* AI Output Panel */}
-            <div
-              className={cn(
-                "w-full lg:w-1/2 xl:w-[52%] flex flex-col flex-1 min-h-[200px] lg:min-h-0 min-w-0 overflow-hidden",
-                "bg-[var(--card)]",
-              )}
-            >
+              </>
+            }
+            cora={
+              <>
               <CodebenchCoraBar
                 activeTool={aiTab}
                 onToolSelect={handleCoraToolSelect}
@@ -1857,8 +1865,9 @@ export default function CodeBenchPage({
                 />
               )}
               </div>
-            </div>
-          </div>
+              </>
+            }
+          />
           {currentLanguage.id === "cpp" ? (
             <CodeBenchExecutionDock
               ref={executionRef}

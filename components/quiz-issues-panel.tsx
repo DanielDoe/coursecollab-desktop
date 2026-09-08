@@ -382,7 +382,7 @@ export function QuizIssuesPanel({
   if (embedInDashboard) {
     return (
       <>
-        <div className="flex h-full flex-1 flex-col rounded-xl border border-[var(--border)] bg-[var(--muted)]/25">
+        <div className="flex h-full min-h-0 flex-1 flex-col rounded-xl border border-[var(--border)] bg-[var(--muted)]/25">
           <div className="shrink-0 border-b border-[var(--border)] px-3 py-3 sm:px-4">
             <div className="flex items-start gap-3">
               <div
@@ -465,27 +465,29 @@ export function QuizIssuesPanel({
               </button>
             </div>
 
-            {selectedTab === "open" ? (
-              <IssueEmbedList
-                issues={issues}
-                emptyIcon={FileWarning}
-                emptyTitle="No open issues"
-                emptySubtitle="All running smoothly!"
-                onSelect={setSelectedIssue}
-                variant="open"
-                chrome={issuesChrome}
-              />
-            ) : (
-              <IssueEmbedList
-                issues={issues}
-                emptyIcon={FolderOpen}
-                emptyTitle="No closed issues"
-                emptySubtitle="No resolved reports yet."
-                onSelect={setSelectedIssue}
-                variant="closed"
-                chrome={issuesChrome}
-              />
-            )}
+            <div className="flex min-h-0 flex-1 flex-col">
+              {selectedTab === "open" ? (
+                <IssueEmbedList
+                  issues={issues}
+                  emptyIcon={FileWarning}
+                  emptyTitle="No open issues"
+                  emptySubtitle="All running smoothly!"
+                  onSelect={setSelectedIssue}
+                  variant="open"
+                  chrome={issuesChrome}
+                />
+              ) : (
+                <IssueEmbedList
+                  issues={issues}
+                  emptyIcon={FolderOpen}
+                  emptyTitle="No closed issues"
+                  emptySubtitle="No resolved reports yet."
+                  onSelect={setSelectedIssue}
+                  variant="closed"
+                  chrome={issuesChrome}
+                />
+              )}
+            </div>
           </div>
         </div>
 

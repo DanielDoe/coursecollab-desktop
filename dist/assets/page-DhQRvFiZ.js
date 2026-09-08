@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BdxMnOeJ.js";import{t}from"./playground-waiting-room-bxQ49R4H.js";var n=e();function r(){return(0,n.jsx)(t,{backPath:`/student/playground`,gamePath:`/student/playground/game`})}export{r as default};

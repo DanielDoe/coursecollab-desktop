@@ -41,6 +41,8 @@ import { portalListStripe } from "@/lib/portal-module-themes";
 import { PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes";
 import { cn } from "@/lib/utils";
 import { facultyModuleSpinnerClass } from "@/lib/faculty-module-themes";
+import { instructorApiFetch } from "@/lib/instructor-api-headers";
+import { useInstructorDashboardV2 } from "@/components/instructor/dashboard-v2/InstructorDashboardV2Context";
 
 interface Presentation {
   id: number;
@@ -60,10 +62,11 @@ interface Presentation {
   created_by_name: string;
 }
 
-export function InstructorPresentationsSchedule() {
+export function InstructorPresentationsSchedule({ embedInDashboard }: { embedInDashboard?: boolean } = {}) {
   const chrome = facultyEmbedChrome("projects");
   const cardBase = chrome.card;
   const { toast } = useToast();
+  const { courseScopeVersion } = useInstructorDashboardV2();
   const [presentations, setPresentations] = useState<Presentation[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all"); // Changed from "scheduled" to "all" to show all student bookings
@@ -87,8 +90,8 @@ export function InstructorPresentationsSchedule() {
   const [isRescheduling, setIsRescheduling] = useState(false);
 
   useEffect(() => {
-    fetchPresentations();
-  }, [statusFilter]);
+    void fetchPresentations();
+  }, [statusFilter, courseScopeVersion]);
 
   const fetchPresentations = async () => {
     try {
@@ -97,10 +100,10 @@ export function InstructorPresentationsSchedule() {
       // This ensures student bookings are visible regardless of status
       // But exclude cancelled presentations from the default view unless explicitly filtered
       const status = statusFilter === "all" ? "all" : statusFilter;
-      const url = `/api/projects/presentations?status=${status}`;
+      const url = `/api/projects/presentations?status=${encodeURIComponent(status)}`;
       console.log('[INSTRUCTOR] Fetching presentations:', url, 'with status:', status);
-      const response = await fetch(url);
-      const data = await response.json();
+      const response = await instructorApiFetch(url);
+      const data = await response.json().catch(() => ({}));
       
       console.log('[INSTRUCTOR] API response:', data);
       console.log('[INSTRUCTOR] Presentations count:', data.presentations?.length || 0);
@@ -126,7 +129,7 @@ export function InstructorPresentationsSchedule() {
       } else {
         toast({
           title: "Error",
-          description: "Failed to fetch presentations",
+          description: data.error || "Failed to fetch presentations",
           variant: "destructive",
         });
       }
@@ -134,7 +137,7 @@ export function InstructorPresentationsSchedule() {
       console.error("Error fetching presentations:", error);
       toast({
         title: "Error",
-        description: "Failed to fetch presentations",
+        description: error instanceof Error ? error.message : "Failed to fetch presentations",
         variant: "destructive",
       });
     } finally {
@@ -153,7 +156,7 @@ export function InstructorPresentationsSchedule() {
     if (!selectedPresentation) return;
 
     try {
-      const response = await fetch("/api/projects/presentations", {
+      const response = await instructorApiFetch("/api/projects/presentations", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -184,7 +187,7 @@ export function InstructorPresentationsSchedule() {
 
   const handleMarkComplete = async (presentationId: number) => {
     try {
-      const response = await fetch("/api/projects/presentations", {
+      const response = await instructorApiFetch("/api/projects/presentations", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -220,13 +223,13 @@ export function InstructorPresentationsSchedule() {
     try {
       setIsDeleting(true);
       console.log("🗑️  Deleting presentation:", presentationToDelete.id);
-      const response = await fetch(`/api/projects/presentations?presentationId=${presentationToDelete.id}`, {
-        method: "DELETE",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-instructor-id": "1" // Instructor authorization for hard delete
+      const response = await instructorApiFetch(
+        `/api/projects/presentations?presentationId=${presentationToDelete.id}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
         },
-      });
+      );
 
       const data = await response.json();
       console.log("🗑️ Delete response:", data);
@@ -327,15 +330,15 @@ export function InstructorPresentationsSchedule() {
     
     try {
       setLoadingRescheduleSlots(true);
-      const response = await fetch(
-        `/api/projects/presentation-config?session=${presentationToReschedule.session}`
+      const response = await instructorApiFetch(
+        `/api/projects/presentation-config?session=${encodeURIComponent(presentationToReschedule.session)}`,
       );
       const configData = await response.json();
       
       if (configData.config) {
         const config = configData.config;
-        const slotsResponse = await fetch(
-          `/api/projects/presentations/available-slots?date=${date}&startTime=${config.start_time}&endTime=${config.end_time}&slotDuration=${config.slot_duration}&session=${presentationToReschedule.session}`
+        const slotsResponse = await instructorApiFetch(
+          `/api/projects/presentations/available-slots?date=${encodeURIComponent(date)}&startTime=${encodeURIComponent(config.start_time)}&endTime=${encodeURIComponent(config.end_time)}&slotDuration=${encodeURIComponent(String(config.slot_duration))}&session=${encodeURIComponent(presentationToReschedule.session)}`,
         );
         const slotsData = await slotsResponse.json();
         
@@ -379,12 +382,9 @@ export function InstructorPresentationsSchedule() {
 
     try {
       setIsRescheduling(true);
-      const response = await fetch("/api/projects/presentations", {
+      const response = await instructorApiFetch("/api/projects/presentations", {
         method: "PUT",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-instructor-id": "1"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           presentationId: presentationToReschedule.id,
           scheduledDate: rescheduleDate,
@@ -741,8 +741,15 @@ export function InstructorPresentationsSchedule() {
   console.log('[INSTRUCTOR] Grouped presentations:', Object.keys(groupedPresentations).length, 'dates');
   console.log('[INSTRUCTOR] Sorted dates:', sortedDates);
 
+  const emptyPanelClass = embedInDashboard
+    ? cn(cardBase, "flex min-h-0 flex-1 flex-col items-center justify-center border-dashed px-4 py-10 text-center")
+    : cn(cardBase, "p-8 sm:p-12 text-center");
+  const loadingPanelClass = embedInDashboard
+    ? cn(cardBase, "flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-10")
+    : cn(cardBase, "p-12 text-center");
+
   return (
-    <div className="space-y-4">
+    <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4"}>
       <FacultyIntegratedToolbar
         moduleId="projects"
         search={searchQuery}
@@ -810,13 +817,14 @@ export function InstructorPresentationsSchedule() {
         }
       />
 
+      <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col" : undefined}>
       {loading ? (
-        <div className={cn(cardBase, "p-12 text-center")}>
+        <div className={loadingPanelClass}>
           <div className={cn("h-8 w-8 animate-spin rounded-full border-2 border-t-transparent mx-auto mb-2", facultyModuleSpinnerClass("projects"))} />
           <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>Loading schedule…</p>
         </div>
       ) : sortedDates.length === 0 ? (
-        <div className={cn(cardBase, "p-8 sm:p-12 text-center")}>
+        <div className={emptyPanelClass}>
           <Calendar className={cn("mx-auto mb-3 h-10 w-10", PORTAL_TEXT_MUTED)} />
           <p className={cn("font-medium", PORTAL_TEXT)}>
             {searchQuery.trim() || sessionFilter !== "all" || statusFilter !== "all"
@@ -828,7 +836,7 @@ export function InstructorPresentationsSchedule() {
           </p>
         </div>
       ) : (
-        <div className={viewMode === "grid" ? "grid grid-cols-1 gap-3 md:grid-cols-2" : "space-y-5"}>
+        <div className={cn(viewMode === "grid" ? "grid grid-cols-1 gap-3 md:grid-cols-2" : "space-y-5", embedInDashboard && "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2")}>
           {viewMode === "grid"
             ? filteredPresentations
                 .slice()
@@ -862,6 +870,7 @@ export function InstructorPresentationsSchedule() {
           })}
         </div>
       )}
+      </div>
 
       {/* Details Dialog */}
       <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
@@ -948,12 +957,9 @@ export function InstructorPresentationsSchedule() {
                   onClick={async () => {
                     if (!selectedPresentation) return;
                     try {
-                      const response = await fetch("/api/projects/presentations", {
+                      const response = await instructorApiFetch("/api/projects/presentations", {
                         method: "PUT",
-                        headers: { 
-                          "Content-Type": "application/json",
-                          "x-instructor-id": "1"
-                        },
+                        headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                           presentationId: selectedPresentation.id,
                           status: "scheduled",

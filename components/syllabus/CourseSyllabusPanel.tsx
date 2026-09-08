@@ -9,6 +9,7 @@ import { SyllabusEditor, type SyllabusEditorPanel } from "@/components/syllabus/
 import { SyllabusAccentProvider } from "@/lib/syllabus/syllabus-accent"
 import type { CourseSyllabus } from "@/lib/syllabus/types"
 import type { SyllabusCourseInfo } from "@/lib/syllabus/syllabus-course-info"
+import { cn } from "@/lib/utils"
 
 type CourseSyllabusPanelProps = {
   courseId: number
@@ -19,6 +20,7 @@ type CourseSyllabusPanelProps = {
   studentId?: string
   editorPanel?: SyllabusEditorPanel
   onSyllabusStatusChange?: (status: CourseSyllabus["status"] | null) => void
+  embedInDashboard?: boolean
 }
 
 export function CourseSyllabusPanel({
@@ -30,6 +32,7 @@ export function CourseSyllabusPanel({
   studentId,
   editorPanel,
   onSyllabusStatusChange,
+  embedInDashboard,
 }: CourseSyllabusPanelProps) {
   const [syllabus, setSyllabus] = useState<CourseSyllabus | null>(null)
   const [courseInfo, setCourseInfo] = useState<SyllabusCourseInfo | null>(null)
@@ -70,12 +73,11 @@ export function CourseSyllabusPanel({
 
   if (loading) {
     return (
-      <div className="space-y-3">
-        <Skeleton className="h-4 w-56" />
-        <Skeleton className="h-20 rounded-2xl" />
-        <Skeleton className="h-16 rounded-2xl" />
-        <Skeleton className="h-16 rounded-2xl" />
-        <Skeleton className="h-16 rounded-2xl" />
+      <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3"}>
+        <Skeleton className="h-4 w-56 shrink-0" />
+        <Skeleton className={cn("h-20 rounded-2xl", embedInDashboard && "min-h-0 flex-1")} />
+        <Skeleton className="h-16 rounded-2xl shrink-0" />
+        <Skeleton className="h-16 rounded-2xl shrink-0" />
       </div>
     )
   }
@@ -91,6 +93,7 @@ export function CourseSyllabusPanel({
           buildHeaders={buildHeaders}
           activePanel={editorPanel}
           onStatusChange={onSyllabusStatusChange}
+          embedInDashboard={embedInDashboard}
         />
       </SyllabusAccentProvider>
     )

@@ -29,7 +29,8 @@ function AuthAnimatedRoutes({ location, direction, reduceMotion }: AuthAnimatedR
       animate="animate"
       exit="exit"
       transition={reduceMotion ? { duration: 0 } : routeTransitionTiming}
-      className="min-h-[100dvh] w-full will-change-transform"
+      data-auth-route-pane
+      className="relative z-10 min-h-[100dvh] w-full will-change-transform"
     >
       <Routes location={location}>
         <Route path="/" element={<DesktopRedirect />} />
@@ -49,6 +50,8 @@ function AppRoutes() {
     rememberDesktopRoute(`${location.pathname}${location.search}`)
   }, [location.pathname, location.search])
 
+  // Auth-only slide transitions. Dashboard modules (CodeBench, Trade Center, etc.)
+  // render through the plain Routes branch below — no AnimatePresence overlay stack.
   if (!authRoute) {
     return (
       <Routes location={location}>
@@ -59,7 +62,7 @@ function AppRoutes() {
   }
 
   return (
-    <div className="relative min-h-[100dvh] overflow-x-clip bg-[var(--cc-background)]">
+    <div className="cc-auth-route-shell relative min-h-[100dvh] overflow-x-clip bg-[var(--cc-background)]">
       <AnimatePresence mode="popLayout" initial={false} custom={direction}>
         <AuthAnimatedRoutes
           key={location.pathname + location.search}

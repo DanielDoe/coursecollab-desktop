@@ -1,4 +1,5 @@
 import { useEffect, useMemo, type ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
 import { ThemeProvider } from '@/components/theme-provider'
 import { NotificationProvider } from '@/components/notification-provider'
 import { AppQueryProvider } from '@/components/providers/app-query-provider'
@@ -32,7 +33,12 @@ function markDesktopShell() {
 }
 
 export function RootLayout({ children }: { children: ReactNode }) {
+  const location = useLocation()
   const initialTimezone = useMemo(() => readTimezoneCookie(), [])
+  const errorBoundaryResetKeys = useMemo(
+    () => [location.pathname, location.search] as const,
+    [location.pathname, location.search],
+  )
 
   if (typeof window !== "undefined") {
     markDesktopShell()
@@ -52,7 +58,12 @@ export function RootLayout({ children }: { children: ReactNode }) {
               <DesktopNotificationBridge />
               <NativeWebBridgeListener />
               <SessionCatalogProvider>
-                <SystemErrorBoundary moduleName="Platform Module">{children}</SystemErrorBoundary>
+                <SystemErrorBoundary
+                  moduleName="Platform Module"
+                  resetKeys={errorBoundaryResetKeys}
+                >
+                  {children}
+                </SystemErrorBoundary>
               </SessionCatalogProvider>
             </NotificationProvider>
           </UserTimezoneProvider>

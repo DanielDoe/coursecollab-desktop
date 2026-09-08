@@ -12,7 +12,7 @@ const ForumHub = dynamic(() => import("./forum-hub"), {
 export default function DashboardV2ForumPage() {
   return (
     <Suspense fallback={<ModulePageSkeleton className="min-h-[480px]" />}>
-      <StudentDashboardModulePage>
+      <StudentDashboardModulePage scrollMode="panel">
         <ForumHub />
       </StudentDashboardModulePage>
     </Suspense>
