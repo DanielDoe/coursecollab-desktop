@@ -499,6 +499,8 @@
     },
     "win": {
       "icon": "build/icon.ico",
+      "signAndEditExecutable": false,
+      "signDlls": false,
       "target": [
         "nsis",
         "zip"
@@ -511,7 +513,8 @@
       "include": "build/installer.nsh",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
-      "installerHeaderIcon": "build/icon.ico"
+      "installerHeaderIcon": "build/icon.ico",
+      "unicode": true
     },
     "linux": {
       "icon": "build/icon.png",
