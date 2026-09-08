@@ -499,8 +499,7 @@
     },
     "win": {
       "icon": "build/icon.ico",
-      "signAndEditExecutable": false,
-      "signDlls": false,
+      "signExecutable": false,
       "target": [
         "nsis",
         "zip"
