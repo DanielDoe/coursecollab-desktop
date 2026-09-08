@@ -3,8 +3,7 @@
  */
 
 import {
-  computeSelectAllScoreFraction,
-  isSelectAllFullyCorrect,
+  scoreSelectAllQuestion,
 } from "@/lib/select-all-scoring"
 import { repairLatexDamagedByJsonEscapes } from "@/lib/math-markdown"
 
@@ -244,8 +243,8 @@ export function gradeSubPart(
     const sub = Array.isArray(submitted)
       ? submitted.map((x) => String(x).trim().toUpperCase())
       : []
-    const { fraction } = computeSelectAllScoreFraction(correct, sub)
-    return { fraction, isFullyCorrect: isSelectAllFullyCorrect(fraction) }
+    const scored = scoreSelectAllQuestion(sub, correct, 1)
+    return { fraction: scored.fraction, isFullyCorrect: scored.isFullyCorrect }
   }
   const correct = (sq.correct_answer ?? "").toUpperCase()
   const sub = String(submitted ?? "")

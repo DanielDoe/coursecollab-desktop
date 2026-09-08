@@ -10,7 +10,7 @@ import {
 } from "@/lib/regular-assessments-cutoff"
 import { isRegularAssessmentSemesterHardCloseBlockingStudent } from "@/lib/retake-access"
 import { requireAttemptOwnership } from "@/lib/student-api-auth"
-import { SERVER_GRADED_QUESTION_TYPES } from "@/lib/server-graded-question-types"
+import { isServerGradedQuestionType } from "@/lib/server-graded-question-types"
 
 export const dynamic = 'force-dynamic'
 export const runtime = "nodejs"
@@ -33,7 +33,7 @@ const LOG = "[Submit]"
  * evaluation genuinely happens outside this handler) but are clamped to the
  * question's real max_points from the database.
  */
-const SERVER_GRADED_TYPES = SERVER_GRADED_QUESTION_TYPES
+const isServerGradedType = isServerGradedQuestionType
 
 export async function POST(
   request: NextRequest,
@@ -129,7 +129,7 @@ export async function POST(
 
     // SAVE-ONLY MODE: Quiz-taker sends pre-evaluated data (Processing... or eval result)
     // Persist answer + keystrokes immediately so nothing is lost if evaluation fails
-    if (SERVER_GRADED_TYPES.has(qt)) {
+    if (isServerGradedType(qt)) {
       // Discard anything the client asserted about correctness or score, then
       // fall through to EVALUATE mode below so the server does the grading.
       isCorrect = undefined
@@ -139,7 +139,7 @@ export async function POST(
     }
 
     const hasPreEvaluatedData =
-      !SERVER_GRADED_TYPES.has(qt) &&
+      !isServerGradedType(qt) &&
       (isCorrect !== undefined || pointsEarned !== undefined || aiFeedback != null)
     if (hasPreEvaluatedData) {
       const selectedAnswer = typeof answer === 'string' ? answer : JSON.stringify(answer)

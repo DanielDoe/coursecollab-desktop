@@ -26,5 +26,12 @@ export function isServerGradedQuestionType(questionType: string | null | undefin
     .toLowerCase()
     .trim()
     .replace(/-/g, "_")
-  return SERVER_GRADED_QUESTION_TYPES.has(qt)
+    .replace(/\s+/g, "_")
+  const aliases: Record<string, string> = {
+    selectall: "select_all",
+    select_all_that_apply: "select_all",
+    sata: "select_all",
+    checkbox: "select_all",
+  }
+  return SERVER_GRADED_QUESTION_TYPES.has(qt) || SERVER_GRADED_QUESTION_TYPES.has(aliases[qt] ?? "")
 }

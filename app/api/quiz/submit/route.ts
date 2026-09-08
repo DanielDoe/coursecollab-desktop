@@ -9,7 +9,7 @@ import { flattenStoredAiFeedback } from "@/lib/flatten-stored-ai-feedback"
 import { getDocumentAtTime, type TypingReplay } from "@/lib/typing-replay"
 import { requireAttemptOwnership, requireCallerStudentDbId } from "@/lib/student-api-auth"
 import { submitAnswer } from "@/lib/assessment-core/submit"
-import { SERVER_GRADED_QUESTION_TYPES } from "@/lib/server-graded-question-types"
+import { isServerGradedQuestionType } from "@/lib/server-graded-question-types"
 
 // Use Node runtime for quiz submission (database-heavy operation)
 export const dynamic = 'force-dynamic'
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     // without this branch the handler trusts client isCorrect — including the initial
     // placeholder save with isCorrect:false / feedback:"Processing...".
     if (
-      SERVER_GRADED_QUESTION_TYPES.has(qt) &&
+      isServerGradedQuestionType(qt) &&
       attemptId &&
       questionId &&
       answer !== undefined

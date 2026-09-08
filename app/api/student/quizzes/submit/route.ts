@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
         }
         
         const result = verifyAnswerLocally(question.question_type, selectedAnswer, questionData)
-        isCorrect = result.score > 0
+        isCorrect = result.isCorrect
       } else {
         // Fallback to simple comparison
         isCorrect = question.correct_answer === selectedAnswer

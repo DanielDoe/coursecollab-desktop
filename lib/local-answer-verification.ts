@@ -7,8 +7,7 @@
  */
 
 import {
-  computeSelectAllScoreFraction,
-  isSelectAllFullyCorrect,
+  scoreSelectAllQuestion,
 } from "@/lib/select-all-scoring"
 import { normalizeCorrectAnswerToLetter } from "@/lib/question-bank-normalize"
 import { parseStudentAnswerForVerify } from "@/lib/assessment-verify-payload"
@@ -509,9 +508,10 @@ function verifySelectAll(studentAnswers: string[], questionData: any): Verificat
   const correctUniq = [...new Set(correctNormalized)]
   const studentUniq = [...new Set(studentNormalized)]
 
-  const { fraction, c, i, t } = computeSelectAllScoreFraction(correctUniq, studentUniq)
-  const score = Math.round(fraction * 10000) / 100
-  const isCorrect = isSelectAllFullyCorrect(fraction)
+  const scored = scoreSelectAllQuestion(studentUniq, correctUniq, 100)
+  const { correctSelected: c, incorrectSelected: i, correctCount: t } = scored
+  const score = scored.points
+  const isCorrect = scored.isFullyCorrect
 
   const missed = t - c
 

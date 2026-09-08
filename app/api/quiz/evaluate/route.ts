@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { evaluateCode } from "@/lib/ai-evaluate-code"
 import { verifyAnswerLocally, canVerifyLocally } from "@/lib/local-answer-verification"
+import { scoreSelectAllQuestion } from "@/lib/select-all-scoring"
 import { buildLocalVerifyQuestionData } from "@/lib/assessment-verify-payload"
 import { resolvePlotImageForCodeWritePlot } from "@/lib/code-write-plot-answer"
 import { resolveEvaluationLanguageList } from "@/lib/ai-code-languages"
@@ -294,19 +295,15 @@ export async function POST(request: NextRequest) {
         studentAnswers
       })
       
-      // Check if all correct answers are selected and no incorrect ones
-      const hasAllCorrect = correctAnswers.every((correct: string) => 
-        studentAnswers.some((student: string) => 
-          String(student).toLowerCase().trim() === String(correct).toLowerCase().trim()
-        )
-      )
-      const hasNoIncorrect = studentAnswers.every((student: string) => 
-        correctAnswers.some((correct: string) => 
-          String(student).toLowerCase().trim() === String(correct).toLowerCase().trim()
-        )
-      )
-      
-      isCorrect = hasAllCorrect && hasNoIncorrect
+      const scored = scoreSelectAllQuestion(studentAnswers, correctAnswers, maxPoints)
+      isCorrect = scored.isFullyCorrect
+      return NextResponse.json({
+        isCorrect,
+        score: Math.round(scored.fraction * 10000) / 100,
+        pointsEarned: scored.points,
+        maxPoints,
+        locallyVerified: true,
+      })
       
     } else if (actualQuestionType === "mcq" || actualQuestionType === "true_false") {
       // Handle single choice questions

@@ -8,6 +8,7 @@ import {
 } from "@/lib/practice-tier-access"
 
 import { verifyAnswerLocally, canVerifyLocally } from "@/lib/local-answer-verification"
+import { scoreSelectAllQuestion } from "@/lib/select-all-scoring"
 import { savePracticeAnswerRecord } from "@/lib/save-practice-answer"
 import { evaluatePracticeUploadQuestion } from "@/lib/practice-upload-evaluate"
 import { practiceAnswerReviewForEvaluateResponse } from "@/lib/practice-answer-review"
@@ -398,20 +399,9 @@ export async function POST(request: NextRequest) {
         studentAnswers
       })
       
-      // Check if all correct answers are selected and no incorrect ones
-      const hasAllCorrect = correctAnswers.every((correct: string) => 
-        studentAnswers.some((student: string) => 
-          String(student).toLowerCase().trim() === String(correct).toLowerCase().trim()
-        )
-      )
-      const hasNoIncorrect = studentAnswers.every((student: string) => 
-        correctAnswers.some((correct: string) => 
-          String(student).toLowerCase().trim() === String(correct).toLowerCase().trim()
-        )
-      )
-      
-      isCorrect = hasAllCorrect && hasNoIncorrect
-      
+      const scored = scoreSelectAllQuestion(studentAnswers, correctAnswers, maxPoints)
+      isCorrect = scored.isFullyCorrect
+      const selectAllScore = scored.points
       const selectAllXp = resolveXp(isCorrect)
 
       let selectAllSideEffects: PracticeAnswerSideEffects | null = null
@@ -439,7 +429,13 @@ export async function POST(request: NextRequest) {
             question as Record<string, unknown>,
             answer,
             isCorrect,
-            { isCorrect, xpEarned: selectAllXp },
+            {
+              isCorrect,
+              xpEarned: selectAllXp,
+              score: Math.round(scored.fraction * 10000) / 100,
+              pointsEarned: selectAllScore,
+              points: selectAllScore,
+            },
             evalCtx.policy,
             correctLetters.length > 0 ? correctLetters : undefined,
             correctAnswers,

@@ -2,8 +2,7 @@ import { resolveModelForFeature } from "@/lib/resolve-feature-ai-model"
 import { sql } from "@/lib/db"
 import { buildChatCompletionBody } from "@/lib/openai-gpt5-mini"
 import {
-  computeSelectAllScoreFraction,
-  isSelectAllFullyCorrect,
+  scoreSelectAllQuestion,
 } from "@/lib/select-all-scoring"
 import { parseCircuitSpec } from "@/lib/engineering-circuit-types"
 import { evaluateMultiPartQuestion } from "@/lib/multi-part-question"
@@ -440,18 +439,15 @@ export async function evaluateAnswer(question: any, studentAnswer: any): Promise
     return { isCorrect, points: isCorrect ? 100 : 0, feedback: null }
   }
 
-  if (type === "select_all") {
+  if (type === "select_all" || type === "multi_output") {
     if (mode === "manual") {
       return { isCorrect: null, points: 0, feedback: "Pending manual review.", requiresReview: true }
     }
     if (mode === "ai") {
       return await evaluateWithAI(question, studentAnswer)
     }
-    const correctUniq = [...new Set(correct.map((x) => String(x || "").trim()))]
-    const submittedUniq = [...new Set(submitted.map((x) => String(x || "").trim()))]
-    const { fraction } = computeSelectAllScoreFraction(correctUniq, submittedUniq)
-    const points = Math.round(fraction * 10000) / 100
-    return { isCorrect: isSelectAllFullyCorrect(fraction), points, feedback: null }
+    const scored = scoreSelectAllQuestion(submitted, correct, 100)
+    return { isCorrect: scored.isFullyCorrect, points: scored.points, feedback: null }
   }
 
   switch (mode) {

@@ -78,6 +78,21 @@ describe("local answer verification", () => {
     })
     assert.equal(result.isCorrect, true)
   })
+
+  it("does not award select_all full credit when every option is selected", () => {
+    const result = verifyAnswerLocally("select_all", ["A", "B", "C", "D", "E"], {
+      correctAnswer: '["A","B","C"]',
+      options: {
+        A: "960 W",
+        B: "Formula B",
+        C: "1200 W",
+        D: "720 W",
+        E: "Wrong formula",
+      },
+    })
+    assert.equal(result.isCorrect, false)
+    assert.equal(result.score, 33.33)
+  })
 })
 
 describe("normalizeQuizRowForEvaluation", () => {
