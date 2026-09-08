@@ -1,6 +1,6 @@
 {
   "name": "coursecollab-desktop",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
@@ -455,6 +455,13 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "electron/setup",
+        "to": "setup",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "asarUnpack": [
@@ -465,6 +472,7 @@
       "dist/**/*",
       "dist-electron/**/*",
       "!**/codebench-setup.json",
+      "!**/install-instance.json",
       "!**/codebench-toolchain/**",
       "!**/codebench-workspaces/**",
       "!**/desktop-last-route.json",
@@ -500,6 +508,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "runAfterFinish": true,
+      "include": "build/installer.nsh",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "installerHeaderIcon": "build/icon.ico"
