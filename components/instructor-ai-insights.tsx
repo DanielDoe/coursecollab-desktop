@@ -43,7 +43,7 @@ export function InstructorAIInsights({
   instructorId?: string
   embedInDashboard?: boolean
 }) {
-  const fp = getFacultyModuleTheme("ai-insights").page
+  const fp = getFacultyModuleTheme("cora-insights").page
   const cardBase = PORTAL_CARD
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState<string | null>(null)
@@ -113,16 +113,16 @@ export function InstructorAIInsights({
           <div>
             <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-violet-700 dark:bg-violet-950 dark:text-violet-300">
               <Brain className="h-3.5 w-3.5" />
-              AI-Enhanced Analytics
+              Cora analytics
             </div>
-            <h2 className="text-xl font-bold tracking-tight">AI Insights Dashboard</h2>
+            <h2 className="text-xl font-bold tracking-tight">Cora Insights</h2>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              Predictive analytics, learning gap detection, and intervention recommendations powered by student AI tutor and assessment data.
+              Predictions, learning gaps, and intervention ideas from Cora chats and assessments.
             </p>
           </div>
         ) : (
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Predictive analytics, learning gap detection, and intervention recommendations powered by student AI tutor and assessment data.
+            Predictions, learning gaps, and intervention ideas from Cora chats and assessments.
           </p>
         )}
         <Button variant="outline" size="sm" onClick={loadSummary} className="gap-2 rounded-lg">
@@ -134,7 +134,7 @@ export function InstructorAIInsights({
       {embedInDashboard ? (
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <DashboardKpiCard
-            label="AI conversations (14d)"
+            label="Cora conversations (14d)"
             value={summary?.tutor?.conversations14d ?? 0}
             sub={`${summary?.tutor?.uniqueStudents14d ?? 0} students · ${summary?.tutor?.uniqueTopics14d ?? 0} topics`}
             icon={Brain}
@@ -303,7 +303,7 @@ export function InstructorAIInsights({
         <TabsContent value="history" className="mt-4">
           <Card className={cardClass}>
             <CardHeader>
-              <CardTitle>Recent AI Insights</CardTitle>
+              <CardTitle>Recent Cora analyses</CardTitle>
               <CardDescription>Previously generated analyses stored in the platform</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">

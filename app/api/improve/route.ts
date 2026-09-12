@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
 import { studioPromptBlock } from "@/lib/codebench-studio-analytics"
+import { jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
 
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
       actor: { userId: auth.studentDbId, userRole: "student" as const },
       feature: "CODE_HELP" as const,
       module: "codebench-improve",
+      billable: true as const,
     }
 
     const { content: completionContent } = await createForFeature(openai, "codebench", {
@@ -90,10 +92,7 @@ Focus on teaching code improvement principles, not writing improved code for the
     })
   } catch (error) {
     console.error("[Improve API] Error:", error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to improve code" },
-      { status: 500 }
-    )
+    return jsonFromCodebenchCoraError(error, "Failed to improve code")
   }
 }
 

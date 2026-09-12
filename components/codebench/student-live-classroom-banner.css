@@ -1,0 +1,301 @@
+/* Student CodeBench — live classroom join / sharing bar */
+
+.student-live-banner {
+  --live-dot: #ef4444;
+  --live-ink: var(--cc-text);
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  color: var(--live-ink);
+  background:
+    linear-gradient(
+      105deg,
+      color-mix(in srgb, var(--cc-accent) 12%, var(--card)) 0%,
+      var(--card) 42%,
+      var(--card) 100%
+    );
+  border: 1px solid color-mix(in srgb, var(--cc-text) 12%, var(--border));
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--cc-text) 6%, transparent);
+}
+
+.student-live-banner--on-air {
+  --live-dot: #ef4444;
+  background:
+    linear-gradient(
+      105deg,
+      color-mix(in srgb, #ef4444 10%, var(--card)) 0%,
+      var(--card) 48%,
+      var(--card) 100%
+    );
+  border-color: color-mix(in srgb, #ef4444 22%, var(--border));
+}
+
+.student-live-banner--compact {
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  box-shadow: none;
+}
+
+.student-live-banner--roomy {
+  border-radius: 1rem;
+}
+
+.student-live-banner__row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.student-live-banner--compact .student-live-banner__row {
+  min-height: 2.5rem;
+  padding: 0.35rem 0.75rem 0.35rem 0.9rem;
+}
+
+.student-live-banner--roomy .student-live-banner__row {
+  padding: 0.85rem 1rem 0.85rem 1.1rem;
+  align-items: center;
+}
+
+.student-live-banner__signal {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.student-live-banner__dot {
+  position: relative;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--live-dot);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--live-dot) 55%, transparent);
+  animation: student-live-pulse 1.7s ease-out infinite;
+}
+
+.student-live-banner__ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 1.5px solid var(--live-dot);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.student-live-banner--joining {
+  overflow: visible;
+}
+
+.student-live-banner--joining .student-live-banner__dot {
+  animation: student-live-join-dot 0.7s ease-out;
+}
+
+.student-live-banner--joining .student-live-banner__ripple {
+  animation: student-live-join-ripple 0.85s ease-out;
+}
+
+.student-live-banner--joining .student-live-banner__ripple--late {
+  animation-delay: 0.16s;
+}
+
+.student-live-banner--joining .student-live-banner__pill {
+  animation: student-live-join-pill 0.55s ease-out;
+}
+
+.student-live-banner--joining .student-live-banner__kicker,
+.student-live-banner--joining .student-live-banner__hint {
+  animation: student-live-join-copy 0.5s ease-out;
+}
+
+.student-live-banner--joining.student-live-banner--compact {
+  animation: student-live-join-bar 0.55s ease-out;
+}
+
+.student-live-banner--joining.student-live-banner--roomy {
+  animation: student-live-join-card 0.55s ease-out;
+}
+
+.student-live-banner__pill {
+  display: inline-flex;
+  align-items: center;
+  letter-spacing: 0.08em;
+  font-size: 0.625rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0.28rem 0.45rem;
+  border-radius: 999px;
+  color: var(--live-dot);
+  background: color-mix(in srgb, var(--live-dot) 12%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--live-dot) 22%, transparent);
+}
+
+.student-live-banner__copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.student-live-banner__kicker {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  color: var(--cc-text-muted);
+}
+
+.student-live-banner__title .student-live-banner__kicker {
+  font-size: 0.75rem;
+  font-weight: 550;
+}
+
+.student-live-banner__title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--cc-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.student-live-banner--roomy .student-live-banner__title {
+  white-space: normal;
+}
+
+.student-live-banner__hint {
+  margin: 0.15rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--cc-text-muted);
+}
+
+.student-live-banner__sessions {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.student-live-banner--roomy .student-live-banner__sessions {
+  margin-top: 0.65rem;
+}
+
+.student-live-banner__session {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.student-live-banner--roomy .student-live-banner__session {
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--cc-accent) 12%, var(--border));
+  background: color-mix(in srgb, var(--background) 55%, var(--card));
+}
+
+.student-live-banner__cta {
+  flex-shrink: 0;
+}
+
+.student-live-banner__cta--exit {
+  border-color: color-mix(in srgb, var(--cc-text) 18%, var(--border));
+  background: var(--card);
+  color: var(--cc-text);
+}
+
+@keyframes student-live-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--live-dot) 50%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 0.55rem color-mix(in srgb, var(--live-dot) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--live-dot) 0%, transparent);
+  }
+}
+
+@keyframes student-live-join-dot {
+  0% {
+    transform: scale(0.7);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--live-dot) 70%, transparent);
+  }
+  45% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0.55rem color-mix(in srgb, var(--live-dot) 0%, transparent);
+  }
+}
+
+@keyframes student-live-join-ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.65;
+  }
+  100% {
+    transform: scale(3.4);
+    opacity: 0;
+  }
+}
+
+@keyframes student-live-join-pill {
+  0% {
+    transform: scale(0.92);
+    filter: brightness(1.35);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes student-live-join-copy {
+  0% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes student-live-join-bar {
+  0% {
+    background-color: color-mix(in srgb, #ef4444 16%, var(--card));
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes student-live-join-card {
+  0% {
+    transform: scale(0.99);
+    box-shadow: 0 0 0 3px color-mix(in srgb, #ef4444 28%, transparent);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 8px 22px color-mix(in srgb, var(--cc-text) 6%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .student-live-banner__dot,
+  .student-live-banner--joining .student-live-banner__dot,
+  .student-live-banner--joining .student-live-banner__ripple,
+  .student-live-banner--joining .student-live-banner__pill,
+  .student-live-banner--joining .student-live-banner__kicker,
+  .student-live-banner--joining .student-live-banner__hint,
+  .student-live-banner--joining.student-live-banner--compact,
+  .student-live-banner--joining.student-live-banner--roomy {
+    animation: none;
+  }
+}

@@ -114,6 +114,48 @@ export function assignmentNeverExpires(row: {
   return row.due_at == null && (row.duration_hours == null || row.duration_hours === undefined)
 }
 
+export type ClassroomAssignmentOpenState = "active" | "expired" | "unscheduled"
+
+type ClassroomAssignmentOpenInput = {
+  due_at?: string | Date | null
+  duration_hours?: number | null
+  created_at?: string | Date | null
+  expires_at?: string | Date | null
+}
+
+function timestampMs(value: string | Date | null | undefined): number | null {
+  if (value == null || value === "") return null
+  const t = new Date(value).getTime()
+  return Number.isNaN(t) ? null : t
+}
+
+/** Live for students only when a due date or duration window is still open. */
+export function classroomAssignmentOpenState(
+  row: ClassroomAssignmentOpenInput,
+): ClassroomAssignmentOpenState {
+  const now = Date.now()
+  const dueMs = timestampMs(row.due_at)
+  if (dueMs != null) return dueMs > now ? "active" : "expired"
+
+  const hours = row.duration_hours == null ? null : Number(row.duration_hours)
+  if (hours != null && Number.isFinite(hours) && hours > 0) {
+    const expiresMs = timestampMs(row.expires_at)
+    if (expiresMs != null) return expiresMs > now ? "active" : "expired"
+    const createdMs = timestampMs(row.created_at)
+    if (createdMs != null) {
+      const windowEnd = createdMs + (hours + 72) * 3600_000
+      return windowEnd > now ? "active" : "expired"
+    }
+    return "expired"
+  }
+
+  return "unscheduled"
+}
+
+export function classroomAssignmentIsOpen(row: ClassroomAssignmentOpenInput): boolean {
+  return classroomAssignmentOpenState(row) === "active"
+}
+
 /** Original due date for timing boosters when an assignment was extended (submission window uses due_at). */
 export function originalDueForTimingBooster(submissionId: number | null | undefined): Date | null {
   if (submissionId == null) return null

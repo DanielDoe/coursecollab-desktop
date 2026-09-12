@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
 import { sql } from "@/lib/db"
+import { codebenchUsageContext, isInsufficientCoraCredits, jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
 
@@ -208,7 +209,7 @@ Make it educational and achievable in 15-30 minutes. Do NOT provide the solution
     try {
       const openai = new OpenAI({ apiKey: openaiApiKey })
       const { content } = await createForFeature(openai, "codebench", {
-
+        usageContext: codebenchUsageContext(studentIdNum, "QUESTION_GENERATION", "codebench-daily-challenge"),
         messages: [
           {
             role: "system",
@@ -222,6 +223,9 @@ Make it educational and achievable in 15-30 minutes. Do NOT provide the solution
       })
       challengeData = JSON.parse(content || "{}")
     } catch (fetchError) {
+      if (isInsufficientCoraCredits(fetchError)) {
+        return jsonFromCodebenchCoraError(fetchError, "Failed to generate daily challenge")
+      }
       // Check if we already have a stored challenge for today
       const storedChallenge = await sql`
         SELECT challenge_id, challenge_title, challenge_description, challenge_difficulty, challenge_xp_reward

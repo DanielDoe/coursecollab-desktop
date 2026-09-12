@@ -88,7 +88,9 @@ export function FacultyModuleSideMenu({
     const useNeutral = accent === "neutral" && !toneClass
     const useSwatch = swatch != null && !toneClass
     const className = cn(
-      "group relative isolate flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-sm whitespace-nowrap shrink-0 lg:w-full lg:shrink",
+      "group relative isolate flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-sm whitespace-nowrap shrink-0",
+      embedded && "@[720px]/faculty-split:w-full @[720px]/faculty-split:shrink",
+      "lg:w-full lg:shrink",
       "transition-[color,transform] duration-200 ease-out",
       !isActive && "hover:translate-x-0.5 hover:text-[var(--cc-text)] active:scale-[0.98]",
       toneClass ??
@@ -133,7 +135,15 @@ export function FacultyModuleSideMenu({
               !toneClass && (isActive ? fp.iconText : "text-[var(--cc-text)]"),
             )}
           />
-          <span className="min-w-0 truncate lg:whitespace-normal lg:line-clamp-2 lg:leading-snug">{item.label}</span>
+          <span
+            className={cn(
+              "min-w-0 truncate",
+              embedded && "@[720px]/faculty-split:whitespace-normal @[720px]/faculty-split:line-clamp-2 @[720px]/faculty-split:leading-snug",
+              "lg:whitespace-normal lg:line-clamp-2 lg:leading-snug",
+            )}
+          >
+            {item.label}
+          </span>
         </div>
         {item.badge !== undefined && item.badge !== null && (typeof item.badge !== "number" || item.badge > 0) ? (
           typeof item.badge === "number" ? (
@@ -208,7 +218,12 @@ export function FacultyModuleSideMenu({
         className={cn(
           embedded ? "p-0" : "p-1.5",
           mobileHorizontal
-            ? "flex flex-row gap-1 overflow-x-auto lg:flex-col lg:overflow-visible lg:space-y-0.5"
+            ? cn(
+                "flex flex-row gap-1 overflow-x-auto",
+                embedded &&
+                  "@[720px]/faculty-split:flex-col @[720px]/faculty-split:overflow-visible @[720px]/faculty-split:space-y-0.5",
+                "lg:flex-col lg:overflow-visible lg:space-y-0.5",
+              )
             : "space-y-0.5",
         )}
       >

@@ -1,90 +1,104 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { AlertTriangle, Code2, Loader2, Sparkles, Users } from "lucide-react"
-import { instructorApiFetch } from "@/lib/instructor-api-headers"
-import { AN_PANEL, AN_PANEL_INNER, AN_TITLE, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/analytics/analytics-instructor-ui"
+import { AlertTriangle, Code2, Loader2, RefreshCw, Sparkles, Users } from "lucide-react"
+import { DashboardKpiCard } from "@/components/dashboard-v2/DashboardKpiCard"
+import { Button } from "@/components/ui/button"
+import { useInstructorCodebenchStudioAnalytics } from "@/hooks/use-instructor-codebench-studio-analytics"
+import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
+import { PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
 import { cn } from "@/lib/utils"
 
-type Payload = {
-  windowDays: number
-  runs: number
-  compilesOk: number
-  compilesFail: number
-  successRate: number
-  activeStudents: number
-  submissions: number
-  avgScore: number | null
-  families: Array<{ family: string; label: string; tip: string; count: number }>
-  tools: Array<{ tool: string; count: number }>
-  students: Array<{ id: number; name: string; code: string | null; errors: number; successes: number; runs: number }>
-  teachingMove: string
-}
-
 export function FacultyCodebenchStudioAnalytics() {
-  const [data, setData] = useState<Payload | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let cancelled = false
-    const load = async () => {
-      setLoading(true)
-      try {
-        const res = await instructorApiFetch("/api/instructor/codebench/studio-analytics")
-        const payload = (await res.json()) as Payload
-        if (!cancelled) setData(payload)
-      } catch {
-        if (!cancelled) setData(null)
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const chrome = facultyEmbedChrome("codebench")
+  const { data, loading, error, reload } = useInstructorCodebenchStudioAnalytics()
 
   if (loading) {
     return (
-      <div className="flex min-h-[240px] items-center justify-center">
+      <div className="flex min-h-[240px] flex-1 items-center justify-center">
         <Loader2 className="h-7 w-7 animate-spin text-[var(--cc-accent)]" />
       </div>
     )
   }
 
-  if (!data) {
-    return (
-      <div className={cn(AN_PANEL, AN_PANEL_INNER)}>
-        <p className={AN_TITLE}>CodeBench studio</p>
-        <p className={cn("mt-2 text-sm", PORTAL_TEXT_MUTED)}>Could not load studio analytics for this course.</p>
-      </div>
-    )
-  }
+  const hasActivity = data.runs > 0 || data.activeStudents > 0 || data.families.length > 0
 
   return (
-    <div className="space-y-4">
-      <section className={cn(AN_PANEL, AN_PANEL_INNER)}>
-        <div className="mb-3 flex items-center gap-2">
-          <Code2 className="h-4 w-4 text-[var(--cc-accent)]" />
-          <h2 className={AN_TITLE}>CodeBench studio pulse</h2>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden pr-1">
+      {error ? (
+        <div className={cn(chrome.card, "flex flex-wrap items-center justify-between gap-3 p-4")}>
+          <p className="text-sm text-amber-800 dark:text-amber-200">{error}</p>
+          <Button type="button" size="sm" variant="outline" onClick={() => void reload()}>
+            <RefreshCw className="mr-1 h-3.5 w-3.5" />
+            Retry
+          </Button>
         </div>
-        <p className={cn("text-sm leading-relaxed", PORTAL_TEXT_MUTED)}>{data.teachingMove}</p>
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Kpi label="Active builders" value={data.activeStudents} icon={Users} />
-          <Kpi label="Runs" value={data.runs} icon={Code2} />
-          <Kpi label="Clean compiles" value={`${data.successRate}%`} icon={Sparkles} />
-          <Kpi label="Compiler faults" value={data.compilesFail} icon={AlertTriangle} />
+      ) : null}
+
+      <section className={cn(chrome.card, "space-y-4 p-4 sm:p-5")}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="mb-2 flex items-center gap-2">
+              <Code2 className="h-4 w-4 text-[var(--cc-accent)]" />
+              <h2 className={cn("text-base font-semibold", PORTAL_TEXT)}>CodeBench studio pulse</h2>
+            </div>
+            <p className={cn("max-w-2xl text-sm leading-relaxed", PORTAL_TEXT_MUTED)}>{data.teachingMove}</p>
+          </div>
+          <Button type="button" size="sm" variant="outline" onClick={() => void reload()}>
+            <RefreshCw className="mr-1 h-3.5 w-3.5" />
+            Refresh
+          </Button>
         </div>
-        <p className={cn("mt-3 text-xs", PORTAL_TEXT_MUTED)}>
+
+        <div className="instructor-kpi-grid instructor-kpi-grid--four gap-2.5">
+          <DashboardKpiCard
+            label="Active builders"
+            value={data.activeStudents}
+            sub={data.activeStudents === 1 ? "Student ran code" : "Students ran code"}
+            icon={Users}
+            iconBg="bg-violet-500/10 dark:bg-violet-500/15"
+            iconColor="text-violet-600 dark:text-violet-400"
+          />
+          <DashboardKpiCard
+            label="Runs"
+            value={data.runs}
+            sub={data.compilesOk > 0 ? `${data.compilesOk} clean compiles` : "Press Run to start"}
+            icon={Code2}
+            iconBg="bg-sky-500/10 dark:bg-sky-500/15"
+            iconColor="text-sky-600 dark:text-sky-400"
+          />
+          <DashboardKpiCard
+            label="Clean compiles"
+            value={`${data.successRate}%`}
+            sub={`${data.compilesOk} of ${Math.max(data.runs, 1)} runs`}
+            icon={Sparkles}
+            iconBg="bg-emerald-500/10 dark:bg-emerald-500/15"
+            iconColor="text-emerald-600 dark:text-emerald-400"
+          />
+          <DashboardKpiCard
+            label="Compiler faults"
+            value={data.compilesFail}
+            sub={data.families[0]?.label ? `Top: ${data.families[0].label}` : "No faults yet"}
+            icon={AlertTriangle}
+            iconBg="bg-amber-500/10 dark:bg-amber-500/15"
+            iconColor="text-amber-600 dark:text-amber-400"
+          />
+        </div>
+
+        <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
           Last {data.windowDays} days
           {data.submissions > 0 ? ` · ${data.submissions} graded submissions` : ""}
           {data.avgScore != null ? ` · avg score ${data.avgScore}` : ""}
         </p>
+
+        {!hasActivity ? (
+          <p className={cn("rounded-lg border border-dashed border-[var(--border)] px-3 py-2 text-xs", PORTAL_TEXT_MUTED)}>
+            No compile telemetry yet. Insights populate after students run code in CodeBench for this course.
+          </p>
+        ) : null}
       </section>
 
-      <section className={cn(AN_PANEL, AN_PANEL_INNER)}>
-        <h3 className={cn("mb-3 text-sm font-semibold", PORTAL_TEXT)}>Class fault heat map</h3>
+      <section className={cn(chrome.card, "space-y-3 p-4 sm:p-5")}>
+        <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>Class fault heat map</h3>
         {data.families.length === 0 ? (
           <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>
             No compile faults recorded yet. They appear after students press Run in CodeBench.
@@ -105,8 +119,8 @@ export function FacultyCodebenchStudioAnalytics() {
       </section>
 
       {data.tools.length > 0 ? (
-        <section className={cn(AN_PANEL, AN_PANEL_INNER)}>
-          <h3 className={cn("mb-3 text-sm font-semibold", PORTAL_TEXT)}>Cora tools the class reaches for</h3>
+        <section className={cn(chrome.card, "space-y-3 p-4 sm:p-5")}>
+          <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>Cora tools the class reaches for</h3>
           <ul className="flex flex-wrap gap-2">
             {data.tools.map((item) => (
               <li
@@ -122,8 +136,8 @@ export function FacultyCodebenchStudioAnalytics() {
       ) : null}
 
       {data.students.length > 0 ? (
-        <section className={cn(AN_PANEL, AN_PANEL_INNER)}>
-          <h3 className={cn("mb-3 text-sm font-semibold", PORTAL_TEXT)}>Students who need a compile huddle</h3>
+        <section className={cn(chrome.card, "space-y-3 p-4 sm:p-5")}>
+          <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>Students who need a compile huddle</h3>
           <ul className="space-y-1.5">
             {data.students.map((student) => (
               <li key={student.id} className="flex items-center justify-between gap-3 rounded-lg px-1 py-1.5">
@@ -145,14 +159,3 @@ export function FacultyCodebenchStudioAnalytics() {
   )
 }
 
-function Kpi({ label, value, icon: Icon }: { label: string; value: string | number; icon: typeof Code2 }) {
-  return (
-    <div className="rounded-lg border border-[var(--border)] px-3 py-2.5">
-      <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-[var(--cc-text-muted)]">
-        <Icon className="h-3 w-3" />
-        {label}
-      </div>
-      <p className="mt-1 text-xl font-semibold text-[var(--cc-text)]">{value}</p>
-    </div>
-  )
-}

@@ -11,6 +11,7 @@ import { PORTAL_CARD, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-clas
 import { cn } from "@/lib/utils"
 import { Loader2, RotateCcw, Trash2 } from "lucide-react"
 import { toast } from "@/lib/app-toast"
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 type DeletedNote = {
   id: number
@@ -26,6 +27,7 @@ type Props = {
 
 export function InstructorCourseNotesDeletedView({ onRestored }: Props) {
   const [loading, setLoading] = useState(true)
+  const { confirm } = useAppConfirm()
   const [notes, setNotes] = useState<DeletedNote[]>([])
   const [search, setSearch] = useState("")
 
@@ -82,7 +84,14 @@ export function InstructorCourseNotesDeletedView({ onRestored }: Props) {
   }
 
   const permanentDeleteNotes = async (noteIds: number[]) => {
-    if (!confirm("Permanently delete selected notes? This cannot be undone.")) return
+    const ok = await confirm({
+      title: "Permanently delete selected notes?",
+      description: "This cannot be undone.",
+      confirmLabel: "Delete permanently",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    })
+    if (!ok) return
     try {
       const res = await instructorApiFetch("/api/instructor/course-notes/deleted", {
         method: "DELETE",

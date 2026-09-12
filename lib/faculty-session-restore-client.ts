@@ -15,6 +15,7 @@ import {
   readDesktopRefreshToken,
 } from "@/lib/desktop-refresh-token"
 import { desktopSessionDurationMs, effectiveRememberMeForClient, isDesktopAppShell } from "@/lib/desktop-auth-policy"
+import { syncInstructorMembershipTierCache } from "@/lib/faculty-membership-cache"
 
 export type FacultySessionRefreshResponse = {
   refreshed?: boolean
@@ -95,6 +96,8 @@ export function applyFacultySessionRefreshPayload(data: FacultySessionRefreshRes
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event("faculty-session-ready"))
   }
+
+  void syncInstructorMembershipTierCache(instructor.id)
 
   return true
 }

@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
 import { sql } from "@/lib/db"
 import { getBaseUrl } from "@/lib/get-base-url"
+import { resolveClassroomAwardInstructorId } from "@/lib/classroom-points-award-instructor"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -38,11 +39,9 @@ export async function POST(request: NextRequest) {
     const awardedPoints = codeSubmissionPoints + evaluationPoints
     const finalPoints = Math.max(2.5, parseFloat(awardedPoints.toFixed(2))) // Minimum 2.5 points (code submission only)
 
-    // Get default instructor ID
-    const instructorResult = await sql`
-      SELECT id FROM instructors LIMIT 1
-    `
-    const instructorId = instructorResult[0]?.id || 1
+    const instructorId = await resolveClassroomAwardInstructorId({
+      studentDbId: Number(student.id),
+    })
 
     // Create practice_submissions table if it doesn't exist
     await sql`

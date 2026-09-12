@@ -14,6 +14,7 @@ import {
   facultyOfferingPrimaryLabel,
   facultyOfferingShowsAsSection,
 } from "@/lib/faculty-course-offerings-shared"
+import { syncInstructorMembershipTierCache } from "@/lib/faculty-membership-cache"
 import {
   clearRememberedFacultyAuth,
   readRememberedFacultyCourseKey,
@@ -313,6 +314,7 @@ export function enterFacultyDashboard(
   options?: { nativeApp?: boolean },
 ): void {
   saveFacultySession(session)
+  void syncInstructorMembershipTierCache(session.id)
   const path = options?.nativeApp ? appendNativeAppQuery("/faculty/dashboard") : "/faculty/dashboard"
   router.push(path)
 }
@@ -328,6 +330,7 @@ export async function completeFacultySessionAfterRestore(
   try {
     if (working.courseScopeSkipped === true) {
       saveFacultySession(working)
+      void syncInstructorMembershipTierCache(working.id)
       return working
     }
 
@@ -335,6 +338,7 @@ export async function completeFacultySessionAfterRestore(
       working.selectedCourseId != null && !facultySessionNeedsCourseCompletion(working)
     if (alreadyComplete) {
       hydrateFacultySessionStorage(working)
+      void syncInstructorMembershipTierCache(working.id)
       return working
     }
 
@@ -359,10 +363,12 @@ export async function completeFacultySessionAfterRestore(
     }
 
     saveFacultySession(working)
+    void syncInstructorMembershipTierCache(working.id)
     return working
   } catch (error) {
     console.warn("[completeFacultySessionAfterRestore]", error)
     saveFacultySession(working)
+    void syncInstructorMembershipTierCache(working.id)
     return working
   }
 }

@@ -24,6 +24,7 @@ import {
   parseCircuitSubmissionAnswer,
   parseCircuitSubmissionConfig,
 } from "@/lib/circuit-submission"
+import { resolveClassroomAwardInstructorId } from "@/lib/classroom-points-award-instructor"
 
 const sqlInstance = getSQL()
 const BASE_POINTS = CLASSROOM_BASE_POINTS
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
         AND (
           CASE
             WHEN due_at IS NOT NULL THEN due_at > NOW()
-            WHEN duration_hours IS NULL THEN true
+            WHEN duration_hours IS NULL THEN false
             ELSE (created_at + ((duration_hours + 72) * INTERVAL '1 hour')) > NOW()
           END
         )
@@ -90,6 +91,7 @@ export async function POST(request: NextRequest) {
 
     const assignment = assignmentRows[0] as {
       title: string
+      created_at?: string | Date
       submission_kind?: string
       question_config?: unknown
       deadline?: string | null
@@ -156,13 +158,17 @@ export async function POST(request: NextRequest) {
 
     const timingBooster = resolveClassroomSubmissionBooster({
       submissionId: assignmentId,
+      openedAt: assignment.created_at ?? null,
       deadline: assignment.deadline ?? null,
       submittedAt: new Date(),
     })
     await ensureClassroomPointsSchema()
     const finalPoints = clampClassroomPointsForDb(BASE_POINTS * timingBooster)
     const truncatedReason = (assignment.title || "Solution submission").slice(0, 500)
-    const instructorId = assignment.created_by ?? 1
+    const instructorId = await resolveClassroomAwardInstructorId({
+      studentDbId: Number(student.id),
+      assignmentCreatedBy: Number(assignment.created_by) || null,
+    })
 
     try {
       await sqlInstance`ALTER TABLE classroom_points ADD COLUMN IF NOT EXISTS submitted_via_codebench BOOLEAN DEFAULT false`

@@ -705,21 +705,14 @@ export function InstructorAdvancedAnalytics({
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium">Shared Cora data</CardTitle>
               <CardDescription>
-                Only students who opted in appear in monitoring and insights. Open those modules for
-                struggles, common errors, and who needs help.
+                Only students who opted in appear in Cora Insights — struggles, common errors, and who needs help.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               <Button asChild size="sm" className={cn("h-9 gap-2", facultyEmbedChrome("advanced-analytics").solid)}>
-                <Link href={`${FACULTY_DASHBOARD_BASE}/analytics/ai-monitoring`}>
+                <Link href={`${FACULTY_DASHBOARD_BASE}/analytics/cora-insights`}>
                   <Activity className="h-3.5 w-3.5" />
-                  AI Monitoring
-                </Link>
-              </Button>
-              <Button asChild size="sm" className={cn("h-9 gap-2", facultyEmbedChrome("advanced-analytics").quiet)}>
-                <Link href={`${FACULTY_DASHBOARD_BASE}/analytics/ai-insights`}>
-                  <Brain className="h-3.5 w-3.5" />
-                  AI Insights
+                  Cora Insights
                 </Link>
               </Button>
             </CardContent>

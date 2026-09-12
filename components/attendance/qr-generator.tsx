@@ -42,6 +42,7 @@ import { PORTAL_CTA, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/attendance/att
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome";
 import { cn } from "@/lib/utils";
 
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 function paintAttendanceQr(
   canvas: HTMLCanvasElement,
   payload: string,
@@ -79,6 +80,7 @@ interface QRGeneratorProps {
 
 export function QRGenerator({ instructorId, embedInDashboard }: QRGeneratorProps) {
   const { toast } = useToast();
+  const { confirm } = useAppConfirm();
   const { courseScopeVersion } = useInstructorDashboardV2();
   const instHeaders = (): Record<string, string> => ({
     ...buildInstructorApiHeaders(),
@@ -273,9 +275,13 @@ export function QRGenerator({ instructorId, embedInDashboard }: QRGeneratorProps
 
   const handleDelete = async () => {
     if (!sessionData) return;
-    const confirmDelete = window.confirm(
-      "Delete this session? This removes the QR code and attendance records tied to it."
-    );
+    const confirmDelete = await confirm({
+      title: "Delete this session?",
+      description: "This removes the QR code and attendance records tied to it.",
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    });
     if (!confirmDelete) return;
 
     try {

@@ -11,6 +11,7 @@ import { CodebenchAskCoraPanel } from "./CodebenchAskCoraPanel"
 import { cn } from "@/lib/utils"
 import { useCodebenchChrome } from "@/hooks/use-codebench-chrome"
 import { CORA_NAME, CORA_WALKTHROUGH_LABEL } from "@/lib/cora/constants"
+import type { CoraThinkingMode } from "@/lib/cora/thinking-process"
 
 interface AIResponsePanelProps {
   explanation?: string
@@ -53,6 +54,10 @@ interface AIResponsePanelProps {
   onWalkWithCora?: () => void
   onTrySampleWalkthrough?: () => void
   isExplainLoading?: boolean
+  isDebugLoading?: boolean
+  isImproveLoading?: boolean
+  isPseudocodeLoading?: boolean
+  debugThinkingMode?: CoraThinkingMode
   replayProgressKey?: string
 }
 
@@ -82,6 +87,10 @@ export function AIResponsePanel({
   onWalkWithCora,
   onTrySampleWalkthrough,
   isExplainLoading = false,
+  isDebugLoading = false,
+  isImproveLoading = false,
+  isPseudocodeLoading = false,
+  debugThinkingMode = "debug",
   replayProgressKey,
 }: AIResponsePanelProps) {
   const isLight = theme === "light"
@@ -189,6 +198,8 @@ export function AIResponsePanel({
                 onToggleReplay={() => setShowReplay(!showReplay)}
                 theme={theme}
                 hideHeader
+                awaitingResponse={isExplainLoading && !explanation}
+                thinkingMode="explain"
               />
             )}
           </div>
@@ -266,6 +277,8 @@ export function AIResponsePanel({
                 lineNumberCorrections={debugResult?.lineNumberCorrections}
                 theme={theme}
                 hideHeader
+                awaitingResponse={isDebugLoading && !debugResult?.explanation}
+                thinkingMode={debugThinkingMode}
               />
             </div>
           )
@@ -287,6 +300,8 @@ export function AIResponsePanel({
                 onMessagesChange={(messages) => onChatUpdate?.("improve", messages)}
                 theme={theme}
                 hideHeader
+                awaitingResponse={isImproveLoading && !improvedCode?.diffSummary}
+                thinkingMode="improve"
               />
             )}
             {styleIssues.length > 0 ? (
@@ -317,6 +332,8 @@ export function AIResponsePanel({
             onMessagesChange={(messages) => onChatUpdate?.("pseudocode", messages)}
             theme={theme}
             hideHeader
+            awaitingResponse={isPseudocodeLoading && !pseudocode?.pseudocode}
+            thinkingMode="pseudocode"
           />
         ) : null}
 

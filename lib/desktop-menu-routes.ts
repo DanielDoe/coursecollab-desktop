@@ -33,7 +33,7 @@ const FACULTY_ROUTES: Record<string, string> = {
   settings: "/faculty/dashboard/settings",
   help: "/faculty/dashboard",
   bug: "/faculty/dashboard",
-  codebench: "/faculty/dashboard",
+  codebench: "/faculty/dashboard/codebench",
 }
 
 const ADMIN_ROUTES: Record<string, string> = {

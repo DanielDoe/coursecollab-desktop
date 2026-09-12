@@ -1,10 +1,16 @@
-import { formatAssignmentDueLabel } from "@/lib/classroom-submission-availability"
+import {
+  classroomAssignmentIsOpen,
+  classroomAssignmentOpenState,
+  formatAssignmentDueLabel,
+} from "@/lib/classroom-submission-availability"
 
 export type ClassroomAssignmentRow = {
   id: number
   title: string
   expires_at?: string | null
   due_at?: string | null
+  duration_hours?: number | null
+  created_at?: string | null
   is_active?: boolean
   attempted?: boolean
   pending?: boolean
@@ -34,13 +40,16 @@ export type ClassroomAccessNotice = {
 }
 
 export function isClassroomAssignmentPastDue(
-  submission: { is_active?: boolean; expires_at?: string | null } | null | undefined,
+  submission: {
+    is_active?: boolean
+    expires_at?: string | null
+    due_at?: string | Date | null
+    duration_hours?: number | null
+    created_at?: string | Date | null
+  } | null | undefined,
 ): boolean {
   if (!submission) return false
-  return (
-    submission.is_active === false ||
-    Boolean(submission.expires_at && new Date(submission.expires_at) <= new Date())
-  )
+  return classroomAssignmentOpenState(submission) === "expired"
 }
 
 export function findAssignmentInSnapshot(
@@ -74,15 +83,15 @@ export function buildClassroomSubmissionsSnapshot(data: {
   const attemptedIds = new Set(allSubmissions.filter((s) => s.attempted).map((s) => s.id))
 
   const available = allSubmissions.filter((sub) => {
-    const isExpired = sub.expires_at ? new Date(sub.expires_at) < new Date() : false
+    const isOpen = classroomAssignmentIsOpen(sub)
     const isAttempted = attemptedIds.has(sub.id)
-    return !isExpired && !isAttempted
+    return isOpen && !isAttempted
   })
 
   return {
     available,
     pending: data.pendingSubmissions ?? [],
-    missing: data.missingSubmissions ?? [],
+    missing: (data.missingSubmissions ?? []).filter((sub) => classroomAssignmentIsOpen(sub)),
   }
 }
 

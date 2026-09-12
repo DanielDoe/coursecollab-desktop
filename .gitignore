@@ -27,4 +27,5 @@ desktop-last-route.json
 desktop-notification-preferences.json
 desktop-device-id.json
 CourseCollab/
-.coursecollab/
+.coursecollab/.signing-tmp/
+.signing-tmp/

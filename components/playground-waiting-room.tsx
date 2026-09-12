@@ -21,6 +21,7 @@ import {
 } from "@/lib/student-module-themes"
 import { portalOutlineButtonClass } from "@/lib/portal-module-themes"
 import { solidListThumb } from "@/lib/student-color-hunt-theme"
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 const playgroundTheme = getStudentModuleTheme("playground")
 
@@ -49,6 +50,7 @@ export function PlaygroundWaitingRoom({
   backPath = "/student/dashboard-v2/playground",
 }: PlaygroundWaitingRoomProps) {
   const router = useRouter()
+  const { confirm } = useAppConfirm()
   const searchParams = useSearchParams()
   const isPreview = searchParams.get("preview") === "1"
   const { toast } = useToast()
@@ -97,16 +99,21 @@ export function PlaygroundWaitingRoom({
     })
   }, [router, backPath, isPreview])
 
-  const leaveLobby = useCallback(() => {
-    if (!window.confirm(`${PLAYGROUND_LEAVE_LOBBY_TITLE}\n\n${PLAYGROUND_LEAVE_LOBBY_MESSAGE}`)) {
-      return
-    }
+  const leaveLobby = useCallback(async () => {
+    const ok = await confirm({
+      title: PLAYGROUND_LEAVE_LOBBY_TITLE,
+      description: PLAYGROUND_LEAVE_LOBBY_MESSAGE,
+      confirmLabel: "Leave",
+      cancelLabel: "Stay",
+      variant: "destructive",
+    })
+    if (!ok) return
     sessionStorage.removeItem("playgroundSession")
     sessionStorage.removeItem("playgroundStudent")
     sessionStorage.removeItem("playgroundFromDashboardV2")
     clearPlaygroundSessionLock()
     router.replace(backPath)
-  }, [router, backPath])
+  }, [confirm, router, backPath])
 
   const pollLobby = useCallback(async () => {
     if (!sessionData) return

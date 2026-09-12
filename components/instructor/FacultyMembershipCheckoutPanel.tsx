@@ -16,9 +16,11 @@ import {
 } from "@/lib/instructor-membership-constants"
 import { PORTAL_CTA, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
 import { cn } from "@/lib/utils"
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 function CheckoutContent() {
   const router = useRouter()
+  const { alert } = useAppConfirm()
   const searchParams = useSearchParams()
   const planId = searchParams.get("plan") as InstructorMembershipTier | null
   const cadence = (searchParams.get("cadence") === "annual" ? "annual" : "semester") as InstructorBillingCadence
@@ -67,7 +69,10 @@ function CheckoutContent() {
       throw new Error("No checkout URL returned")
     } catch (e) {
       console.error(e)
-      alert(e instanceof Error ? e.message : "Checkout failed")
+      await alert({
+        title: "Checkout failed",
+        description: e instanceof Error ? e.message : "Checkout failed",
+      })
       setLoading(false)
     }
   }

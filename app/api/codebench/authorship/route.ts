@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
+import { codebenchUsageContext, jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
 
@@ -87,7 +88,7 @@ ${code}
 Be thorough but fair. Consider that advanced students may write clean code.`
 
     const { content } = await createForFeature(openai, "codebench", {
-
+      usageContext: codebenchUsageContext(auth.studentDbId, "ANALYTICS", "codebench-authorship"),
       messages: [
         {
           role: "system",
@@ -136,15 +137,7 @@ Be thorough but fair. Consider that advanced students may write clean code.`
     }
   } catch (error) {
     console.error("Authorship API error:", error)
-    return NextResponse.json(
-      {
-        authenticity_score: 50,
-        ai_likelihood: 0.5,
-        reasoning: error instanceof Error ? error.message : "Failed to analyze code authenticity",
-        flagged_features: [],
-      },
-      { status: 500 }
-    )
+    return jsonFromCodebenchCoraError(error, "Failed to analyze code authenticity")
   }
 }
 

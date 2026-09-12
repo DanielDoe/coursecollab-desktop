@@ -481,7 +481,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Retake access: only Explorer, Trailblazer, donation, or beta can retake
-    const hasRetakeAccessCheck = await hasRetakeAccess(studentDatabaseId)
+    const hasRetakeAccessCheck = await hasRetakeAccess(
+      studentDatabaseId,
+      courseCtx?.courseId ?? null,
+    )
 
     // Rollover rows (membership apply counts drive Explorer 1× / Trailblazer 3× per assessment)
     const rolloverRows = await sql`
@@ -618,7 +621,7 @@ export async function GET(request: NextRequest) {
             const canRetake = isSingleSittingExam
               ? hasAttemptOverride && retakeCheck.canRetake && !finalAccessPendingAllowlist
               : retakeCheck.canRetake &&
-                (hasRetakeAccessCheck || hasAttemptOverride) &&
+                (!membershipAssessmentPerksAllowed || hasRetakeAccessCheck || hasAttemptOverride) &&
                 !finalAccessPendingAllowlist
 
             const sessionActive = Boolean(quiz.session_access_active)

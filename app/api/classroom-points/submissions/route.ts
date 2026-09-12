@@ -29,10 +29,11 @@ export const revalidate = 0;
 function sqlStudentSubmissionIsActive() {
   void CLASSROOM_SUBMISSION_IS_ACTIVE_SQL
   return sqlInstance`
+    AND COALESCE(cps.hidden_from_students, false) = false
     AND (
       CASE
         WHEN cps.due_at IS NOT NULL THEN cps.due_at > NOW()
-        WHEN cps.duration_hours IS NULL THEN true
+        WHEN cps.duration_hours IS NULL THEN false
         ELSE (cps.created_at + ((cps.duration_hours + 72) * INTERVAL '1 hour')) > NOW()
       END
     )
@@ -62,12 +63,17 @@ async function loadStudentClassroomPointSubmissions(opts: {
     })
   }
 
+  const enrolledSession = ctx.sessionCode?.trim() || ""
+  if (!enrolledSession) {
+    return NextResponse.json({
+      submissions: [],
+      missingSubmissions: [],
+      pendingSubmissions: [],
+    })
+  }
+
   const courseClause = sqlSubmissionCourseScope(courseId)
-  const requestedSession = opts.session?.trim() || ""
-  const effectiveSession = requestedSession || ctx.sessionCode?.trim() || ""
-  const sessionClause = effectiveSession
-    ? sqlSubmissionSessionFilter(effectiveSession, courseId)
-    : sqlInstance``
+  const sessionClause = sqlSubmissionSessionFilter(enrolledSession)
   const activeClause = sqlStudentSubmissionIsActive()
 
   const submissions = await sqlInstance`
@@ -89,7 +95,7 @@ async function loadStudentClassroomPointSubmissions(opts: {
       END as expires_at,
       CASE
         WHEN cps.due_at IS NOT NULL THEN cps.due_at > NOW()
-        WHEN cps.duration_hours IS NULL THEN true
+        WHEN cps.duration_hours IS NULL THEN false
         WHEN (cps.created_at + ((cps.duration_hours + 72) * INTERVAL '1 hour')) > NOW() THEN true
         ELSE false
       END as is_active
@@ -223,10 +229,13 @@ export async function GET(request: NextRequest) {
       const scoped = await resolveOptionalCourseScope(request);
       if (!scoped.ok) return scoped.response;
       const courseId = scoped.courseId;
-      const courseClause = courseId != null ? sqlSubmissionCourseScope(courseId) : sqlInstance``;
+      if (courseId == null) {
+        return NextResponse.json({ submissions: [] });
+      }
+      const courseClause = sqlSubmissionCourseScope(courseId);
       const sessionClause =
         session != null && session !== ""
-          ? sqlSubmissionSessionFilter(session, courseId)
+          ? sqlSubmissionSessionFilter(session)
           : sqlInstance``;
 
       submissions = await sqlInstance`
@@ -248,7 +257,7 @@ export async function GET(request: NextRequest) {
           END as expires_at,
           CASE 
             WHEN cps.due_at IS NOT NULL THEN cps.due_at > NOW()
-            WHEN cps.duration_hours IS NULL THEN true
+            WHEN cps.duration_hours IS NULL THEN false
             WHEN (cps.created_at + ((cps.duration_hours + 72) * INTERVAL '1 hour')) > NOW() THEN true
             ELSE false
           END as is_active
@@ -294,7 +303,7 @@ export async function GET(request: NextRequest) {
           END as expires_at,
           CASE 
             WHEN due_at IS NOT NULL THEN due_at > NOW()
-            WHEN duration_hours IS NULL THEN true
+            WHEN duration_hours IS NULL THEN false
             WHEN (created_at + ((duration_hours + 72) * INTERVAL '1 hour')) > NOW() THEN true
             ELSE false
           END as is_active
@@ -302,11 +311,11 @@ export async function GET(request: NextRequest) {
         WHERE (
           CASE
             WHEN due_at IS NOT NULL THEN due_at > NOW()
-            WHEN duration_hours IS NULL THEN true
+            WHEN duration_hours IS NULL THEN false
             ELSE (created_at + ((duration_hours + 72) * INTERVAL '1 hour')) > NOW()
           END
         )
-          AND (session = ${session} OR session IS NULL)
+          AND TRIM(session) = TRIM(${session})
         ORDER BY created_at DESC
       `;
     } else {
@@ -329,7 +338,7 @@ export async function GET(request: NextRequest) {
           END as expires_at,
           CASE 
             WHEN due_at IS NOT NULL THEN due_at > NOW()
-            WHEN duration_hours IS NULL THEN true
+            WHEN duration_hours IS NULL THEN false
             WHEN (created_at + ((duration_hours + 72) * INTERVAL '1 hour')) > NOW() THEN true
             ELSE false
           END as is_active
@@ -337,7 +346,7 @@ export async function GET(request: NextRequest) {
         WHERE (
           CASE
             WHEN due_at IS NOT NULL THEN due_at > NOW()
-            WHEN duration_hours IS NULL THEN true
+            WHEN duration_hours IS NULL THEN false
             ELSE (created_at + ((duration_hours + 72) * INTERVAL '1 hour')) > NOW()
           END
         )
@@ -368,7 +377,7 @@ export async function GET(request: NextRequest) {
       );
 
       const sessionFilter = session
-        ? sqlInstance`AND (session = ${session} OR session IS NULL)`
+        ? sqlInstance`AND TRIM(session) = TRIM(${session})`
         : sqlInstance``;
 
       const allAssignments = await sqlInstance`
@@ -390,12 +399,19 @@ export async function GET(request: NextRequest) {
           END as expires_at,
           CASE
             WHEN due_at IS NOT NULL THEN due_at > NOW()
-            WHEN duration_hours IS NULL THEN true
+            WHEN duration_hours IS NULL THEN false
             WHEN (created_at + ((duration_hours + 72) * INTERVAL '1 hour')) > NOW() THEN true
             ELSE false
           END as is_active
         FROM classroom_point_submissions
-        WHERE 1 = 1
+        WHERE COALESCE(hidden_from_students, false) = false
+          AND (
+            CASE
+              WHEN due_at IS NOT NULL THEN due_at > NOW()
+              WHEN duration_hours IS NULL THEN false
+              ELSE (created_at + ((duration_hours + 72) * INTERVAL '1 hour')) > NOW()
+            END
+          )
           ${sessionFilter}
         ORDER BY created_at DESC
       `;

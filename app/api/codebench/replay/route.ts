@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
 import { studioPromptBlock } from "@/lib/codebench-studio-analytics"
 import { enrichReplaySteps, parseReplayStepsFromApi } from "@/lib/codebench-replay"
+import { codebenchUsageContext, jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
 
@@ -57,6 +58,7 @@ ${learningMode === "beginner"
 Simulate REAL execution order. Minimum 8 steps for non-trivial programs. JSON only.${studioPromptBlock(studioContext)}`
 
     const { content } = await createForFeature(openai, "codebench", {
+      usageContext: codebenchUsageContext(auth.studentDbId, "STEP_BY_STEP", "codebench-replay"),
       messages: [
         { role: "system", content: systemPrompt },
         {
@@ -78,9 +80,6 @@ Simulate REAL execution order. Minimum 8 steps for non-trivial programs. JSON on
     return NextResponse.json({ steps })
   } catch (error) {
     console.error("Replay API error:", error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to generate replay" },
-      { status: 500 },
-    )
+    return jsonFromCodebenchCoraError(error, "Failed to generate replay")
   }
 }

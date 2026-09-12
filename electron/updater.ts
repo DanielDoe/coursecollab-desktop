@@ -1,4 +1,4 @@
-import { Notification, app, ipcMain, BrowserWindow } from 'electron'
+import { Notification, app, ipcMain, BrowserWindow, shell } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { setAppQuitting } from './app-state'
 
@@ -23,9 +23,16 @@ export type DesktopUpdateStatus = {
   message?: string
 }
 
-const GITHUB_OWNER = 'DanielDoe'
-const GITHUB_REPO = 'coursecollab-desktop'
 const STARTUP_CHECK_DELAY_MS = 8_000
+const INSTALL_EXIT_FALLBACK_MS = 2_500
+
+/** Public Blob feed — works even when the GitHub repo is private. */
+const DEFAULT_GENERIC_UPDATE_FEED_URL =
+  'https://bzxrpdwd2b7njknk.public.blob.vercel-storage.com/public/downloads/desktop/updates'
+
+const MANUAL_DOWNLOAD_URL =
+  process.env.DESKTOP_DOWNLOAD_PAGE_URL?.trim() ||
+  'https://github.com/DanielDoe/coursecollab-desktop/releases/latest'
 
 let status: DesktopUpdateStatus = {
   state: 'idle',
@@ -34,6 +41,8 @@ let status: DesktopUpdateStatus = {
 }
 let lastCheckUserInitiated = false
 let statusListener: (() => void) | null = null
+let installInFlight = false
+const updateWaiters = new Set<() => void>()
 
 function broadcastStatus(): void {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -41,6 +50,7 @@ function broadcastStatus(): void {
     window.webContents.send(UPDATE_STATUS_CHANNEL, status)
   }
   statusListener?.()
+  for (const waiter of updateWaiters) waiter()
 }
 
 export function onDesktopUpdateStatusChange(listener: (() => void) | null): void {
@@ -58,7 +68,9 @@ function setStatus(patch: Partial<DesktopUpdateStatus>): DesktopUpdateStatus {
   return status
 }
 
-function releaseNotesText(notes: string | Array<{ note: string | null }> | null | undefined): string | undefined {
+function releaseNotesText(
+  notes: string | Array<{ note: string | null }> | null | undefined,
+): string | undefined {
   if (typeof notes === 'string' && notes.trim()) return notes.trim()
   if (!Array.isArray(notes)) return undefined
   const joined = notes
@@ -69,17 +81,8 @@ function releaseNotesText(notes: string | Array<{ note: string | null }> | null 
 }
 
 function configureFeed(): void {
-  const genericUrl = process.env.DESKTOP_UPDATE_FEED_URL?.trim()
-  if (genericUrl) {
-    autoUpdater.setFeedURL({ provider: 'generic', url: genericUrl.replace(/\/+$/, '') })
-    return
-  }
-
-  autoUpdater.setFeedURL({
-    provider: 'github',
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
-  })
+  const genericUrl = process.env.DESKTOP_UPDATE_FEED_URL?.trim() || DEFAULT_GENERIC_UPDATE_FEED_URL
+  autoUpdater.setFeedURL({ provider: 'generic', url: genericUrl.replace(/\/+$/, '') })
 }
 
 function notifyUpdateAvailable(version: string): void {
@@ -95,33 +98,57 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error ?? '')
 }
 
-/** No GitHub Releases yet (or a private repo without a token) — not a user-facing failure. */
-function isMissingReleaseFeed(error: unknown): boolean {
-  const text = errorText(error)
-  if (!/\b404\b/.test(text)) return false
-  return /releases\.atom|github\.com|authentication token/i.test(text)
+function isInstallSignatureError(text: string): boolean {
+  return /code signature|codesign|TeamIdentifier|not signed|signature.*invalid|EXDEV|Cannot update while running on a read-only volume|Squirrel/i.test(
+    text,
+  )
 }
 
-function friendlyUpdateError(error: unknown): string {
-  if (isMissingReleaseFeed(error)) {
-    return `You're on the latest version (${status.currentVersion}).`
+function friendlyUpdateError(
+  error: unknown,
+  context: 'check' | 'download' | 'install' = 'check',
+): string {
+  const text = errorText(error)
+  if (/\b404\b/.test(text) || /ENOTFOUND|ECONNREFUSED|net::/i.test(text)) {
+    return 'Could not reach the update server. Check your connection and try again.'
+  }
+  if (context === 'install' || isInstallSignatureError(text)) {
+    return 'Automatic install failed. Download the latest installer from GitHub Releases and replace the app in Applications.'
+  }
+  if (context === 'download') {
+    return 'Could not download the update. Try again, or install manually from GitHub Releases.'
   }
   return 'Could not check for updates. Try again later.'
 }
 
-function applyUpdateFailure(error: unknown): DesktopUpdateStatus {
-  if (isMissingReleaseFeed(error)) {
-    return setStatus({
-      state: 'not-available',
-      message: friendlyUpdateError(error),
-      version: undefined,
-      percent: undefined,
-    })
-  }
+function applyUpdateFailure(
+  error: unknown,
+  context: 'check' | 'download' | 'install' = 'check',
+): DesktopUpdateStatus {
+  installInFlight = false
   return setStatus({
     state: 'error',
-    message: friendlyUpdateError(error),
+    message: friendlyUpdateError(error, context),
+    // Keep version so the UI can offer manual download after a failed install.
+    version: status.version,
   })
+}
+
+function teardownBeforeInstall(): void {
+  try {
+    // Lazy require avoids a circular import with tray.ts (tray imports updater).
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const tray = require('./tray') as typeof import('./tray')
+    tray.destroyDesktopTray()
+  } catch {
+    // ignore
+  }
+
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (window.isDestroyed()) continue
+    // Prevent "minimize to tray" from canceling quitAndInstall.
+    window.removeAllListeners('close')
+  }
 }
 
 async function checkForUpdates(userInitiated: boolean): Promise<DesktopUpdateStatus> {
@@ -132,7 +159,7 @@ async function checkForUpdates(userInitiated: boolean): Promise<DesktopUpdateSta
     })
   }
 
-  if (status.state === 'checking' || status.state === 'downloading') {
+  if (status.state === 'checking' || status.state === 'downloading' || installInFlight) {
     return status
   }
 
@@ -143,8 +170,30 @@ async function checkForUpdates(userInitiated: boolean): Promise<DesktopUpdateSta
     await autoUpdater.checkForUpdates()
     return status
   } catch (error) {
-    return applyUpdateFailure(error)
+    return applyUpdateFailure(error, 'check')
   }
+}
+
+function waitForUpdateState(
+  states: DesktopUpdateState[],
+  timeoutMs: number,
+): Promise<DesktopUpdateStatus> {
+  if (states.includes(status.state)) return Promise.resolve(status)
+
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      updateWaiters.delete(onChange)
+      resolve(status)
+    }
+    const onChange = () => {
+      if (states.includes(status.state)) finish()
+    }
+    updateWaiters.add(onChange)
+    setTimeout(finish, timeoutMs)
+  })
 }
 
 async function downloadUpdate(): Promise<DesktopUpdateStatus> {
@@ -156,15 +205,17 @@ async function downloadUpdate(): Promise<DesktopUpdateStatus> {
   }
 
   if (status.state === 'ready') return status
-  if (status.state === 'downloading') return status
+  if (status.state === 'downloading' || installInFlight) return status
 
   setStatus({ state: 'downloading', percent: status.percent ?? 0, message: undefined })
 
   try {
     await autoUpdater.downloadUpdate()
-    return status
+    // macOS needs Squirrel.Mac to finish fetching through the local proxy before state is "ready".
+    const settled = await waitForUpdateState(['ready', 'error'], 120_000)
+    return settled
   } catch (error) {
-    return applyUpdateFailure(error)
+    return applyUpdateFailure(error, 'download')
   }
 }
 
@@ -173,12 +224,52 @@ function installUpdate(): DesktopUpdateStatus {
     return setStatus({
       state: 'error',
       message: 'No downloaded update is ready to install yet.',
+      version: status.version,
     })
   }
 
+  if (installInFlight) return status
+
+  installInFlight = true
+  setStatus({
+    state: 'ready',
+    message: 'Restarting to install the update…',
+    version: status.version,
+    percent: 100,
+  })
   setAppQuitting(true)
-  autoUpdater.quitAndInstall(false, true)
+  teardownBeforeInstall()
+
+  setImmediate(() => {
+    try {
+      autoUpdater.quitAndInstall(false, true)
+    } catch (error) {
+      applyUpdateFailure(error, 'install')
+      return
+    }
+
+    // macOS + tray apps can keep the process alive after quitAndInstall.
+    // autoInstallOnAppQuit is enabled, so a hard exit still applies the update.
+    setTimeout(() => {
+      if (!installInFlight) return
+      try {
+        app.exit(0)
+      } catch {
+        process.exit(0)
+      }
+    }, INSTALL_EXIT_FALLBACK_MS)
+  })
+
   return status
+}
+
+async function openManualDownloadPage(): Promise<{ ok: boolean }> {
+  try {
+    await shell.openExternal(MANUAL_DOWNLOAD_URL)
+    return { ok: true }
+  } catch {
+    return { ok: false }
+  }
 }
 
 export function getUpdateStatus(): DesktopUpdateStatus {
@@ -208,6 +299,7 @@ export function registerUpdater(): void {
   ipcMain.handle('update:check', () => checkForUpdates(true))
   ipcMain.handle('update:download', () => downloadUpdate())
   ipcMain.handle('update:install', () => installUpdate())
+  ipcMain.handle('update:open-download-page', () => openManualDownloadPage())
 
   if (!app.isPackaged) return
 
@@ -217,10 +309,17 @@ export function registerUpdater(): void {
   autoUpdater.allowDowngrade = false
 
   autoUpdater.on('checking-for-update', () => {
+    if (installInFlight) return
+    // Never wipe a downloaded update or an in-flight download with a fresh "checking" state.
+    if (status.state === 'ready' || status.state === 'downloading') return
     setStatus({ state: 'checking', message: undefined })
   })
 
   autoUpdater.on('update-available', (info) => {
+    if (installInFlight) return
+    // Keep Install ready if this version is already downloaded.
+    if (status.state === 'ready' && status.version === info.version) return
+    if (status.state === 'downloading' && status.version === info.version) return
     const alreadyKnown = status.state === 'available' && status.version === info.version
     setStatus({
       state: 'available',
@@ -232,6 +331,7 @@ export function registerUpdater(): void {
   })
 
   autoUpdater.on('update-not-available', (info) => {
+    if (installInFlight) return
     setStatus({
       state: 'not-available',
       version: info.version,
@@ -240,6 +340,7 @@ export function registerUpdater(): void {
   })
 
   autoUpdater.on('download-progress', (progress) => {
+    if (installInFlight) return
     setStatus({
       state: 'downloading',
       percent: Math.max(0, Math.min(100, Math.round(progress.percent))),
@@ -248,6 +349,7 @@ export function registerUpdater(): void {
   })
 
   autoUpdater.on('update-downloaded', (info) => {
+    installInFlight = false
     setStatus({
       state: 'ready',
       version: info.version,
@@ -258,7 +360,13 @@ export function registerUpdater(): void {
   })
 
   autoUpdater.on('error', (error) => {
-    applyUpdateFailure(error)
+    const context =
+      installInFlight || status.state === 'ready'
+        ? 'install'
+        : status.state === 'downloading'
+          ? 'download'
+          : 'check'
+    applyUpdateFailure(error, context)
   })
 
   setTimeout(() => {

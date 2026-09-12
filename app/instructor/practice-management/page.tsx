@@ -77,6 +77,7 @@ import {
 } from "@/components/instructor/InstructorPracticeHubPoliciesPanel"
 import { ProjectListPaginationBar } from "@/components/project-list-pagination-bar"
 import type { ProjectListPageSize } from "@/lib/pagination-ui"
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 type MenuTab = "topics" | "students" | "analytics" | "activity"
 
@@ -200,6 +201,7 @@ export default function InstructorPracticeManagementPage({ embedInDashboard }: {
   const fp = chrome.p
   const cardBase = chrome.card
   const router = useRouter()
+  const { confirm } = useAppConfirm()
   const { toast } = useToast()
   const [instructorId, setInstructorId] = useState<string | null>(null)
   const [topics, setTopics] = useState<Topic[]>([])
@@ -522,9 +524,14 @@ export default function InstructorPracticeManagementPage({ embedInDashboard }: {
   }
 
   const removeTopicFromSession = async (topicName: string) => {
-    if (!confirm(`Are you sure you want to remove "${topicName}" from session "${selectedSession}"? This will make it unavailable for students.`)) {
-      return
-    }
+    const ok = await confirm({
+      title: `Remove "${topicName}"?`,
+      description: `This removes it from session "${selectedSession}" and makes it unavailable for students.`,
+      confirmLabel: "Remove",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    })
+    if (!ok) return
 
     try {
       const response = await instructorApiFetch(

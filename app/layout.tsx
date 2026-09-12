@@ -19,6 +19,7 @@ import { SystemErrorCapture } from "@/components/system-error-capture"
 import { SystemErrorBoundary } from "@/components/system-error-boundary"
 import { NativeWebBridgeListener } from "@/components/native-web-bridge-listener"
 import { UserTimezoneProvider } from "@/components/providers/user-timezone-provider"
+import { AppConfirmProvider } from "@/components/providers/app-confirm-provider"
 import { AppQueryProvider } from "@/components/providers/app-query-provider"
 import {
   DEFAULT_USER_TIMEZONE,
@@ -180,6 +181,7 @@ export default async function RootLayout({
         <SessionExpiryGuard />
         <MonacoErrorHandlerProvider />
         <ThemeProvider>
+          <AppConfirmProvider>
           <AppQueryProvider>
             <UserTimezoneProvider initialTimezone={initialTimezone}>
             <NotificationProvider>
@@ -192,6 +194,7 @@ export default async function RootLayout({
             </NotificationProvider>
             </UserTimezoneProvider>
           </AppQueryProvider>
+          </AppConfirmProvider>
         </ThemeProvider>
         <Toaster />
         <SonnerToaster />

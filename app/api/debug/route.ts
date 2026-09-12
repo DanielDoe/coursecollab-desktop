@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
 import { studioPromptBlock } from "@/lib/codebench-studio-analytics"
+import { jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
 
@@ -11,6 +12,48 @@ const openai = isOpenAIConfigured ? new OpenAI({
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 30
+
+const SUGGEST_FIX_SYSTEM = (language: string, studioContext: unknown) => `You fix ${language} compiler errors from build output. The user clicked Suggest fix — they want the error fixed, not a lesson.
+
+Rules:
+- No teaching, conceptual explanations, or guiding questions
+- No full corrected program — only the minimal line-level fix if needed
+- Use the first compiler diagnostic
+
+JSON only:
+{
+  "errors": ["Line N: brief error"],
+  "fixes": ["exact edit in plain English"],
+  "correctedCode": "corrected line(s) only, not the whole file",
+  "explanation": "Under 40 words. Two lines: **Line N:** what's wrong (≤8 words). **Fix:** exact edit. No teaching.",
+  "errorDetails": [
+    { "lineNumber": <1-based>, "lineContent": "<exact source line>", "description": "<≤8 words>" }
+  ]
+}
+
+Line numbers are 1-based. Match lineContent exactly from the source.${studioPromptBlock(studioContext)}`
+
+const DEBUG_TUTOR_SYSTEM = (language: string, studioContext: unknown) => `You are an expert ${language} debugging tutor. Help students FIND and UNDERSTAND bugs, then GUIDE them to fix errors themselves. DO NOT write complete fixed code.
+
+CRITICAL RULES:
+- NEVER write complete corrected code implementations
+- Point out errors with line numbers
+- Provide GUIDANCE and HINTS, not complete solutions
+- Give a step-by-step debugging approach
+
+Format your response as JSON with this structure:
+{
+  "errors": ["error1 description", "error2 description", ...],
+  "fixes": ["hint/guidance for fix1", "hint/guidance for fix2", ...],
+  "correctedCode": "small snippets showing each fix only, not the entire program",
+  "explanation": "Markdown under 100 words. List errors and hints. No walls of text.",
+  "errorDetails": [
+    { "lineNumber": <1-based line number>, "lineContent": "<exact line of code>", "description": "<brief error description>" },
+    ...
+  ]
+}
+
+Line numbers are 1-based.${studioPromptBlock(studioContext)}`
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,56 +79,32 @@ export async function POST(request: NextRequest) {
       actor: { userId: auth.studentDbId, userRole: "student" as const },
       feature: "CODE_DEBUG" as const,
       module: "codebench-debug",
+      billable: true as const,
     }
+
+    const hasCompilerOutput = Boolean(String(compilerOutput || "").trim())
 
     const { content: completionContent } = await createForFeature(openai, "codebench", {
       usageContext,
       messages: [
         {
           role: "system",
-          content: `You are an expert ${language} debugging tutor. Help students FIND and UNDERSTAND bugs, then GUIDE them to fix errors themselves. DO NOT write complete fixed code.
-
-CRITICAL RULES:
-- NEVER write complete corrected code implementations
-- Point out errors with visual indicators (line numbers, arrows)
-- Explain WHY errors occur with simple diagrams
-- Provide GUIDANCE and HINTS, not complete solutions
-- Ask guiding questions: "What do you think might be wrong here?"
-- Give step-by-step debugging approach
-- If asked for complete solution: "I can guide you, but try fixing it yourself first!"
-
-Format your response as JSON with this structure:
-{
-  "errors": ["error1 description", "error2 description", ...],
-  "fixes": ["hint/guidance for fix1", "hint/guidance for fix2", ...],
-  "correctedCode": "DO NOT provide complete code - provide only small code snippets showing the FIX for each error, not the entire program",
-  "explanation": "detailed explanation of bugs with visual guides, WHY they occur, and step-by-step guidance on how to fix them. Use markdown with ❌ for errors, ⚠️ for warnings, and visual flow diagrams.",
-  "errorDetails": [
-    { "lineNumber": <1-based line number>, "lineContent": "<exact line of code as it appears in the source>", "description": "<brief error description>" },
-    ...
-  ]
-}
-
-CRITICAL for line numbers:
-- Line numbers are 1-based: first line of code is line 1, not line 0.
-- Count ALL lines including empty lines and comments.
-- "lineContent" must be the EXACT line of code at that line number (copy it character-for-character from the source).
-- Double-check: count lines from the top of the code block to verify each lineNumber.
-
-Focus on teaching debugging skills, not fixing code for them.${studioPromptBlock(studioContext)}`,
+          content: hasCompilerOutput
+            ? SUGGEST_FIX_SYSTEM(language, studioContext)
+            : DEBUG_TUTOR_SYSTEM(language, studioContext),
         },
         {
           role: "user",
-          content: [
-            compilerOutput
-              ? `The student pressed Run. Compiler / runtime output:\n\`\`\`\n${String(compilerOutput).slice(0, 2500)}\n\`\`\`\nStart from the first diagnostic. Explain what went wrong and how they can fix it themselves.\n\n`
-              : "",
-            `Please debug this ${language} code:\n\n\`\`\`${language}\n${code}\n\`\`\``,
-          ].join(""),
+          content: hasCompilerOutput
+            ? [
+                `Compiler output:\n\`\`\`\n${String(compilerOutput).slice(0, 2500)}\n\`\`\``,
+                `Fix the first error only.\n\n\`\`\`${language}\n${code}\n\`\`\``,
+              ].join("\n\n")
+            : `Please debug this ${language} code:\n\n\`\`\`${language}\n${code}\n\`\`\``,
         },
       ],
-      temperature: 0.3,
-      max_tokens: 2000,
+      temperature: 0.2,
+      max_tokens: hasCompilerOutput ? 400 : 2000,
       response_format: { type: "json_object" },
     })
 
@@ -164,10 +183,6 @@ Focus on teaching debugging skills, not fixing code for them.${studioPromptBlock
     })
   } catch (error) {
     console.error("[Debug API] Error:", error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to debug code" },
-      { status: 500 }
-    )
+    return jsonFromCodebenchCoraError(error, "Failed to debug code")
   }
 }
-

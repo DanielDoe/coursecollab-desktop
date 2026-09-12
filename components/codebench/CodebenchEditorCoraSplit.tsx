@@ -21,11 +21,18 @@ const PANEL_CORA = "cora"
 const CORA_RAIL_PX = "28px"
 const CORA_EXPANDED_MIN_PX = 96
 
+export type CodebenchCoraPanelControl = {
+  collapsed: boolean
+  toggleCollapse: () => void
+  expand: () => void
+}
+
 type SplitProps = {
   editor: ReactNode
   cora: ReactNode
   className?: string
   onPanelResize?: () => void
+  onCoraPanelControl?: (control: CodebenchCoraPanelControl) => void
 }
 
 function clearInvalidEmbedSplitStorage() {
@@ -41,7 +48,7 @@ function clearInvalidEmbedSplitStorage() {
   }
 }
 
-function CodebenchEmbeddedSplit({ editor, cora, className, onPanelResize }: SplitProps) {
+function CodebenchEmbeddedSplit({ editor, cora, className, onPanelResize, onCoraPanelControl }: SplitProps) {
   const frameRef = useRef<number | null>(null)
   const resizeSyncLockRef = useRef(false)
   const coraPanelRef = usePanelRef()
@@ -90,6 +97,26 @@ function CodebenchEmbeddedSplit({ editor, cora, className, onPanelResize }: Spli
       return next
     })
   }, [applyCoraPanelLayout])
+
+  const expandCoraPanel = useCallback(() => {
+    setCoraCollapsed((collapsed) => {
+      if (!collapsed) return collapsed
+      if (!applyCoraPanelLayout(false)) {
+        requestAnimationFrame(() => {
+          applyCoraPanelLayout(false)
+        })
+      }
+      return false
+    })
+  }, [applyCoraPanelLayout])
+
+  useEffect(() => {
+    onCoraPanelControl?.({
+      collapsed: coraCollapsed,
+      toggleCollapse: toggleCoraCollapse,
+      expand: expandCoraPanel,
+    })
+  }, [coraCollapsed, expandCoraPanel, onCoraPanelControl, toggleCoraCollapse])
 
   const handleCoraPanelResize = useCallback(
     (panelSize: { inPixels: number }) => {
@@ -181,10 +208,23 @@ type Props = SplitProps & {
   embedded?: boolean
 }
 
-export function CodebenchEditorCoraSplit({ embedded, editor, cora, className, onPanelResize }: Props) {
+export function CodebenchEditorCoraSplit({
+  embedded,
+  editor,
+  cora,
+  className,
+  onPanelResize,
+  onCoraPanelControl,
+}: Props) {
   if (embedded) {
     return (
-      <CodebenchEmbeddedSplit editor={editor} cora={cora} className={className} onPanelResize={onPanelResize} />
+      <CodebenchEmbeddedSplit
+        editor={editor}
+        cora={cora}
+        className={className}
+        onPanelResize={onPanelResize}
+        onCoraPanelControl={onCoraPanelControl}
+      />
     )
   }
 

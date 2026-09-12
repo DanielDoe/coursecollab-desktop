@@ -1,15 +1,20 @@
 import { sql } from "@/lib/db"
 import { ensureCoraWorkspaceThreadsSchema } from "@/lib/cora/workspace-conversations.server"
 import { ensureCoraAiAccountingSchema } from "@/lib/cora/ai/schema"
+import { studentInInstructorSessionScopeSql } from "@/lib/instructor-session-scope"
+import { coraFeatureLabel } from "@/lib/cora/platform-usage-catalog"
 
 export type CoraInsightTurn = {
   studentId: number
   studentName: string
   studentCode: string
+  section: string | null
   createdAt: Date
   message: string
+  response: string | null
   topic: string
   module: string
+  source: "tutor" | "workspace" | "usage"
 }
 
 const JUNK_TOPICS = new Set([
@@ -92,6 +97,14 @@ function cleanChapterTopic(raw: string) {
 }
 
 export function inferCoraTopic(text: string, storedTopic?: string | null): string {
+  const stored = String(storedTopic ?? "").trim()
+  if (/^codebench/i.test(stored)) {
+    if (/debug/i.test(stored)) return "Code debugging"
+    if (/error/i.test(stored)) return "Code error spotting"
+    if (/learning-plan|study/i.test(stored)) return "Study plan"
+    if (/analyze/i.test(stored)) return "Code analysis"
+    return "CodeBench"
+  }
   const blob = String(text ?? "")
   const explicit = blob.match(/topic:\s*([^\n]+)/i)
   if (explicit?.[1]) {
@@ -135,6 +148,8 @@ function turnKey(turn: Pick<CoraInsightTurn, "studentId" | "message" | "createdA
 export async function loadCoraInsightTurns(input: {
   instructorId: number
   courseId?: number
+  sessionId?: number | null
+  academicTermId?: number | null
 }): Promise<CoraInsightTurn[]> {
   await Promise.all([
     ensureCoraWorkspaceThreadsSchema().catch(() => undefined),
@@ -143,41 +158,67 @@ export async function loadCoraInsightTurns(input: {
 
   const courseId = input.courseId && Number.isFinite(input.courseId) ? input.courseId : 0
   const instructorId = input.instructorId
+  const offeringAnd = courseId
+    ? sql.unsafe(
+        `AND ${studentInInstructorSessionScopeSql({
+          courseId,
+          sessionId: input.sessionId,
+          academicTermId: input.sessionId != null ? null : input.academicTermId,
+          studentAlias: "s",
+        })}`,
+      )
+    : sql.unsafe("")
 
   const legacy = courseId
     ? await sql`
-        SELECT aic.student_id, aic.message, aic.topic, aic.created_at,
-               s.full_name, s.student_id AS student_code
+        SELECT aic.student_id, aic.message, aic.response, aic.topic, aic.created_at,
+               s.full_name, s.student_id AS student_code, s.section
         FROM ai_tutor_conversations aic
         JOIN students s ON s.id = aic.student_id
-        JOIN sessions sess ON sess.id = s.session_id
-        WHERE sess.course_id = ${courseId}
+        WHERE (s.deleted_at IS NULL)
+          ${offeringAnd}
         ORDER BY aic.created_at DESC
-        LIMIT 400
+        LIMIT 800
       `.catch(() => [])
     : await sql`
-        SELECT aic.student_id, aic.message, aic.topic, aic.created_at,
-               s.full_name, s.student_id AS student_code
+        SELECT aic.student_id, aic.message, aic.response, aic.topic, aic.created_at,
+               s.full_name, s.student_id AS student_code, s.section
         FROM ai_tutor_conversations aic
         JOIN students s ON s.id = aic.student_id
         JOIN sessions sess ON sess.id = s.session_id
         JOIN courses c ON c.id = sess.course_id
         WHERE c.instructor_id = ${instructorId}
+          AND (s.deleted_at IS NULL)
         ORDER BY aic.created_at DESC
-        LIMIT 400
+        LIMIT 800
       `.catch(() => [])
 
   const workspace = courseId
     ? await sql`
         SELECT t.student_id, t.title, t.messages, t.updated_at,
-               s.full_name, s.student_id AS student_code
+               s.full_name, s.student_id AS student_code, s.section
         FROM cora_workspace_threads t
         JOIN students s ON s.id = t.student_id
-        JOIN sessions sess ON sess.id = s.session_id
-        WHERE sess.course_id = ${courseId}
-          AND t.archived_at IS NULL
+        WHERE t.archived_at IS NULL
+          AND (s.deleted_at IS NULL)
+          ${offeringAnd}
         ORDER BY t.updated_at DESC
-        LIMIT 80
+        LIMIT 150
+      `.catch(() => [])
+    : []
+
+  const usage = courseId
+    ? await sql`
+        SELECT e.user_id AS student_id, e.feature, e.module, e.operation, e.created_at,
+               s.full_name, s.student_id AS student_code, s.section
+        FROM cora_usage_events e
+        JOIN students s ON s.id = e.user_id
+        WHERE e.user_role = 'student'
+          AND (s.deleted_at IS NULL)
+          ${offeringAnd}
+          AND e.created_at >= NOW() - INTERVAL '30 days'
+        ORDER BY e.created_at DESC
+        LIMIT 400
       `.catch(() => [])
     : []
 
@@ -198,10 +239,13 @@ export async function loadCoraInsightTurns(input: {
       studentId: Number(row.student_id),
       studentName: String(row.full_name ?? "Student"),
       studentCode: String(row.student_code ?? ""),
+      section: row.section != null ? String(row.section) : null,
       createdAt,
       message,
+      response: row.response != null ? String(row.response) : null,
       topic: inferCoraTopic(message, row.topic as string | null),
       module: inferCoraModule(message),
+      source: "tutor",
     })
   }
 
@@ -212,16 +256,47 @@ export async function loadCoraInsightTurns(input: {
     for (const msg of fallback) {
       const message = String(msg.content || row.title || "")
       const createdAt = new Date(String(msg.timestamp || row.updated_at))
+      const msgIndex = messages.indexOf(msg)
+      const nextAssistant = messages.slice(msgIndex + 1).find((m) => m.role === "assistant" || m.role === "cora" || m.role === "ai")
       push({
         studentId: Number(row.student_id),
         studentName: String(row.full_name ?? "Student"),
         studentCode: String(row.student_code ?? ""),
+        section: row.section != null ? String(row.section) : null,
         createdAt,
         message,
+        response: nextAssistant?.content ? String(nextAssistant.content) : null,
         topic: inferCoraTopic(message),
         module: inferCoraModule(message),
+        source: "workspace",
       })
     }
+  }
+
+  const hourSeen = new Set<string>()
+  for (const turn of turns) {
+    hourSeen.add(`${turn.studentId}|${turn.createdAt.toISOString().slice(0, 13)}`)
+  }
+  for (const row of usage as Array<Record<string, unknown>>) {
+    const createdAt = new Date(String(row.created_at))
+    const hourKey = `${Number(row.student_id)}|${createdAt.toISOString().slice(0, 13)}`
+    if (hourSeen.has(hourKey)) continue
+    hourSeen.add(hourKey)
+    const feature = String(row.feature ?? "Cora")
+    const moduleRaw = String(row.module ?? "")
+    const message = `Used Cora · ${coraFeatureLabel(feature)}${moduleRaw ? ` (${moduleRaw})` : ""}`
+    push({
+      studentId: Number(row.student_id),
+      studentName: String(row.full_name ?? "Student"),
+      studentCode: String(row.student_code ?? ""),
+      section: row.section != null ? String(row.section) : null,
+      createdAt,
+      message,
+      response: null,
+      topic: inferCoraTopic(message, moduleRaw),
+      module: inferCoraModule(message, moduleRaw),
+      source: "usage",
+    })
   }
 
   return turns.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())

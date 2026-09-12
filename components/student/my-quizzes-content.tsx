@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
 import { motion } from "framer-motion"
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 interface UserQuiz {
   id: number
@@ -37,6 +38,7 @@ interface MyQuizzesContentProps {
 
 export function MyQuizzesContent({ embedInDashboard = false }: MyQuizzesContentProps) {
   const router = useRouter()
+  const { confirm } = useAppConfirm()
   const { toast } = useToast()
   const [quizzes, setQuizzes] = useState<UserQuiz[]>([])
   const [loading, setLoading] = useState(true)
@@ -70,7 +72,14 @@ export function MyQuizzesContent({ embedInDashboard = false }: MyQuizzesContentP
   }
 
   const handleDelete = async (quizId: number) => {
-    if (!confirm("Are you sure you want to delete this quiz? This action cannot be undone.")) return
+    const ok = await confirm({
+      title: "Delete this quiz?",
+      description: "This action cannot be undone.",
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    })
+    if (!ok) return
     try {
       const response = await studentApiFetch(`/api/student/quizzes/${quizId}`, { method: "DELETE" })
       if (!response.ok) throw new Error("Failed to delete quiz")

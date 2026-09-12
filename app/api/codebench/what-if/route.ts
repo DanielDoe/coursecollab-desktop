@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
+import { codebenchUsageContext, jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
 
@@ -44,7 +45,7 @@ ${learningMode === "beginner"
 Simulate the scenario and explain the outcomes clearly.`
 
     const { content } = await createForFeature(openai, "codebench", {
-
+      usageContext: codebenchUsageContext(auth.studentDbId, "CODE_HELP", "codebench-what-if"),
       messages: [
         { role: "system", content: systemPrompt },
         {
@@ -68,10 +69,7 @@ Simulate the scenario and explain the outcomes clearly.`
     }
   } catch (error) {
     console.error("What-if API error:", error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to simulate scenario" },
-      { status: 500 }
-    )
+    return jsonFromCodebenchCoraError(error, "Failed to simulate scenario")
   }
 }
 

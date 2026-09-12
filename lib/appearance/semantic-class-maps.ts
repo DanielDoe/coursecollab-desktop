@@ -245,7 +245,7 @@ export const SEM_CTA: Record<SemanticRole, string> = {
   warning: "bg-[var(--cc-sem-warning)] hover:bg-[var(--cc-sem-warning-hover)] text-white shadow-sm",
   danger: "bg-[var(--cc-sem-danger)] hover:bg-[var(--cc-sem-danger-hover)] text-white shadow-sm",
   info: "bg-[var(--cc-sem-info)] hover:bg-[var(--cc-sem-info-hover)] text-white shadow-sm",
-  reward: "bg-[var(--cc-sem-reward)] hover:bg-[var(--cc-sem-reward-hover)] text-[#422006] shadow-sm",
+  reward: "bg-[var(--cc-sem-reward)] hover:bg-[var(--cc-sem-reward-hover)] !text-white shadow-sm",
   homework: "bg-[var(--cc-sem-homework)] hover:bg-[var(--cc-sem-homework-hover)] text-white shadow-sm",
   attendance: "bg-[var(--cc-sem-attendance)] hover:bg-[var(--cc-sem-attendance-hover)] text-white shadow-sm",
   quiz: "bg-[var(--cc-sem-quiz)] hover:bg-[var(--cc-sem-quiz-hover)] text-white shadow-sm",

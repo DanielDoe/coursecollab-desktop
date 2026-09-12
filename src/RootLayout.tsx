@@ -2,6 +2,7 @@ import { useEffect, useMemo, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ThemeProvider } from '@/components/theme-provider'
 import { NotificationProvider } from '@/components/notification-provider'
+import { AppConfirmProvider } from '@/components/providers/app-confirm-provider'
 import { AppQueryProvider } from '@/components/providers/app-query-provider'
 import { UserTimezoneProvider } from '@/components/providers/user-timezone-provider'
 import { SessionCatalogProvider } from '@/components/session-catalog-provider'
@@ -52,22 +53,24 @@ export function RootLayout({ children }: { children: ReactNode }) {
     <div className="font-sans antialiased min-h-[100dvh]">
       <SessionExpiryGuard />
       <ThemeProvider>
-        <AppQueryProvider>
-          <UserTimezoneProvider initialTimezone={initialTimezone}>
-            <NotificationProvider>
-              <DesktopNotificationBridge />
-              <NativeWebBridgeListener />
-              <SessionCatalogProvider>
-                <SystemErrorBoundary
-                  moduleName="Platform Module"
-                  resetKeys={errorBoundaryResetKeys}
-                >
-                  {children}
-                </SystemErrorBoundary>
-              </SessionCatalogProvider>
-            </NotificationProvider>
-          </UserTimezoneProvider>
-        </AppQueryProvider>
+        <AppConfirmProvider>
+          <AppQueryProvider>
+            <UserTimezoneProvider initialTimezone={initialTimezone}>
+              <NotificationProvider>
+                <DesktopNotificationBridge />
+                <NativeWebBridgeListener />
+                <SessionCatalogProvider>
+                  <SystemErrorBoundary
+                    moduleName="Platform Module"
+                    resetKeys={errorBoundaryResetKeys}
+                  >
+                    {children}
+                  </SystemErrorBoundary>
+                </SessionCatalogProvider>
+              </NotificationProvider>
+            </UserTimezoneProvider>
+          </AppQueryProvider>
+        </AppConfirmProvider>
       </ThemeProvider>
       <Toaster />
       <SonnerToaster />

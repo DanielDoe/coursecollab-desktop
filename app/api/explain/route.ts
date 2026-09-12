@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
 import { studioPromptBlock } from "@/lib/codebench-studio-analytics"
+import { codebenchUsageContext, jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
 
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { content: explanation } = await createForFeature(openai, "codebench", {
-
+      usageContext: codebenchUsageContext(auth.studentDbId, "CODE_HELP", "codebench-explain"),
       messages: [
         {
           role: "system",
@@ -71,9 +72,6 @@ Make explanations clear and educational, suitable for ${learningMode} level stud
     return NextResponse.json({ explanation: explanationText })
   } catch (error) {
     console.error("[Explain API] Error:", error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to explain code" },
-      { status: 500 }
-    )
+    return jsonFromCodebenchCoraError(error, "Failed to explain code")
   }
 }

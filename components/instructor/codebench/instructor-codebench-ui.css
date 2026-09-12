@@ -1,0 +1,584 @@
+/* Instructor CodeBench — uiverse-inspired folder + tree (theme-aware) */
+/* Folder: https://uiverse.io/Nykolas94/fluffy-treefrog-51 */
+
+.instructor-folder {
+  --folder-back-1: #f7c14b;
+  --folder-back-2: #e9a52f;
+  --folder-front-1: #ffd970;
+  --folder-front-2: #fbc548;
+  --folder-edge: #d68f23;
+  --paper: #fdfdfb;
+  --paper-2: #f1f0ea;
+  --ink: var(--cc-text);
+  --ink-soft: var(--cc-text-muted);
+  --ring: var(--cc-accent, #1d6cf5);
+  --radius: 0.875em;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  position: relative;
+  display: inline-block;
+  width: 16em;
+  max-width: 100%;
+  font-size: 16px;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  color: var(--ink);
+  cursor: pointer;
+  user-select: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+.instructor-folder:focus-visible .instructor-folder__back {
+  outline: 3px solid var(--ring);
+  outline-offset: 4px;
+  border-radius: var(--radius);
+}
+
+.instructor-folder__shape {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 5 / 4;
+  perspective: 900px;
+  transition: transform 0.45s var(--ease);
+}
+
+.instructor-folder__back {
+  position: absolute;
+  inset: 14% 0 0 0;
+  background: linear-gradient(135deg, var(--folder-back-1), var(--folder-back-2));
+  border-radius: 0.25em var(--radius) var(--radius) var(--radius);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+.instructor-folder__back::before {
+  content: "";
+  position: absolute;
+  top: -13%;
+  left: 0;
+  width: 46%;
+  height: 16%;
+  background: linear-gradient(135deg, var(--folder-back-1), var(--folder-back-2));
+  border-radius: 0.375em 0.375em 0 0;
+  clip-path: polygon(0 0, 82% 0, 100% 100%, 0 100%);
+}
+
+.instructor-folder__papers {
+  position: absolute;
+  inset: 6% 8% 12% 8%;
+  z-index: 2;
+  display: block;
+}
+
+.instructor-folder__paper {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 86%;
+  height: 78%;
+  translate: -50% 0;
+  background: var(--paper);
+  border-radius: 0.375em;
+  box-shadow: 0 0.25em 0.875em rgba(60, 40, 10, 0.12);
+  transition:
+    transform 0.45s var(--ease),
+    bottom 0.45s var(--ease);
+  overflow: hidden;
+}
+
+.instructor-folder__paper::before,
+.instructor-folder__paper::after {
+  content: "";
+  position: absolute;
+  left: 14%;
+  right: 24%;
+  height: 6%;
+  border-radius: 0.2em;
+  background: var(--paper-2);
+}
+
+.instructor-folder__paper::before {
+  top: 22%;
+}
+
+.instructor-folder__paper::after {
+  top: 40%;
+  right: 40%;
+}
+
+.instructor-folder__paper--1 {
+  width: 78%;
+  height: 70%;
+  background: #f6f4ee;
+}
+
+.instructor-folder__paper--2 {
+  width: 82%;
+  height: 74%;
+  background: #fbfaf6;
+}
+
+.instructor-folder__paper--3 {
+  width: 86%;
+}
+
+.instructor-folder__front {
+  position: absolute;
+  inset: 38% 0 0 0;
+  z-index: 3;
+  background: linear-gradient(150deg, var(--folder-front-1), var(--folder-front-2));
+  border-radius: var(--radius);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 -1px 0 var(--folder-edge),
+    0 0.875em 1.375em -0.75em rgba(120, 80, 10, 0.35);
+  transform-origin: bottom center;
+  transform-style: preserve-3d;
+  transition: transform 0.45s var(--ease);
+}
+
+.instructor-folder__front::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.35) 0%, transparent 45%);
+  pointer-events: none;
+}
+
+.instructor-folder__meta {
+  display: block;
+  margin-top: 1.1em;
+  text-align: center;
+}
+
+.instructor-folder__title {
+  display: block;
+  font-weight: 700;
+  font-size: 1.05em;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.instructor-folder__count {
+  display: block;
+  margin-top: 0.15em;
+  font-size: 0.85em;
+  color: var(--ink-soft);
+}
+
+@media (hover: hover) {
+  .instructor-folder:hover .instructor-folder__shape {
+    transform: translateY(-0.375em);
+  }
+
+  .instructor-folder:hover .instructor-folder__front {
+    transform: rotateX(-32deg);
+  }
+
+  .instructor-folder:hover .instructor-folder__paper {
+    transform: translateY(-26%);
+  }
+
+  .instructor-folder:hover .instructor-folder__paper--1 {
+    transform: translate(-26%, -18%) rotate(-7deg);
+  }
+
+  .instructor-folder:hover .instructor-folder__paper--2 {
+    transform: translate(22%, -22%) rotate(6deg);
+  }
+}
+
+.instructor-folder:active .instructor-folder__shape {
+  transform: translateY(-0.125em) scale(0.99);
+}
+
+.instructor-folder.is-open .instructor-folder__shape {
+  transform: translateY(-0.375em);
+}
+
+.instructor-folder.is-open .instructor-folder__front {
+  transform: rotateX(-32deg);
+}
+
+.instructor-folder.is-open .instructor-folder__paper {
+  transform: translateY(-26%);
+}
+
+.instructor-folder.is-open .instructor-folder__paper--1 {
+  transform: translate(-26%, -18%) rotate(-7deg);
+}
+
+.instructor-folder.is-open .instructor-folder__paper--2 {
+  transform: translate(22%, -22%) rotate(6deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .instructor-folder__shape,
+  .instructor-folder__front,
+  .instructor-folder__paper {
+    transition: none;
+  }
+}
+
+/* Compact folder for project cards */
+.instructor-folder.instructor-folder--card {
+  width: 10.5em;
+  font-size: 13px;
+}
+
+.instructor-folder.instructor-folder--card .instructor-folder__meta {
+  margin-top: 0.85em;
+}
+
+.instructor-folder.instructor-folder--card .instructor-folder__title {
+  font-size: 0.95em;
+}
+
+/* Shared panel host — grids respond to split-pane width, not viewport */
+.instructor-codebench-panel {
+  container-type: inline-size;
+  container-name: codebench-panel;
+}
+
+.instructor-kpi-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.instructor-library-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.instructor-steps-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+@container codebench-panel (min-width: 28rem) {
+  .instructor-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .instructor-library-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .instructor-steps-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container codebench-panel (min-width: 48rem) {
+  .instructor-kpi-grid--four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .instructor-library-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container codebench-panel (min-width: 56rem) {
+  .instructor-kpi-grid--five {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* IDE workspace — explorer + editor share narrow split panes */
+.instructor-codebench-ide {
+  container-type: inline-size;
+  container-name: codebench-ide;
+}
+
+@container codebench-ide (max-width: 36rem) {
+  .instructor-codebench-explorer {
+    width: min(42%, 11.5rem);
+    min-width: 9.5rem;
+    max-width: 11.5rem;
+  }
+}
+
+/* Projects panel — container-aware responsive grid */
+.instructor-projects-panel {
+  container-type: inline-size;
+  container-name: instructor-projects;
+}
+
+.instructor-project-card {
+  container-type: inline-size;
+  container-name: project-card;
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--card) 96%, var(--cc-accent)) 0%,
+    var(--card) 42%
+  );
+}
+
+.instructor-project-card--active {
+  border-color: color-mix(in srgb, var(--cc-accent) 42%, var(--border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--cc-accent) 12%, transparent),
+    0 12px 28px color-mix(in srgb, var(--cc-accent) 8%, transparent);
+}
+
+.instructor-project-card__file-chip {
+  max-width: 100%;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--muted) 55%, var(--card));
+  padding: 0.28rem 0.62rem;
+  color: var(--cc-text-muted);
+  transition:
+    border-color 0.2s,
+    background-color 0.2s,
+    color 0.2s;
+}
+
+.instructor-project-card:hover .instructor-project-card__file-chip {
+  border-color: color-mix(in srgb, var(--cc-accent) 28%, var(--border));
+  background: color-mix(in srgb, var(--cc-accent) 6%, var(--card));
+  color: var(--cc-text);
+}
+
+.instructor-project-card__history {
+  border-top: 1px solid var(--border);
+  padding-top: 0.85rem;
+}
+
+.instructor-project-card__timeline-item + .instructor-project-card__timeline-item {
+  border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
+
+@container instructor-projects (min-width: 40rem) {
+  .instructor-projects-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container instructor-projects (min-width: 64rem) {
+  .instructor-projects-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.instructor-challenges-panel {
+  container-type: inline-size;
+  container-name: instructor-challenges;
+}
+
+@container instructor-challenges (min-width: 32rem) {
+  .instructor-challenges-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container codebench-panel (min-width: 32rem) {
+  .instructor-challenges-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Tree container — ashif_6672 inspired */
+.instructor-tree-container {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--card);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--cc-text) 6%, transparent);
+}
+
+.instructor-tree-root {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.instructor-tree-root .instructor-tree-nested {
+  margin-left: 11px;
+  padding-left: 11px;
+  border-left: 1px solid var(--border);
+}
+
+.instructor-tree-item {
+  position: relative;
+  margin-top: 4px;
+}
+
+.instructor-tree-nested > .instructor-tree-item::before {
+  content: "";
+  position: absolute;
+  left: -11px;
+  top: 14px;
+  width: 11px;
+  height: 1px;
+  background-color: var(--border);
+}
+
+.instructor-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--cc-text);
+  transition: background-color 0.2s, transform 0.2s;
+  user-select: none;
+}
+
+.instructor-tree-row:hover {
+  background-color: var(--muted);
+}
+
+.instructor-tree-row.is-selected {
+  background-color: color-mix(in srgb, var(--cc-accent) 12%, var(--card));
+  font-weight: 500;
+}
+
+.instructor-tree-children-wrapper {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s ease-in-out;
+}
+
+.instructor-tree-children-wrapper.is-open {
+  grid-template-rows: 1fr;
+}
+
+.instructor-tree-children-inner {
+  overflow: hidden;
+}
+
+/* Project structure hover card — 00Kubi inspired */
+.instructor-structure-trigger {
+  transition: transform 0.3s ease-out, box-shadow 0.3s ease-out;
+}
+
+.instructor-structure-trigger:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--cc-text) 12%, transparent);
+}
+
+.instructor-structure-panel {
+  opacity: 0;
+  transform: scale(0.96) translateY(4px);
+  pointer-events: none;
+  transition: opacity 0.28s ease-out, transform 0.28s ease-out;
+}
+
+.instructor-structure-wrap:hover .instructor-structure-panel,
+.instructor-structure-wrap:focus-within .instructor-structure-panel {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  pointer-events: auto;
+}
+
+.instructor-lift-card {
+  transition: transform 0.3s ease-out, box-shadow 0.3s ease-out, border-color 0.2s;
+}
+
+.instructor-lift-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 32px color-mix(in srgb, var(--cc-text) 10%, transparent);
+  border-color: color-mix(in srgb, var(--cc-accent) 35%, var(--border));
+}
+
+.instructor-question-panel .question-text-content {
+  font-size: 0.925rem;
+  line-height: 1.65;
+}
+
+.instructor-question-panel .question-text-content p {
+  margin-bottom: 0.65rem;
+}
+
+.instructor-question-panel .question-text-content pre {
+  margin: 0.75rem 0;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+}
+
+.instructor-live-session__grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow: hidden;
+}
+
+.instructor-live-session__grid > section {
+  min-height: 0;
+}
+
+.instructor-live-session__grid > section:first-child {
+  flex: 1 1 46%;
+}
+
+.instructor-live-session__grid > section:last-child {
+  flex: 1 1 54%;
+}
+
+.instructor-live-session__roster-list {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
+.instructor-live-session--expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  padding: 1rem;
+  background: color-mix(in srgb, var(--background) 94%, black);
+  backdrop-filter: blur(10px);
+  container-type: inline-size;
+  container-name: codebench-panel;
+}
+
+.instructor-live-session--expanded .instructor-live-session__grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0.85rem;
+}
+
+.instructor-live-session--expanded .instructor-live-session__grid > section:first-child,
+.instructor-live-session--expanded .instructor-live-session__grid > section:last-child {
+  flex: unset;
+}
+
+html.dark .instructor-live-session--expanded {
+  background: rgba(2, 6, 23, 0.96);
+}
+
+.instructor-codebench-scroll {
+  scrollbar-gutter: stable;
+}
+
+@container codebench-panel (min-width: 34rem) {
+  .instructor-live-session__grid {
+    display: grid;
+    grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  .instructor-live-session__grid > section:first-child,
+  .instructor-live-session__grid > section:last-child {
+    flex: unset;
+  }
+}

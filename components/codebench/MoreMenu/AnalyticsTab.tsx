@@ -18,6 +18,7 @@ import { SolidListThumbTile } from "@/components/student/dashboard-v2/SignatureL
 import { useCodebenchChrome } from "@/hooks/use-codebench-chrome"
 import { codebenchChromeKpi } from "@/lib/codebench-chrome-theme"
 import { PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
+import { parseCodebenchCoraJson } from "@/lib/codebench-cora-client"
 import { CodebenchAnalyticsSkeleton } from "@/components/codebench/CodebenchSkeletons"
 import { CodebenchStudioCoach } from "@/components/codebench/CodebenchStudioCoach"
 import { buildCodebenchCoraRead, type CodebenchCoraRead } from "@/lib/codebench-analytics-read"
@@ -97,11 +98,10 @@ export function AnalyticsTab({
       setError(null)
       try {
         const res = await fetch(`/api/codebench/analytics?studentId=${encodeURIComponent(studentId)}`)
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}))
-          throw new Error(body.error || "Failed to load analytics")
-        }
-        const payload = (await res.json()) as { performance?: AnalyticsPayload["performance"] }
+        const payload = await parseCodebenchCoraJson<{ performance?: AnalyticsPayload["performance"] }>(
+          res,
+          "Failed to load analytics",
+        )
         setData({ performance: normalizePerformance(payload.performance) })
       } catch (err) {
         console.error(err)

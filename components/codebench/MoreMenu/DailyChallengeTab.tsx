@@ -13,6 +13,7 @@ import { ScoreDisplay } from "@/components/codebench/ScoreDisplay"
 import ReactMarkdown from "react-markdown"
 import { cn } from "@/lib/utils"
 import { getCodebenchLanguage, readStoredCodebenchLanguageId } from "@/lib/codebench-languages"
+import { parseCodebenchCoraJson } from "@/lib/codebench-cora-client"
 import { CodebenchChallengeSkeleton } from "@/components/codebench/CodebenchSkeletons"
 
 interface DailyChallengeTabProps {
@@ -90,14 +91,16 @@ export function DailyChallengeTab({ code, studentId, embedInDashboard, onXpEarne
                 body: JSON.stringify({ studentId, code, learningMode }),
               })
               
-              if (response.ok) {
-                const data = await response.json()
-                setChallenge({ ...data, completed: true })
-                setLoading(false)
-                return
-              }
+              const data = await parseCodebenchCoraJson<Challenge>(
+                response,
+                "Failed to load daily challenge",
+              )
+              setChallenge({ ...data, completed: true })
+              setLoading(false)
+              return
             }
           } catch (e) {
+            if (e instanceof Error && /Cora credits/i.test(e.message)) throw e
             // Continue to load new challenge
           }
         }
@@ -111,12 +114,18 @@ export function DailyChallengeTab({ code, studentId, embedInDashboard, onXpEarne
           body: JSON.stringify({ studentId, code, learningMode }),
         })
 
-        if (response.ok) {
-          const data = await response.json()
-          setChallenge(data)
-        }
+        const data = await parseCodebenchCoraJson<Challenge>(
+          response,
+          "Failed to load daily challenge",
+        )
+        setChallenge(data)
       } catch (error) {
         console.error("Failed to load challenge:", error)
+        toast({
+          title: "Cora",
+          description: error instanceof Error ? error.message : "Failed to load daily challenge",
+          variant: "destructive",
+        })
       } finally {
         setLoading(false)
       }

@@ -395,7 +395,7 @@ export function ClassroomAssignmentAvailabilityFields({
             htmlFor="assignment-never-expires"
             className="cursor-pointer text-sm leading-snug text-slate-700 dark:text-slate-300"
           >
-            No due date (never expires)
+            No due date — keep in library (students will not see it until you set a due date)
           </label>
         </div>
 

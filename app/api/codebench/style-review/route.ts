@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
+import { jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
 
@@ -47,6 +48,7 @@ Review the code for professional engineering standards.`
       actor: { userId: auth.studentDbId, userRole: "student" as const },
       feature: "CODE_HELP" as const,
       module: "codebench-style-review",
+      billable: true as const,
     }
 
     const { content } = await createForFeature(openai, "codebench", {
@@ -75,10 +77,7 @@ Review the code for professional engineering standards.`
     }
   } catch (error) {
     console.error("Style review API error:", error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to review code" },
-      { status: 500 }
-    )
+    return jsonFromCodebenchCoraError(error, "Failed to review code")
   }
 }
 

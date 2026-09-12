@@ -1,6 +1,6 @@
 "use client"
 
-import { Files, Loader2, Play, Save, Square } from "lucide-react"
+import { Files, Loader2, Play, Save, Send, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -42,10 +42,12 @@ interface ToolbarProps {
     evaluate?: boolean
     submit: boolean
   }
-  classroomSubmissions?: any[]
+  classroomSubmissions?: { id: string | number; title: string }[]
   classroomSubmissionId?: string
   onAssignmentChange?: (submissionId: string) => void
   assignmentSelectionConfirmed?: boolean
+  onClassroomSubmit?: () => void
+  classroomSubmitLoading?: boolean
   moreMenu?: ReactNode
   embedded?: boolean
   onLocalRun?: () => void
@@ -75,6 +77,11 @@ export function Toolbar({
   onSave,
   canSave = false,
   projectName,
+  classroomSubmissions = [],
+  classroomSubmissionId = "",
+  onAssignmentChange,
+  onClassroomSubmit,
+  classroomSubmitLoading = false,
 }: ToolbarProps) {
   const isNative = useNativeApp()
   const { roles } = useCodebenchChrome()
@@ -151,7 +158,53 @@ export function Toolbar({
           </Select>
         ) : null}
 
+        {onAssignmentChange ? (
+          <Select
+            key={classroomSubmissionId || `empty-${classroomSubmissions.length}`}
+            value={classroomSubmissionId || undefined}
+            onValueChange={onAssignmentChange}
+            disabled={classroomSubmitLoading}
+          >
+            <SelectTrigger
+              className={cn(selectTrigger, "w-[8.75rem]")}
+              aria-label="Classroom assignment"
+            >
+              <SelectValue placeholder={classroomSubmissions.length ? "Assignment" : "No assignments"} />
+            </SelectTrigger>
+            <SelectContent className={selectContent}>
+              {classroomSubmissions.length === 0 ? (
+                <SelectItem value="none" disabled className={selectItemClass}>
+                  No open code assignments
+                </SelectItem>
+              ) : (
+                classroomSubmissions.map((sub) => (
+                  <SelectItem key={String(sub.id)} value={String(sub.id)} className={selectItemClass}>
+                    {sub.title}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+        ) : null}
+
         <div className="flex shrink-0 items-center gap-1">
+          {onClassroomSubmit ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClassroomSubmit}
+              disabled={!classroomSubmissionId || classroomSubmitLoading}
+              className="h-7 rounded-md border-[var(--border)] bg-[var(--card)] px-2 text-[12px] font-semibold text-[var(--cc-text)]"
+              title="Submit editor code to the selected classroom assignment"
+            >
+              {classroomSubmitLoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
+              Submit
+            </Button>
+          ) : null}
           {onSave ? (
             <Button
               type="button"

@@ -1,5 +1,6 @@
 "use client"
 
+import { persistInstructorMembershipTier } from "@/lib/faculty-membership-cache"
 import { instructorApiFetch } from "@/lib/instructor-api-headers"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -109,14 +110,18 @@ export function FacultyMembershipPlansHub() {
         }
         if (membershipRes.ok) {
           const data = await membershipRes.json()
-          if (data.membership?.tier) setCurrentTier(data.membership.tier)
+          let resolvedTier = data.membership?.tier as InstructorMembershipTier | undefined
           setExpiresAt(data.membership?.expiresAt ?? null)
           setBillingCadence(data.membership?.billingCadence ?? null)
           if (data.institutionalAccess?.active) {
             setInstitutionalAccess(data.institutionalAccess)
             if (data.membership?.effectiveFeatureTier) {
-              setCurrentTier(data.membership.effectiveFeatureTier)
+              resolvedTier = data.membership.effectiveFeatureTier
             }
+          }
+          if (resolvedTier) {
+            setCurrentTier(resolvedTier)
+            persistInstructorMembershipTier(resolvedTier)
           }
         }
       } finally {

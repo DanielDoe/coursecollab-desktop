@@ -1,6 +1,6 @@
 {
   "name": "coursecollab-desktop",
-  "version": "0.1.5",
+  "version": "0.1.9",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
@@ -484,6 +484,7 @@
     "mac": {
       "icon": "build/icon.icns",
       "category": "public.app-category.education",
+      "identity": "DANIEL MAWUNYO DOE (5S94RUARQ4)",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
@@ -492,7 +493,7 @@
         "dmg",
         "zip"
       ],
-      "notarize": false
+      "notarize": true
     },
     "dmg": {
       "icon": "build/icon.icns"

@@ -19,22 +19,26 @@ type FacultyModuleSplitLayoutProps = {
 }
 
 /** Tailwind must see full class names — do not build @container utilities from variables. */
-const CONTAINER_SHELL: Record<string, { root: string; row: string }> = {
+const CONTAINER_SHELL: Record<string, { root: string; row: string; menu: string }> = {
   "cora-hub": {
     root: "@container/cora-hub",
     row: "@[720px]/cora-hub:flex-row @[720px]/cora-hub:items-stretch @[720px]/cora-hub:gap-4",
+    menu: "@[720px]/cora-hub:w-52",
   },
   "practice-hub": {
     root: "@container/practice-hub",
     row: "@[720px]/practice-hub:flex-row @[720px]/practice-hub:items-stretch @[720px]/practice-hub:gap-4",
+    menu: "@[720px]/practice-hub:w-52",
   },
   "faculty-split": {
     root: "@container/faculty-split",
     row: "@[720px]/faculty-split:flex-row @[720px]/faculty-split:items-stretch @[720px]/faculty-split:gap-4",
+    menu: "@[720px]/faculty-split:w-52",
   },
   "student-hub": {
     root: "@container/student-hub",
     row: "@[720px]/student-hub:flex-row @[720px]/student-hub:items-stretch @[720px]/student-hub:gap-4",
+    menu: "@[720px]/student-hub:w-52",
   },
 }
 
@@ -67,7 +71,7 @@ export function FacultyModuleSplitLayout({
 
   if (splitMode === "container") {
     const shell = CONTAINER_SHELL[containerName] ?? CONTAINER_SHELL["faculty-split"]
-    const panelShellClass = scrollMode === "panel" ? "flex min-h-0 flex-1 flex-col" : ""
+    const panelShellClass = scrollMode === "panel" ? "flex min-h-0 flex-1 flex-col overflow-hidden" : ""
     return (
       <div className={cn(shell.root, "w-full min-w-0 overflow-x-hidden", panelShellClass, className)}>
         <div className={cn("flex w-full min-w-0 flex-col gap-3", shell.row, panelShellClass)}>
@@ -75,13 +79,14 @@ export function FacultyModuleSplitLayout({
             <div
               className={cn(
                 "flex min-h-0 w-full shrink-0 flex-col self-stretch",
+                shell.menu,
                 menuWidthClass,
               )}
             >
               {menu}
             </div>
           ) : null}
-          <div className={contentClass}>{children}</div>
+          <div className={cn(contentClass, scrollMode === "panel" && "overflow-hidden")}>{children}</div>
         </div>
       </div>
     )
@@ -98,7 +103,7 @@ export function FacultyModuleSplitLayout({
       )}
     >
       {menu ? (
-        <div className={cn("flex h-full min-h-0 w-full shrink-0 flex-col self-stretch", menuWidthClass)}>{menu}</div>
+        <div className={cn("flex min-h-0 w-full shrink-0 flex-col self-stretch lg:h-full", menuWidthClass)}>{menu}</div>
       ) : null}
       <div className={contentClass}>{children}</div>
     </div>

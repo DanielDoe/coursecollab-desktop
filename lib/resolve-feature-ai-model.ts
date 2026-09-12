@@ -78,7 +78,6 @@ export async function createForFeature(
 ) {
   const model = opts.model ?? resolveModelForFeature(feature, opts)
   const { model: _m, aiModel: _a, aiModelByTask: _t, usageContext: explicitCtx, ...rest } = opts
-  const result = await createWithFallback(openai, { ...rest, model })
 
   let usageContext = explicitCtx
   if (!usageContext) {
@@ -88,6 +87,49 @@ export async function createForFeature(
     } catch {
       usageContext = undefined
     }
+  }
+
+  let reserved = 0
+  if (usageContext && usageContext.billable !== false) {
+    const { ensureCreditAccount, reserveCredits } = await import("@/lib/cora/ai/credit-accounts")
+    const { estimateCoraCreditsForMessage } = await import("@/lib/cora/credits/economy")
+    const lastUser =
+      [...(opts.messages ?? [])].reverse().find((m) => m.role === "user")?.content ?? ""
+    await ensureCreditAccount({
+      userId: usageContext.actor.userId,
+      userRole: usageContext.actor.userRole,
+      membershipTier: usageContext.actor.membershipTier,
+    })
+    const estimate = estimateCoraCreditsForMessage(lastUser)
+    const reservedOk = await reserveCredits({
+      userId: usageContext.actor.userId,
+      userRole: usageContext.actor.userRole,
+      amount: estimate,
+      membershipTier: usageContext.actor.membershipTier,
+    })
+    if (!reservedOk.ok) {
+      throw Object.assign(new Error("INSUFFICIENT_CORA_CREDITS"), {
+        code: "INSUFFICIENT_CORA_CREDITS",
+        available: reservedOk.available,
+        needed: estimate,
+      })
+    }
+    reserved = estimate
+  }
+
+  let result
+  try {
+    result = await createWithFallback(openai, { ...rest, model })
+  } catch (err) {
+    if (reserved > 0 && usageContext) {
+      const { releaseReservation } = await import("@/lib/cora/ai/credit-accounts")
+      await releaseReservation({
+        userId: usageContext.actor.userId,
+        userRole: usageContext.actor.userRole,
+        amount: reserved,
+      }).catch(() => undefined)
+    }
+    throw err
   }
 
   if (usageContext) {
@@ -101,10 +143,19 @@ export async function createForFeature(
         },
         model: result.modelUsed,
         usage: result.usage,
+        reservedAmount: reserved,
       })
       return { ...result, creditsCharged: recorded.creditsCharged, usageEventId: recorded.usageEventId }
     } catch (err) {
       console.warn("[createForFeature] usage accounting failed", err)
+      if (reserved > 0) {
+        const { releaseReservation } = await import("@/lib/cora/ai/credit-accounts")
+        await releaseReservation({
+          userId: usageContext.actor.userId,
+          userRole: usageContext.actor.userRole,
+          amount: reserved,
+        }).catch(() => undefined)
+      }
     }
   }
 

@@ -14,6 +14,7 @@ import {
   addFileToProject,
   addFolderToProject,
   addProject,
+  upsertProjectInWorkspace,
   applyCoraFileName,
   canUseLocalProjectFiles,
   closeFileInProject,
@@ -155,12 +156,18 @@ export function useCodebenchIde({ studentId = null }: Options = {}) {
   )
 
   const createFile = useCallback(
-    (options?: { parentId?: string | null; languageId?: CodebenchLanguageId; name?: string }) => {
+    (options?: {
+      parentId?: string | null
+      languageId?: CodebenchLanguageId
+      name?: string
+      content?: string
+    }) => {
       patchProject((current) =>
         addFileToProject(current, {
           parentId: options?.parentId ?? null,
           languageId: options?.languageId ?? activeFile?.languageId ?? "cpp",
           name: options?.name,
+          content: options?.content,
           untitled: !options?.name,
         }),
       )
@@ -185,6 +192,10 @@ export function useCodebenchIde({ studentId = null }: Options = {}) {
         ? { ...current, activeProjectId: projectId }
         : current,
     )
+  }, [])
+
+  const upsertAndSwitchProject = useCallback((project: IdeProject) => {
+    setWorkspace((current) => upsertProjectInWorkspace(current, project))
   }, [])
 
   const renameProject = useCallback((name: string) => {
@@ -299,6 +310,7 @@ export function useCodebenchIde({ studentId = null }: Options = {}) {
   }, [localRoot, studentId])
 
   return {
+    hydrated,
     workspace,
     project,
     projects: workspace.projects,
@@ -319,6 +331,7 @@ export function useCodebenchIde({ studentId = null }: Options = {}) {
     createFolder,
     createProject,
     switchProject,
+    upsertAndSwitchProject,
     renameProject,
     renameNode,
     deleteNode,

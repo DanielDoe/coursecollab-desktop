@@ -8,7 +8,12 @@ import {
   revealLocalProjectsRoot,
   syncWorkspaceProjectFiles,
 } from '../codebench/projectFiles'
-import { loadWorkspaceStore, saveWorkspaceStore } from '../codebench/projectStore'
+import {
+  loadProblemWorkspaceStore,
+  loadWorkspaceStore,
+  saveProblemWorkspaceStore,
+  saveWorkspaceStore,
+} from '../codebench/projectStore'
 import { CODEBENCH_TOOLCHAIN_CHANNEL } from '../codebench/types'
 import { onToolchainProgress } from '../codebench/toolchain-progress'
 import type {
@@ -77,6 +82,18 @@ export function registerCodebenchIpc(): void {
 
   ipcMain.handle('codebench:save-workspace', async (_event, workspace: unknown, studentId?: string | null) => {
     return saveWorkspaceStore(workspace, typeof studentId === 'string' ? studentId : null)
+  })
+
+  ipcMain.handle('codebench:load-problem-workspace', async (_event, storageKey?: string | null) => {
+    const key = typeof storageKey === 'string' ? storageKey : ''
+    const record = key ? await loadProblemWorkspaceStore(key) : null
+    return { ok: true, record }
+  })
+
+  ipcMain.handle('codebench:save-problem-workspace', async (_event, record: unknown, storageKey?: string | null) => {
+    const key = typeof storageKey === 'string' ? storageKey : ''
+    if (!key) return { ok: false, path: '', error: 'Missing problem workspace key.' }
+    return saveProblemWorkspaceStore(record, key)
   })
 
   ipcMain.handle('codebench:sync-project-files', async (_event, workspace: unknown, studentId?: string | null) => {

@@ -20,6 +20,7 @@ import { PORTAL_CARD, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-clas
 import { cn } from "@/lib/utils"
 import { Loader2, RotateCcw, Trash2 } from "lucide-react"
 import { toast } from "@/lib/app-toast"
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 type DeletedCard = {
   id: number
@@ -37,6 +38,7 @@ type Props = {
 
 export function InstructorFlashcardsDeletedView({ onRestored }: Props) {
   const [loading, setLoading] = useState(true)
+  const { confirm } = useAppConfirm()
   const [decks, setDecks] = useState<FlashcardDeck[]>([])
   const [cards, setCards] = useState<DeletedCard[]>([])
   const [search, setSearch] = useState("")
@@ -128,7 +130,14 @@ export function InstructorFlashcardsDeletedView({ onRestored }: Props) {
   }
 
   const permanentDeleteDecks = async (deckIds: number[]) => {
-    if (!confirm("Permanently delete selected decks? This cannot be undone.")) return
+    const ok = await confirm({
+      title: "Permanently delete selected decks?",
+      description: "This cannot be undone.",
+      confirmLabel: "Delete permanently",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    })
+    if (!ok) return
     try {
       const res = await instructorApiFetch("/api/instructor/flashcards/deleted", {
         method: "DELETE",
@@ -148,7 +157,14 @@ export function InstructorFlashcardsDeletedView({ onRestored }: Props) {
   }
 
   const permanentDeleteCards = async (cardIds: number[]) => {
-    if (!confirm("Permanently delete selected cards? This cannot be undone.")) return
+    const ok = await confirm({
+      title: "Permanently delete selected cards?",
+      description: "This cannot be undone.",
+      confirmLabel: "Delete permanently",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    })
+    if (!ok) return
     try {
       const res = await instructorApiFetch("/api/instructor/flashcards/deleted", {
         method: "DELETE",

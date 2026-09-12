@@ -26,6 +26,7 @@ import {
   parseCircuitSubmissionConfig,
 } from "@/lib/circuit-submission"
 import { getRewardsPolicyForStudent } from "@/lib/rewards-policy.server"
+import { resolveClassroomAwardInstructorId } from "@/lib/classroom-points-award-instructor"
 import { autoEvaluateClassroomSolutionSubmission } from "@/lib/classroom-points-auto-evaluate"
 import {
   registerCapabilityHandlers,
@@ -433,7 +434,7 @@ async function handleClassroomPointsSubmit(ctx: CapabilityExecutionContext): Pro
       AND (
         CASE
           WHEN due_at IS NOT NULL THEN due_at > NOW()
-          WHEN duration_hours IS NULL THEN true
+          WHEN duration_hours IS NULL THEN false
           ELSE (created_at + ((duration_hours + 72) * INTERVAL '1 hour')) > NOW()
         END
       )
@@ -513,12 +514,16 @@ async function handleClassroomPointsSubmit(ctx: CapabilityExecutionContext): Pro
 
   const timingBooster = resolveClassroomSubmissionBooster({
     submissionId,
+    openedAt: assignment.created_at ?? null,
     deadline: assignment.deadline ?? null,
     submittedAt: new Date(),
   })
   const finalPoints = clampClassroomPointsForDb(CLASSROOM_BASE_POINTS * timingBooster)
   const truncatedReason = (assignment.title || "Solution submission").slice(0, 500)
-  const instructorId = assignment.created_by ?? 1
+  const instructorId = await resolveClassroomAwardInstructorId({
+    studentDbId: student.id,
+    assignmentCreatedBy: Number(assignment.created_by) || null,
+  })
 
   try {
     await sql`ALTER TABLE classroom_points ADD COLUMN IF NOT EXISTS submitted_via_codebench BOOLEAN DEFAULT false`

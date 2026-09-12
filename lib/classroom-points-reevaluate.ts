@@ -77,6 +77,7 @@ type ClassroomPointRow = {
   submission_kind: string | null
   question_config: unknown
   created_at: string | Date
+  opened_at?: string | Date | null
   deadline: string | Date | null
 }
 
@@ -99,6 +100,7 @@ export async function listClassroomPointsForReevaluation(
       cs.code, cs.plot_image, css.answer_json,
       cps.title as assignment_title, cps.description as assignment_description,
       COALESCE(cps.submission_kind, 'code') as submission_kind, cps.question_config,
+      cps.created_at as opened_at,
       COALESCE(cps.due_at, cps.created_at + ((COALESCE(cps.duration_hours, 168)) * INTERVAL '1 hour')) as deadline
     FROM classroom_points cp
     INNER JOIN students s ON s.id = cp.student_id
@@ -134,6 +136,7 @@ export async function reevaluateClassroomPoint(
 
   const timingBooster = resolveClassroomSubmissionBooster({
     submissionId: row.submission_id,
+    openedAt: row.opened_at,
     deadline: row.deadline,
     submittedAt: row.created_at,
   })

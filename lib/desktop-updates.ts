@@ -58,6 +58,24 @@ export async function installDesktopUpdate(): Promise<DesktopUpdateStatus> {
   return window.courseCollabDesktop.installUpdate()
 }
 
+export async function openDesktopUpdateDownloadPage(): Promise<boolean> {
+  if (!canUseDesktopUpdates() || !window.courseCollabDesktop?.openUpdateDownloadPage) {
+    if (typeof window !== "undefined") {
+      window.open("https://github.com/DanielDoe/coursecollab-desktop/releases/latest", "_blank", "noopener,noreferrer")
+      return true
+    }
+    return false
+  }
+  const result = await window.courseCollabDesktop.openUpdateDownloadPage()
+  return Boolean(result?.ok)
+}
+
+export function isDesktopUpdateInstallFailure(status: DesktopUpdateStatus): boolean {
+  if (status.state !== "error") return false
+  const message = status.message ?? ""
+  return /install|Applications|GitHub Releases|signature|Restarting/i.test(message)
+}
+
 export function subscribeDesktopUpdateStatus(
   handler: (status: DesktopUpdateStatus) => void,
 ): () => void {
@@ -137,10 +155,12 @@ export function desktopUpdateFeedback(status: DesktopUpdateStatus): {
       }
     case "error":
       return {
-        title: "Update check failed",
+        title: isDesktopUpdateInstallFailure(status) ? "Install failed" : "Update check failed",
         description:
           sanitizeDesktopUpdateMessage(status.message) ??
-          "Could not check for updates. Try again in a moment.",
+          (isDesktopUpdateInstallFailure(status)
+            ? "Automatic install failed. Download the latest installer and replace the app in Applications."
+            : "Could not check for updates. Try again in a moment."),
         variant: "destructive",
       }
     default:

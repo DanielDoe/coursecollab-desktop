@@ -14,6 +14,7 @@ import { flashcardDifficultyFaceStyle } from "@/lib/flashcard-difficulty-theme"
 import { cn } from "@/lib/utils"
 import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react"
 import { toast } from "@/lib/app-toast"
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 type Props = {
   deckId: number
@@ -95,6 +96,7 @@ function EditorFlipPreview({
 
 export function FlashcardDeckEditor({ deckId }: Props) {
   const router = useRouter()
+  const { confirm } = useAppConfirm()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deck, setDeck] = useState<FlashcardDeck | null>(null)
@@ -201,7 +203,14 @@ export function FlashcardDeckEditor({ deckId }: Props) {
   }
 
   const deleteDeck = async () => {
-    if (!confirm("Delete this deck and all its cards?")) return
+    const ok = await confirm({
+      title: "Delete this deck?",
+      description: "All cards in this deck will be deleted.",
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    })
+    if (!ok) return
     try {
       const res = await studentApiFetch(`/api/student/flashcards/decks/${deckId}`, {
         method: "DELETE",

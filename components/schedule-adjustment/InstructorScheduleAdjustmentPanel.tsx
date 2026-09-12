@@ -41,6 +41,7 @@ import { ScheduleStatusPill, scheduleChoiceCardClass, scheduleDayPillClass, sche
 import { ProposedArrangementCard } from "@/components/schedule-adjustment/ProposedArrangementCard"
 import { ConsentRosterPanel } from "@/components/schedule-adjustment/ConsentRosterPanel"
 import { isDirectProposal } from "@/lib/schedule-adjustment/types"
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 type RequestSummary = {
   id: number
@@ -109,6 +110,7 @@ function requestTitle(request: { section_code?: string | null; meeting_type?: st
 
 export function InstructorScheduleAdjustmentPanel() {
   const { toast } = useToast()
+  const { confirm } = useAppConfirm()
   const { courseScopeVersion } = useInstructorDashboardV2()
   const chrome = facultyEmbedChrome("course-settings")
   const router = useRouter()
@@ -336,7 +338,14 @@ export function InstructorScheduleAdjustmentPanel() {
 
   const deleteDraft = async () => {
     if (!selectedId) return
-    if (!window.confirm("Delete this draft permanently? This cannot be undone.")) return
+    const ok = await confirm({
+      title: "Delete this draft permanently?",
+      description: "This cannot be undone.",
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    })
+    if (!ok) return
     setSaving(true)
     try {
       const res = await instructorApiFetch(`/api/instructor/schedule-adjustments/${selectedId}/actions`, {

@@ -730,9 +730,56 @@ html *::-webkit-scrollbar-corner {
   will-change: transform, opacity;
 }
 
+/* xterm 6 sets inline dark bg on scrollable-element — force CodeBench light/dark surfaces */
+.codebench-terminal--light .xterm,
+.codebench-terminal--light .xterm-scrollable-element,
+.codebench-terminal--light .xterm-viewport,
+.codebench-terminal--light .xterm-screen {
+  background-color: #ffffff !important;
+}
+
+.codebench-terminal--dark .xterm,
+.codebench-terminal--dark .xterm-scrollable-element,
+.codebench-terminal--dark .xterm-viewport,
+.codebench-terminal--dark .xterm-screen {
+  background-color: #0c0f16 !important;
+}
+
+.codebench-terminal--light .xterm .composition-view {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.codebench-terminal--dark .xterm .composition-view {
+  background: #0c0f16 !important;
+  color: #e2e8f0 !important;
+}
+
+@keyframes cora-thinking-step-in {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cora-thinking-step-label {
+  animation: cora-thinking-step-in 0.35s ease-out both;
+}
+
+.cora-thinking-ellipsis {
+  display: inline-block;
+  animation: cora-thinking-step-in 0.35s ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cora-bot-idle,
-  .cora-bot-ground-shadow {
+  .cora-bot-ground-shadow,
+  .cora-thinking-step-label,
+  .cora-thinking-ellipsis {
     animation: none;
   }
 }

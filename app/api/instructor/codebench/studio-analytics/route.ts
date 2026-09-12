@@ -1,6 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { requireInstructorCourse } from "@/lib/instructor-course-scope"
+import {
+  backfillCodebenchStudioEventCourseIds,
+  studioEventInCourseSql,
+} from "@/lib/codebench-studio-course-scope"
 import { ensureCodebenchStudioEventsSchema } from "@/lib/codebench-studio-schema"
 import { studioFamilyLabel, studioFamilyTip, type StudioErrorFamily } from "@/lib/codebench-studio-analytics"
 
@@ -13,16 +17,19 @@ export async function GET(request: NextRequest) {
 
   try {
     await ensureCodebenchStudioEventsSchema()
+    await backfillCodebenchStudioEventCourseIds()
   } catch {
     /* continue with empty studio rows */
   }
+
+  const eventCourseMatch = studioEventInCourseSql(courseId)
 
   try {
     const [errorRows, toolRows, runRows, studentRows, submissionRows] = await Promise.all([
       sql`
         SELECT error_family, COUNT(*)::int AS count
-        FROM codebench_studio_events
-        WHERE course_id = ${courseId}
+        FROM codebench_studio_events e
+        WHERE ${sql.unsafe(eventCourseMatch)}
           AND event_type = 'compile_error'
           AND created_at > NOW() - INTERVAL '30 days'
         GROUP BY error_family
@@ -31,8 +38,8 @@ export async function GET(request: NextRequest) {
       `.catch(() => []),
       sql`
         SELECT tool, COUNT(*)::int AS count
-        FROM codebench_studio_events
-        WHERE course_id = ${courseId}
+        FROM codebench_studio_events e
+        WHERE ${sql.unsafe(eventCourseMatch)}
           AND event_type = 'cora_tool'
           AND created_at > NOW() - INTERVAL '30 days'
         GROUP BY tool
@@ -45,20 +52,20 @@ export async function GET(request: NextRequest) {
           COUNT(*) FILTER (WHERE event_type = 'compile_success')::int AS compiles_ok,
           COUNT(*) FILTER (WHERE event_type = 'compile_error')::int AS compiles_fail,
           COUNT(DISTINCT student_id)::int AS active_students
-        FROM codebench_studio_events
-        WHERE course_id = ${courseId}
+        FROM codebench_studio_events e
+        WHERE ${sql.unsafe(eventCourseMatch)}
           AND created_at > NOW() - INTERVAL '30 days'
       `.catch(() => []),
       sql`
-        SELECT s.id, s.full_name, s.student_code,
+        SELECT s.id, s.full_name, s.student_id,
           COUNT(*) FILTER (WHERE e.event_type = 'compile_error')::int AS errors,
           COUNT(*) FILTER (WHERE e.event_type = 'compile_success')::int AS successes,
           COUNT(*) FILTER (WHERE e.event_type = 'run')::int AS runs
         FROM codebench_studio_events e
         JOIN students s ON s.id = e.student_id
-        WHERE e.course_id = ${courseId}
+        WHERE ${sql.unsafe(eventCourseMatch)}
           AND e.created_at > NOW() - INTERVAL '30 days'
-        GROUP BY s.id, s.full_name, s.student_code
+        GROUP BY s.id, s.full_name, s.student_id
         ORDER BY errors DESC, runs DESC
         LIMIT 12
       `.catch(() => []),
@@ -110,7 +117,7 @@ export async function GET(request: NextRequest) {
       students: (studentRows as Array<Record<string, unknown>>).map((row) => ({
         id: Number(row.id),
         name: String(row.full_name || "Student"),
-        code: row.student_code ? String(row.student_code) : null,
+        code: row.student_id ? String(row.student_id) : null,
         errors: Number(row.errors) || 0,
         successes: Number(row.successes) || 0,
         runs: Number(row.runs) || 0,

@@ -265,6 +265,8 @@ export function ClassroomPointsV2({
   const solutionAvailableSubmissions = availableSubmissions.filter((s) => isSolutionAssignment(s))
   const solutionPendingSubmissions = pendingSubmissions.filter((s) => isSolutionAssignment(s))
   const solutionMissingSubmissions = missingSubmissions.filter((s) => isSolutionAssignment(s))
+  const openCodeAssignmentCount = codeAvailableSubmissions.length
+  const openSolutionAssignmentCount = solutionMissingSubmissions.length
 
   const effectiveSolutionAssignmentId =
     selectedSolutionSubmissionId || selectedSolutionMissingId || selectedSolutionPendingId
@@ -733,9 +735,7 @@ export function ClassroomPointsV2({
               id: "code" as const,
               label: "Code assignments",
               icon: Code,
-              badge:
-                codeAvailableSubmissions.length +
-                  missingSubmissions.filter((s) => !isSolutionAssignment(s)).length || undefined,
+              badge: openCodeAssignmentCount || undefined,
             },
           ]
         : []),
@@ -802,11 +802,8 @@ export function ClassroomPointsV2({
             total_points: Number(e.total_points),
           }))}
           studentId={studentId}
-          openCodeCount={
-            codeAvailableSubmissions.length +
-            missingSubmissions.filter((s) => !isSolutionAssignment(s)).length
-          }
-          openSolutionsCount={solutionAvailableSubmissions.length + solutionMissingSubmissions.length}
+          openCodeCount={openCodeAssignmentCount}
+          openSolutionsCount={openSolutionAssignmentCount}
           pendingReviewCount={pendingSubmissions.length}
           cardVariant={cardVariant}
           onNavigate={setBrowseView}
@@ -1822,12 +1819,8 @@ export function ClassroomPointsV2({
               showSolutions={showSolutionAssignmentsBlock}
               counts={{
                 history: points.length || undefined,
-                code:
-                  codeAvailableSubmissions.length +
-                    missingSubmissions.filter((s) => !isSolutionAssignment(s)).length ||
-                  undefined,
-                solutions:
-                  solutionAvailableSubmissions.length + solutionMissingSubmissions.length || undefined,
+                code: openCodeAssignmentCount || undefined,
+                solutions: openSolutionAssignmentCount || undefined,
               }}
             />
           }

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
+import { codebenchUsageContext, jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
 
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
 - Balance between basic understanding and deeper analysis`
 
     const { content: questionsContent } = await createForFeature(openai, "codebench", {
-
+      usageContext: codebenchUsageContext(auth.studentDbId, "QUIZ_GENERATION", "codebench-evaluate"),
       messages: [
         {
           role: "system",
@@ -136,10 +137,7 @@ Mix multiple choice and short answer questions. Ensure questions are directly re
     })
   } catch (error) {
     console.error("[CodeBench Evaluate] Error:", error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to evaluate code" },
-      { status: 500 }
-    )
+    return jsonFromCodebenchCoraError(error, "Failed to evaluate code")
   }
 }
 

@@ -4,6 +4,7 @@ import { Maximize2, AlertTriangle } from "lucide-react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { isMobileDevice } from "@/lib/device-utils"
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 interface FullscreenRequirementProps {
   show: boolean
@@ -14,6 +15,8 @@ export function FullscreenRequirement({
   show,
   onEnterFullscreen,
 }: FullscreenRequirementProps) {
+  const { alert } = useAppConfirm()
+
   // Don't show fullscreen requirement on mobile devices
   // Mobile devices can't run multiple tabs or Gemini concurrently, so fullscreen isn't needed
   if (!show || isMobileDevice()) return null
@@ -32,11 +35,17 @@ export function FullscreenRequirement({
       } else if ((element as any).msRequestFullscreen) {
         await (element as any).msRequestFullscreen()
       } else {
-        alert("Fullscreen mode is not supported in your browser. Please use a modern browser.")
+        await alert({
+          title: "Fullscreen not supported",
+          description: "Please use a modern browser that supports fullscreen mode.",
+        })
       }
     } catch (error) {
       console.error("Failed to enter fullscreen:", error)
-      alert("Failed to enter fullscreen mode. Please allow fullscreen permissions and try again.")
+      await alert({
+        title: "Could not enter fullscreen",
+        description: "Please allow fullscreen permissions and try again.",
+      })
     }
   }
 

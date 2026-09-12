@@ -356,7 +356,7 @@ export function ClassAnalyticsRosterPanel({
             <div>
               <p className="font-medium text-slate-900 dark:text-slate-100">Students needing outreach</p>
               <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                Filter by Engagement or open AI Monitoring for Cora struggle signals.
+                Filter by Engagement or open Cora Insights for struggle signals.
               </p>
             </div>
           </CardContent>

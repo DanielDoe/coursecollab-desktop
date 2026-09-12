@@ -28,6 +28,7 @@ export const FACULTY_MODULE_TO_NAV_GROUP: Record<string, string> = {
   flashcards: "course",
   "course-notes": "course",
   playground: "course",
+  codebench: "course",
   "cora-copilot": "course",
   groups: "course",
   projects: "course",
@@ -51,6 +52,7 @@ export const FACULTY_MODULE_TO_NAV_GROUP: Record<string, string> = {
   "advanced-analytics": "analytics",
   reports: "analytics",
   "progress-reviews": "analytics",
+  "cora-insights": "analytics",
   "ai-monitoring": "analytics",
   "ai-insights": "analytics",
   notifications: "communication",
@@ -88,8 +90,9 @@ const FACULTY_PATH_PREFIX_TO_MODULE: Array<{ prefix: string; moduleId: string }>
   { prefix: `${FACULTY_DASHBOARD_BASE}/analytics/advanced`, moduleId: "advanced-analytics" },
   { prefix: `${FACULTY_DASHBOARD_BASE}/analytics/reports`, moduleId: "reports" },
   { prefix: `${FACULTY_DASHBOARD_BASE}/analytics/progress-reviews`, moduleId: "progress-reviews" },
-  { prefix: `${FACULTY_DASHBOARD_BASE}/analytics/ai-monitoring`, moduleId: "ai-monitoring" },
-  { prefix: `${FACULTY_DASHBOARD_BASE}/analytics/ai-insights`, moduleId: "ai-insights" },
+  { prefix: `${FACULTY_DASHBOARD_BASE}/analytics/cora-insights`, moduleId: "cora-insights" },
+  { prefix: `${FACULTY_DASHBOARD_BASE}/analytics/ai-monitoring`, moduleId: "cora-insights" },
+  { prefix: `${FACULTY_DASHBOARD_BASE}/analytics/ai-insights`, moduleId: "cora-insights" },
   { prefix: `${FACULTY_DASHBOARD_BASE}/communication/announcements`, moduleId: "announcements" },
   { prefix: `${FACULTY_DASHBOARD_BASE}/communication/notifications`, moduleId: "notifications" },
   { prefix: `${FACULTY_DASHBOARD_BASE}/communication/messages`, moduleId: "messages" },
@@ -110,6 +113,7 @@ const FACULTY_PATH_PREFIX_TO_MODULE: Array<{ prefix: string; moduleId: string }>
   { prefix: `${FACULTY_DASHBOARD_BASE}/content/notes`, moduleId: "course-notes" },
   { prefix: `${FACULTY_DASHBOARD_BASE}/course/exchange`, moduleId: "course-exchange" },
   { prefix: `${FACULTY_DASHBOARD_BASE}/course/playground`, moduleId: "playground" },
+  { prefix: `${FACULTY_DASHBOARD_BASE}/codebench`, moduleId: "codebench" },
   { prefix: `${FACULTY_DASHBOARD_BASE}/cora`, moduleId: "cora-copilot" },
   { prefix: `${FACULTY_DASHBOARD_BASE}/learning-center/office-hours`, moduleId: "office-hours" },
   { prefix: `${FACULTY_DASHBOARD_BASE}/learning-center/help`, moduleId: "help-center" },
@@ -193,7 +197,6 @@ export function getFacultyPortalDefaultTheme(): FacultyModuleThemeTokens {
   return themeFromSemantic("primary", PORTAL_DEFAULT_FAMILY)
 }
 
-export function facultyModuleBreadcrumbClass(pathname: string): string {
-  const t = getFacultyModuleThemeFromPath(pathname)
-  return `${t.page.softBg} ${t.page.iconText} border ${t.page.border} shadow-sm`
+export function facultyModuleBreadcrumbClass(_groupId?: string): string {
+  return "bg-[var(--cc-accent)] !text-white border-0 shadow-sm"
 }

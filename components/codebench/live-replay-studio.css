@@ -1,0 +1,343 @@
+/* IDE-style read-only viewer for instructor live classroom replay */
+.live-replay-studio__shell {
+  border-radius: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--cc-text) 12%, transparent);
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--cc-accent) 10%, var(--card)) 0%, transparent 55%),
+    linear-gradient(180deg, color-mix(in srgb, var(--muted) 55%, var(--card)) 0%, var(--card) 100%);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, white 70%, transparent) inset,
+    0 10px 28px color-mix(in srgb, var(--cc-text) 8%, transparent);
+  overflow: hidden;
+}
+
+.live-replay-studio__titlebar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.65rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--cc-text) 10%, transparent);
+  padding: 0.55rem 0.75rem;
+  background: color-mix(in srgb, var(--muted) 70%, var(--card));
+}
+
+.live-replay-studio__traffic {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.live-replay-studio__dot {
+  width: 0.62rem;
+  height: 0.62rem;
+  fill: currentColor;
+  stroke: none;
+}
+
+.live-replay-studio__dot--close {
+  color: #ff5f57;
+}
+
+.live-replay-studio__dot--minimize {
+  color: #febc2e;
+}
+
+.live-replay-studio__dot--maximize {
+  color: #28c840;
+}
+
+.live-replay-studio__tab {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--cc-text) 10%, transparent);
+  background: var(--card);
+  padding: 0.28rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--cc-text);
+}
+
+.live-replay-studio__titlebar-meta {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.live-replay-studio__actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.live-replay-studio__lang-badge {
+  height: 1.35rem;
+  border-color: color-mix(in srgb, var(--cc-text) 14%, transparent);
+  background: var(--card);
+  padding-inline: 0.45rem;
+  font-size: 0.62rem;
+  color: var(--cc-text-muted);
+}
+
+.live-replay-studio__editor-host {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--card);
+}
+
+.live-replay-studio__cm .cm-editor {
+  height: 100% !important;
+  background: transparent !important;
+}
+
+.live-replay-studio__cm .cm-scroller {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  line-height: 1.55;
+}
+
+.live-replay-studio__cm .cm-gutters {
+  border-right: 1px solid color-mix(in srgb, var(--cc-text) 10%, transparent);
+  background: color-mix(in srgb, var(--muted) 80%, var(--card)) !important;
+}
+
+.live-replay-studio__statusbar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.25rem;
+  border-top: 1px solid color-mix(in srgb, var(--cc-text) 10%, transparent);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.68rem;
+  color: var(--cc-text-muted);
+  background: color-mix(in srgb, var(--muted) 55%, var(--card));
+}
+
+.live-replay-studio__statusbar-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+}
+
+.live-replay-studio__sep {
+  color: color-mix(in srgb, var(--cc-text-muted) 70%, transparent);
+}
+
+.live-replay-studio__following {
+  color: #059669;
+}
+
+.live-replay-studio__controls {
+  flex-shrink: 0;
+  backdrop-filter: blur(8px);
+}
+
+.live-replay-studio__empty {
+  display: flex;
+  height: 100%;
+  min-height: 220px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--cc-accent) 10%, transparent) 0%, transparent 58%),
+    linear-gradient(180deg, color-mix(in srgb, var(--muted) 35%, var(--card)) 0%, var(--card) 100%);
+}
+
+.live-replay-studio__empty-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--cc-text);
+}
+
+.live-replay-studio__empty-copy {
+  max-width: 16rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--cc-text-muted);
+}
+
+.live-replay-studio__empty-hint {
+  font-size: 0.6875rem;
+  color: var(--cc-text-muted);
+}
+
+.live-replay-studio__empty-radar {
+  position: relative;
+  width: 5.5rem;
+  height: 5.5rem;
+}
+
+.live-replay-studio__empty-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--cc-accent) 35%, transparent);
+}
+
+.live-replay-studio__empty-ring--outer {
+  animation: live-replay-pulse 2.8s ease-out infinite;
+}
+
+.live-replay-studio__empty-ring--mid {
+  inset: 0.85rem;
+  animation: live-replay-pulse 2.8s ease-out infinite 0.6s;
+}
+
+.live-replay-studio__empty-core {
+  position: absolute;
+  inset: 1.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--cc-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--cc-accent) 12%, var(--card));
+  color: var(--cc-accent);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--cc-accent) 16%, transparent);
+}
+
+.live-replay-studio__live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, #059669 35%, transparent);
+  background: color-mix(in srgb, #10b981 12%, var(--card));
+  padding: 0.22rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #047857;
+}
+
+.live-replay-studio__live-pill--compact {
+  padding: 0.16rem 0.45rem;
+  font-size: 0.62rem;
+}
+
+.live-replay-studio__live-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 9999px;
+  background: #10b981;
+  box-shadow: 0 0 0 0 color-mix(in srgb, #10b981 55%, transparent);
+  animation: live-replay-dot 1.8s ease-in-out infinite;
+}
+
+html.dark .live-replay-studio__shell {
+  border-color: color-mix(in srgb, var(--cc-text) 16%, transparent);
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--cc-accent) 14%, #0d1117) 0%, transparent 55%),
+    linear-gradient(180deg, #111827 0%, #0d1117 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+html.dark .live-replay-studio__titlebar {
+  border-bottom-color: rgba(148, 163, 184, 0.14);
+  background: rgba(15, 23, 42, 0.72);
+}
+
+html.dark .live-replay-studio__tab {
+  border-color: rgba(148, 163, 184, 0.16);
+  background: rgba(2, 6, 23, 0.55);
+  color: #e2e8f0;
+}
+
+html.dark .live-replay-studio__lang-badge {
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.65);
+  color: #cbd5e1;
+}
+
+html.dark .live-replay-studio__editor-host {
+  background: #0d1117;
+}
+
+html.dark .live-replay-studio__cm .cm-gutters {
+  border-right-color: rgba(148, 163, 184, 0.12);
+  background: rgba(15, 23, 42, 0.82) !important;
+}
+
+html.dark .live-replay-studio__statusbar {
+  border-top-color: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+  background: rgba(2, 6, 23, 0.82);
+}
+
+html.dark .live-replay-studio__following {
+  color: #34d399;
+}
+
+html.dark .live-replay-studio__empty {
+  background:
+    radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--cc-accent) 10%, transparent) 0%, transparent 58%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.35) 0%, rgba(13, 17, 23, 0.95) 100%);
+}
+
+html.dark .live-replay-studio__empty-core {
+  background: color-mix(in srgb, var(--cc-accent) 16%, #0f172a);
+  color: color-mix(in srgb, var(--cc-accent) 85%, white);
+}
+
+html.dark .live-replay-studio__live-pill {
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(16, 185, 129, 0.12);
+  color: #6ee7b7;
+}
+
+html.dark .live-replay-studio__live-dot {
+  background: #34d399;
+}
+
+@keyframes live-replay-pulse {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.85;
+  }
+  70% {
+    transform: scale(1.08);
+    opacity: 0.15;
+  }
+  100% {
+    transform: scale(1.08);
+    opacity: 0;
+  }
+}
+
+@keyframes live-replay-dot {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, #10b981 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+@media (max-width: 720px) {
+  .live-replay-studio__titlebar {
+    flex-wrap: wrap;
+  }
+
+  .live-replay-studio__titlebar-meta {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

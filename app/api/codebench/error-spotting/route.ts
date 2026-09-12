@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
+import { jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
 
@@ -64,6 +65,7 @@ Identify 3-5 suspicious lines. Don't give away the answer - make students think!
       actor: { userId: auth.studentDbId, userRole: "student" as const },
       feature: "CODE_HELP" as const,
       module: "codebench-error-spotting",
+      billable: true as const,
     }
 
     const { content } = await createForFeature(openai, "codebench", {
@@ -155,10 +157,7 @@ Identify 3-5 suspicious lines. Don't give away the answer - make students think!
     }
   } catch (error) {
     console.error("Error spotting API error:", error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to analyze code" },
-      { status: 500 }
-    )
+    return jsonFromCodebenchCoraError(error, "Failed to analyze code")
   }
 }
 

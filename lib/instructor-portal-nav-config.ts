@@ -27,7 +27,6 @@ import {
   UserCheck,
   Megaphone,
   Bell,
-  Bot,
   HelpCircle,
   FilePenLine,
   Sliders,
@@ -38,6 +37,7 @@ import {
   Activity,
   Share2,
   CreditCard,
+  Bot,
 } from "lucide-react"
 import type { NavGroup, NavItem } from "@/lib/portal-nav-config"
 
@@ -115,8 +115,7 @@ export const INSTRUCTOR_NAV_GROUPS: NavGroup[] = [
       { id: "advanced-analytics", label: "Advanced Analytics", href: p("/analytics/advanced"), icon: BarChart3 },
       { id: "reports", label: "Reports", href: p("/analytics/reports"), icon: FileText },
       { id: "progress-reviews", label: "Progress Reviews", href: p("/analytics/progress-reviews"), icon: Sparkles },
-      { id: "ai-monitoring", label: "AI Monitoring", href: p("/analytics/ai-monitoring"), icon: Activity },
-      { id: "ai-insights", label: "AI Insights", href: p("/analytics/ai-insights"), icon: Bot },
+      { id: "cora-insights", label: "Cora Insights", href: p("/analytics/cora-insights"), icon: Activity },
     ],
   },
   {

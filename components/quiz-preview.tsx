@@ -29,6 +29,7 @@ import {
 } from "@/components/assessments/quiz-preview-chrome"
 import { PORTAL_CARD, PORTAL_TEXT_MUTED } from "@/lib/assessments/assessment-management-surface-classes"
 import { cn } from "@/lib/utils"
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 function isFacultyQuizPreviewPath(pathname: string): boolean {
   return pathname.includes("/instructor") || pathname.includes("/faculty")
@@ -124,6 +125,7 @@ export function QuizPreview({
   const pathname = usePathname()
   // Removed usePreventBack to allow natural back navigation
   const { toast } = useToast()
+  const { alert } = useAppConfirm()
   const [loading, setLoading] = useState(true)
   const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
@@ -414,7 +416,7 @@ int main() {
     }
   }
 
-  const handleSubmitAnswer = () => {
+  const handleSubmitAnswer = async () => {
     console.log("[Preview] handleSubmitAnswer CALLED")
     console.log("[Preview] isSubmittingAnswer state:", isSubmittingAnswer)
     
@@ -463,7 +465,10 @@ int main() {
           description: "For code_write_plot questions, you must upload a plot image before submitting. Please use the 'Upload Plot' section above.",
           variant: "destructive",
         })
-        alert("Please upload a plot image before submitting this code_write_plot question!")
+        await alert({
+          title: "Plot image required",
+          description: "Please upload a plot image before submitting this code_write_plot question.",
+        })
         return
       }
 

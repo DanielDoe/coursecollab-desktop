@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
+import { codebenchUsageContext, jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
 
@@ -58,7 +59,7 @@ Return a JSON object with:
 Be specific and educational. Do not provide full code solutions.`
 
     const { content } = await createForFeature(openai, "codebench", {
-
+      usageContext: codebenchUsageContext(bound.studentDbId, "ANALYTICS", "codebench-analyze"),
       messages: [
         {
           role: "system",
@@ -84,7 +85,7 @@ Be specific and educational. Do not provide full code solutions.`
     }
   } catch (error) {
     console.error("Code analysis error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return jsonFromCodebenchCoraError(error, "Internal server error")
   }
 }
 

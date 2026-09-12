@@ -18,6 +18,7 @@ import {
   Brain,
   Layers,
   Gamepad2,
+  Code2,
   FolderKanban,
   Target,
   FileText,
@@ -29,7 +30,6 @@ import {
   Megaphone,
   Bell,
   Mail,
-  Bot,
   HelpCircle,
   FilePenLine,
   Sliders,
@@ -45,6 +45,7 @@ import {
   CreditCard,
   Share2,
   Activity,
+  Bot,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { NavGroup, NavItem } from "@/lib/portal-nav-config"
@@ -95,6 +96,7 @@ export const FACULTY_NAV_REGISTRY: FacultyNavGroupDef[] = [
       { id: "course-notes", label: "Course Notes", href: p("/content/notes"), icon: FilePenLine, requiredPermissions: ["manage_practice_content", "view_course_content"] },
       { id: "cora-copilot", label: "Cora Copilot", href: p("/cora"), icon: Sparkles, requiredPermissions: ["edit_quizzes", "publish_quizzes", "manage_practice_content", "view_course_content", "manage_course_settings"] },
       { id: "playground", label: "Manage Playground", href: p("/course/playground"), icon: Gamepad2, requiredPermissions: ["manage_playground", "view_course_content"] },
+      { id: "codebench", label: "CodeBench", href: p("/codebench"), icon: Code2, requiredPermissions: ["manage_practice_content", "view_course_content", "manage_classroom_points"] },
       { id: "groups", label: "Manage Groups", href: p("/management/groups"), icon: FolderKanban, requiredPermissions: ["manage_groups"] },
       { id: "projects", label: "Manage Projects", href: p("/management/projects"), icon: Target, requiredPermissions: ["manage_projects"] },
       { id: "course-exchange", label: "Course Exchange", href: p("/course/exchange"), icon: Share2, requiredPermissions: ["manage_course_settings"] },
@@ -137,8 +139,7 @@ export const FACULTY_NAV_REGISTRY: FacultyNavGroupDef[] = [
       { id: "advanced-analytics", label: "Class Analytics", href: p("/analytics?section=student-progress"), icon: BarChart3, requiredPermissions: ["view_analytics"] },
       { id: "reports", label: "Manage Reports", href: p("/analytics?section=reports"), icon: FileText, requiredPermissions: ["view_analytics"] },
       { id: "progress-reviews", label: "Progress Reviews", href: p("/analytics?section=progress-reviews"), icon: Sparkles, requiredPermissions: ["view_analytics"] },
-      { id: "ai-monitoring", label: "AI Monitoring", href: p("/analytics/ai-monitoring"), icon: Activity, requiredPermissions: ["view_analytics"] },
-      { id: "ai-insights", label: "AI Insights", href: p("/analytics/ai-insights"), icon: Bot, requiredPermissions: ["view_analytics"] },
+      { id: "cora-insights", label: "Cora Insights", href: p("/analytics/cora-insights"), icon: Activity, requiredPermissions: ["view_analytics"] },
     ],
   },
   {

@@ -11,6 +11,7 @@ import Link from "next/link"
 import { usePreventBack } from "@/hooks/use-prevent-back"
 import { QuestionTextRenderer } from "@/components/question-text-renderer"
 import { QuestionRenderer } from "@/components/question-renderer"
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 interface Question {
   id: number
@@ -34,6 +35,7 @@ interface MidSemester {
 
 export function MidSemesterPreview({ examId }: { examId: string }) {
   const router = useRouter()
+  const { alert } = useAppConfirm()
   usePreventBack("/admin/login")
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
@@ -266,7 +268,7 @@ int main() {
     }
   }
 
-  const handleSubmitAnswer = () => {
+  const handleSubmitAnswer = async () => {
     const currentQuestion = questions[currentQuestionIndex]
     const questionType = currentQuestion.question_type?.toLowerCase() || "mcq"
     const isMultiSelect = questionType === "multi_output" || questionType === "select_all"
@@ -308,7 +310,10 @@ int main() {
           description: "For code_write_plot questions, you must upload a plot image before submitting. Please use the 'Upload Plot' section above.",
           variant: "destructive",
         })
-        alert("Please upload a plot image before submitting this code_write_plot question!")
+        await alert({
+          title: "Plot image required",
+          description: "Please upload a plot image before submitting this code_write_plot question.",
+        })
         return
       }
 

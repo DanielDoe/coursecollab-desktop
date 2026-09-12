@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Upload, X, Image as ImageIcon, FileImage, CheckCircle2 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 interface PlotUploadProps {
   onUpload: (file: File, base64: string) => void
@@ -26,6 +27,7 @@ export function PlotUpload({
 }: PlotUploadProps) {
   const isClassroom = variant === "classroom"
   const [isDragging, setIsDragging] = useState(false)
+  const { alert } = useAppConfirm()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Debug: Log when uploadedImage prop changes
@@ -44,14 +46,20 @@ export function PlotUpload({
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp']
     if (!validTypes.includes(file.type)) {
       console.error("[PlotUpload] Invalid file type:", file.type)
-      alert('Please upload an image file (PNG, JPEG, GIF, or WebP)')
+      await alert({
+        title: "Invalid file type",
+        description: "Please upload an image file (PNG, JPEG, GIF, or WebP).",
+      })
       return
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       console.error("[PlotUpload] File too large:", file.size)
-      alert('File size must be less than 5MB')
+      await alert({
+        title: "File too large",
+        description: "File size must be less than 5MB.",
+      })
       return
     }
 
@@ -61,7 +69,10 @@ export function PlotUpload({
     
     reader.onerror = (error) => {
       console.error("[PlotUpload] FileReader error:", error)
-      alert('Error reading file. Please try again.')
+      void alert({
+        title: "Could not read file",
+        description: "Please try again.",
+      })
     }
     
     reader.onload = (e) => {
@@ -104,7 +115,10 @@ export function PlotUpload({
           console.log("[PlotUpload] ✅ Upload handler called successfully")
         } catch (error) {
           console.error("[PlotUpload] Error in upload handler:", error)
-          alert('Error uploading image. Please try again.')
+          void alert({
+            title: "Upload failed",
+            description: "Please try again.",
+          })
         }
       }
       

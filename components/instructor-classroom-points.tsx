@@ -116,7 +116,11 @@ import {
 } from "@/components/classroom-assignment-editor";
 import { ClassroomAssignmentEditDialog } from "@/components/classroom-assignment-edit-dialog";
 import { ClassroomSolutionApprovalPreview } from "@/components/classroom-solution-approval-preview";
-import { formatAssignmentDueLabel } from "@/lib/classroom-submission-availability";
+import {
+  classroomAssignmentIsOpen,
+  classroomAssignmentOpenState,
+  formatAssignmentDueLabel,
+} from "@/lib/classroom-submission-availability";
 import {
   buildClassroomPointsPortfolioPdfBuffer,
   sanitizeStudentPortfolioPdfFilename,
@@ -124,6 +128,7 @@ import {
 } from "@/lib/classroom-points-export-pdf";
 import { classroomPointsZipBasename } from "@/lib/classroom-points-export-naming";
 import { useInstructorDashboardV2 } from "@/components/instructor/dashboard-v2/InstructorDashboardV2Context";
+import { defaultFacultySessionFilter } from "@/hooks/use-instructor-scope-key";
 import { useInstructorCoursePolicies } from "@/components/instructor/useInstructorCoursePolicies";
 import { InstructorClassroomPointsRulesHub } from "@/components/instructor/InstructorClassroomPointsRulesHub";
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome";
@@ -228,7 +233,7 @@ export function InstructorClassroomPoints({
   const [pendingPracticePoints, setPendingPracticePoints] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState<number | null>(null);
-  const [sessionFilter, setSessionFilter] = useState("all");
+  const [sessionFilter, setSessionFilter] = useState(defaultFacultySessionFilter);
   const [searchQuery, setSearchQuery] = useState("");
   const [showAwardDialog, setShowAwardDialog] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -294,7 +299,7 @@ export function InstructorClassroomPoints({
     try {
       const params = new URLSearchParams({ manage: "1" });
       if (sessionFilter !== "all") params.set("session", sessionFilter);
-      const response = await studentApiFetch(`/api/classroom-points/submissions?${params}`, {
+      const response = await instructorApiFetch(`/api/classroom-points/submissions?${params}`, {
         headers: buildInstructorAuthorizedApiHeaders(),
       });
       if (!response.ok) {
@@ -303,14 +308,20 @@ export function InstructorClassroomPoints({
         return
       }
       const data = await response.json()
-      setSubmissions(data.submissions || []);
+      const rows = Array.isArray(data.submissions) ? data.submissions : []
+      setSubmissions(
+        rows.map((row: { due_at?: string | null; duration_hours?: number | null; created_at?: string; expires_at?: string | null; is_active?: boolean }) => ({
+          ...row,
+          is_active: classroomAssignmentIsOpen(row),
+        })),
+      )
     } catch (error) {
       console.error("[Classroom Points] Error fetching submissions:", error);
     }
   }, [sessionFilter, courseScopeVersion]);
 
   useEffect(() => {
-    setSessionFilter("all");
+    setSessionFilter(defaultFacultySessionFilter());
   }, [courseScopeVersion]);
 
   useEffect(() => {
@@ -567,7 +578,7 @@ export function InstructorClassroomPoints({
     }
     setSavingAwardEdit(true);
     try {
-      const res = await studentApiFetch(`/api/classroom-points/${editingAward.id}`, {
+      const res = await instructorApiFetch(`/api/classroom-points/${editingAward.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -622,7 +633,7 @@ export function InstructorClassroomPoints({
     try {
       setSubmitting(true);
 
-      const response = await studentApiFetch("/api/classroom-points", {
+      const response = await instructorApiFetch("/api/classroom-points", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -667,7 +678,7 @@ export function InstructorClassroomPoints({
   const handleApproveAll = async () => {
     try {
       setApproving(-1);
-      const response = await studentApiFetch("/api/classroom-points/approve", {
+      const response = await instructorApiFetch("/api/classroom-points/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ approveAll: true }),
@@ -703,7 +714,7 @@ export function InstructorClassroomPoints({
   const handleVerifyAndApproveAll = async () => {
     try {
       setApproving(-3);
-      const response = await studentApiFetch("/api/classroom-points/approve", {
+      const response = await instructorApiFetch("/api/classroom-points/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ verifyAndApproveAll: true }),
@@ -771,7 +782,7 @@ export function InstructorClassroomPoints({
       // Default to 2.5 points if no custom points specified
       const pointsToAward = customPoints || (approvalPoints[id] ? parseFloat(approvalPoints[id]) : 2.5);
       
-      const response = await studentApiFetch("/api/classroom-points/approve", {
+      const response = await instructorApiFetch("/api/classroom-points/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -826,7 +837,7 @@ export function InstructorClassroomPoints({
   const handleReject = async (id: number) => {
     try {
       setApproving(id);
-      const response = await studentApiFetch(`/api/classroom-points/approve?id=${id}`, {
+      const response = await instructorApiFetch(`/api/classroom-points/approve?id=${id}`, {
         method: "DELETE",
       });
 
@@ -899,7 +910,7 @@ export function InstructorClassroomPoints({
     try {
       setCreatingSubmission(true);
 
-      const response = await studentApiFetch("/api/classroom-points/submissions", {
+      const response = await instructorApiFetch("/api/classroom-points/submissions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -958,7 +969,7 @@ export function InstructorClassroomPoints({
 
     try {
       console.log("[Instructor Classroom Points] Deleting submission:", submissionToDelete.id);
-      const response = await studentApiFetch(`/api/classroom-points/submissions/${submissionToDelete.id}`, {
+      const response = await instructorApiFetch(`/api/classroom-points/submissions/${submissionToDelete.id}`, {
         method: "DELETE",
         headers: buildInstructorAuthorizedApiHeaders(),
       });
@@ -1222,7 +1233,10 @@ export function InstructorClassroomPoints({
   const engagedStudents = students.filter((s) => Number(s.award_count || 0) > 0).length;
   const engagementPct = students.length > 0 ? Math.round((engagedStudents / students.length) * 100) : 0;
 
-  const activeSubmissionsCount = submissions.filter((s) => s.is_active).length;
+  const activeSubmissionsCount = submissions.filter((s) => classroomAssignmentIsOpen(s)).length;
+  const unscheduledSubmissionsCount = submissions.filter(
+    (s) => classroomAssignmentOpenState(s) === "unscheduled",
+  ).length;
   const totalSubmissionsPages = Math.max(
     1,
     Math.ceil(submissions.length / submissionsPerPage),
@@ -1276,7 +1290,7 @@ export function InstructorClassroomPoints({
     </Select>
   );
 
-  const expiredSubmissionsCount = submissions.length - activeSubmissionsCount;
+  const expiredSubmissionsCount = submissions.length - activeSubmissionsCount - unscheduledSubmissionsCount;
 
   const assignmentStatsControl = (
     <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-xs font-semibold tabular-nums">
@@ -1286,6 +1300,11 @@ export function InstructorClassroomPoints({
       <span className="rounded-lg bg-[var(--cc-sem-success)]/10 px-2 py-1.5 text-[var(--cc-sem-success)]">
         {activeSubmissionsCount} active
       </span>
+      {unscheduledSubmissionsCount > 0 ? (
+        <span className="rounded-lg bg-muted px-2 py-1.5 text-[var(--cc-text-muted)]">
+          {unscheduledSubmissionsCount} no due date
+        </span>
+      ) : null}
       <span className="rounded-lg bg-muted px-2 py-1.5 text-[var(--cc-text-muted)]">
         {expiredSubmissionsCount} expired
       </span>
@@ -1418,12 +1437,16 @@ export function InstructorClassroomPoints({
                             <span
                               className={cn(
                                 CP_STATUS_PILL,
-                                submission.is_active
+                                classroomAssignmentOpenState(submission) === "active"
                                   ? "bg-[var(--cc-sem-success)]/15 text-[var(--cc-sem-success)]"
                                   : "bg-[var(--muted)]/60 text-[var(--cc-text-muted)]",
                               )}
                             >
-                              {submission.is_active ? "Active" : "Expired"}
+                              {classroomAssignmentOpenState(submission) === "active"
+                                ? "Active"
+                                : classroomAssignmentOpenState(submission) === "expired"
+                                  ? "Expired"
+                                  : "No due date"}
                             </span>
                           </div>
                           {isClassroomSolutionAssignment(submission.submission_kind) ? (

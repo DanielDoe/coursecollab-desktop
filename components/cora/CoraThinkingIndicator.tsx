@@ -1,56 +1,41 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { motion } from "framer-motion"
-import { BookOpen, Brain, Check, Loader2, PenLine, Puzzle, Rocket, Search, Sparkles, Target } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { CoraBotMark } from "@/components/cora/CoraBotMark"
+import {
+  CORA_THINKING_HEADLINE,
+  resolveCoraThinkingSteps,
+  type CoraThinkingMode,
+} from "@/lib/cora/thinking-process"
 import type { CoraLearningGoal } from "@/lib/cora/learning-goals"
-
-type ThinkingStep = {
-  id: string
-  label: string
-  icon: typeof BookOpen
-}
-
-const GOAL_STEPS: Record<CoraLearningGoal, ThinkingStep[]> = {
-  understand: [
-    { id: "context", label: "Reading your course context", icon: BookOpen },
-    { id: "simplify", label: "Building a clear explanation", icon: Brain },
-    { id: "check", label: "Preparing a comprehension check", icon: PenLine },
-  ],
-  solve_together: [
-    { id: "analyze", label: "Analyzing the problem", icon: Puzzle },
-    { id: "plan", label: "Breaking into guided steps", icon: Brain },
-    { id: "hint", label: "Crafting your first hint", icon: PenLine },
-  ],
-  review: [
-    { id: "read", label: "Reviewing your submission", icon: Search },
-    { id: "gaps", label: "Identifying improvements", icon: Brain },
-    { id: "feedback", label: "Writing constructive feedback", icon: PenLine },
-  ],
-  prepare: [
-    { id: "scope", label: "Scoping what to prepare for", icon: Target },
-    { id: "weak", label: "Finding weak spots", icon: Brain },
-    { id: "plan", label: "Building your practice plan", icon: PenLine },
-  ],
-  create: [
-    { id: "format", label: "Choosing the best format", icon: Rocket },
-    { id: "outline", label: "Outlining your resource", icon: Brain },
-    { id: "draft", label: "Drafting content", icon: PenLine },
-  ],
-}
+import { cn } from "@/lib/utils"
 
 type Props = {
   active?: boolean
+  /** CodeBench tool or tutoring goal driving the step copy */
+  mode?: CoraThinkingMode
+  /** @deprecated Prefer `mode` — kept for tutoring panels */
   learningGoal?: CoraLearningGoal
+  showBot?: boolean
+  compact?: boolean
+  theme?: "light" | "dark"
+  className?: string
 }
 
 export function CoraThinkingIndicator({
   active = true,
+  mode,
   learningGoal = "understand",
+  showBot = true,
+  compact = false,
+  theme = "dark",
+  className,
 }: Props) {
-  const steps = useMemo(() => GOAL_STEPS[learningGoal] ?? GOAL_STEPS.understand, [learningGoal])
+  const resolvedMode = mode ?? learningGoal
+  const steps = useMemo(() => resolveCoraThinkingSteps(resolvedMode), [resolvedMode])
   const [currentStep, setCurrentStep] = useState(0)
+  const isLight = theme === "light"
+  const activeLabel = steps[currentStep]?.label ?? CORA_THINKING_HEADLINE[resolvedMode] ?? CORA_THINKING_HEADLINE.general
 
   useEffect(() => {
     if (!active) {
@@ -59,60 +44,52 @@ export function CoraThinkingIndicator({
     }
     setCurrentStep(0)
     const interval = window.setInterval(() => {
-      setCurrentStep((s) => (s < steps.length - 1 ? s + 1 : s))
-    }, 1100)
+      setCurrentStep((step) => (step < steps.length - 1 ? step + 1 : step))
+    }, compact ? 1400 : 1600)
     return () => window.clearInterval(interval)
-  }, [active, steps.length])
+  }, [active, compact, steps.length, resolvedMode])
 
   return (
-    <div className="rounded-[24px] bg-neutral-100/90 px-5 py-4 dark:bg-white/[0.06]">
-      <p className="mb-4 flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-neutral-100">
-        <Sparkles className="h-4 w-4 text-violet-500" />
-        Working on it…
-      </p>
-      <ul className="relative space-y-0">
-        {steps.map((step, idx) => {
-          const Icon = step.icon
-          const isDone = idx < currentStep
-          const isActive = idx === currentStep
-          return (
-            <li key={step.id} className="relative flex gap-3 pb-4 last:pb-0">
-              {idx < steps.length - 1 && (
-                <span
-                  className={cn(
-                    "absolute left-[11px] top-6 h-[calc(100%-12px)] w-px",
-                    isDone ? "bg-violet-400/60" : "bg-neutral-200 dark:bg-white/10",
-                  )}
-                />
+    <div
+      className={cn(
+        compact ? "rounded-2xl px-3 py-2.5" : "rounded-[20px] px-3.5 py-3 sm:px-4",
+        isLight ? "bg-neutral-100/90 ring-1 ring-neutral-200/80" : "bg-white/[0.06] ring-1 ring-white/[0.08]",
+        className,
+      )}
+      role="status"
+      aria-live="polite"
+      aria-label={activeLabel}
+    >
+      <div className={cn("flex items-center gap-3", showBot ? "" : "justify-center")}>
+        {showBot ? (
+          <div className="relative shrink-0">
+            <div
+              className={cn(
+                "pointer-events-none absolute -inset-1 rounded-full border-2 border-transparent",
+                isLight
+                  ? "border-t-violet-500/70 border-r-violet-300/20 animate-spin"
+                  : "border-t-[#7dd3fc] border-r-violet-400/15 animate-spin",
               )}
-              <span
-                className={cn(
-                  "relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-                  isDone && "bg-violet-500 text-white",
-                  isActive && "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300",
-                  !isDone && !isActive && "bg-neutral-200/80 text-neutral-400 dark:bg-white/[0.08]",
-                )}
-              >
-                {isDone ? (
-                  <Check className="h-3.5 w-3.5" />
-                ) : isActive ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Icon className="h-3.5 w-3.5" />
-                )}
-              </span>
-              <span
-                className={cn(
-                  "pt-0.5 text-sm",
-                  isActive ? "font-medium text-neutral-800 dark:text-neutral-100" : "text-neutral-500",
-                )}
-              >
-                {step.label}
-              </span>
-            </li>
-          )
-        })}
-      </ul>
+              aria-hidden
+            />
+            <CoraBotMark size={compact ? "sm" : "md"} idle />
+          </div>
+        ) : null}
+
+        <p
+          key={`${resolvedMode}-${currentStep}`}
+          className={cn(
+            "cora-thinking-step-label min-w-0 flex-1 truncate font-medium",
+            compact ? "text-xs" : "text-sm",
+            isLight ? "text-neutral-800" : "text-neutral-100",
+          )}
+        >
+          {activeLabel}
+          <span className="cora-thinking-ellipsis" aria-hidden>
+            …
+          </span>
+        </p>
+      </div>
     </div>
   )
 }

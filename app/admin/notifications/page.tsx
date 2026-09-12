@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 const notificationIcons: Record<string, string> = {
   student_registration: "👤",
@@ -35,6 +36,7 @@ const notificationIcons: Record<string, string> = {
 
 export default function AdminNotificationsPage() {
   const router = useRouter()
+  const { confirm } = useAppConfirm()
   const { toast } = useToast()
   const { notifications, markAsRead, markAllAsRead, isLoading } = useAdminNotifications()
   const [filter, setFilter] = useState<"all" | "unread">("all")
@@ -93,7 +95,14 @@ export default function AdminNotificationsPage() {
   }
 
   const handleClearAll = async () => {
-    if (!confirm("Are you sure you want to delete all notifications? This action cannot be undone.")) return
+    const ok = await confirm({
+      title: "Delete all notifications?",
+      description: "This action cannot be undone.",
+      confirmLabel: "Delete all",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    })
+    if (!ok) return
 
     try {
       const response = await fetch("/api/admin/notifications/clear-all", {

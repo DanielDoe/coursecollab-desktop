@@ -10,6 +10,7 @@ import {
   readStoredCodebenchLanguageId,
   resolveCodebenchEditorCode,
 } from "@/lib/codebench-languages"
+import { stripCodebenchProbeComments } from "@/lib/codebench-strip-probe-comments"
 
 export const CODEBENCH_IDE_STORAGE_KEY = "codebench_ide_workspace_v1"
 
@@ -215,8 +216,29 @@ export function readStoredIdeWorkspace(studentId?: string | null): IdeWorkspace 
   return null
 }
 
+function sanitizeWorkspaceFiles(workspace: IdeWorkspace): IdeWorkspace {
+  let changed = false
+  const projects = workspace.projects.map((project) => {
+    let projectChanged = false
+    const nodes = project.nodes.map((node) => {
+      if (node.kind !== "file") return node
+      const content = stripCodebenchProbeComments(node.content ?? "")
+      const lastSavedContent = stripCodebenchProbeComments(node.lastSavedContent ?? "")
+      if (content === (node.content ?? "") && lastSavedContent === (node.lastSavedContent ?? "")) {
+        return node
+      }
+      projectChanged = true
+      return { ...node, content, lastSavedContent, updatedAt: Date.now() }
+    })
+    if (!projectChanged) return project
+    changed = true
+    return { ...project, nodes, updatedAt: Date.now() }
+  })
+  return changed ? { ...workspace, projects } : workspace
+}
+
 export function loadIdeWorkspace(studentId?: string | null): IdeWorkspace {
-  return readStoredIdeWorkspace(studentId) ?? createEmptyWorkspace()
+  return sanitizeWorkspaceFiles(readStoredIdeWorkspace(studentId) ?? createEmptyWorkspace())
 }
 
 export function persistIdeWorkspace(workspace: IdeWorkspace, studentId?: string | null): void {
@@ -337,7 +359,7 @@ export async function resolvePersistedIdeWorkspace(studentId?: string | null): P
   ])
   const copies = [local, disk, cloud].filter((item): item is IdeWorkspace => item != null)
   if (copies.length === 0) return createEmptyWorkspace()
-  return copies.reduce((newest, item) => preferNewerWorkspace(newest, item))
+  return sanitizeWorkspaceFiles(copies.reduce((newest, item) => preferNewerWorkspace(newest, item)))
 }
 
 export function getActiveProject(workspace: IdeWorkspace): IdeProject {
@@ -395,6 +417,19 @@ export function addFileToProject(
 export function addFolderToProject(project: IdeProject, name: string, parentId: string | null = null): IdeProject {
   const folder = createFolderNode(uniqueChildName(project, sanitizeIdeName(name, "folder"), parentId), parentId)
   return { ...project, nodes: [...project.nodes, folder], updatedAt: Date.now() }
+}
+
+export function upsertProjectInWorkspace(workspace: IdeWorkspace, project: IdeProject): IdeWorkspace {
+  const index = workspace.projects.findIndex((item) => item.id === project.id)
+  const projects =
+    index >= 0
+      ? workspace.projects.map((item, itemIndex) => (itemIndex === index ? project : item))
+      : [...workspace.projects, project]
+  return {
+    ...workspace,
+    activeProjectId: project.id,
+    projects,
+  }
 }
 
 export function addProject(workspace: IdeWorkspace, name: string): IdeWorkspace {

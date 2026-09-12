@@ -77,7 +77,7 @@ export function InstructorAIMonitoringDashboard({
   instructorId,
   embedInDashboard = false,
 }: InstructorAIMonitoringDashboardProps) {
-  const fp = getFacultyModuleTheme("ai-monitoring").page
+  const fp = getFacultyModuleTheme("cora-insights").page
   const cardBase = PORTAL_CARD
 
   const { toast } = useToast()
@@ -101,9 +101,9 @@ export function InstructorAIMonitoringDashboard({
   const [expandedActivity, setExpandedActivity] = useState<number[]>([])
 
   // Time range filters
-  const [activityMinutes, setActivityMinutes] = useState(60)
-  const [topicHours, setTopicHours] = useState(24)
-  const [struggleHours, setStruggleHours] = useState(6)
+  const [activityMinutes, setActivityMinutes] = useState(10080)
+  const [topicHours, setTopicHours] = useState(168)
+  const [struggleHours, setStruggleHours] = useState(168)
   const [engagementDays, setEngagementDays] = useState(7)
   const [usageDays, setUsageDays] = useState(7)
   const [difficultyDays, setDifficultyDays] = useState(14)
@@ -165,7 +165,7 @@ export function InstructorAIMonitoringDashboard({
 
   const fetchStruggles = async () => {
     try {
-      const response = await instructorApiFetch(`/api/instructor/ai-monitoring/struggle-alerts?hours=${struggleHours}&threshold=3`)
+      const response = await instructorApiFetch(`/api/instructor/ai-monitoring/struggle-alerts?hours=${struggleHours}&threshold=2`)
       const data = await response.json()
       if (data.success) {
         setStruggles(data.struggles)
@@ -270,15 +270,15 @@ export function InstructorAIMonitoringDashboard({
           <div>
             <h1 className="flex items-center gap-3 text-2xl font-bold text-slate-900 dark:text-slate-100 sm:text-3xl">
               <Brain className="h-7 w-7 text-violet-600" />
-              AI Tutor Monitoring Dashboard
+              Cora Insights
             </h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-              Real-time insights into student AI learning patterns
+              Cora questions, usage, and struggle signals for this offering
             </p>
           </div>
         ) : (
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Real-time insights into student AI learning patterns
+            Cora questions, usage, and struggle signals for this offering
           </p>
         )}
         
@@ -311,24 +311,24 @@ export function InstructorAIMonitoringDashboard({
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <DashboardKpiCard
             label="Active students"
-            value={activityStats?.active_students || 0}
-            sub={`Last ${activityMinutes} min`}
+            value={engagement?.activeUsers ?? activityStats?.active_students ?? 0}
+            sub={`Last ${engagementDays} days`}
             icon={Users}
             iconBg="bg-sky-500/10"
             iconColor="text-sky-600 dark:text-sky-400"
           />
           <DashboardKpiCard
-            label="Questions asked"
-            value={activityStats?.total_questions || 0}
-            sub={`Last ${activityMinutes} min`}
+            label="Cora turns"
+            value={engagement?.totalQuestions ?? activityStats?.total_questions ?? 0}
+            sub={`Last ${engagementDays} days`}
             icon={MessageSquare}
             iconBg="bg-violet-500/10"
             iconColor="text-violet-600 dark:text-violet-400"
           />
           <DashboardKpiCard
             label="Struggle alerts"
-            value={struggleStats?.criticalCount || 0}
-            sub="Critical issues"
+            value={(struggleStats?.criticalCount || 0) + (struggleStats?.highCount || 0)}
+            sub={`${struggleStats?.criticalCount || 0} critical · ${struggleStats?.highCount || 0} high`}
             icon={AlertTriangle}
             iconBg="bg-rose-500/10"
             iconColor="text-rose-600 dark:text-rose-400"
@@ -336,7 +336,7 @@ export function InstructorAIMonitoringDashboard({
           <DashboardKpiCard
             label="Engagement rate"
             value={`${engagement?.engagementRate || 0}%`}
-            sub={`${engagement?.activeUsers || 0} of ${engagement?.totalStudents || 0} students`}
+            sub={`${engagement?.activeUsers || 0} of ${engagement?.totalStudents || 0} in this offering`}
             icon={Target}
             iconBg="bg-emerald-500/10"
             iconColor={fp.iconText}
@@ -402,7 +402,7 @@ export function InstructorAIMonitoringDashboard({
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className={cn(
           "grid w-full",
-          embedInDashboard ? "grid-cols-3 sm:grid-cols-6 h-auto gap-1 p-1 rounded-xl bg-slate-100/80 dark:bg-white/[0.04]" : "grid-cols-7"
+          embedInDashboard ? "grid-cols-3 sm:grid-cols-7 h-auto gap-1 p-1 rounded-xl bg-slate-100/80 dark:bg-white/[0.04]" : "grid-cols-7"
         )}>
           <TabsTrigger value="overview" className={embedInDashboard ? "rounded-lg text-xs sm:text-sm" : ""}>Overview</TabsTrigger>
           <TabsTrigger value="activity" className={embedInDashboard ? "rounded-lg text-xs sm:text-sm" : ""}>Live Activity</TabsTrigger>
@@ -410,7 +410,7 @@ export function InstructorAIMonitoringDashboard({
           <TabsTrigger value="struggles" className={embedInDashboard ? "rounded-lg text-xs sm:text-sm" : ""}>Struggles</TabsTrigger>
           <TabsTrigger value="engagement" className={embedInDashboard ? "rounded-lg text-xs sm:text-sm" : ""}>Engagement</TabsTrigger>
           <TabsTrigger value="analytics" className={embedInDashboard ? "rounded-lg text-xs sm:text-sm" : ""}>Analytics</TabsTrigger>
-          {!embedInDashboard && <TabsTrigger value="ai-insights">AI Insights</TabsTrigger>}
+          <TabsTrigger value="predictions" className={embedInDashboard ? "rounded-lg text-xs sm:text-sm" : ""}>Predictions</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -427,6 +427,9 @@ export function InstructorAIMonitoringDashboard({
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
+                  {hotTopics.length === 0 && (
+                    <p className="text-sm text-slate-500">No Cora topics in this offering for the selected range.</p>
+                  )}
                   {hotTopics.slice(0, 5).map((topic, idx) => (
                     <div key={idx} className="flex items-center justify-between p-3 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 rounded-lg border border-orange-200 dark:border-orange-800">
                       <div className="flex-1">
@@ -531,10 +534,10 @@ export function InstructorAIMonitoringDashboard({
                 <SelectValue placeholder="Time range" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="15">Last 15 minutes</SelectItem>
-                <SelectItem value="30">Last 30 minutes</SelectItem>
                 <SelectItem value="60">Last hour</SelectItem>
-                <SelectItem value="120">Last 2 hours</SelectItem>
+                <SelectItem value="1440">Last 24 hours</SelectItem>
+                <SelectItem value="10080">Last 7 days</SelectItem>
+                <SelectItem value="43200">Last 30 days</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -549,6 +552,7 @@ export function InstructorAIMonitoringDashboard({
                         <div className="flex items-center gap-2 mb-2">
                           <Badge variant="outline">{item.student_name}</Badge>
                           <Badge className="bg-purple-600">{item.topic || "General"}</Badge>
+                          {item.module ? <Badge variant="secondary">{item.module}</Badge> : null}
                           <span className="text-xs text-gray-500">
                             {new Date(item.created_at).toLocaleTimeString()}
                           </span>
@@ -613,10 +617,10 @@ export function InstructorAIMonitoringDashboard({
                 <SelectValue placeholder="Time range" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="6">Last 6 hours</SelectItem>
-                <SelectItem value="12">Last 12 hours</SelectItem>
                 <SelectItem value="24">Last 24 hours</SelectItem>
-                <SelectItem value="48">Last 2 days</SelectItem>
+                <SelectItem value="72">Last 3 days</SelectItem>
+                <SelectItem value="168">Last 7 days</SelectItem>
+                <SelectItem value="720">Last 30 days</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -713,10 +717,10 @@ export function InstructorAIMonitoringDashboard({
                   <SelectValue placeholder="Time range" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="3">Last 3 hours</SelectItem>
-                  <SelectItem value="6">Last 6 hours</SelectItem>
-                  <SelectItem value="12">Last 12 hours</SelectItem>
                   <SelectItem value="24">Last 24 hours</SelectItem>
+                  <SelectItem value="72">Last 3 days</SelectItem>
+                  <SelectItem value="168">Last 7 days</SelectItem>
+                  <SelectItem value="720">Last 30 days</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1050,9 +1054,8 @@ export function InstructorAIMonitoringDashboard({
           </Card>
         </TabsContent>
 
-        {/* AI Insights Tab */}
-        <TabsContent value="ai-insights">
-          <InstructorAIInsights instructorId={instructorId} />
+        <TabsContent value="predictions">
+          <InstructorAIInsights instructorId={instructorId} embedInDashboard={embedInDashboard} />
         </TabsContent>
       </Tabs>
     </div>

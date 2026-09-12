@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
+import { resolveCourseIdForStudioEvent } from "@/lib/codebench-studio-course-scope"
 import { ensureCodebenchStudioEventsSchema } from "@/lib/codebench-studio-schema"
 
 export const dynamic = "force-dynamic"
@@ -27,10 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     await ensureCodebenchStudioEventsSchema()
-    const courseRows = await sql`
-      SELECT course_id FROM students WHERE id = ${auth.studentDbId} LIMIT 1
-    `
-    const courseId = Number(courseRows[0]?.course_id) || null
+    const courseId = await resolveCourseIdForStudioEvent(auth.studentDbId)
     await sql`
       INSERT INTO codebench_studio_events (
         student_id, course_id, event_type, language, error_family, error_message, tool, file_name, success

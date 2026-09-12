@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { parseCodebenchCoraJson } from "@/lib/codebench-cora-client"
 import { CodebenchAnalyticsSkeleton } from "@/components/codebench/CodebenchSkeletons"
 
 interface ProfileTabProps {
@@ -61,41 +62,45 @@ export function ProfileTab({ code, studentId, embedInDashboard, refreshKey = 0 }
             body: JSON.stringify({ code, studentId }),
           })
 
-          if (response.ok) {
-            const data = await response.json()
-            // Fetch streak from API
-            let streakDays = 0
-            try {
-              const streakResponse = await fetch(`/api/codebench/streak?studentId=${studentId}`)
-              if (streakResponse.ok) {
-                const streakData = await streakResponse.json()
-                streakDays = streakData.streakDays || 0
-              }
-            } catch (e) {
-              // Fallback to localStorage
-              streakDays = parseInt(localStorage.getItem("codebench_streak_days") || "0", 10)
+          const data = await parseCodebenchCoraJson<Record<string, any>>(
+            response,
+            "Failed to analyze code",
+          )
+          // Fetch streak from API
+          let streakDays = 0
+          try {
+            const streakResponse = await fetch(`/api/codebench/streak?studentId=${studentId}`)
+            if (streakResponse.ok) {
+              const streakData = await streakResponse.json()
+              streakDays = streakData.streakDays || 0
             }
-
-            const newProfile: CodingProfile = {
-              level: data.level || "Beginner",
-              mainWeakness: data.mainWeakness || "Loops",
-              mostImproved: data.mostImproved || "Conditionals",
-              recommendedPractice: data.recommendedPractice || "Arrays & Strings",
-              proficiencyScore: data.proficiencyScore || 50,
-              xp: parseInt(localStorage.getItem("codebench_xp") || "0", 10),
-              streak: streakDays,
-              badges: JSON.parse(localStorage.getItem("codebench_badges") || "[]").length,
-            }
-            setProfile(newProfile)
-            
-            // Save to localStorage
-            localStorage.setItem(
-              "codebench_learning_profile",
-              JSON.stringify({ profile: newProfile, timestamp: Date.now() })
-            )
+          } catch (e) {
+            // Fallback to localStorage
+            streakDays = parseInt(localStorage.getItem("codebench_streak_days") || "0", 10)
           }
+
+          const newProfile: CodingProfile = {
+            level: data.level || "Beginner",
+            mainWeakness: data.mainWeakness || "Loops",
+            mostImproved: data.mostImproved || "Conditionals",
+            recommendedPractice: data.recommendedPractice || "Arrays & Strings",
+            proficiencyScore: data.proficiencyScore || 50,
+            xp: parseInt(localStorage.getItem("codebench_xp") || "0", 10),
+            streak: streakDays,
+            badges: JSON.parse(localStorage.getItem("codebench_badges") || "[]").length,
+          }
+          setProfile(newProfile)
+
+          // Save to localStorage
+          localStorage.setItem(
+            "codebench_learning_profile",
+            JSON.stringify({ profile: newProfile, timestamp: Date.now() })
+          )
         } catch (error) {
           console.error("Failed to analyze profile:", error)
+          if (error instanceof Error && /Cora credits/i.test(error.message)) {
+            return
+          }
           // Set default profile
           setProfile({
             level: "Beginner",

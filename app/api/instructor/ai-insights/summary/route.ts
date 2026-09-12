@@ -3,6 +3,43 @@ import { sql } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
 
+function formatInsightType(type: unknown): string {
+  return String(type ?? "Insight")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function formatInsightPreview(data: unknown): string {
+  if (data == null) return ""
+  if (typeof data === "string") {
+    const trimmed = data.trim()
+    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return trimmed.slice(0, 280)
+    try {
+      return formatInsightPreview(JSON.parse(trimmed))
+    } catch {
+      return trimmed.slice(0, 280)
+    }
+  }
+  if (typeof data !== "object") return String(data).slice(0, 280)
+  const row = data as Record<string, unknown>
+  const gaps = Array.isArray(row.gaps) ? row.gaps : null
+  if (gaps?.length) {
+    return gaps
+      .slice(0, 3)
+      .map((gap) => {
+        const item = gap as Record<string, unknown>
+        const topic = String(item.topic ?? "Topic")
+        const impact = String(item.impact ?? item.note ?? "").trim()
+        return impact ? `${topic} — ${impact}` : topic
+      })
+      .join(" · ")
+      .slice(0, 280)
+  }
+  const summary = row.summary ?? row.message ?? row.preview ?? row.insight
+  if (summary) return String(summary).slice(0, 280)
+  return ""
+}
+
 async function safeQuery<T>(label: string, fn: () => Promise<T>, fallback: T): Promise<T> {
   try {
     return await fn()
@@ -72,12 +109,9 @@ export async function GET(request: NextRequest) {
       },
       earlyWarningCount: Number(warnings.warning_count ?? 0),
       recentInsights: storedInsights.map((row: Record<string, unknown>) => ({
-        type: row.insight_type,
+        type: formatInsightType(row.insight_type),
         createdAt: row.created_at,
-        preview:
-          typeof row.data === "object" && row.data !== null
-            ? JSON.stringify(row.data).slice(0, 200)
-            : String(row.data ?? "").slice(0, 200),
+        preview: formatInsightPreview(row.data),
       })),
       generatedAt: new Date().toISOString(),
     })

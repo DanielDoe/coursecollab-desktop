@@ -14,13 +14,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Send, Loader2, Bot, User, Sparkles, CheckCircle2, AlertCircle, Lightbulb, Bug, FileCode, MessageSquare, BookOpen, Info } from "lucide-react"
+import { Loader2, Bot, User, Sparkles, CheckCircle2, AlertCircle, Lightbulb, Bug, FileCode, MessageSquare, BookOpen, Info } from "lucide-react"
+import { CodebenchCoraComposer } from "@/components/codebench/CodebenchCoraComposer"
+import { CodebenchCoraMessage } from "@/components/codebench/CodebenchCoraMessage"
+import { CoraThinkingIndicator } from "@/components/cora/CoraThinkingIndicator"
+import { mapCodebenchToolToThinkingMode, type CoraThinkingMode } from "@/lib/cora/thinking-process"
 import ReactMarkdown from "react-markdown"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { codebenchChatTheme } from "@/lib/codebench-panel-theme"
 import { CORA_NAME } from "@/lib/cora/constants"
 import { awardXP } from "@/lib/codebench-xp"
+import { messageFromCodebenchCoraBody, parseCodebenchCoraJson } from "@/lib/codebench-cora-client"
 import { ScoreDisplay } from "./ScoreDisplay"
 import { PseudocodeRenderer } from "./PseudocodeRenderer"
 
@@ -67,6 +72,10 @@ interface AIChatInterfaceProps {
   theme?: "light" | "dark"
   /** Hide the Cora/mode header when a parent bar already shows the tool. */
   hideHeader?: boolean
+  /** Parent API call in flight before the first assistant message arrives. */
+  awaitingResponse?: boolean
+  /** Override animated step copy (e.g. suggest-fix from compiler output). */
+  thinkingMode?: CoraThinkingMode
 }
 
 interface SavedEvaluationData {
@@ -105,8 +114,12 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
   shouldStartEvaluation = true, // Default to true for backward compatibility
   theme = "dark",
   hideHeader = false,
+  awaitingResponse = false,
+  thinkingMode,
 }, ref) => {
   const isLight = theme === "light"
+  const resolvedThinkingMode = thinkingMode ?? mapCodebenchToolToThinkingMode(mode)
+  const showWorkingState = isLoading || awaitingResponse
   const { toast } = useToast()
   const [messages, setMessages] = useState<Message[]>(cachedMessages || [])
   
@@ -460,6 +473,11 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
       console.log("[AIChatInterface] ✅ shouldInitialize is true - calling initializeChat()")
       initializeChat()
     } else if (isInitializing && messages.length === 0 && !cachedMessages && !initialMessage) {
+      if (awaitingResponse || isLoading) {
+        setIsInitializing(false)
+        setIsLoading(false)
+        return
+      }
       // CRITICAL: For evaluate mode with shouldStartEvaluation=true, don't show welcome - start evaluation
       if (isEvaluationMode && code && code.trim().length > 10 && shouldStartEvaluation) {
         console.log("[AIChatInterface] 🎯 shouldStartEvaluation=true but shouldInitialize=false - forcing initialization")
@@ -525,7 +543,17 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
         },
       ])
     }
-  }, [code, studentId, isInitializing, cachedMessages, messages.length, mode, practiceProblem, initialMessage, lastInitialMessage, shouldStartEvaluation, isEvaluation])
+  }, [code, studentId, isInitializing, cachedMessages, messages.length, mode, practiceProblem, initialMessage, lastInitialMessage, shouldStartEvaluation, isEvaluation, awaitingResponse, isLoading])
+
+  // Drop stale welcome copy when a parent-triggered API call starts after mount
+  useEffect(() => {
+    if (!showWorkingState || messages.length !== 1) return
+    const only = messages[0]
+    if (only?.role !== "assistant") return
+    if (!only.content.includes("Welcome to")) return
+    setMessages([])
+    setIsInitializing(false)
+  }, [showWorkingState, messages])
 
   // Separate effect to watch for initialMessage changes (when API response arrives)
   useEffect(() => {
@@ -953,7 +981,7 @@ Be encouraging and educational. Help students understand, not just memorize.`
         })
         const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))
         console.error("[AIChatInterface] ❌ Error data:", errorData)
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        throw new Error(messageFromCodebenchCoraBody(errorData, `HTTP error! status: ${response.status}`))
       }
 
       const data = await response.json()
@@ -1113,8 +1141,11 @@ Be encouraging and educational. Help students understand, not just memorize.`
             body: JSON.stringify({ description: input, language, studentId }),
           })
           
-          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-          const data = await response.json()
+          const data = await parseCodebenchCoraJson<{
+            accessDenied?: boolean
+            error?: string
+            pseudocode?: string
+          }>(response, "Failed to generate pseudocode")
           
           if (data.accessDenied) {
             setMessages((prev) => [...prev, {
@@ -1178,8 +1209,10 @@ Be encouraging and educational. Help students understand, not just memorize.`
             body: JSON.stringify({ code: codeToUse, language, studentId, learningMode }),
           })
           
-          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-          const data = await response.json()
+          const data = await parseCodebenchCoraJson<Record<string, any>>(
+            response,
+            `Failed to ${mode} code`,
+          )
           
           if (data.accessDenied) {
             setMessages((prev) => [...prev, {
@@ -1592,7 +1625,7 @@ Continue the conversation naturally. Keep responses concise and visual. If they 
             continue
           }
           
-          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+          throw new Error(messageFromCodebenchCoraBody(errorData, `HTTP error! status: ${response.status}`))
           
         } catch (error: any) {
           clearTimeout(timeoutId)
@@ -1623,7 +1656,7 @@ Continue the conversation naturally. Keep responses concise and visual. If they 
       
       if (!response || !response.ok) {
         const errorData = await response?.json().catch(() => ({ error: `HTTP ${response?.status || 'unknown'}` }))
-        throw new Error(errorData.error || `HTTP error! status: ${response?.status}`)
+        throw new Error(messageFromCodebenchCoraBody(errorData, `HTTP error! status: ${response?.status}`))
       }
 
       const data = await response.json()
@@ -2629,7 +2662,7 @@ Provide the final score NOW. Do NOT ask any more questions.`
             const text = await response.text().catch(() => "")
             errorData = { error: `HTTP ${response.status}: ${text.substring(0, 100)}` }
           }
-          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+          throw new Error(messageFromCodebenchCoraBody(errorData, `HTTP error! status: ${response.status}`))
         }
 
         // Check content type before parsing JSON
@@ -2750,17 +2783,6 @@ Provide the final score NOW. Do NOT ask any more questions.`
       const studentData = await studentResponse.json()
       
       if (studentData.student) {
-        const instructorResponse = await instructorApiFetch("/api/instructors")
-        if (!instructorResponse.ok) {
-          throw new Error("Failed to fetch instructors")
-        }
-        const instructorContentType = instructorResponse.headers.get("content-type")
-        if (!instructorContentType || !instructorContentType.includes("application/json")) {
-          throw new Error("Instructors API returned non-JSON response")
-        }
-        const instructors = await instructorResponse.json()
-        const instructorId = instructors?.[0]?.id || 1
-
         // Ensure points are always > 0 to satisfy database constraint
         // Minimum is 2.5 (code submission) even if evaluation score is 0
         const finalPoints = Math.max(2.5, parseFloat(awardedPoints.toFixed(2)))
@@ -2773,7 +2795,6 @@ Provide the final score NOW. Do NOT ask any more questions.`
             points: finalPoints,
             reason: `Code Submission - Score: ${score.toFixed(1)}/10 - ${feedback || "Comprehension evaluation"} (Network issue fallback)`,
             category: "code_submission",
-            awardedBy: instructorId,
             session: studentData.student.section,
           }),
         })
@@ -2913,11 +2934,20 @@ Provide the final score NOW. Do NOT ask any more questions.`
         className={cn("min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 sm:p-4 [scrollbar-gutter:stable]", ct.messages)}
       >
         {isInitializing ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="text-center">
-              <Loader2 className="mx-auto mb-2 h-7 w-7 animate-spin text-[#eaaa00]" />
-              <p className={cn("text-sm", ct.loadingText)}>Starting AI session…</p>
-            </div>
+          <div className="flex h-full items-center justify-center p-3">
+            <CoraThinkingIndicator
+              mode={resolvedThinkingMode}
+              theme={isLight ? "light" : "dark"}
+              className="w-full max-w-md"
+            />
+          </div>
+        ) : messages.length === 0 && showWorkingState ? (
+          <div className="flex h-full items-center justify-center p-3">
+            <CoraThinkingIndicator
+              mode={resolvedThinkingMode}
+              theme={isLight ? "light" : "dark"}
+              className="w-full max-w-md"
+            />
           </div>
         ) : messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center px-4 text-center">
@@ -2939,304 +2969,24 @@ Provide the final score NOW. Do NOT ask any more questions.`
               return true
             })
             .map((message, i) => (
-            <div
-              key={i}
-              className={cn(
-                "flex gap-2 sm:gap-3 min-w-0 w-full",
-                message.role === "user" ? "justify-end" : "justify-start"
-              )}
-            >
-              {message.role === "assistant" && (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center self-start rounded-xl bg-gradient-to-br from-[#582c83]/40 to-[#7a4eba]/30 border border-[#582c83]/30">
-                  <Bot className="h-4 w-4 text-[#eaaa00]" />
-                </div>
-              )}
-              <div
-                className={cn(
-                  "w-full max-w-[min(100%,34rem)] min-w-0 rounded-2xl px-3.5 py-3 sm:px-4 sm:py-3.5",
-                  message.role === "user"
-                    ? ct.userBubble
-                    : ct.assistantBubble,
-                )}
-              >
-                {message.role === "assistant" ? (
-                  (mode === "pseudocode" && 
-                   (message.content.includes("Algorithm Overview") ||
-                    message.content.includes("Flow Diagram") ||
-                    message.content.includes("Structured Pseudocode") ||
-                    message.content.includes("Detailed Teaching Steps"))) ? (
-                    <div className="w-full -mx-4 -my-4">
-                      <PseudocodeRenderer content={message.content} />
-                    </div>
-                  ) : (
-                    <div className={cn(
-                      "prose prose-sm sm:prose-base max-w-none break-words [word-break:break-word]",
-                      isLight
-                        ? "prose-slate prose-p:text-slate-700 prose-li:text-slate-700 prose-code:text-slate-800 prose-code:bg-slate-100 prose-pre:bg-slate-100 prose-pre:text-slate-800 prose-a:text-blue-700"
-                        : "prose-invert text-slate-200 prose-p:text-slate-200 prose-li:text-slate-200 prose-code:text-slate-100 prose-pre:bg-slate-900/80 prose-a:text-cyan-300"
-                    )}>
-                      <ReactMarkdown
-                      components={{
-                        p({ children, ...props }: any) {
-                          // Process children to make "Question X of X" bold and line numbers clickable in debug mode
-                          const processChildren = (text: string): any => {
-                            if (typeof text !== 'string') return text
-                            
-                            const codeLines = code.split('\n')
-                            const maxLineNumber = codeLines.length
-                            const result: any[] = []
-                            let lastIndex = 0
-                            
-                            // Pattern to match line number mentions: "line X", "line number X", "on line X", "at line X"
-                            const lineNumberPattern = /(?:^|[^a-z0-9])(line\s+(?:number\s+)?(\d+)|on\s+line\s+(\d+)|at\s+line\s+(\d+))/gi
-                            
-                            let match
-                            while ((match = lineNumberPattern.exec(text)) !== null) {
-                              // Extract the line number (could be in capture group 2, 3, or 4)
-                              const lineNum = parseInt(match[2] || match[3] || match[4] || '0')
-                              
-                              // Validate line number is within bounds
-                              if (lineNum >= 1 && lineNum <= maxLineNumber) {
-                                // Add text before the match
-                                if (match.index > lastIndex) {
-                                  result.push(text.substring(lastIndex, match.index))
-                                }
-                                
-                                // Add clickable line number (only in debug mode)
-                                if (mode === "debug" && onHighlightLineWithError) {
-                                  const actualLine = lineNumberCorrections?.[lineNum] ?? lineNum
-                                  result.push(
-                                    <button
-                                      key={`line-${lineNum}-${match.index}`}
-                                      onClick={(e) => {
-                                        e.preventDefault()
-                                        e.stopPropagation()
-                                        onHighlightLineWithError(actualLine, true)
-                                        // Auto-clear after 3 seconds
-                                        setTimeout(() => {
-                                          onHighlightLineWithError(actualLine, false)
-                                        }, 3000)
-                                      }}
-                                      className="text-red-400 hover:text-red-300 underline font-semibold cursor-pointer transition-colors mx-0.5"
-                                      title={`Click to highlight line ${actualLine} in editor`}
-                                    >
-                                      {match[0].trim()}
-                                    </button>
-                                  )
-                                } else {
-                                  // Not debug mode, just add the text
-                                  result.push(match[0])
-                                }
-                                
-                                lastIndex = match.index + match[0].length
-                              }
-                            }
-                            
-                            // Add remaining text
-                            if (lastIndex < text.length) {
-                              result.push(text.substring(lastIndex))
-                            }
-                            
-                            // If no matches, process for "Question X of Y" pattern
-                            if (result.length === 0 || (result.length === 1 && typeof result[0] === 'string')) {
-                              const questionParts = text.split(/(Question\s+\d+\s+of\s+\d+:)/gi)
-                              return questionParts.map((part, i) => {
-                                if (/Question\s+\d+\s+of\s+\d+:/gi.test(part)) {
-                                  return (
-                                    <strong
-                                      key={i}
-                                      className={cn("font-bold", isLight ? "text-blue-700" : "text-blue-300")}
-                                    >
-                                      {part}
-                                    </strong>
-                                  )
-                                }
-                                return part
-                              })
-                            }
-                            
-                            return result.length > 0 ? result : text
-                          }
-                          
-                          // Handle different child types
-                          const processNode = (node: any): any => {
-                            if (typeof node === 'string') {
-                              return processChildren(node)
-                            }
-                            if (Array.isArray(node)) {
-                              return node.map((child, i) => (
-                                <span key={i}>{processNode(child)}</span>
-                              ))
-                            }
-                            return node
-                          }
-                          
-                          return <p className="mb-3 last:mb-0 leading-relaxed" {...props}>{processNode(children)}</p>
-                        },
-                        code({ node, className, children, ...props }: any) {
-                          const match = /language-(\w+)/.exec(className || "")
-                          const language = match ? match[1] : ""
-                          const isInline = !match
-                          const codeContent = String(children).replace(/\n$/, "")
-                          
-                          // Detect ASCII flow diagrams (contains box-drawing characters)
-                          const isFlowDiagram = /[┌┐└┘├┤┬┴│─╔╗╚╝╠╣╦╩║═]/.test(codeContent) || 
-                            codeContent.includes("START") || codeContent.includes("END") ||
-                            codeContent.includes("Process") || codeContent.includes("Decision")
-                          
-                          if (!isInline && (language || isFlowDiagram)) {
-                            return (
-                              <div className={cn(
-                                "my-4 rounded-lg overflow-hidden border shadow-lg",
-                                isLight ? "border-slate-200 bg-slate-100" : "border-slate-700/50 bg-slate-800/90"
-                              )}>
-                                {language && (
-                                  <div className={cn(
-                                    "px-3 py-1.5 text-xs border-b font-mono",
-                                    isLight ? "bg-slate-200 text-slate-600 border-slate-200" : "bg-slate-700/50 text-slate-400 border-slate-700/50"
-                                  )}>
-                                    {language}
-                                  </div>
-                                )}
-                                {isFlowDiagram && (
-                                  <div className={cn(
-                                    "px-3 py-1.5 text-xs border-b font-mono flex items-center gap-2",
-                                    isLight ? "bg-purple-100 text-purple-700 border-slate-200" : "bg-purple-600/30 text-purple-300 border-slate-700/50"
-                                  )}>
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                                    </svg>
-                                    Flow Diagram
-                                  </div>
-                                )}
-                                <pre className={cn(
-                                  "p-4 overflow-x-auto m-0",
-                                  isFlowDiagram ? (isLight ? "bg-slate-50" : "bg-slate-900/70") : (isLight ? "bg-white" : "bg-slate-900/50")
-                                )}>
-                                  <code className={cn(
-                                    "text-sm font-mono whitespace-pre",
-                                    isLight ? "text-slate-800" : "text-slate-200",
-                                    isFlowDiagram ? "leading-relaxed" : ""
-                                  )}>
-                                    {codeContent}
-                                  </code>
-                                </pre>
-                              </div>
-                            )
-                          }
-                          
-                          return (
-                            <code className={cn(
-                              "px-1.5 py-0.5 rounded text-sm font-mono",
-                              isLight ? "bg-slate-200 text-blue-700" : "bg-slate-700/50 text-blue-300"
-                            )} {...props}>
-                              {children}
-                            </code>
-                          )
-                        },
-                        pre({ children, ...props }: any) {
-                          // Handle pre blocks that might contain flow diagrams
-                          const content = String(children)
-                          const isFlowDiagram = /[┌┐└┘├┤┬┴│─╔╗╚╝╠╣╦╩║═]/.test(content)
-                          
-                          if (isFlowDiagram) {
-                            return (
-                              <div className={cn(
-                                "my-4 rounded-lg overflow-hidden border shadow-lg",
-                                isLight ? "border-purple-200 bg-slate-50" : "border-purple-600/30 bg-slate-800/90"
-                              )}>
-                                <div className={cn(
-                                  "px-3 py-1.5 text-xs border-b font-mono flex items-center gap-2",
-                                  isLight ? "bg-purple-100 text-purple-700 border-slate-200" : "bg-purple-600/30 text-purple-300 border-slate-700/50"
-                                )}>
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                                  </svg>
-                                  Flow Diagram
-                                </div>
-                                <pre className={cn("p-4 overflow-x-auto m-0", isLight ? "bg-white" : "bg-slate-900/70")} {...props}>
-                                  {children}
-                                </pre>
-                              </div>
-                            )
-                          }
-                          
-                          return (
-                            <pre
-                              className={cn(
-                                "my-3 p-3 sm:p-4 rounded-lg overflow-x-auto max-w-full",
-                                isLight ? "bg-slate-100 text-slate-800" : "bg-slate-900/50"
-                              )}
-                              {...props}
-                            >
-                              {children}
-                            </pre>
-                          )
-                        },
-                        ul({ children }) {
-                          return <ul className="list-disc list-inside mb-3 space-y-1 ml-2">{children}</ul>
-                        },
-                        ol({ children }) {
-                          return <ol className="list-decimal list-inside mb-3 space-y-1 ml-2">{children}</ol>
-                        },
-                        li({ children }) {
-                          return <li className="leading-relaxed">{children}</li>
-                        },
-                        h1({ children }) {
-                          return <h1 className={cn("text-xl font-bold mb-3 mt-4 border-b pb-2", isLight ? "text-blue-700 border-blue-300" : "text-blue-300 border-blue-500/30")}>{children}</h1>
-                        },
-                        h2({ children }) {
-                          return <h2 className={cn("text-lg font-semibold mb-2 mt-3", isLight ? "text-emerald-700" : "text-emerald-300")}>{children}</h2>
-                        },
-                        h3({ children }) {
-                          return <h3 className={cn("text-base font-semibold mb-2 mt-2", isLight ? "text-purple-700" : "text-purple-300")}>{children}</h3>
-                        },
-                        strong({ children }) {
-                          return <strong className={cn("font-semibold", isLight ? "text-blue-700" : "text-blue-300")}>{children}</strong>
-                        },
-                        blockquote({ children }) {
-                          return <blockquote className={cn("border-l-4 border-blue-500/50 pl-4 italic my-3", isLight ? "text-slate-600" : "text-slate-300")}>{children}</blockquote>
-                        },
-                      }}
-                    >
-                        {message.content}
-                      </ReactMarkdown>
-                    </div>
-                  )
-                ) : (
-                  <div className="flex items-start gap-2">
-                    <User className={cn("h-4 w-4 mt-0.5 shrink-0", isLight ? "text-blue-600" : "text-blue-300")} />
-                    <p className={cn(
-                      "text-sm sm:text-[15px] leading-relaxed whitespace-pre-wrap break-words",
-                      isLight ? "text-slate-800" : "text-slate-100"
-                    )}>
-                      {message.content}
-                    </p>
-                  </div>
-                )}
-                <p className={cn("text-xs mt-2", isLight ? "text-slate-500" : "text-slate-400")}>
-                  {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </p>
-              </div>
-              {message.role === "user" && (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center self-start rounded-xl bg-[#eaaa00]/20 border border-[#eaaa00]/30">
-                  <User className="h-4 w-4 text-[#eaaa00]" />
-                </div>
-              )}
-            </div>
-          ))
+              <CodebenchCoraMessage
+                key={i}
+                role={message.role}
+                content={message.content}
+                theme={isLight ? "light" : "dark"}
+                mode={mode}
+                timestamp={message.timestamp}
+              />
+            ))
         )}
-        {isLoading && (
-          <div className="flex justify-start gap-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#582c83]/30 border border-[#582c83]/30">
-              <Bot className="h-4 w-4 text-[#eaaa00]" />
-            </div>
-            <div className={cn("flex items-center gap-2 rounded-2xl px-4 py-3", ct.thinkingBubble)}>
-              <Loader2 className="h-4 w-4 animate-spin text-[#eaaa00]" />
-              <span className={cn("text-xs", ct.thinkingText)}>Thinking…</span>
-            </div>
-          </div>
-        )}
+        {showWorkingState && messages.length > 0 ? (
+          <CoraThinkingIndicator
+            mode={resolvedThinkingMode}
+            theme={isLight ? "light" : "dark"}
+            compact
+            className="max-w-md"
+          />
+        ) : null}
         {/* Show engaging ScoreDisplay as an assistant message in the chat */}
         {evaluationScore !== null && showScoreDisplay && (
           <div className="flex gap-3 justify-start">
@@ -3315,53 +3065,32 @@ Provide the final score NOW. Do NOT ask any more questions.`
 
       {/* Composer */}
       <div className={cn("shrink-0 border-t p-3 sm:p-4", ct.composer)}>
-        <div className="flex items-end gap-2">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault()
-                sendMessage()
-              }
-            }}
-            rows={2}
-            placeholder={isEvaluation ? "Type your answer…" : "Ask about your code…"}
-            className={cn("min-h-[44px] max-h-28 min-w-0 flex-1 resize-none rounded-2xl border px-4 py-3 text-sm focus:outline-none focus:ring-2", ct.input)}
-            disabled={
-              isLoading ||
-              !studentId ||
-              isInitializing ||
-              (isEvaluationFlow && (evaluationCompleted || currentQuestion >= 4)) ||
-              (isComplete && messages.some((m) => m.content.includes("FINAL_SCORE")))
-            }
-          />
-          <Button
-            onClick={sendMessage}
-            disabled={
-              isLoading ||
-              !input.trim() ||
-              !studentId ||
-              isInitializing ||
-              (isEvaluationFlow && (evaluationCompleted || currentQuestion >= 4)) ||
-              (isComplete && messages.some((m) => m.content.includes("FINAL_SCORE")))
-            }
-            className="h-11 w-11 shrink-0 rounded-2xl border-0 bg-gradient-to-br from-[#eaaa00] to-[#f5c842] p-0 text-[#1a1025] shadow-lg shadow-[#eaaa00]/20 hover:from-[#f5c842] hover:to-[#ffe066]"
-          >
-            {isLoading ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : <Send className="mx-auto h-4 w-4" />}
-          </Button>
-        </div>
-        {isEvaluation ? (
-          <p className="mt-2 flex items-center gap-1 text-[11px] text-slate-500">
-            <AlertCircle className="h-3 w-3 shrink-0" />
-            <span className="line-clamp-2">
-              {(isEvaluationFlow && (evaluationCompleted || currentQuestion >= 4)) ||
-              (isComplete && messages.some((m) => m.content.includes("FINAL_SCORE")))
-                ? "Evaluation complete"
-                : "Thoughtful answers improve your score (0–10)"}
-            </span>
-          </p>
-        ) : null}
+        <CodebenchCoraComposer
+          value={input}
+          onChange={setInput}
+          onSend={sendMessage}
+          placeholder={isEvaluation ? "Type your answer…" : "Ask about your code…"}
+          isLoading={isLoading || isInitializing}
+          disabled={
+            !studentId ||
+            (isEvaluationFlow && (evaluationCompleted || currentQuestion >= 4)) ||
+            (isComplete && messages.some((m) => m.content.includes("FINAL_SCORE")))
+          }
+          theme={isLight ? "light" : "dark"}
+          footer={
+            isEvaluation ? (
+              <p className="flex items-center gap-1 text-[11px] text-slate-500">
+                <AlertCircle className="h-3 w-3 shrink-0" />
+                <span className="line-clamp-2">
+                  {(isEvaluationFlow && (evaluationCompleted || currentQuestion >= 4)) ||
+                  (isComplete && messages.some((m) => m.content.includes("FINAL_SCORE")))
+                    ? "Evaluation complete"
+                    : "Thoughtful answers improve your score (0–10)"}
+                </span>
+              </p>
+            ) : null
+          }
+        />
       </div>
 
       {/* Practice Only Confirmation Modal */}

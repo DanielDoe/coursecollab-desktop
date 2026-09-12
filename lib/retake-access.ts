@@ -7,6 +7,7 @@ import { getEffectiveMembershipTier, hasActiveDonationTrial, isBetaUser } from "
 import { MEMBERSHIP_PLANS, type MembershipTier } from "./membership-constants"
 import { membershipAssessmentBenefitsAllowedForStudent } from "./assessment-privilege-governance"
 import { isPastRegularAssessmentsHardCloseAsync } from "./regular-assessments-cutoff-server"
+export { retakeBlockedForMissingMembership } from "./retake-access-policy"
 
 /**
  * Check if a student has retake access

@@ -1,3 +1,5 @@
+import { stripCodebenchProbeComments } from "@/lib/codebench-strip-probe-comments"
+
 export type CodebenchLanguageId = "cpp" | "c" | "python"
 
 export type CodebenchLanguage = {
@@ -151,13 +153,16 @@ function codeStorageKey(languageId: CodebenchLanguageId): string {
 export function readStoredCodebenchCode(languageId: string): string | null {
   if (typeof window === "undefined") return null
   const perLanguage = localStorage.getItem(codeStorageKey(normalizeCodebenchLanguageId(languageId)))
-  if (perLanguage?.trim()) return perLanguage
+  if (perLanguage?.trim()) return stripCodebenchProbeComments(perLanguage)
   return null
 }
 
 export function writeStoredCodebenchCode(languageId: string, code: string): void {
   if (typeof window === "undefined") return
-  localStorage.setItem(codeStorageKey(normalizeCodebenchLanguageId(languageId)), code)
+  localStorage.setItem(
+    codeStorageKey(normalizeCodebenchLanguageId(languageId)),
+    stripCodebenchProbeComments(code),
+  )
 }
 
 const EXTENSION_TO_LANGUAGE: Record<string, CodebenchLanguageId> = {

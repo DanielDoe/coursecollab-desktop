@@ -3,5 +3,5 @@
 import { LegacyFacultyRedirect } from "@/components/instructor/LegacyFacultyRedirect"
 
 export default function InstructorAIMonitoringPage() {
-  return <LegacyFacultyRedirect href="/faculty/dashboard/analytics/ai-monitoring" />
+  return <LegacyFacultyRedirect href="/faculty/dashboard/analytics/cora-insights" />
 }

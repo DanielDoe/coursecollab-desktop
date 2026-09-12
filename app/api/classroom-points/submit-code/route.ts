@@ -10,6 +10,9 @@ import {
   timingBoosterLabel,
 } from "@/lib/classroom-point-booster";
 import { ensureClassroomPointsSchema } from "@/lib/ensure-classroom-points-schema";
+import { classroomAssignmentSessionMatchesStudent } from "@/lib/classroom-submission-scope";
+import { resolveStudentCourseContextByDbId } from "@/lib/student-course-scope";
+import { resolveClassroomAwardInstructorId } from "@/lib/classroom-points-award-instructor";
 
 const sqlInstance = getSQL();
 
@@ -64,9 +67,10 @@ export async function POST(request: NextRequest) {
       // Include deadline for point booster. Ensure due_at column exists (migration may not have run)
       try {
         await sqlInstance`ALTER TABLE classroom_point_submissions ADD COLUMN IF NOT EXISTS due_at TIMESTAMP`;
+        await sqlInstance`ALTER TABLE classroom_point_submissions ADD COLUMN IF NOT EXISTS hidden_from_students BOOLEAN NOT NULL DEFAULT false`;
       } catch (_) {}
       submissionCheck = await sqlInstance`
-        SELECT id, title, description, created_at, session, duration_hours, due_at,
+        SELECT id, title, description, created_at, created_by, session, duration_hours, due_at,
                CASE 
                  WHEN due_at IS NOT NULL THEN due_at
                  WHEN duration_hours IS NULL THEN NULL
@@ -75,10 +79,11 @@ export async function POST(request: NextRequest) {
                COALESCE(due_at, created_at + ((COALESCE(duration_hours, 168)) * INTERVAL '1 hour')) as deadline
         FROM classroom_point_submissions
         WHERE id = ${parseInt(submissionId)}
+          AND COALESCE(hidden_from_students, false) = false
           AND (
             CASE
               WHEN due_at IS NOT NULL THEN due_at > NOW()
-              WHEN duration_hours IS NULL THEN true
+              WHEN duration_hours IS NULL THEN false
               ELSE (created_at + ((duration_hours + 72) * INTERVAL '1 hour')) > NOW()
             END
           )
@@ -152,6 +157,7 @@ export async function POST(request: NextRequest) {
     // Point booster: within 24hrs of deadline = x3, within 48hrs = x2 (uses original due when extended)
     const timingBooster = resolveClassroomSubmissionBooster({
       submissionId: parseInt(String(submissionId), 10),
+      openedAt: submission.created_at,
       deadline: submission.deadline,
       submittedAt: new Date(),
     });
@@ -187,6 +193,15 @@ export async function POST(request: NextRequest) {
 
     const student = studentInfo[0];
     console.log("[Classroom Points Submit] Found student:", { id: student.id, section: student.section });
+
+    const studentCtx = await resolveStudentCourseContextByDbId(Number(student.id))
+    const enrolledSession = studentCtx?.sessionCode || student.section
+    if (!classroomAssignmentSessionMatchesStudent(submission.session, enrolledSession)) {
+      return NextResponse.json(
+        { error: "This assignment is not available for your section." },
+        { status: 403 },
+      )
+    }
 
     const rewardsPolicy = await getRewardsPolicyForStudent(Number(student.id))
     if (!rewardsPolicy.allow_student_submissions) {
@@ -254,11 +269,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get default instructor ID
-    const instructorResult = await sqlInstance`
-      SELECT id FROM instructors LIMIT 1
-    `;
-    const instructorId = instructorResult[0]?.id || 1;
+    const instructorId = await resolveClassroomAwardInstructorId({
+      studentDbId: Number(student.id),
+      assignmentCreatedBy: Number((submission as { created_by?: number | null }).created_by) || null,
+    })
 
     // Create reason text using submission title
     const reasonText = submission.title || description || "Code Submission for Grading";

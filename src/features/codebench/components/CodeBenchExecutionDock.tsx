@@ -1,4 +1,14 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+} from 'react'
 import { Loader2, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
 import type { StudioDiagnostic } from '@/lib/codebench-compiler-diagnostics'
 import type { CodeBenchRunResult } from '../hooks/useCodeRunner'
@@ -27,9 +37,12 @@ type Props = {
   theme: 'light' | 'dark'
   canExecute: boolean
   unsupportedMessage?: string
+  /** Flex column that contains the editor split + this dock (for accurate height clamping). */
+  layoutBoundsRef?: RefObject<HTMLElement | null>
   onMetaChange?: (meta: CodeBenchExecutionMeta) => void
   onRunResult?: (result: CodeBenchRunResult) => void
   onSuggestFix?: (payload: { stderr: string; diagnostics: StudioDiagnostic[] }) => void
+  onDockResize?: () => void
 }
 
 type TerminalApi = {
@@ -44,12 +57,21 @@ const DEFAULT_DOCK_HEIGHT = 168
 const MIN_EDITOR_HEIGHT = 180
 const COLLAPSED_HEIGHT = 40
 
-function readStoredHeight() {
+function readStoredHeight(maxAllowed?: number) {
   if (typeof window === 'undefined') return DEFAULT_DOCK_HEIGHT
   const raw = Number(window.localStorage.getItem(HEIGHT_STORAGE_KEY))
   if (!Number.isFinite(raw)) return DEFAULT_DOCK_HEIGHT
   if (raw === MIN_DOCK_HEIGHT) return DEFAULT_DOCK_HEIGHT
-  return Math.round(Math.max(MIN_DOCK_HEIGHT, Math.min(720, raw)))
+  const stored = Math.round(Math.max(MIN_DOCK_HEIGHT, Math.min(720, raw)))
+  if (maxAllowed != null && stored > maxAllowed) {
+    return Math.min(DEFAULT_DOCK_HEIGHT, maxAllowed)
+  }
+  return stored
+}
+
+function estimateLayoutHeight() {
+  if (typeof window === 'undefined') return 640
+  return Math.max(320, Math.min(Math.round(window.innerHeight * 0.52), 720))
 }
 
 function persistHeight(height: number) {
@@ -73,7 +95,19 @@ function clampDockHeight(next: number, parentHeight: number) {
 }
 
 export const CodeBenchExecutionDock = forwardRef<CodeBenchExecutionHandle, Props>(
-  function CodeBenchExecutionDock({ theme, canExecute, unsupportedMessage, onMetaChange, onRunResult, onSuggestFix }, ref) {
+  function CodeBenchExecutionDock(
+    {
+      theme,
+      canExecute,
+      unsupportedMessage,
+      layoutBoundsRef,
+      onMetaChange,
+      onRunResult,
+      onSuggestFix,
+      onDockResize,
+    },
+    ref,
+  ) {
     const isDark = theme === 'dark'
     const terminalApi = useRef<TerminalApi | null>(null)
     const dockRef = useRef<HTMLElement | null>(null)
@@ -84,29 +118,54 @@ export const CodeBenchExecutionDock = forwardRef<CodeBenchExecutionHandle, Props
     heightRef.current = height
     if (height > COLLAPSED_HEIGHT + 8) lastExpandedRef.current = height
 
-    const applyHeight = useCallback((next: number, persist = false) => {
-      const parentHeight = dockRef.current?.parentElement?.clientHeight ?? 640
-      const clamped = clampDockHeight(next, parentHeight)
-      heightRef.current = clamped
-      setHeight(clamped)
-      if (persist) persistHeight(clamped)
-      requestAnimationFrame(() => terminalApi.current?.fit())
-    }, [])
+    const getLayoutHeight = useCallback(() => {
+      const fromBounds = layoutBoundsRef?.current?.clientHeight ?? 0
+      const fromParent = dockRef.current?.parentElement?.clientHeight ?? 0
+      const measured = Math.max(fromBounds, fromParent)
+      if (measured > MIN_EDITOR_HEIGHT + MIN_DOCK_HEIGHT + 48) return measured
+      return estimateLayoutHeight()
+    }, [layoutBoundsRef])
 
-    useEffect(() => {
-      const stored = readStoredHeight()
+    const applyHeight = useCallback(
+      (next: number, persist = false) => {
+        const parentHeight = getLayoutHeight()
+        const clamped = clampDockHeight(next, parentHeight)
+        heightRef.current = clamped
+        setHeight(clamped)
+        if (persist) persistHeight(clamped)
+        requestAnimationFrame(() => {
+          terminalApi.current?.fit()
+          onDockResize?.()
+        })
+      },
+      [getLayoutHeight, onDockResize],
+    )
+
+    const syncStoredHeight = useCallback(() => {
+      const layoutHeight = getLayoutHeight()
+      const maxDock = clampDockHeight(720, layoutHeight)
+      const stored = readStoredHeight(maxDock)
       heightRef.current = stored
       if (stored > COLLAPSED_HEIGHT + 8) lastExpandedRef.current = stored
       applyHeight(stored)
-    }, [applyHeight])
+    }, [applyHeight, getLayoutHeight])
 
     useEffect(() => {
-      const parent = dockRef.current?.parentElement
-      if (!parent) return
+      syncStoredHeight()
+      requestAnimationFrame(() => {
+        requestAnimationFrame(syncStoredHeight)
+      })
+    }, [syncStoredHeight])
+
+    useEffect(() => {
+      const targets = [layoutBoundsRef?.current, dockRef.current?.parentElement].filter(
+        (node): node is HTMLElement => node instanceof HTMLElement,
+      )
+      if (targets.length === 0) return
       const observer = new ResizeObserver(() => applyHeight(heightRef.current))
-      observer.observe(parent)
+      for (const target of targets) observer.observe(target)
       return () => observer.disconnect()
-    }, [applyHeight])
+    }, [applyHeight, layoutBoundsRef])
 
     const onResizePointerDown = useCallback(
       (event: ReactPointerEvent<HTMLDivElement>) => {

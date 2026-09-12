@@ -29,14 +29,16 @@ const desktopRedirectRules: PathRule[] = [
   },
   { test: (p) => p === '/instructor/dashboard', to: () => '/faculty/dashboard' },
   {
-    test: (p) => p === '/instructor/ai-monitoring',
-    to: () => '/faculty/dashboard/analytics/ai-monitoring',
+    test: (p) =>
+      p === '/instructor/ai-monitoring' ||
+      p === '/instructor/ai-insights' ||
+      p === '/faculty/dashboard/analytics/ai-monitoring' ||
+      p === '/faculty/dashboard/analytics/ai-insights' ||
+      p === '/instructor/dashboard-v2/analytics/ai-monitoring' ||
+      p === '/instructor/dashboard-v2/analytics/ai-insights',
+    to: () => '/faculty/dashboard/analytics/cora-insights',
   },
   { test: (p) => p === '/instructor/grades', to: () => '/faculty/dashboard/assessments/grades' },
-  {
-    test: (p) => p === '/instructor/ai-insights',
-    to: () => '/faculty/dashboard/analytics/ai-insights',
-  },
   {
     test: (p) => p === '/instructor/issues',
     to: () => '/faculty/dashboard/assessments/quizzes/issues',

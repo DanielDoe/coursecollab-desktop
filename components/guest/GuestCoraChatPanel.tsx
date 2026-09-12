@@ -3,10 +3,11 @@
 import { useCallback, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Loader2, Sparkles } from "lucide-react"
+import { Sparkles } from "lucide-react"
 import { getStudentData } from "@/lib/auth"
 import { CoraChatBubble } from "@/components/cora/CoraChatBubble"
 import { CoraChatInput } from "@/components/cora/CoraChatInput"
+import { CoraThinkingIndicator } from "@/components/cora/CoraThinkingIndicator"
 import { CoraLogo } from "@/components/cora/CoraLogo"
 import { GuestUpgradePrompt } from "@/components/guest/GuestUpgradePrompt"
 import {
@@ -142,9 +143,7 @@ export function GuestCoraChatPanel({
           ))
         )}
         {busy ? (
-          <div className="flex items-center gap-2 py-3 text-sm text-[var(--cc-text-muted)]">
-            <Loader2 className="size-4 animate-spin" /> Cora is thinking…
-          </div>
+          <CoraThinkingIndicator mode="general" theme="light" compact className="my-2 max-w-md" />
         ) : null}
         <div ref={bottomRef} />
       </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import {
   ChevronDown,
   ChevronRight,
@@ -38,6 +38,8 @@ import { childrenOf, filePath, isFileDirty, type IdeNode, type IdeProject } from
 import { cn } from "@/lib/utils"
 
 type Props = {
+  variant?: "default" | "instructor"
+  headerSlot?: ReactNode
   project: IdeProject
   projects: IdeProject[]
   activeFileId: string | null
@@ -95,6 +97,7 @@ function TreeRow({
   onNewFolder,
   onRename,
   onDelete,
+  variant = "default",
 }: {
   node: IdeNode
   project: IdeProject
@@ -107,6 +110,7 @@ function TreeRow({
   onNewFolder: (parentId: string) => void
   onRename: (node: IdeNode) => void
   onDelete: (node: IdeNode) => void
+  variant?: "default" | "instructor"
 }) {
   const { accent } = useCodebenchChrome()
   const childNodes = node.kind === "folder" ? childrenOf(project, node.id) : []
@@ -114,17 +118,19 @@ function TreeRow({
   const active = node.id === activeFileId
   const dirty = isFileDirty(node)
 
-  return (
-    <div>
-      <div
-        className={cn(
+  const rowClass =
+    variant === "instructor"
+      ? cn("instructor-tree-row group pr-1", active && "is-selected")
+      : cn(
           "group flex h-8 items-center gap-1 rounded-md pr-1 text-[12px]",
           active
             ? "bg-[color-mix(in_srgb,var(--cc-accent)_12%,var(--card))] text-[var(--cc-text)]"
             : "text-[var(--cc-text)] hover:bg-[var(--muted)]",
-        )}
-        style={{ paddingLeft: 8 + depth * 12 }}
-      >
+        )
+
+  const inner = (
+    <>
+      <div className={rowClass} style={variant === "default" ? { paddingLeft: 8 + depth * 12 } : undefined}>
         {node.kind === "folder" ? (
           <button
             type="button"
@@ -167,8 +173,35 @@ function TreeRow({
           </button>
         </div>
       </div>
-      {node.kind === "folder" && isOpen
-        ? childNodes.map((child) => (
+      {node.kind === "folder" ? (
+        variant === "instructor" ? (
+          <div className={cn("instructor-tree-children-wrapper", isOpen && "is-open")}>
+            <div className="instructor-tree-children-inner">
+              {isOpen ? (
+                <ul className="instructor-tree-nested">
+                  {childNodes.map((child) => (
+                    <TreeRow
+                      key={child.id}
+                      node={child}
+                      project={project}
+                      depth={depth + 1}
+                      activeFileId={activeFileId}
+                      expanded={expanded}
+                      onToggle={onToggle}
+                      onOpenFile={onOpenFile}
+                      onNewFile={onNewFile}
+                      onNewFolder={onNewFolder}
+                      onRename={onRename}
+                      onDelete={onDelete}
+                      variant={variant}
+                    />
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </div>
+        ) : isOpen ? (
+          childNodes.map((child) => (
             <TreeRow
               key={child.id}
               node={child}
@@ -182,14 +215,23 @@ function TreeRow({
               onNewFolder={onNewFolder}
               onRename={onRename}
               onDelete={onDelete}
+              variant={variant}
             />
           ))
-        : null}
-    </div>
+        ) : null
+      ) : null}
+    </>
   )
+
+  if (variant === "instructor") {
+    return <li className="instructor-tree-item">{inner}</li>
+  }
+  return <div>{inner}</div>
 }
 
 export function CodebenchExplorer({
+  variant = "default",
+  headerSlot,
   project,
   projects,
   activeFileId,
@@ -335,10 +377,14 @@ export function CodebenchExplorer({
       ref={asideRef}
       tabIndex={-1}
       className={cn(
-        "flex h-full min-h-0 w-[220px] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--card)] outline-none",
+        "flex h-full min-h-0 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--card)] outline-none",
+        variant === "instructor"
+          ? "instructor-codebench-explorer w-[min(260px,42%)] min-w-[9.5rem] max-w-[260px] bg-[color-mix(in_srgb,var(--card)_96%,var(--muted))]"
+          : "w-[220px]",
         explorerLocked && "pointer-events-none",
       )}
     >
+      {headerSlot ? <div className="shrink-0 border-b border-[var(--border)] p-2">{headerSlot}</div> : null}
       <div className="flex h-9 shrink-0 items-center gap-1 border-b border-[var(--border)] px-2">
         <select
           aria-label="Project"
@@ -375,9 +421,36 @@ export function CodebenchExplorer({
           <span className="block text-[11px] font-semibold" style={{ color: accent }}>+</span>
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-1">
+      <div className={cn("min-h-0 flex-1 overflow-y-auto", variant === "instructor" ? "p-3" : "p-1")}>
         {roots.length === 0 ? (
           <p className="px-2 py-3 text-[11px] text-[var(--cc-text-muted)]">No files yet. Create a file or folder to start.</p>
+        ) : variant === "instructor" ? (
+          <ul className="instructor-tree-container instructor-tree-root">
+            {roots.map((node) => (
+              <TreeRow
+                key={node.id}
+                node={node}
+                project={project}
+                depth={0}
+                activeFileId={activeFileId}
+                expanded={expanded}
+                onToggle={(id) => {
+                  setExpanded((current) => {
+                    const next = new Set(current)
+                    if (next.has(id)) next.delete(id)
+                    else next.add(id)
+                    return next
+                  })
+                }}
+                onOpenFile={onOpenFile}
+                onNewFile={(parentId) => openNameDialog({ kind: "file", parentId })}
+                onNewFolder={(parentId) => openNameDialog({ kind: "folder", parentId })}
+                onRename={(node) => openNameDialog({ kind: "rename", node })}
+                onDelete={openDeleteDialog}
+                variant={variant}
+              />
+            ))}
+          </ul>
         ) : (
           roots.map((node) => (
             <TreeRow
@@ -400,6 +473,7 @@ export function CodebenchExplorer({
               onNewFolder={(parentId) => openNameDialog({ kind: "folder", parentId })}
               onRename={(node) => openNameDialog({ kind: "rename", node })}
               onDelete={openDeleteDialog}
+              variant={variant}
             />
           ))
         )}

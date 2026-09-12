@@ -19,9 +19,11 @@ type Props = {
   className?: string
   /** Prefer starting a specific AI tool tab when the editor mounts. */
   initialTool?: string | null
+  /** Bind a classroom assignment (live session join) when the editor mounts. */
+  initialAssignmentId?: string | null
 }
 
-export function CodebenchInlineEditor({ className, initialTool = null }: Props) {
+export function CodebenchInlineEditor({ className, initialTool = null, initialAssignmentId = null }: Props) {
   const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
@@ -56,6 +58,7 @@ export function CodebenchInlineEditor({ className, initialTool = null }: Props) 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <CodeBenchPage
           embedded
+          initialAssignmentId={initialAssignmentId}
           toolbarEnd={
             <Button
               type="button"

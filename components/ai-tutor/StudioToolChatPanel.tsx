@@ -5,6 +5,7 @@ import { Loader2, Sparkles, X } from "lucide-react"
 import { AiFeedbackMarkdown } from "@/components/ai-feedback-markdown"
 import { CoraChatBubble } from "@/components/cora/CoraChatBubble"
 import { CoraChatInput } from "@/components/cora/CoraChatInput"
+import { CoraThinkingIndicator } from "@/components/cora/CoraThinkingIndicator"
 import { CoraQuestionImportDialog } from "@/components/cora/CoraQuestionImportDialog"
 import { Button } from "@/components/ui/button"
 import { useAppearance } from "@/components/appearance/AppearanceProvider"
@@ -392,10 +393,12 @@ export function StudioToolChatPanel({
           })}
 
           {loading ? (
-            <div className="mb-8 flex items-center gap-2 text-sm" style={{ color: muted }}>
-              <Loader2 className="h-4 w-4 animate-spin" style={{ color: accent }} />
-              Working…
-            </div>
+            <CoraThinkingIndicator
+              mode={toolId === "study-plan" ? "prepare" : "understand"}
+              theme={isDark ? "dark" : "light"}
+              compact
+              className="mb-8 max-w-md"
+            />
           ) : null}
         </div>
       </div>

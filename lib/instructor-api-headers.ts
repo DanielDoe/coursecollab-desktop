@@ -119,3 +119,44 @@ export async function instructorApiFetch(
   logoutOnUnauthorizedResponse(response, input, nextInit)
   return response
 }
+
+/** Parse instructor API JSON safely — HTML 404 pages become readable errors instead of JSON parse crashes. */
+export async function readInstructorApiJson<T>(
+  response: Response,
+  routeLabel = "Instructor API",
+): Promise<{ ok: true; data: T } | { ok: false; status: number; error: string }> {
+  const text = await response.text()
+  const trimmed = text.trimStart()
+
+  if (trimmed.startsWith("<!") || trimmed.startsWith("<html")) {
+    return {
+      ok: false,
+      status: response.status,
+      error:
+        response.status === 404
+          ? `${routeLabel} is not deployed on this server yet. Publish the latest build (includes /api/instructor/codebench/live-push), or for local dev set VITE_API_URL=http://localhost:3000 and run npm run dev.`
+          : `${routeLabel} returned an HTML error page (HTTP ${response.status}).`,
+    }
+  }
+
+  let data: unknown = null
+  try {
+    data = text ? JSON.parse(text) : null
+  } catch {
+    return {
+      ok: false,
+      status: response.status,
+      error: `${routeLabel} returned invalid JSON (HTTP ${response.status}).`,
+    }
+  }
+
+  if (!response.ok) {
+    const message =
+      data && typeof data === "object" && data !== null && "error" in data
+        ? String((data as { error?: string }).error ?? `${routeLabel} failed.`)
+        : `${routeLabel} failed (HTTP ${response.status}).`
+    return { ok: false, status: response.status, error: message }
+  }
+
+  return { ok: true, data: data as T }
+}

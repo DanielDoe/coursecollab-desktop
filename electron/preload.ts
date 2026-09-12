@@ -39,6 +39,8 @@ contextBridge.exposeInMainWorld('courseCollabDesktop', {
   checkForUpdates: () => ipcRenderer.invoke('update:check') as Promise<DesktopUpdateStatus>,
   downloadUpdate: () => ipcRenderer.invoke('update:download') as Promise<DesktopUpdateStatus>,
   installUpdate: () => ipcRenderer.invoke('update:install') as Promise<DesktopUpdateStatus>,
+  openUpdateDownloadPage: () =>
+    ipcRenderer.invoke('update:open-download-page') as Promise<{ ok: boolean }>,
   onUpdateStatus: (handler: (status: DesktopUpdateStatus) => void) => {
     const listener = (_event: unknown, payload: DesktopUpdateStatus) => {
       if (payload && typeof payload === 'object' && 'state' in payload) {
@@ -102,6 +104,17 @@ contextBridge.exposeInMainWorld('courseCollabDesktop', {
       }>,
     saveWorkspace: (workspace: unknown, studentId?: string | null) =>
       ipcRenderer.invoke('codebench:save-workspace', workspace, studentId) as Promise<{
+        ok: boolean
+        path: string
+        error?: string
+      }>,
+    loadProblemWorkspace: (storageKey: string) =>
+      ipcRenderer.invoke('codebench:load-problem-workspace', storageKey) as Promise<{
+        ok: boolean
+        record: unknown | null
+      }>,
+    saveProblemWorkspace: (record: unknown, storageKey: string) =>
+      ipcRenderer.invoke('codebench:save-problem-workspace', record, storageKey) as Promise<{
         ok: boolean
         path: string
         error?: string

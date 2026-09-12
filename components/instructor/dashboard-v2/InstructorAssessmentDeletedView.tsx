@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Trash2, CheckCircle2, AlertTriangle, Clock, FileText, Calendar } from "lucide-react"
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 interface DeletedItem {
   id: number
@@ -30,6 +31,7 @@ export function InstructorAssessmentDeletedView({
   assessmentPluralLabel = "Quizzes",
 }: InstructorAssessmentDeletedViewProps) {
   const { toast } = useToast()
+  const { confirm } = useAppConfirm()
   const [deletedItems, setDeletedItems] = useState<DeletedItem[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -96,7 +98,14 @@ export function InstructorAssessmentDeletedView({
   }
 
   const handlePermanentDelete = async (itemId: number) => {
-    if (!confirm("Permanently delete this item? This cannot be undone.")) return
+    const ok = await confirm({
+      title: "Permanently delete this item?",
+      description: "This cannot be undone.",
+      confirmLabel: "Delete permanently",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    })
+    if (!ok) return
     try {
       const response = await instructorApiFetch("/api/instructor/deleted-items", {
         method: "DELETE",

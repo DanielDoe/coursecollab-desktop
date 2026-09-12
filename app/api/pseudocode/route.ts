@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
+import { codebenchUsageContext, jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
 
@@ -148,7 +149,7 @@ EXAMPLE FLOW DIAGRAM FORMAT:
 Use clear visual separators, proper indentation, and structured formatting.`
 
     const { content: rawContent } = await createForFeature(openai, "codebench", {
-
+      usageContext: codebenchUsageContext(auth.studentDbId, "CODE_HELP", "codebench-pseudocode"),
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: prompt },
@@ -190,10 +191,7 @@ Use clear visual separators, proper indentation, and structured formatting.`
     })
   } catch (error) {
     console.error("[Pseudocode API] Error:", error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to generate pseudocode" },
-      { status: 500 }
-    )
+    return jsonFromCodebenchCoraError(error, "Failed to generate pseudocode")
   }
 }
 

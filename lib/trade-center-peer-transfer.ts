@@ -34,13 +34,13 @@ export function getClassroomTradableAmount(approvedTotal: number): number {
 }
 
 export async function resolveInstructorIdForTransfer(preferredId: number | null | undefined): Promise<number> {
-  if (preferredId != null && !Number.isNaN(preferredId)) {
+  if (preferredId != null && !Number.isNaN(preferredId) && Number(preferredId) > 0) {
     const r = await sql`SELECT id FROM instructors WHERE id = ${preferredId} LIMIT 1`
     if (r.length > 0) return preferredId
   }
-  const fallback = await sql`SELECT id FROM instructors ORDER BY id ASC LIMIT 1`
-  const row = fallback[0] as { id?: number } | undefined
-  return row?.id != null ? row.id : 1
+  throw new Error(
+    "Trade transfer requires a valid instructor. Refusing to default to the first instructor row.",
+  )
 }
 
 export function tradeCenterBaseUrl(): string {

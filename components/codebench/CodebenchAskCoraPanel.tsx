@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import ReactMarkdown from "react-markdown"
-import { Bot, Loader2, Maximize2, Minimize2, User } from "lucide-react"
+import { Bot, Maximize2, Minimize2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CoraChatInput } from "@/components/cora/CoraChatInput"
 import { CoraQuestionImportDialog } from "@/components/cora/CoraQuestionImportDialog"
 import { CoraThinkingIndicator } from "@/components/cora/CoraThinkingIndicator"
+import { CoraWorkspaceChatMessage } from "@/components/cora/CoraWorkspaceChatMessage"
 import { CORA_NAME } from "@/lib/cora/constants"
 import type { CoraLearningGoal } from "@/lib/cora/learning-goals"
 import type { CoraProblemContext } from "@/lib/cora/types"
@@ -247,43 +247,18 @@ export function CodebenchAskCoraPanel({
           </div>
         ) : (
           messages.map((message, index) => (
-            <div
+            <CoraWorkspaceChatMessage
               key={`${message.timestamp.getTime()}-${index}`}
-              className={cn("flex gap-2", message.role === "user" ? "justify-end" : "justify-start")}
-            >
-              {message.role === "assistant" ? (
-                <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--cc-accent-soft)] text-[var(--cc-accent-dark)]">
-                  <Bot className="h-4 w-4" />
-                </span>
-              ) : null}
-              <div
-                className={cn(
-                  "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm",
-                  message.role === "user"
-                    ? "bg-[var(--cc-accent)] text-white"
-                    : isLight
-                      ? "bg-slate-100 text-slate-800"
-                      : "bg-[#12161f] text-slate-100",
-                )}
-              >
-                {message.role === "assistant" ? (
-                  <div className="prose prose-sm max-w-none dark:prose-invert">
-                    <ReactMarkdown>{message.content}</ReactMarkdown>
-                  </div>
-                ) : (
-                  <p className="whitespace-pre-wrap">{message.content}</p>
-                )}
-              </div>
-              {message.role === "user" ? (
-                <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--muted)] text-[var(--cc-text-muted)]">
-                  <User className="h-4 w-4" />
-                </span>
-              ) : null}
-            </div>
+              role={message.role}
+              content={message.content}
+              theme={theme}
+            />
           ))
         )}
 
-        {isLoading ? <CoraThinkingIndicator learningGoal={learningGoal} /> : null}
+        {isLoading ? (
+          <CoraThinkingIndicator learningGoal={learningGoal} theme={theme} className="max-w-md" />
+        ) : null}
         <div ref={messagesEndRef} />
       </div>
 

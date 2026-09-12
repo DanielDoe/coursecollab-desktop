@@ -8,6 +8,8 @@ import { hasDeadlineExtensionForStudentQuiz } from "@/lib/deadline-extension"
 import { getAssessmentPerksExpiry } from "@/lib/assessment-perks-expiry"
 import { getAssessmentPerksGraceDaysForQuiz } from "@/lib/assessment-perks-grace-resolve"
 import { hasRetakeAccess, hasSaveAndFinishLaterAccess } from "@/lib/retake-access"
+import { retakeBlockedForMissingMembership } from "@/lib/retake-access-policy"
+import { membershipAssessmentBenefitsAllowedForStudent } from "@/lib/assessment-privilege-governance"
 import { getResumeGraceMinutes, isWithinResumeGrace } from "@/lib/quiz-resume-utils"
 import { assessmentTypeSupportsSuperpowers } from "@/lib/superpowers-apply"
 import { normalizeSuperpowerListFromUnknown } from "@/lib/superpowers-json"
@@ -109,7 +111,8 @@ export async function POST(request: NextRequest) {
         (SELECT COUNT(*)::int FROM quiz_questions qq WHERE qq.quiz_id = q.id) as num_questions,
         COALESCE(restrict_access_to_students, false) as restrict_access_to_students,
         allowed_student_ids,
-        q.assessment_type
+        q.assessment_type,
+        q.course_id
       FROM quizzes q
       WHERE q.id = ${quizId}
     `
@@ -117,6 +120,14 @@ export async function POST(request: NextRequest) {
     if (quizSettings.length === 0) {
       return NextResponse.json({ error: "Quiz not found" }, { status: 404 })
     }
+
+    const quizCourseId = Number(quizSettings[0].course_id)
+    const resolvedQuizCourseId = Number.isFinite(quizCourseId) && quizCourseId > 0 ? quizCourseId : null
+    const membershipPerksAllowed = await membershipAssessmentBenefitsAllowedForStudent(
+      studentDatabaseId,
+      resolvedQuizCourseId,
+    )
+    const hasMembershipRetake = await hasRetakeAccess(studentDatabaseId, resolvedQuizCourseId)
 
     const perksGraceDays = await getAssessmentPerksGraceDaysForQuiz(parseInt(String(quizId)))
 
@@ -320,9 +331,8 @@ export async function POST(request: NextRequest) {
       // If attempt had 0 answers (network failure before quiz loaded), soft-deleted - let student retry
       const wasSoftDeleted = finalizeResult.finalized === false && (finalizeResult as { softDeleted?: boolean }).softDeleted
       if (!wasSoftDeleted) {
-        // Rollover extends time only — does NOT grant retake; student needs Explorer/Trailblazer/donation
-        const hasAccess = await hasRetakeAccess(studentDatabaseId)
-        if (!hasAccess) {
+        // Instructor-only courses use quiz retake settings; membership perks only gate when enabled.
+        if (retakeBlockedForMissingMembership(membershipPerksAllowed, hasMembershipRetake)) {
           const scoreResult = await sql`
             SELECT score, total_questions
             FROM quiz_attempts
@@ -419,11 +429,14 @@ export async function POST(request: NextRequest) {
           // Table might not exist yet, ignore error
         }
 
-        // Check if student has retake access (membership/donation) — rollover extends time only, does NOT grant retake
-        // Exception: instructor-granted attempt_override allows retake even without membership (e.g. account upgrade issues)
+        // Membership upgrade gate only when the course enables membership assessment perks.
+        // Instructor-only: fall through to canRetakeAssessment (quiz retake_enabled / retake_limit).
+        // Exception: instructor-granted attempt_override allows retake even without membership.
         const hasOverride = override.length > 0 && (override[0].additional_attempts ?? 0) > 0
-        const hasAccess = hasOverride || (await hasRetakeAccess(studentDatabaseId))
-        if (!hasAccess && completedAttemptsCount > 0) {
+        if (
+          completedAttemptsCount > 0 &&
+          retakeBlockedForMissingMembership(membershipPerksAllowed, hasOverride || hasMembershipRetake)
+        ) {
           return NextResponse.json(
             {
               error: "Retakes require Explorer or Trailblazer membership, or an active donation. Please upgrade your membership or donate to unlock retake access.",

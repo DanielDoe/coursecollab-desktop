@@ -130,6 +130,7 @@ interface CourseCollabDesktopBridge {
   checkForUpdates: () => Promise<DesktopUpdateStatus>
   downloadUpdate: () => Promise<DesktopUpdateStatus>
   installUpdate: () => Promise<DesktopUpdateStatus>
+  openUpdateDownloadPage: () => Promise<{ ok: boolean }>
   onUpdateStatus: (handler: (status: DesktopUpdateStatus) => void) => () => void
   platform: NodeJS.Platform
   isDesktopShell: true
@@ -186,6 +187,11 @@ interface CourseCollabDesktopBridge {
     saveWorkspace: (
       workspace: unknown,
       studentId?: string | null,
+    ) => Promise<{ ok: boolean; path: string; error?: string }>
+    loadProblemWorkspace: (storageKey: string) => Promise<{ ok: boolean; record: unknown | null }>
+    saveProblemWorkspace: (
+      record: unknown,
+      storageKey: string,
     ) => Promise<{ ok: boolean; path: string; error?: string }>
     syncProjectFiles: (
       workspace: unknown,

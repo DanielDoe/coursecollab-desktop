@@ -14,7 +14,7 @@ export const CLASSROOM_SUBMISSION_EXPIRES_AT_SQL = `
 export const CLASSROOM_SUBMISSION_IS_ACTIVE_SQL = `
   CASE
     WHEN due_at IS NOT NULL THEN due_at > NOW()
-    WHEN duration_hours IS NULL THEN true
+    WHEN duration_hours IS NULL THEN false
     ELSE (created_at + ((duration_hours + 72) * INTERVAL '1 hour')) > NOW()
   END
 `

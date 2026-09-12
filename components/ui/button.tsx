@@ -27,7 +27,7 @@ const buttonVariants = cva(
         info:
           'bg-[var(--cc-sem-info)] text-white shadow-xs hover:bg-[var(--cc-sem-info-hover)]',
         premium:
-          'bg-[var(--cc-sem-reward)] text-[#422006] shadow-xs hover:bg-[var(--cc-sem-reward-hover)]',
+          'bg-[var(--cc-sem-reward)] !text-white shadow-xs hover:bg-[var(--cc-sem-reward-hover)]',
       },
       size: {
         default: 'h-9 px-4 py-2 has-[>svg]:px-3',

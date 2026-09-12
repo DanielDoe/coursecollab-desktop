@@ -123,7 +123,7 @@ export const SEMANTIC_BUTTON = {
   warning: "bg-[var(--cc-sem-warning)] hover:bg-[var(--cc-sem-warning-hover)] text-white shadow-xs",
   danger: "bg-[var(--cc-sem-danger)] hover:bg-[var(--cc-sem-danger-hover)] text-white shadow-xs",
   info: "bg-[var(--cc-sem-info)] hover:bg-[var(--cc-sem-info-hover)] text-white shadow-xs",
-  premium: "bg-[var(--cc-sem-reward)] hover:bg-[var(--cc-sem-reward-hover)] text-[#422006] shadow-xs",
+  premium: "bg-[var(--cc-sem-reward)] hover:bg-[var(--cc-sem-reward-hover)] !text-white shadow-xs",
 } as const
 
 /** Badge variant class strings */

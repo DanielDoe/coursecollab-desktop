@@ -3,6 +3,7 @@ import { getSQL } from "@/lib/db";
 import { redactClassroomPointsStudentSubmission } from "@/lib/classroom-points-student-question-config";
 import { resolveOptionalCourseScope } from "@/lib/optional-instructor-course-scope";
 import {
+  classroomAssignmentSessionMatchesStudent,
   sessionBelongsToCourse,
   submissionBelongsToCourse,
 } from "@/lib/classroom-submission-scope";
@@ -44,6 +45,7 @@ export async function GET(
         cps.duration_hours,
         cps.due_at,
         COALESCE(cps.submission_kind, 'code') as submission_kind,
+        COALESCE(cps.hidden_from_students, false) as hidden_from_students,
         cps.question_config
       FROM classroom_point_submissions cps
       WHERE cps.id = ${submissionId}
@@ -70,7 +72,8 @@ export async function GET(
       return NextResponse.json({ error: "Submission not found" }, { status: 404 })
     }
     const inCourse = await submissionBelongsToCourse(submissionId, ctx.courseId)
-    if (!inCourse) {
+    const inSection = classroomAssignmentSessionMatchesStudent(rows[0].session, ctx.sessionCode)
+    if (!inCourse || !inSection || rows[0].hidden_from_students === true) {
       return NextResponse.json({ error: "Submission not found" }, { status: 404 })
     }
 

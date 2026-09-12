@@ -40,6 +40,52 @@ export async function loadWorkspaceStore(studentId?: string | null): Promise<unk
   return null
 }
 
+export function codebenchProblemWorkspaceFile(storageKey: string): string {
+  const safe = storageKey.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64)
+  return join(codebenchWorkspaceDir(), `problem-${safe}.json`)
+}
+
+function isProblemRecord(value: unknown): value is { version: 1; project: { nodes: unknown[] } } {
+  if (!value || typeof value !== 'object') return false
+  const record = value as { version?: unknown; project?: { nodes?: unknown } }
+  return record.version === 1 && Array.isArray(record.project?.nodes)
+}
+
+export async function loadProblemWorkspaceStore(storageKey: string): Promise<unknown | null> {
+  const file = codebenchProblemWorkspaceFile(storageKey)
+  if (!existsSync(file)) return null
+  try {
+    const parsed = JSON.parse(await readFile(file, 'utf8')) as unknown
+    return isProblemRecord(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+export async function saveProblemWorkspaceStore(
+  record: unknown,
+  storageKey: string,
+): Promise<{ ok: boolean; path: string; error?: string }> {
+  const path = codebenchProblemWorkspaceFile(storageKey)
+  if (!isProblemRecord(record)) {
+    return { ok: false, path, error: 'Invalid instructor problem workspace.' }
+  }
+
+  try {
+    await mkdir(codebenchWorkspaceDir(), { recursive: true })
+    const tmp = `${path}.tmp`
+    await writeFile(tmp, `${JSON.stringify(record, null, 2)}\n`, 'utf8')
+    await rename(tmp, path)
+    return { ok: true, path }
+  } catch (error) {
+    return {
+      ok: false,
+      path,
+      error: error instanceof Error ? error.message : 'Could not save instructor problem workspace.',
+    }
+  }
+}
+
 export async function saveWorkspaceStore(
   workspace: unknown,
   studentId?: string | null,

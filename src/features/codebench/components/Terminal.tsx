@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
-import { Terminal as XTerm } from '@xterm/xterm'
+import { Terminal as XTerm, type ITheme } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { cn } from '@/lib/utils'
 import '@xterm/xterm/css/xterm.css'
 
 type TerminalProps = {
@@ -10,19 +11,54 @@ type TerminalProps = {
   onReady: (api: { write: (text: string) => void; clear: () => void; fit: () => { cols: number; rows: number } }) => void
 }
 
-function cssVar(el: HTMLElement, name: string, fallback: string) {
-  const value = getComputedStyle(el).getPropertyValue(name).trim()
-  return value || fallback
+/** Fixed terminal surfaces — do not inherit --card (can stay dark in mixed theme trees). */
+const LIGHT_TERMINAL_THEME: ITheme = {
+  background: '#ffffff',
+  foreground: '#0f172a',
+  cursor: '#582c83',
+  cursorAccent: '#ffffff',
+  selectionBackground: '#582c8328',
+  black: '#0f172a',
+  brightBlack: '#64748b',
+  red: '#dc2626',
+  brightRed: '#b91c1c',
+  green: '#15803d',
+  brightGreen: '#166534',
+  yellow: '#ca8a04',
+  blue: '#582c83',
+  brightBlue: '#6d28d9',
+  cyan: '#0369a1',
+  white: '#f8fafc',
+  brightWhite: '#ffffff',
 }
 
-function withAlpha(color: string, hexAlpha: string) {
-  if (color.startsWith('#') && (color.length === 7 || color.length === 4)) {
-    const hex = color.length === 4
-      ? `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`
-      : color
-    return `${hex}${hexAlpha}`
-  }
-  return color
+const DARK_TERMINAL_THEME: ITheme = {
+  background: '#0c0f16',
+  foreground: '#e2e8f0',
+  cursor: '#eaaa00',
+  cursorAccent: '#0c0f16',
+  selectionBackground: '#582c8355',
+  black: '#18181b',
+  brightBlack: '#94a3b8',
+  red: '#f87171',
+  brightRed: '#fca5a5',
+  green: '#4ade80',
+  brightGreen: '#86efac',
+  yellow: '#facc15',
+  blue: '#a78bfa',
+  cyan: '#38bdf8',
+}
+
+function buildXtermTheme(isDark: boolean): ITheme {
+  return isDark ? DARK_TERMINAL_THEME : LIGHT_TERMINAL_THEME
+}
+
+function syncTerminalDomBackground(host: HTMLElement, isDark: boolean) {
+  const bg = isDark ? DARK_TERMINAL_THEME.background! : LIGHT_TERMINAL_THEME.background!
+  host.style.backgroundColor = bg
+  host.querySelectorAll<HTMLElement>('.xterm-scrollable-element, .xterm-viewport, .xterm-screen').forEach((el) => {
+    el.style.backgroundColor = bg
+  })
 }
 
 export function ProgramTerminal({ isDark, acceptInput, onInput, onReady }: TerminalProps) {
@@ -31,18 +67,14 @@ export function ProgramTerminal({ isDark, acceptInput, onInput, onReady }: Termi
   const fitRef = useRef<FitAddon | null>(null)
   const acceptRef = useRef(acceptInput)
   const onInputRef = useRef(onInput)
+  const onReadyRef = useRef(onReady)
   acceptRef.current = acceptInput
   onInputRef.current = onInput
+  onReadyRef.current = onReady
 
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
-
-    const card = cssVar(host, '--card', isDark ? '#0f0f0f' : '#ffffff')
-    const text = cssVar(host, '--cc-text', isDark ? '#f5f5f5' : '#0f172a')
-    const muted = cssVar(host, '--cc-text-muted', isDark ? '#a3a3a3' : '#64748b')
-    const accent = cssVar(host, '--cc-accent', '#582c83')
-    const success = cssVar(host, '--cc-success', isDark ? '#4ade80' : '#15803d')
 
     const term = new XTerm({
       convertEol: true,
@@ -51,24 +83,13 @@ export function ProgramTerminal({ isDark, acceptInput, onInput, onReady }: Termi
       lineHeight: 1.35,
       fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, monospace",
       scrollback: 2000,
-      theme: {
-        background: card,
-        foreground: text,
-        cursor: accent,
-        cursorAccent: card,
-        selectionBackground: withAlpha(accent, isDark ? '88' : '30'),
-        black: isDark ? '#18181b' : '#0f172a',
-        brightBlack: muted,
-        green: success,
-        brightGreen: success,
-        blue: accent,
-        cyan: cssVar(host, '--cc-info', '#0369a1'),
-      },
+      theme: buildXtermTheme(isDark),
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(host)
     fit.fit()
+    syncTerminalDomBackground(host, isDark)
     termRef.current = term
     fitRef.current = fit
 
@@ -82,7 +103,7 @@ export function ProgramTerminal({ isDark, acceptInput, onInput, onReady }: Termi
       return { cols: term.cols, rows: term.rows }
     }
 
-    onReady({
+    onReadyRef.current({
       write: (text) => term.write(text),
       clear: () => term.clear(),
       fit: measure,
@@ -100,7 +121,26 @@ export function ProgramTerminal({ isDark, acceptInput, onInput, onReady }: Termi
       termRef.current = null
       fitRef.current = null
     }
-  }, [isDark, onReady])
+  }, [])
 
-  return <div ref={hostRef} className="h-full min-h-0 w-full overflow-hidden bg-[var(--card)]" />
+  useEffect(() => {
+    const host = hostRef.current
+    const term = termRef.current
+    if (!host || !term) return
+
+    const theme = buildXtermTheme(isDark)
+    term.options.theme = theme
+    syncTerminalDomBackground(host, isDark)
+    term.refresh(0, term.rows - 1)
+  }, [isDark])
+
+  return (
+    <div
+      ref={hostRef}
+      className={cn(
+        'codebench-terminal h-full min-h-0 w-full overflow-hidden',
+        isDark ? 'codebench-terminal--dark bg-[#0c0f16]' : 'codebench-terminal--light bg-white',
+      )}
+    />
+  )
 }

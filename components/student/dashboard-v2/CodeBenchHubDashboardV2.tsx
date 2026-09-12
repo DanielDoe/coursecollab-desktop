@@ -39,6 +39,9 @@ import { AnalyticsTab } from "@/components/codebench/MoreMenu/AnalyticsTab"
 import { CodebenchStudioCoach } from "@/components/codebench/CodebenchStudioCoach"
 import { DailyChallengeCard } from "@/components/codebench/DailyChallengeCard"
 import { CodebenchInlineEditor } from "@/components/codebench/CodebenchInlineEditor"
+import { StudentLiveClassroomBanner } from "@/components/codebench/StudentLiveClassroomBanner"
+import { useStudentLiveClassroomSessions } from "@/hooks/use-student-live-classroom-sessions"
+import type { StudentLiveClassroomSession } from "@/lib/codebench-live-classroom-types"
 import { CodebenchChallengeCoraDrawer } from "@/components/codebench/CodebenchChallengeCoraDrawer"
 import {
   CODEBENCH_CORA_TOOLS,
@@ -122,8 +125,11 @@ export function CodeBenchHubDashboardV2() {
   const [tier, setTier] = useState<MembershipTier | null>(null)
   const [browseView, setBrowseView] = useState<BrowseView>("overview")
   const [editorTool, setEditorTool] = useState<string | null>(null)
+  const [liveJoin, setLiveJoin] = useState<{ assignmentId: string; nonce: number } | null>(null)
+  const [editorInstanceKey, setEditorInstanceKey] = useState("editor")
   const [coraDrawerOpen, setCoraDrawerOpen] = useState(false)
   const pullStartY = useRef<number | null>(null)
+  const { sessions: liveSessions } = useStudentLiveClassroomSessions(studentId)
 
   useEffect(() => {
     try {
@@ -151,6 +157,25 @@ export function CodeBenchHubDashboardV2() {
     }
     window.addEventListener("codebench-open-hub", openHub)
     return () => window.removeEventListener("codebench-open-hub", openHub)
+  }, [])
+
+  useEffect(() => {
+    const onJoin = (event: Event) => {
+      const assignmentId = String(
+        (event as CustomEvent<{ assignmentId?: string | number }>).detail?.assignmentId ?? "",
+      ).trim()
+      if (!assignmentId) return
+      setLiveJoin((current) =>
+        current?.assignmentId === assignmentId ? current : { assignmentId, nonce: Date.now() },
+      )
+    }
+    const onLeave = () => setLiveJoin(null)
+    window.addEventListener("codebench-join-live-session", onJoin)
+    window.addEventListener("codebench-leave-live-session", onLeave)
+    return () => {
+      window.removeEventListener("codebench-join-live-session", onJoin)
+      window.removeEventListener("codebench-leave-live-session", onLeave)
+    }
   }, [])
 
   const loadHub = useCallback(async (studentIdValue: string) => {
@@ -312,7 +337,7 @@ export function CodeBenchHubDashboardV2() {
   const browseItems = useMemo(
     () => [
       { id: "overview", label: "Overview", icon: LayoutDashboard },
-      { id: "editor", label: "Editor", icon: Code2 },
+      { id: "editor", label: "Editor", icon: Code2, badge: liveSessions.length || undefined },
       { id: "challenge", label: "Daily challenge", icon: Target },
       { id: "tools", label: "Cora tools", icon: Sparkles, badge: CODEBENCH_CORA_TOOLS.length },
       { id: "badges", label: "Badges", icon: Award, badge: stats.badgeCount || undefined },
@@ -320,7 +345,7 @@ export function CodeBenchHubDashboardV2() {
       { id: "streak", label: "Streak", icon: Flame, badge: stats.streakDays || undefined },
       { id: "analytics", label: "Analytics", icon: BarChart3 },
     ],
-    [stats.badgeCount, stats.streakDays],
+    [liveSessions.length, stats.badgeCount, stats.streakDays],
   )
 
   const browseMenu = (
@@ -365,7 +390,7 @@ export function CodeBenchHubDashboardV2() {
             <CodebenchInlineEditor
               key={editorTool || "editor"}
               initialTool={editorTool}
-              className="h-full min-h-0 flex-1"
+              className="h-full min-h-[min(520px,calc(100dvh-14rem))] flex-1 lg:min-h-0"
             />
           ) : browseView === "tools" ? (
             <CodebenchCoraToolsStudio studentId={studentId} />
@@ -464,14 +489,37 @@ export function CodeBenchHubDashboardV2() {
 
   const openInlineEditor = (tool?: string | null) => {
     setEditorTool(tool ?? null)
+    if (!liveJoin) setEditorInstanceKey(tool || "editor")
     setBrowseView("editor")
+  }
+
+  const joinLiveSession = (session: StudentLiveClassroomSession) => {
+    const assignmentId = String(session.assignmentId)
+    const nonce = Date.now()
+    setLiveJoin({ assignmentId, nonce })
+    setEditorInstanceKey(`live-${assignmentId}-${nonce}`)
+    setEditorTool(null)
+    setBrowseView("editor")
+    window.dispatchEvent(
+      new CustomEvent("codebench-join-live-session", { detail: { assignmentId } }),
+    )
+  }
+
+  const leaveLiveSession = (session: StudentLiveClassroomSession) => {
+    setLiveJoin(null)
+    window.dispatchEvent(
+      new CustomEvent("codebench-leave-live-session", {
+        detail: { assignmentId: String(session.assignmentId) },
+      }),
+    )
   }
 
   const editorPane = (
     <CodebenchInlineEditor
-      key={editorTool || "editor"}
+      key={editorInstanceKey}
       initialTool={editorTool}
-      className="h-full min-h-0 flex-1"
+      initialAssignmentId={liveJoin?.assignmentId ?? null}
+      className="h-full min-h-[min(520px,calc(100dvh-14rem))] flex-1 lg:min-h-0"
     />
   )
 
@@ -582,6 +630,12 @@ export function CodeBenchHubDashboardV2() {
     default:
       detail = (
         <div className="space-y-5">
+          <StudentLiveClassroomBanner
+            sessions={liveSessions}
+            activeAssignmentId={liveJoin?.assignmentId ?? null}
+            onJoin={joinLiveSession}
+            onLeave={leaveLiveSession}
+          />
           <div className="grid grid-cols-2 gap-x-2.5 gap-y-5 pt-3 sm:grid-cols-4 sm:gap-x-3 sm:gap-y-5">
             {kpiStats.map((stat) => (
               <CodebenchStatCell

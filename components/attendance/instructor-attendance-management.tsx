@@ -69,6 +69,7 @@ import {
 } from "@/lib/attendance/attendance-surface-classes";
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome";
 
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 const chrome = facultyEmbedChrome("attendance");
 
 interface AttendanceRecord {
@@ -230,6 +231,7 @@ export function InstructorAttendanceManagement({
   embedInDashboard,
 }: InstructorAttendanceManagementProps) {
   const { toast } = useToast();
+  const { confirm } = useAppConfirm();
   const { courseScopeVersion } = useInstructorDashboardV2();
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
@@ -709,7 +711,14 @@ export function InstructorAttendanceManagement({
   };
 
   const handleDeleteRecord = async (recordId: number) => {
-    if (!confirm("Are you sure you want to delete this attendance record?")) return;
+    const ok = await confirm({
+      title: "Delete this attendance record?",
+      description: "This action cannot be undone.",
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    });
+    if (!ok) return;
 
     try {
       const response = await fetch(`/api/attendance/records?recordId=${recordId}`, {

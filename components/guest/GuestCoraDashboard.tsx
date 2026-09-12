@@ -22,6 +22,7 @@ import { getStudentData } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { CoraChatBubble } from "@/components/cora/CoraChatBubble"
 import { CoraChatInput } from "@/components/cora/CoraChatInput"
+import { CoraThinkingIndicator } from "@/components/cora/CoraThinkingIndicator"
 import { CoraBrandInline } from "@/components/cora/CoraLogo"
 import { CardWrapper } from "@/components/student/dashboard-v2/CardWrapper"
 import { GuestUpgradePrompt } from "@/components/guest/GuestUpgradePrompt"
@@ -456,9 +457,7 @@ export function GuestCoraDashboard() {
                 ))
               )}
               {busy ? (
-                <div className="flex items-center gap-2 py-3 text-sm text-[var(--cc-text-muted)]">
-                  <Loader2 className="size-4 animate-spin" /> Cora is thinking…
-                </div>
+                <CoraThinkingIndicator mode="general" theme="light" compact className="my-2 max-w-md" />
               ) : null}
               <div ref={bottomRef} />
             </div>

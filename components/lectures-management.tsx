@@ -93,6 +93,7 @@ import { LectureWorkspaceEditor } from "@/components/lecture-workspace-editor"
 import { formatLectureIndexLabel, isEleg130xLectureCourse } from "@/lib/lecture-index-label"
 import Link from "next/link"
 
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 const LecturePdfViewer = dynamic(
   () => import("@/components/lecture-pdf-viewer").then((m) => m.LecturePdfViewer),
   {
@@ -236,6 +237,7 @@ export function LecturesManagement({ embedInDashboard }: { embedInDashboard?: bo
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { toast} = useToast()
+  const { confirm } = useAppConfirm()
   const { courseScopeVersion, basePath, setPageBreadcrumbTail } = useInstructorDashboardV2()
   const { codes, accessRows, selectOptions, defaultCode, labelByCode } = useSessionCatalog()
   const [lectures, setLectures] = useState<Lecture[]>([])
@@ -785,9 +787,14 @@ export function LecturesManagement({ embedInDashboard }: { embedInDashboard?: bo
 
   const deleteLectureDocument = async () => {
     if (!lectureForDocument) return
-    if (!confirm("Remove the uploaded slide deck from this lecture? Interactive HTML slides are not deleted.")) {
-      return
-    }
+    const ok = await confirm({
+      title: "Remove uploaded slide deck?",
+      description: "Interactive HTML slides are not deleted.",
+      confirmLabel: "Remove",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    })
+    if (!ok) return
     setDocumentUploading(true)
     try {
       const response = await instructorApiFetch(`/api/instructor/lectures/${lectureForDocument.id}/document`, {

@@ -5,6 +5,11 @@ import Link from "next/link"
 import { CheckForUpdatesButton } from "@/components/dashboard-v2/CheckForUpdatesButton"
 import { getAdminData, getInstructorData, getStudentData } from "@/lib/auth"
 import { COURSE_SWITCH_EVENT } from "@/lib/data/types"
+import {
+  formatInstructorSidebarPlanLabel,
+  readCachedInstructorMembershipTier,
+  syncInstructorMembershipTierCache,
+} from "@/lib/faculty-membership-cache"
 import { FACULTY_MEMBERSHIP_HREF } from "@/lib/faculty-portal-nav-config"
 import { cn } from "@/lib/utils"
 
@@ -59,13 +64,10 @@ function readDrawerAccount(): DrawerAccount {
 
   const faculty = getInstructorData()
   if (faculty) {
-    const tier =
-      (typeof sessionStorage !== "undefined" && sessionStorage.getItem("instructorMembershipTier")) ||
-      (typeof localStorage !== "undefined" && localStorage.getItem("instructorMembershipTier")) ||
-      "Free"
+    const tier = readCachedInstructorMembershipTier()
     return {
       name: faculty.name?.trim() || faculty.username?.trim() || "Faculty",
-      plan: formatDrawerPlanLabel(tier),
+      plan: tier ? formatInstructorSidebarPlanLabel(tier) : "Loading plan…",
       membershipHref: FACULTY_MEMBERSHIP_HREF,
     }
   }
@@ -107,13 +109,21 @@ export function ShellSidebarFooter({
       })
     }
     sync()
+
+    const faculty = getInstructorData()
+    if (faculty?.id != null && !planLabel) {
+      void syncInstructorMembershipTierCache(faculty.id).then(() => sync())
+    }
+
     window.addEventListener(COURSE_SWITCH_EVENT, sync)
     window.addEventListener("student-session-ready", sync)
     window.addEventListener("faculty-session-ready", sync)
+    window.addEventListener("instructor-membership-synced", sync)
     return () => {
       window.removeEventListener(COURSE_SWITCH_EVENT, sync)
       window.removeEventListener("student-session-ready", sync)
       window.removeEventListener("faculty-session-ready", sync)
+      window.removeEventListener("instructor-membership-synced", sync)
     }
   }, [membershipHref, planLabel, userName])
 
@@ -141,7 +151,7 @@ export function ShellSidebarFooter({
 
   return (
     <div className={cn("mt-auto shrink-0 border-t border-[#EBEBEB] px-2 pb-2 pt-3 dark:border-[#262626]", className)}>
-      <div className="flex items-center gap-2.5">
+      <div className="flex min-w-0 items-center gap-2">
         <Link
           href={account.membershipHref}
           onClick={onMembershipNavigate}
@@ -154,11 +164,11 @@ export function ShellSidebarFooter({
           >
             {initials}
           </span>
-          <span className="min-w-0 flex-1">
+          <span className="min-w-0 flex-1 overflow-hidden">
             <span className="block truncate text-[13px] font-medium leading-4 text-[#1A1A1A] dark:text-white">
               {account.name}
             </span>
-            <span className="mt-0.5 block truncate text-[11px] leading-4 text-[#6B6B6B] dark:text-[#9A9A9A]">
+            <span className="mt-0.5 block truncate text-[11px] leading-4 text-[#6B6B6B] dark:text-[#9A9A9A]" title={account.plan}>
               {account.plan}
             </span>
           </span>

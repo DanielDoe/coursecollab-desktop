@@ -43,6 +43,7 @@ import { CoraChatBubble } from "@/components/cora/CoraChatBubble"
 import { CoraActionCard } from "@/components/cora/CoraActionCard"
 import { CoraTransactionPlanCard } from "@/components/cora/CoraTransactionPlanCard"
 import { CoraLogo } from "@/components/cora/CoraLogo"
+import { CoraThinkingIndicator } from "@/components/cora/CoraThinkingIndicator"
 import { CoraImportedQuestionPreview } from "@/components/cora/CoraImportedQuestionPreview"
 import { FacultyCoraQuestionBankDraftModal } from "@/components/cora/platform/FacultyCoraQuestionBankDraftModal"
 import { FacultyCoraImportCourseDialog } from "@/components/cora/platform/FacultyCoraImportCourseDialog"
@@ -870,10 +871,12 @@ export function FacultyCoraWorkspacePanel({
             ))}
 
             {busy ? (
-              <div className="flex items-center gap-2 text-sm text-[var(--cc-text-muted)]">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {isIngesting ? "Extracting questions from document…" : isLoading ? "Preparing response…" : "Cora is thinking…"}
-              </div>
+              <CoraThinkingIndicator
+                mode={isIngesting ? "create" : "general"}
+                theme="light"
+                compact
+                className="max-w-md"
+              />
             ) : null}
           </div>
         </div>

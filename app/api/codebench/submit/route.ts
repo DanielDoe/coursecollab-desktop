@@ -1,9 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
 import { sql } from "@/lib/db"
+import { codebenchUsageContext, jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
 import { getBaseUrl } from "@/lib/get-base-url"
+import { resolveClassroomAwardInstructorId } from "@/lib/classroom-points-award-instructor"
 
 const isOpenAIConfigured = !!process.env.OPENAI_API_KEY
 const openai = isOpenAIConfigured ? new OpenAI({
@@ -144,11 +146,9 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Get default instructor ID
-      const instructorResult = await sql`
-        SELECT id FROM instructors LIMIT 1
-      `
-      const instructorId = instructorResult[0]?.id || 1
+      const instructorId = await resolveClassroomAwardInstructorId({
+        studentDbId: numericStudentId,
+      })
 
       // Ensure classroom_points table has status column
       await sql`
@@ -488,7 +488,7 @@ export async function POST(request: NextRequest) {
 
       // Generate questions directly
       const { content: questionsContent } = await createForFeature(openai, "codebench", {
-
+        usageContext: codebenchUsageContext(auth.studentDbId, "QUIZ_GENERATION", "codebench-submit-questions"),
         messages: [
           {
             role: "system",
@@ -540,7 +540,7 @@ Mix multiple choice and short answer questions. Ensure questions are directly re
 
       // Evaluate answers
       const { content: evaluationContent } = await createForFeature(openai, "codebench", {
-
+        usageContext: codebenchUsageContext(auth.studentDbId, "QUIZ_GENERATION", "codebench-submit-evaluate"),
         messages: [
           {
             role: "system",
@@ -603,11 +603,9 @@ Be lenient but accurate. Partial credit for partially correct answers.`,
       // Minimum is 2.5 (code submission) even if evaluation score is 0
       const finalPoints = Math.max(2.5, parseFloat(awardedPoints.toFixed(2)))
 
-      // Get default instructor ID (you may need to adjust this)
-      const instructorResult = await sql`
-        SELECT id FROM instructors LIMIT 1
-      `
-      const instructorId = instructorResult[0]?.id || 1
+      const instructorId = await resolveClassroomAwardInstructorId({
+        studentDbId: numericStudentId,
+      })
 
       // Ensure classroom_points table has status column
       await sql`
@@ -753,9 +751,6 @@ Be lenient but accurate. Partial credit for partially correct answers.`,
     }
   } catch (error) {
     console.error("[CodeBench Submit] Error:", error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to submit code" },
-      { status: 500 }
-    )
+    return jsonFromCodebenchCoraError(error, "Failed to submit code")
   }
 }

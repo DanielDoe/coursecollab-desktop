@@ -1,31 +1,38 @@
 import {
   ECE2202_LECTURE7_CLASSROOM_DUE_CT,
   isEce2202Lecture7ClassroomSubmission,
-  originalDueForTimingBooster,
 } from "@/lib/classroom-submission-availability"
 
 /** Base classroom submission points before timing booster (not CodeBench x2). */
 export const CLASSROOM_BASE_POINTS = 2.5
 
 /**
- * Timing booster at submission time:
- * - within 24h of deadline → x3
- * - within 48h of deadline → x2
- * - otherwise x1 (late submissions also x1)
+ * Timing booster from when the assignment was posted:
+ * - within 24h of created/opened → x3
+ * - 24–48h after opened (next day) → x2
+ * - later → x1
  */
+export function getTimingBoosterSinceOpened(
+  openedAt: Date | string | null | undefined,
+  submittedAt: Date | string = new Date(),
+): number {
+  if (!openedAt) return 1
+  const openMs = new Date(openedAt).getTime()
+  const atMs = new Date(submittedAt).getTime()
+  if (!Number.isFinite(openMs) || !Number.isFinite(atMs)) return 1
+  const hoursSinceOpen = (atMs - openMs) / (1000 * 60 * 60)
+  if (hoursSinceOpen < 0) return 3
+  if (hoursSinceOpen <= 24) return 3
+  if (hoursSinceOpen <= 48) return 2
+  return 1
+}
+
+/** @deprecated Deadline-relative booster. Use getTimingBoosterSinceOpened. */
 export function getTimingBoosterAt(
-  deadline: Date | string | null | undefined,
+  openedAt: Date | string | null | undefined,
   atTime: Date | string = new Date(),
 ): number {
-  if (!deadline) return 1
-  const deadlineMs = new Date(deadline).getTime()
-  const atMs = new Date(atTime).getTime()
-  if (!Number.isFinite(deadlineMs) || !Number.isFinite(atMs)) return 1
-  const hoursUntilDeadline = (deadlineMs - atMs) / (1000 * 60 * 60)
-  if (hoursUntilDeadline < 0) return 1
-  if (hoursUntilDeadline <= 24) return 3
-  if (hoursUntilDeadline <= 48) return 2
-  return 1
+  return getTimingBoosterSinceOpened(openedAt, atTime)
 }
 
 export function classroomBasePointsFromScorePercent(scorePercent: number): number {
@@ -47,8 +54,8 @@ export function classroomPointsFromAiScorePercent(scorePercent: number, booster:
 }
 
 export function timingBoosterLabel(booster: number): string {
-  if (booster === 3) return "x3 (within 24hrs of deadline)"
-  if (booster === 2) return "x2 (within 48hrs of deadline)"
+  if (booster === 3) return "x3 (submitted within 24hrs)"
+  if (booster === 2) return "x2 (submitted the next day)"
   return "x1"
 }
 
@@ -76,10 +83,39 @@ export function resolveClassroomDisplayPoints(
   return classroomPointsWithBooster(CLASSROOM_BASE_POINTS, booster)
 }
 
-/** Booster at the moment the student submitted (uses original due date when assignment was extended). */
+/**
+ * Recompute stored points when a timing booster was missing or too low.
+ * Never lowers an existing award.
+ */
+export function applyTimingBoosterBackfill(opts: {
+  storedPoints: number
+  storedBooster: number
+  nextBooster: number
+}): { points: number; booster: number; changed: boolean } {
+  const storedBooster = Math.max(1, Number(opts.storedBooster) || 1)
+  const nextBooster = Math.max(1, Number(opts.nextBooster) || 1)
+  const stored = Number(opts.storedPoints) || 0
+  const looksUnboosted = stored > 0 && stored <= CLASSROOM_BASE_POINTS + 0.01
+  const base = looksUnboosted
+    ? stored
+    : storedBooster > 1
+      ? stored / storedBooster
+      : stored
+  const nextPoints = classroomPointsWithBooster(
+    Number.isFinite(base) && base > 0 ? Math.min(CLASSROOM_BASE_POINTS, base) : CLASSROOM_BASE_POINTS,
+    nextBooster,
+  )
+  const points = Math.max(stored, nextPoints)
+  const booster = Math.max(storedBooster, nextBooster)
+  const changed = points > stored + 0.001 || booster !== storedBooster
+  return { points: Number.parseFloat(points.toFixed(2)), booster, changed }
+}
+
+/** Booster at the moment the student submitted, from assignment created/opened time. */
 export function resolveClassroomSubmissionBooster(opts: {
   submissionId?: number | null
   deadline?: Date | string | null
+  openedAt?: Date | string | null
   submittedAt?: Date | string | null
 }): number {
   // Lecture 7 / Ch.7: agreed flat x3 for any on-time submission (not the usual 24h window).
@@ -91,7 +127,5 @@ export function resolveClassroomSubmissionBooster(opts: {
     return 1
   }
 
-  const boosterDeadline =
-    originalDueForTimingBooster(opts.submissionId ?? null) ?? opts.deadline ?? null
-  return getTimingBoosterAt(boosterDeadline, opts.submittedAt ?? new Date())
+  return getTimingBoosterSinceOpened(opts.openedAt ?? null, opts.submittedAt ?? new Date())
 }

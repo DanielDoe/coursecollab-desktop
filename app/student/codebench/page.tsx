@@ -2,7 +2,7 @@
 
 
 import { studentApiFetch } from "@/lib/auth"
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Code, ArrowLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
@@ -38,11 +38,18 @@ import { CodebenchEditorChrome } from "@/components/codebench/CodebenchEditorChr
 import { CodebenchEditorCoraSplit } from "@/components/codebench/CodebenchEditorCoraSplit"
 import { CodebenchExplorer } from "@/components/codebench/CodebenchExplorer"
 import { useCodebenchIde } from "@/hooks/use-codebench-ide"
+import { useCodebenchLiveSnapshot } from "@/hooks/use-codebench-live-snapshot"
+import { useCodebenchLiveInstructorPush } from "@/hooks/use-codebench-live-instructor-push"
+import { useStudentLiveClassroomSessions } from "@/hooks/use-student-live-classroom-sessions"
+import { StudentLiveClassroomBanner } from "@/components/codebench/StudentLiveClassroomBanner"
+import type { StudentLiveClassroomSession } from "@/lib/codebench-live-classroom-types"
 import { isFileDirty } from "@/lib/codebench-ide-workspace"
 import { registerCodebenchMonacoThemes, codebenchEditorOptions } from "@/lib/codebench-monaco-themes"
 import { useCora } from "@/components/cora/CoraProvider"
 import { coraContextFromQuestion } from "@/lib/cora/question-context"
+import type { CoraThinkingMode } from "@/lib/cora/thinking-process"
 import { CODEBENCH_CPP_WALKTHROUGH_SAMPLE } from "@/lib/codebench-samples"
+import { parseCodebenchCoraJson, parseOptionalCodebenchCoraJson } from "@/lib/codebench-cora-client"
 import { enrichReplaySteps, type CodeReplayStep } from "@/lib/codebench-replay"
 import { loadCodebenchAiCache, persistCodebenchAiCacheEntry } from "@/lib/codebench-ai-cache"
 import {
@@ -71,6 +78,24 @@ import type { CodeBenchRunResult } from "@/src/features/codebench/hooks/useCodeR
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false })
 
+function isCodeClassroomAssignment(submission: { submission_kind?: string }) {
+  return String(submission.submission_kind ?? "code").toLowerCase() !== "solution"
+}
+
+function isBareClassroomTemplate(source: string): boolean {
+  const stripped = source
+    .replace(/\/\/.*$/gm, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+  if (stripped.length < 20) return true
+  const boilerplateOnly =
+    /#include\s*<iostream>.*using\s+namespace\s+std;.*int\s+main\s*\(\s*\)\s*\{(.*return\s+0;)?\s*\}/i.test(
+      stripped,
+    )
+  return boilerplateOnly && !/\bcout\b|\bprintf\b|\bfor\s*\(|\bif\s*\(/i.test(stripped)
+}
+
 function readStudentDatabaseId(): string | null {
   if (typeof window === "undefined") return null
   const fromStorage =
@@ -89,9 +114,11 @@ function readStudentDatabaseId(): string | null {
 export default function CodeBenchPage({
   embedded,
   toolbarEnd,
+  initialAssignmentId,
 }: {
   embedded?: boolean
   toolbarEnd?: ReactNode
+  initialAssignmentId?: string | null
 }) {
   const router = useRouter()
   const isNativeApp = useNativeApp()
@@ -116,11 +143,129 @@ export default function CodeBenchPage({
   const [learningMode, setLearningMode] = useState<"beginner" | "intermediate" | "expert">("intermediate")
   // Classroom point assignment for Evaluate submissions (submit from CodeBench = one per assignment; cannot also submit same assignment from Classroom Points)
   const [classroomSubmissions, setClassroomSubmissions] = useState<any[]>([])
-  const [classroomSubmissionId, setClassroomSubmissionId] = useState<string>("")
-  const [assignmentSelectionConfirmed, setAssignmentSelectionConfirmed] = useState(false) // Track if user has confirmed assignment selection
+  const [classroomSubmissionId, setClassroomSubmissionId] = useState<string>(
+    () => initialAssignmentId?.trim() || "",
+  )
+  const [pinnedAssignmentId, setPinnedAssignmentId] = useState<string>(
+    () => initialAssignmentId?.trim() || "",
+  )
+  const pinnedAssignmentIdRef = useRef(pinnedAssignmentId)
+  pinnedAssignmentIdRef.current = pinnedAssignmentId
+  const submittedAssignmentIdsRef = useRef<Set<string>>(new Set())
+  const [assignmentSelectionConfirmed, setAssignmentSelectionConfirmed] = useState(() =>
+    Boolean(initialAssignmentId?.trim()),
+  )
+  const [liveSharing, setLiveSharing] = useState(() => Boolean(initialAssignmentId?.trim()))
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [submissionSuccessData, setSubmissionSuccessData] = useState<{ score: number; pointsAwarded: number; isAssignment?: boolean } | null>(null)
   const [editorRef, setEditorRef] = useState<any>(null)
+  const { sessions: liveSessions, listSupported } = useStudentLiveClassroomSessions(studentId)
+  const liveAssignmentIds = useMemo(
+    () => new Set(liveSessions.map((session) => String(session.assignmentId))),
+    [liveSessions],
+  )
+  const liveSessionsRef = useRef(liveSessions)
+  liveSessionsRef.current = liveSessions
+
+  const mergeLiveAssignments = useCallback((rows: any[]) => {
+    const next = [...rows]
+    for (const session of liveSessionsRef.current) {
+      if (!next.some((row: { id: string | number }) => String(row.id) === String(session.assignmentId))) {
+        next.unshift({ id: session.assignmentId, title: session.title, submission_kind: "code" })
+      }
+    }
+    return next
+  }, [])
+  const liveSnapshotEnabled = Boolean(
+    liveSharing &&
+      studentId &&
+      classroomSubmissionId &&
+      (listSupported !== true || liveAssignmentIds.has(classroomSubmissionId)),
+  )
+  const lastInstructorToastAtRef = useRef(0)
+  const noteExternalApplyRef = useRef<(ms?: number) => void>(() => {})
+  const applyInstructorCode = useCallback(
+    (nextCode: string, meta?: { restore?: boolean }) => {
+      const current =
+        (typeof editorRef?.getValue === "function" ? editorRef.getValue() : null) ?? code
+      if (current === nextCode) return
+
+      noteExternalApplyRef.current(400)
+
+      let selection: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number } | null =
+        null
+      try {
+        const sel = editorRef?.getSelection?.()
+        if (sel) {
+          selection = {
+            startLineNumber: sel.startLineNumber,
+            startColumn: sel.startColumn,
+            endLineNumber: sel.endLineNumber,
+            endColumn: sel.endColumn,
+          }
+        }
+      } catch {
+        /* editor not ready */
+      }
+
+      setCode(nextCode)
+      try {
+        if (editorRef?.getValue?.() !== nextCode) {
+          editorRef?.setValue?.(nextCode)
+        }
+        const restoreSelection = () => {
+          if (!selection || !editorRef?.setSelection || !editorRef?.getModel) return
+          const model = editorRef.getModel()
+          const lineCount = model?.getLineCount?.() ?? 1
+          const startLine = Math.min(selection.startLineNumber, lineCount)
+          const endLine = Math.min(selection.endLineNumber, lineCount)
+          const startCol = Math.min(
+            selection.startColumn,
+            (model?.getLineMaxColumn?.(startLine) as number | undefined) ?? selection.startColumn,
+          )
+          const endCol = Math.min(
+            selection.endColumn,
+            (model?.getLineMaxColumn?.(endLine) as number | undefined) ?? selection.endColumn,
+          )
+          editorRef.setSelection({
+            startLineNumber: startLine,
+            startColumn: startCol,
+            endLineNumber: endLine,
+            endColumn: endCol,
+          })
+          editorRef.revealPositionInCenter?.({ lineNumber: endLine, column: endCol })
+        }
+        restoreSelection()
+        window.requestAnimationFrame(restoreSelection)
+      } catch {
+        // Monaco may not be mounted yet; React value={code} will apply.
+      }
+      if (!meta?.restore && Date.now() - lastInstructorToastAtRef.current > 8000) {
+        lastInstructorToastAtRef.current = Date.now()
+        toast({
+          title: "Instructor updated your editor",
+          description: "Review the changes, then Run to try the fix.",
+        })
+      }
+    },
+    [code, editorRef, setCode, toast],
+  )
+  useCodebenchLiveInstructorPush({
+    studentId,
+    assignmentId: classroomSubmissionId || null,
+    enabled: liveSnapshotEnabled,
+    onApply: applyInstructorCode,
+  })
+  const { noteExternalApply } = useCodebenchLiveSnapshot({
+    studentId,
+    assignmentId: classroomSubmissionId || null,
+    code,
+    language: languageId,
+    fileName: ide.activeFile?.name ?? null,
+    editorRef,
+    enabled: liveSnapshotEnabled,
+  })
+  noteExternalApplyRef.current = noteExternalApply
   const [replaySteps, setReplaySteps] = useState<CodeReplayStep[]>([])
   const [suspiciousLines, setSuspiciousLines] = useState<any[]>([])
   const [styleIssues, setStyleIssues] = useState<any[]>([])
@@ -225,23 +370,138 @@ export default function CodeBenchPage({
     writeStoredCodebenchCode(languageId, code)
   }, [code, languageId])
 
-  // Fetch classroom point assignments for Evaluate tab (so student can submit for a specific assignment; prevents double submission from both modules)
-  useEffect(() => {
-    if (!studentId) return
+  const loadClassroomAssignments = useCallback(async () => {
+    if (!studentId) {
+      setClassroomSubmissions([])
+      return
+    }
     const session = typeof window !== "undefined" ? sessionStorage.getItem("studentSection") : null
-    studentApiFetch(`/api/classroom-points/submissions?session=${session || ""}&studentId=${studentId}`)
-      .then((res) => res.json())
-      .then((data) => {
-        const subs = data.submissions || []
-        const attemptedIds = new Set((subs as any[]).filter((s: any) => s.attempted).map((s: any) => s.id))
-        const available = subs.filter((s: any) => !s.attempted && new Date(s.expires_at || 0) > new Date())
-        setClassroomSubmissions(available)
-        if (!available.some((s: any) => s.id.toString() === classroomSubmissionId)) {
-          setClassroomSubmissionId("")
-        }
+    try {
+      const res = await studentApiFetch(
+        `/api/classroom-points/submissions?session=${session || ""}&studentId=${studentId}`,
+      )
+      const data = await res.json()
+      const subs = Array.isArray(data.submissions) ? data.submissions : []
+      const available = subs.filter(
+        (s: { attempted?: boolean; expires_at?: string; submission_kind?: string; id: string | number }) =>
+          isCodeClassroomAssignment(s) &&
+          !s.attempted &&
+          !submittedAssignmentIdsRef.current.has(String(s.id)) &&
+          (!s.expires_at || new Date(s.expires_at) > new Date()),
+      )
+      setClassroomSubmissions(mergeLiveAssignments(available))
+      setClassroomSubmissionId((current) => {
+        if (current && available.some((s: { id: string | number }) => String(s.id) === current)) return current
+        if (current && pinnedAssignmentIdRef.current === current) return current
+        return ""
       })
-      .catch(() => setClassroomSubmissions([]))
-  }, [studentId])
+    } catch {
+      setClassroomSubmissions([])
+    }
+  }, [mergeLiveAssignments, studentId])
+
+  useEffect(() => {
+    void loadClassroomAssignments()
+  }, [loadClassroomAssignments])
+
+  const bindLiveAssignment = useCallback((session: StudentLiveClassroomSession) => {
+    const id = String(session.assignmentId)
+    setPinnedAssignmentId(id)
+    setClassroomSubmissionId(id)
+    setAssignmentSelectionConfirmed(true)
+    setLiveSharing(true)
+    setClassroomSubmissions((current) => {
+      if (current.some((row: { id: string | number }) => String(row.id) === id)) return current
+      return [{ id: session.assignmentId, title: session.title, submission_kind: "code" }, ...current]
+    })
+  }, [])
+
+  const leaveLiveAssignment = useCallback(
+    (session?: StudentLiveClassroomSession) => {
+      setLiveSharing(false)
+      const assignmentId = String(session?.assignmentId ?? classroomSubmissionId ?? "").trim()
+      window.dispatchEvent(
+        new CustomEvent("codebench-leave-live-session", { detail: { assignmentId } }),
+      )
+      toast({
+        title: "Left live classroom",
+        description: "Your instructor can no longer see this editor.",
+      })
+    },
+    [classroomSubmissionId, toast],
+  )
+
+  const selectClassroomAssignment = useCallback(
+    (submissionId: string, confirmed = Boolean(submissionId)) => {
+      if (liveSharing && String(submissionId) !== String(classroomSubmissionId)) {
+        setLiveSharing(false)
+        window.dispatchEvent(
+          new CustomEvent("codebench-leave-live-session", {
+            detail: { assignmentId: classroomSubmissionId },
+          }),
+        )
+      }
+      setClassroomSubmissionId(submissionId)
+      setAssignmentSelectionConfirmed(confirmed)
+    },
+    [classroomSubmissionId, liveSharing],
+  )
+
+  useEffect(() => {
+    const fromUrl = searchParams.get("submissionId")?.trim()
+    const fromProp = initialAssignmentId?.trim()
+    const next = fromProp || fromUrl
+    if (!next) return
+    setPinnedAssignmentId(next)
+    setClassroomSubmissionId(next)
+    setAssignmentSelectionConfirmed(true)
+    if (fromProp) setLiveSharing(true)
+  }, [initialAssignmentId, searchParams])
+
+  useEffect(() => {
+    const onJoin = (event: Event) => {
+      const assignmentId = String(
+        (event as CustomEvent<{ assignmentId?: string | number }>).detail?.assignmentId ?? "",
+      ).trim()
+      if (!assignmentId) return
+      const match = liveSessions.find((session) => String(session.assignmentId) === assignmentId)
+      if (match) {
+        bindLiveAssignment(match)
+        return
+      }
+      setPinnedAssignmentId(assignmentId)
+      setClassroomSubmissionId(assignmentId)
+      setAssignmentSelectionConfirmed(true)
+      setLiveSharing(true)
+    }
+    window.addEventListener("codebench-join-live-session", onJoin)
+    return () => window.removeEventListener("codebench-join-live-session", onJoin)
+  }, [bindLiveAssignment, liveSessions])
+
+  useEffect(() => {
+    const onLeave = () => setLiveSharing(false)
+    window.addEventListener("codebench-leave-live-session", onLeave)
+    return () => window.removeEventListener("codebench-leave-live-session", onLeave)
+  }, [])
+
+  useEffect(() => {
+    if (!liveSharing || listSupported !== true) return
+    if (classroomSubmissionId && liveAssignmentIds.has(classroomSubmissionId)) return
+    setLiveSharing(false)
+    window.dispatchEvent(
+      new CustomEvent("codebench-leave-live-session", {
+        detail: { assignmentId: classroomSubmissionId },
+      }),
+    )
+  }, [classroomSubmissionId, listSupported, liveAssignmentIds, liveSharing])
+
+  useEffect(() => {
+    setClassroomSubmissions((current) => mergeLiveAssignments(current))
+    if (pinnedAssignmentId && liveAssignmentIds.has(pinnedAssignmentId)) {
+      setClassroomSubmissionId(pinnedAssignmentId)
+      setAssignmentSelectionConfirmed(true)
+    }
+  }, [liveAssignmentIds, mergeLiveAssignments, pinnedAssignmentId])
 
 
   const [hasAccess, setHasAccess] = useState<boolean | null>(embedded ? true : null)
@@ -276,6 +536,7 @@ export default function CodeBenchPage({
 
   // UI State - Start with no tab selected to prevent auto-initialization
   const [aiTab, setAITab] = useState<string | null>(null)
+  const [debugThinkingMode, setDebugThinkingMode] = useState<CoraThinkingMode>("debug")
   const [isLoading, setIsLoading] = useState({
     explain: false,
     debug: false,
@@ -659,12 +920,16 @@ export default function CodeBenchPage({
         }),
       ])
 
-      if (!explainResponse.ok) {
-        throw new Error(`HTTP error! status: ${explainResponse.status}`)
-      }
-
-      const explainData = await explainResponse.json()
-      const replayData = replayResponse.ok ? await replayResponse.json() : { steps: [] }
+      const explainData = await parseCodebenchCoraJson<{
+        explanation?: string
+        error?: string
+        accessDenied?: boolean
+      }>(explainResponse, "Failed to generate explanation")
+      const replayData = await parseOptionalCodebenchCoraJson<{ steps?: unknown[] }>(
+        replayResponse,
+        "Failed to generate walkthrough",
+        { steps: [] },
+      )
 
       if (explainData.accessDenied) {
         toast({
@@ -757,6 +1022,8 @@ export default function CodeBenchPage({
       return
     }
 
+    setDebugThinkingMode(options?.compilerOutput ? "suggest_fix" : "debug")
+    setDebugResult(null)
     setIsLoading((prev) => ({ ...prev, debug: true }))
     setAITab("debug")
 
@@ -788,12 +1055,21 @@ export default function CodeBenchPage({
         }),
       ])
 
-      if (!debugResponse.ok) {
-        throw new Error(`HTTP error! status: ${debugResponse.status}`)
-      }
-
-      const debugData = await debugResponse.json()
-      const errorSpottingData = errorSpottingResponse.ok ? await errorSpottingResponse.json() : { suspiciousLines: [] }
+      const debugData = await parseCodebenchCoraJson<{
+        accessDenied?: boolean
+        error?: string
+        errors?: string[]
+        fixes?: string[]
+        correctedCode?: string
+        explanation?: string
+        lineNumbers?: number[]
+        lineNumberCorrections?: Record<number, number>
+      }>(debugResponse, "Failed to debug code")
+      const errorSpottingData = await parseOptionalCodebenchCoraJson<{ suspiciousLines?: unknown[] }>(
+        errorSpottingResponse,
+        "Failed to analyze code",
+        { suspiciousLines: [] },
+      )
 
       if (debugData.accessDenied) {
         toast({
@@ -904,12 +1180,18 @@ export default function CodeBenchPage({
         }),
       ])
 
-      if (!improveResponse.ok) {
-        throw new Error(`HTTP error! status: ${improveResponse.status}`)
-      }
-
-      const improveData = await improveResponse.json()
-      const styleReviewData = styleReviewResponse.ok ? await styleReviewResponse.json() : { issues: [] }
+      const improveData = await parseCodebenchCoraJson<{
+        accessDenied?: boolean
+        error?: string
+        improvedCode?: string
+        diffSummary?: string
+        principles?: string[]
+      }>(improveResponse, "Failed to improve code")
+      const styleReviewData = await parseOptionalCodebenchCoraJson<{ issues?: unknown[] }>(
+        styleReviewResponse,
+        "Failed to review code",
+        { issues: [] },
+      )
 
       if (improveData.accessDenied) {
         toast({
@@ -1002,11 +1284,13 @@ export default function CodeBenchPage({
           }),
         })
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-
-        const data = await response.json()
+        const data = await parseCodebenchCoraJson<{
+          accessDenied?: boolean
+          error?: string
+          pseudocode?: string
+          algorithm?: string
+          flowchart?: string
+        }>(response, "Failed to generate pseudocode")
 
         if (data.accessDenied) {
           toast({
@@ -1087,11 +1371,13 @@ export default function CodeBenchPage({
         }),
       })
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data = await response.json()
+      const data = await parseCodebenchCoraJson<{
+        accessDenied?: boolean
+        error?: string
+        pseudocode?: string
+        algorithm?: string
+        flowchart?: string
+      }>(response, "Failed to generate pseudocode")
 
       if (data.accessDenied) {
         toast({
@@ -1286,6 +1572,90 @@ export default function CodeBenchPage({
   const handlePracticeProblemGenerated = (problem: any) => {
     // Cache the practice problem
     setPracticeProblemCache(problem)
+  }
+
+  const handleClassroomCodeSubmit = async () => {
+    const editorCode = editorRef?.getValue?.() ?? code
+    if (!studentId) {
+      toast({
+        title: "Sign in required",
+        description: "Sign in to submit code for classroom points.",
+        variant: "destructive",
+      })
+      return
+    }
+    if (!classroomSubmissionId) {
+      toast({
+        title: "Assignment required",
+        description: "Select a classroom assignment before submitting.",
+        variant: "destructive",
+      })
+      return
+    }
+    if (!editorCode?.trim() || isBareClassroomTemplate(editorCode)) {
+      toast({
+        title: "Write some code first",
+        description: "The editor still looks like the default template. Add your solution, then submit.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const selected = classroomSubmissions.find(
+      (s: { id: string | number }) => String(s.id) === classroomSubmissionId,
+    )
+    setIsLoading((prev) => ({ ...prev, submit: true }))
+    try {
+      const response = await studentApiFetch("/api/classroom-points/submit-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: editorCode,
+          studentId,
+          description: selected?.title ? `Submitted from CodeBench: ${selected.title}` : "Submitted from CodeBench",
+          submissionId: parseInt(classroomSubmissionId, 10),
+        }),
+      })
+      const data = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))
+      if (!response.ok || !data.success) {
+        toast({
+          title: "Submission failed",
+          description: data.error || "Could not submit this assignment. Try again.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const submittedId = classroomSubmissionId
+      submittedAssignmentIdsRef.current.add(submittedId)
+      setClassroomSubmissions((prev) =>
+        prev.filter((s: { id: string | number }) => String(s.id) !== submittedId),
+      )
+      setClassroomSubmissionId("")
+      setAssignmentSelectionConfirmed(false)
+      setLiveSharing(false)
+      void loadClassroomAssignments()
+      setSubmissionSuccessData({
+        score: Number(data.score) || 0,
+        pointsAwarded: Number(data.pointsAwarded) || 2.5,
+        isAssignment: true,
+      })
+      setShowSuccessModal(true)
+      toast({
+        title: data.autoApproved ? "Submitted and scored" : "Submitted for classroom points",
+        description: selected?.title
+          ? `${selected.title} — ${Number(data.pointsAwarded ?? 2.5).toFixed(2)} points`
+          : `${Number(data.pointsAwarded ?? 2.5).toFixed(2)} points pending review`,
+      })
+    } catch {
+      toast({
+        title: "Submission failed",
+        description: "Could not reach classroom points. Try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading((prev) => ({ ...prev, submit: false }))
+    }
   }
 
   const handleSubmit = async () => {
@@ -1603,6 +1973,20 @@ export default function CodeBenchPage({
                 ),
           )}
         >
+          <StudentLiveClassroomBanner
+            compact
+            sessions={liveSessions}
+            activeAssignmentId={liveSharing ? classroomSubmissionId : null}
+            onJoin={(session) => {
+              bindLiveAssignment(session)
+              window.dispatchEvent(
+                new CustomEvent("codebench-join-live-session", {
+                  detail: { assignmentId: String(session.assignmentId) },
+                }),
+              )
+            }}
+            onLeave={leaveLiveAssignment}
+          />
           <Toolbar
             embedded={embedded}
             theme={panelTheme}
@@ -1647,6 +2031,13 @@ export default function CodeBenchPage({
             onSave={handleSaveWorkspace}
             canSave={ide.dirty || Boolean(ide.activeFile?.untitled)}
             projectName={ide.project.name}
+            classroomSubmissions={classroomSubmissions}
+            classroomSubmissionId={classroomSubmissionId}
+            onAssignmentChange={(submissionId) => {
+              selectClassroomAssignment(submissionId, Boolean(submissionId))
+            }}
+            onClassroomSubmit={handleClassroomCodeSubmit}
+            classroomSubmitLoading={isLoading.submit}
           />
 
           <div
@@ -1740,8 +2131,7 @@ export default function CodeBenchPage({
                 classroomSubmissions={classroomSubmissions}
                 classroomSubmissionId={classroomSubmissionId}
                 onAssignmentChange={(submissionId) => {
-                  setClassroomSubmissionId(submissionId)
-                  setAssignmentSelectionConfirmed(true)
+                  selectClassroomAssignment(submissionId, Boolean(submissionId))
                 }}
                 theme={panelTheme}
                 onClear={handleCoraClear}
@@ -1818,6 +2208,10 @@ export default function CodeBenchPage({
                   }}
                   replaySteps={replaySteps}
                   isExplainLoading={isLoading.explain}
+                  isDebugLoading={isLoading.debug}
+                  isImproveLoading={isLoading.improve}
+                  isPseudocodeLoading={isLoading.pseudocode}
+                  debugThinkingMode={debugThinkingMode}
                   replayProgressKey={hashCode(code)}
                   suspiciousLines={suspiciousLines}
                   styleIssues={styleIssues}
@@ -1850,13 +2244,18 @@ export default function CodeBenchPage({
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ code, language: currentLanguage.apiLanguage, studentId, question, learningMode }),
                       })
-                      if (response.ok) {
-                        const data = await response.json()
-                        return data.scenarios || []
-                      }
-                      return []
+                      const data = await parseCodebenchCoraJson<{ scenarios?: unknown[] }>(
+                        response,
+                        "Failed to simulate scenario",
+                      )
+                      return data.scenarios || []
                     } catch (error) {
                       console.error("What-if simulation error:", error)
+                      toast({
+                        title: "Cora",
+                        description: error instanceof Error ? error.message : "Failed to simulate scenario",
+                        variant: "destructive",
+                      })
                       return []
                     }
                   }}

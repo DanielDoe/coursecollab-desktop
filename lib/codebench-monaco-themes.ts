@@ -1,7 +1,18 @@
 type MonacoEditor = {
   editor: {
     defineTheme: (name: string, data: object) => void
+    setTheme: (name: string) => void
   }
+}
+
+export type CodebenchMonacoThemeName = "codebench-dark" | "codebench-light"
+
+export function applyCodebenchMonacoTheme(
+  monaco: MonacoEditor | null | undefined,
+  theme: CodebenchMonacoThemeName,
+) {
+  if (!monaco) return
+  monaco.editor.setTheme(theme)
 }
 
 /** CourseCollab purple + gold Monaco themes for CodeBench. */

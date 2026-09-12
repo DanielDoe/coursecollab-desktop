@@ -133,6 +133,7 @@ import {
 } from "@/lib/assessments/assessment-management-surface-classes"
 import { portalListStripe } from "@/lib/portal-module-themes"
 
+import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 const ASSESSMENTS_PAGE_SIZE = 8
 
 /** Short sidebar label for the primary "all items" tab (avoids wrapping long plural names). */
@@ -222,6 +223,7 @@ function v2AssessmentSegment(rawAssessmentType: string): string {
 
 export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizManagementProps = {}) {
   const router = useRouter()
+  const { confirm } = useAppConfirm()
   const pathname = usePathname()
   const { courseScopeVersion, basePath, loginPath, portal, hasPermission, staffRoleForCourse } =
     useInstructorDashboardV2()
@@ -652,9 +654,14 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
   }
 
   const handlePermanentDelete = async (itemId: number) => {
-    if (!confirm("Are you sure you want to permanently delete this item? This action cannot be undone.")) {
-      return
-    }
+    const ok = await confirm({
+      title: "Permanently delete this item?",
+      description: "This action cannot be undone.",
+      confirmLabel: "Delete permanently",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    })
+    if (!ok) return
 
     try {
       const response = await instructorApiFetch("/api/instructor/deleted-items", {
