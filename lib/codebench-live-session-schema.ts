@@ -23,6 +23,8 @@ export async function ensureCodebenchLiveSnapshotsSchema() {
     await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS instructor_code text`
     await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS instructor_revision integer NOT NULL DEFAULT 0`
     await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS instructor_updated_at timestamptz`
+    await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS student_cursor jsonb`
+    await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS instructor_cursor jsonb`
   } catch {
     /* columns may already exist or migration unavailable */
   }
@@ -39,14 +41,18 @@ export async function ensureCodebenchLiveSessionsSchema() {
       ended_at timestamptz
     )
   `
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS codebench_live_sessions_open_assignment_idx
-    ON codebench_live_sessions (assignment_id)
-    WHERE ended_at IS NULL
-  `
-  await sql`
-    CREATE INDEX IF NOT EXISTS codebench_live_sessions_course_open_idx
-    ON codebench_live_sessions (course_id, started_at DESC)
-    WHERE ended_at IS NULL
-  `
+  try {
+    await sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS codebench_live_sessions_open_assignment_idx
+      ON codebench_live_sessions (assignment_id)
+      WHERE ended_at IS NULL
+    `
+    await sql`
+      CREATE INDEX IF NOT EXISTS codebench_live_sessions_course_open_idx
+      ON codebench_live_sessions (course_id, started_at DESC)
+      WHERE ended_at IS NULL
+    `
+  } catch (error) {
+    console.error("[codebench_live_sessions] index ensure", error)
+  }
 }

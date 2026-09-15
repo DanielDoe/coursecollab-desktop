@@ -5,7 +5,7 @@ import { ensureCodebenchLiveSnapshotsSchema } from "@/lib/codebench-live-session
 import { ensureCodebenchStudioEventsSchema } from "@/lib/codebench-studio-schema"
 import { studioEventInCourseSql } from "@/lib/codebench-studio-course-scope"
 import { formatInstructorStudioEvent } from "@/lib/codebench-instructor-student-activity"
-import { readInstructorSessionScopeFromRequest, studentInInstructorSessionScopeSql } from "@/lib/instructor-session-scope"
+import { studentInOfferingSqlFromRequest } from "@/lib/instructor-session-scope"
 import { classroomAssignmentSessionMatchesStudent } from "@/lib/classroom-submission-scope"
 import type { TypingReplay } from "@/lib/typing-replay"
 import type {
@@ -20,13 +20,66 @@ export type {
   LiveStudentStatus,
 } from "@/lib/codebench-live-classroom-types"
 
-function scopeSql(courseId: number, request: NextRequest): string {
-  const sessionScope = readInstructorSessionScopeFromRequest(request)
-  return studentInInstructorSessionScopeSql({
-    courseId,
-    sessionId: sessionScope.sessionId,
-    academicTermId: sessionScope.academicTermId,
-  })
+async function ensureLiveSessionSchemas() {
+  try {
+    await ensureCodebenchLiveSnapshotsSchema()
+  } catch (error) {
+    console.error("[live-session] snapshots schema", error)
+  }
+  try {
+    await ensureCodebenchStudioEventsSchema()
+  } catch (error) {
+    console.error("[live-session] studio schema", error)
+  }
+  try {
+    await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`
+  } catch {
+    /* column may already exist or migration unavailable */
+  }
+}
+
+type ScopedStudentRow = {
+  student_db_id: number
+  student_id: string
+  full_name: string
+  section: string | null
+  session_code: string | null
+}
+
+async function loadScopedStudents(courseId: number, request: NextRequest): Promise<ScopedStudentRow[]> {
+  const scopeWhere = studentInOfferingSqlFromRequest(request, courseId, "s")
+  try {
+    const rows = await sql`
+      SELECT
+        s.id AS student_db_id,
+        s.student_id,
+        s.full_name,
+        COALESCE(NULLIF(TRIM(s.section), ''), NULLIF(TRIM(sess.code), '')) AS section,
+        sess.code AS session_code
+      FROM students s
+      LEFT JOIN sessions sess ON sess.id = s.session_id
+      WHERE ${sql.unsafe(scopeWhere)}
+        AND s.deleted_at IS NULL
+      ORDER BY s.full_name ASC
+    `
+    return rows as ScopedStudentRow[]
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (!message.includes("deleted_at")) throw error
+    const rows = await sql`
+      SELECT
+        s.id AS student_db_id,
+        s.student_id,
+        s.full_name,
+        COALESCE(NULLIF(TRIM(s.section), ''), NULLIF(TRIM(sess.code), '')) AS section,
+        sess.code AS session_code
+      FROM students s
+      LEFT JOIN sessions sess ON sess.id = s.session_id
+      WHERE ${sql.unsafe(scopeWhere)}
+      ORDER BY s.full_name ASC
+    `
+    return rows as ScopedStudentRow[]
+  }
 }
 
 function statusLabel(status: LiveStudentStatus): string {
@@ -95,6 +148,26 @@ function parseTypingReplay(raw: unknown): TypingReplay | null {
   return replay
 }
 
+function parseLiveEditorCursor(raw: unknown): LiveClassroomStudentRow["studentCursor"] {
+  if (raw == null) return undefined
+  if (typeof raw === "string") {
+    try {
+      return parseLiveEditorCursor(JSON.parse(raw))
+    } catch {
+      return undefined
+    }
+  }
+  if (typeof raw !== "object") return undefined
+  const o = raw as { line?: unknown; column?: unknown; lineNumber?: unknown }
+  const line = Number(o.line ?? o.lineNumber)
+  const column = Number(o.column ?? 1)
+  if (!Number.isFinite(line) || line < 1) return undefined
+  return {
+    line: Math.trunc(line),
+    column: Number.isFinite(column) && column > 0 ? Math.trunc(column) : 1,
+  }
+}
+
 function firstNonEmptyCode(...values: Array<string | null | undefined>): string | null {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) return value
@@ -129,9 +202,13 @@ export async function fetchLiveClassroomSession(
   assignmentId: number,
   request: NextRequest,
 ): Promise<LiveClassroomSessionPayload | null> {
-  await ensureCodebenchLiveSnapshotsSchema()
-  await ensureCodebenchStudioEventsSchema()
-  const openSession = await getOpenLiveClassroomSession(assignmentId)
+  await ensureLiveSessionSchemas()
+  let openSession: Awaited<ReturnType<typeof getOpenLiveClassroomSession>> = null
+  try {
+    openSession = await getOpenLiveClassroomSession(assignmentId)
+  } catch (error) {
+    console.error("[live-session] open session lookup", error)
+  }
 
   const assignmentRows = await sql`
     SELECT id, title, session, created_at
@@ -148,34 +225,45 @@ export async function fetchLiveClassroomSession(
     created_at: string
   }
 
-  const scopeWhere = scopeSql(courseId, request)
+  const scopeWhere = studentInOfferingSqlFromRequest(request, courseId, "s")
   const eventCourseMatch = studioEventInCourseSql(courseId, "e")
   const assignmentSession = assignment.session?.trim() || null
 
-  const [studentRows, snapshotRows, submissionRows, classroomPointRows, recentEvents] = await Promise.all([
+  let studentRows: ScopedStudentRow[] = []
+  try {
+    studentRows = await loadScopedStudents(courseId, request)
+  } catch (error) {
+    console.error("[live-session] scoped students", error)
+  }
+
+  const [snapshotRows, submissionRows, classroomPointRows, recentEvents] = await Promise.all([
     sql`
       SELECT
-        s.id AS student_db_id,
-        s.student_id,
-        s.full_name,
-        s.section,
-        sess.code AS session_code
-      FROM students s
-      JOIN sessions sess ON sess.id = s.session_id
-      WHERE ${sql.unsafe(scopeWhere)}
-        AND s.deleted_at IS NULL
-      ORDER BY s.full_name ASC
-    `,
-    sql`
-      SELECT student_id, code, file_name, language, typing_replay, updated_at
+        student_id,
+        code,
+        instructor_code,
+        instructor_updated_at,
+        file_name,
+        language,
+        typing_replay,
+        updated_at,
+        student_cursor,
+        instructor_cursor
       FROM codebench_live_snapshots
       WHERE assignment_id = ${assignmentId}
     `.catch(() => []),
     sql`
-      SELECT student_id, code, status, score, submitted_at
-      FROM codebench_submissions
-      WHERE assignment_id = ${assignmentId}
-    `.catch(() => []),
+      SELECT cs.student_id, cs.code, cs.status, cs.score, cs.submitted_at
+      FROM classroom_points cp
+      INNER JOIN codebench_submissions cs ON cs.classroom_point_id = cp.id
+      WHERE cp.submission_id = ${assignmentId}
+    `.catch(() =>
+      sql`
+        SELECT student_id, code, status, score, submitted_at
+        FROM codebench_submissions
+        WHERE assignment_id = ${assignmentId}
+      `.catch(() => []),
+    ),
     sql`
       SELECT
         cp.student_id,
@@ -209,21 +297,13 @@ export async function fetchLiveClassroomSession(
       JOIN students s ON s.id = e.student_id
       WHERE ${sql.unsafe(eventCourseMatch)}
         AND e.created_at >= ${assignment.created_at}::timestamptz
-        AND ${sql.unsafe(scopeWhere.replace(/\bs\./g, "s."))}
+        AND ${sql.unsafe(scopeWhere)}
       ORDER BY e.created_at DESC
       LIMIT 60
     `.catch(() => []),
   ])
 
-  type StudentRow = {
-    student_db_id: number
-    student_id: string
-    full_name: string
-    section: string | null
-    session_code: string | null
-  }
-
-  const filteredStudents = (studentRows as StudentRow[]).filter((row) =>
+  const filteredStudents = studentRows.filter((row) =>
     classroomAssignmentSessionMatchesStudent(assignmentSession, row.session_code),
   )
 
@@ -231,10 +311,14 @@ export async function fetchLiveClassroomSession(
   for (const row of snapshotRows as Array<{
     student_id: number
     code: string
+    instructor_code?: string | null
+    instructor_updated_at?: string | null
     file_name: string | null
     language: string | null
     typing_replay: unknown
     updated_at: string
+    student_cursor?: unknown
+    instructor_cursor?: unknown
   }>) {
     snapshotByStudent.set(Number(row.student_id), row)
   }
@@ -306,13 +390,15 @@ export async function fetchLiveClassroomSession(
 
     const lastActivityAt = maxIso([
       snapshot?.updated_at,
+      snapshot?.instructor_updated_at,
       submission?.submitted_at,
       classroom?.created_at,
       latestEvent?.created_at,
     ])
 
     const lastActivityMs = lastActivityAt ? now - new Date(lastActivityAt).getTime() : null
-    const snapshotAgeMs = snapshot?.updated_at ? now - new Date(snapshot.updated_at).getTime() : null
+    const snapshotFreshAt = maxIso([snapshot?.updated_at, snapshot?.instructor_updated_at])
+    const snapshotAgeMs = snapshotFreshAt ? now - new Date(snapshotFreshAt).getTime() : null
 
     const status = deriveStatus({
       classroomStatus: classroom?.status ?? submission?.status ?? null,
@@ -324,10 +410,21 @@ export async function fetchLiveClassroomSession(
       snapshotAgeMs,
     })
 
-    const liveCode = firstNonEmptyCode(snapshot?.code)
+    const studentLive = firstNonEmptyCode(snapshot?.code)
+    const instructorLive = firstNonEmptyCode(snapshot?.instructor_code)
+    const instructorAt = snapshot?.instructor_updated_at
+      ? new Date(snapshot.instructor_updated_at).getTime()
+      : 0
+    const studentAt = snapshot?.updated_at ? new Date(snapshot.updated_at).getTime() : 0
+    const liveCode =
+      instructorLive && (!studentLive || instructorAt >= studentAt) ? instructorLive : studentLive
     const submittedCode = firstNonEmptyCode(submission?.code, classroom?.code)
     const code = liveCode ?? submittedCode
-    const codeSource: LiveClassroomStudentRow["codeSource"] = liveCode ? "live" : submittedCode ? "submitted" : null
+    const codeSource: LiveClassroomStudentRow["codeSource"] = liveCode
+      ? "live"
+      : submittedCode
+        ? "submitted"
+        : null
 
     return {
       studentDbId: row.student_db_id,
@@ -344,7 +441,9 @@ export async function fetchLiveClassroomSession(
       fileName: snapshot?.file_name ?? null,
       language: snapshot?.language ?? null,
       typingReplay: parseTypingReplay(snapshot?.typing_replay),
-      snapshotUpdatedAt: snapshot?.updated_at ?? null,
+      studentCursor: parseLiveEditorCursor(snapshot?.student_cursor),
+      instructorCursor: parseLiveEditorCursor(snapshot?.instructor_cursor),
+      snapshotUpdatedAt: snapshotFreshAt,
       submissionStatus: classroom?.status ?? submission?.status ?? null,
       score: submission?.score != null ? Number(submission.score) : null,
       points: classroom?.points != null ? Number(classroom.points) : null,

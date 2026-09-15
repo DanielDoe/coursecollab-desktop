@@ -1,5 +1,10 @@
 import type { TypingReplay } from "@/lib/typing-replay"
 
+export type LiveEditorCursor = {
+  line: number
+  column: number
+}
+
 export type LiveStudentStatus =
   | "not_started"
   | "coding"
@@ -25,6 +30,8 @@ export type LiveClassroomStudentRow = {
   fileName: string | null
   language: string | null
   typingReplay: TypingReplay | null
+  studentCursor?: LiveEditorCursor
+  instructorCursor?: LiveEditorCursor
   snapshotUpdatedAt: string | null
   submissionStatus: string | null
   score: number | null
