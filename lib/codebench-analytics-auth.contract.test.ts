@@ -29,14 +29,14 @@ describe("CodeBench analytics auth contract", () => {
   for (const rel of ANALYTICS_ROUTES) {
     it(`${rel} binds the caller session before SQL`, () => {
       const src = readRoute(rel)
-      assert.match(src, /requireCodebenchStudent|requireBoundStudentCaller/)
+      assert.match(src, /requireCodebenchStudent|requireCodebenchCoraStudent|requireBoundStudentCaller/)
       assert.doesNotMatch(src, /getEffectiveMembershipTier\(parseInt\(studentId\)\)/)
     })
   }
 
   it("submissions exposes code, not only solution alias", () => {
     const src = readRoute("app/api/codebench/submissions/route.ts")
-    assert.match(src, /requireCodebenchStudent|requireBoundStudentCaller/)
+    assert.match(src, /requireCodebenchStudent|requireCodebenchCoraStudent|requireBoundStudentCaller/)
     assert.doesNotMatch(src, /code as solution/)
     assert.match(src, /^\s+code,?$/m)
   })

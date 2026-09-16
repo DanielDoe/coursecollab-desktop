@@ -3,6 +3,10 @@ import { sql } from "@/lib/db"
 import { resolveOptionalCourseScope } from "@/lib/optional-instructor-course-scope"
 import { loadInstructorActor } from "@/lib/instructor-actor-scope"
 import { sqlQuizVisibleInCourse } from "@/lib/quiz-course-access"
+import {
+  issueReporterInOfferingSql,
+  readInstructorOfferingFromRequest,
+} from "@/lib/instructor-session-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -18,6 +22,17 @@ export async function GET(request: NextRequest) {
 
     const courseId = scopeMeta.courseId
     const instructorId = scopeMeta.instructorId
+    const offering = readInstructorOfferingFromRequest(request)
+    const reporterScope =
+      courseId != null
+        ? sql.unsafe(
+            `AND ${issueReporterInOfferingSql({
+              courseId,
+              sessionId: offering.sessionId,
+              academicTermId: offering.academicTermId,
+            })}`,
+          )
+        : sql.unsafe("")
 
     const typed = assessmentType != null ? String(assessmentType).trim() : ""
     const hasType = typed.length > 0
@@ -58,6 +73,7 @@ export async function GET(request: NextRequest) {
             INNER JOIN quizzes q ON q.id = COALESCE(qi.assessment_id, qi.quiz_id)
             WHERE qi.status = ${status}
               AND ${sqlQuizVisibleInCourse("q", actor, instructorId, courseOwnerId, courseId)}
+              ${reporterScope}
               AND (qi.assessment_id = ${idNum} OR qi.quiz_id = ${idNum})
               AND (
                 qi.assessment_type = ${typed}
@@ -83,6 +99,7 @@ export async function GET(request: NextRequest) {
             INNER JOIN quizzes q ON q.id = COALESCE(qi.assessment_id, qi.quiz_id)
             WHERE qi.status = ${status}
               AND ${sqlQuizVisibleInCourse("q", actor, instructorId, courseOwnerId, courseId)}
+              ${reporterScope}
               AND (qi.assessment_id = ${idNum} OR qi.quiz_id = ${idNum})
               AND qi.assessment_type = ${typed}
             ORDER BY qi.created_at DESC
@@ -107,6 +124,7 @@ export async function GET(request: NextRequest) {
             INNER JOIN quizzes q ON q.id = COALESCE(qi.assessment_id, qi.quiz_id)
             WHERE qi.status = ${status}
               AND ${sqlQuizVisibleInCourse("q", actor, instructorId, courseOwnerId, courseId)}
+              ${reporterScope}
               AND (
                 qi.assessment_type = ${typed}
                 OR qi.assessment_type IS NULL
@@ -131,6 +149,7 @@ export async function GET(request: NextRequest) {
             INNER JOIN quizzes q ON q.id = COALESCE(qi.assessment_id, qi.quiz_id)
             WHERE qi.status = ${status}
               AND ${sqlQuizVisibleInCourse("q", actor, instructorId, courseOwnerId, courseId)}
+              ${reporterScope}
               AND qi.assessment_type = ${typed}
             ORDER BY qi.created_at DESC
           `
@@ -153,6 +172,7 @@ export async function GET(request: NextRequest) {
           INNER JOIN quizzes q ON q.id = COALESCE(qi.assessment_id, qi.quiz_id)
           WHERE qi.status = ${status}
             AND ${sqlQuizVisibleInCourse("q", actor, instructorId, courseOwnerId, courseId)}
+              ${reporterScope}
             AND (qi.assessment_id = ${idNum} OR qi.quiz_id = ${idNum})
           ORDER BY qi.created_at DESC
         `
@@ -174,6 +194,7 @@ export async function GET(request: NextRequest) {
           INNER JOIN quizzes q ON q.id = COALESCE(qi.assessment_id, qi.quiz_id)
           WHERE qi.status = ${status}
             AND ${sqlQuizVisibleInCourse("q", actor, instructorId, courseOwnerId, courseId)}
+              ${reporterScope}
           ORDER BY qi.created_at DESC
         `
       }

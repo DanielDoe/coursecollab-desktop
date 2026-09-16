@@ -249,8 +249,8 @@ export function GradeTrendChart() {
 
   return (
     <CardWrapper delay={0.1}>
-      <div className="dashboard-v2-chart-card p-4 sm:p-6 [.cc-desktop-native-content_&]:p-3">
-        <div className="mb-3 sm:mb-6 flex flex-wrap items-baseline justify-between gap-2 [.cc-desktop-native-content_&]:mb-2">
+      <div className="dashboard-v2-chart-card p-4 sm:p-6">
+        <div className="mb-3 sm:mb-6 flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="dashboard-v2-chart-title text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cc-text-muted)]">
             Grade Trend Over Time
           </h3>
@@ -263,7 +263,7 @@ export function GradeTrendChart() {
             </span>
           ) : null}
         </div>
-        <div className="dashboard-v2-chart-area h-[220px] min-h-0 w-full [.cc-desktop-native-content_&]:h-[168px]">
+        <div className="dashboard-v2-chart-area h-[220px] min-h-0 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
               <defs>
@@ -305,7 +305,7 @@ export function GradeTrendChart() {
             </AreaChart>
           </ResponsiveContainer>
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-4 sm:mt-4 sm:gap-6 [.cc-desktop-native-content_&]:mt-1.5">
+        <div className="mt-2 sm:mt-4 flex flex-wrap items-center gap-4 sm:gap-6">
           <div className="flex items-center gap-2">
             <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: quizColor }} />
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Quiz Avg</span>

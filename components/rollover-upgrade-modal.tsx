@@ -54,7 +54,7 @@ export function RolloverUpgradeModal({ open, onClose }: RolloverUpgradeModalProp
     { icon: Sparkles, label: "Extension for missed homework, quizzes & finals" },
     { icon: Check, label: "2 Retakes (3 attempts)" },
     { icon: Brain, label: "High-capacity Cora" },
-    { icon: Code2, label: "CodeBench IDE" },
+    { icon: Code2, label: "Cora in CodeBench" },
     { icon: Gamepad2, label: "Unlimited Playground" },
   ]
 

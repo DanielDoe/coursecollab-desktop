@@ -427,7 +427,7 @@ export function CoraDashboard() {
   }
 
   return (
-    <div className="space-y-3 sm:space-y-4">
+    <div className="space-y-5">
       <AnimatePresence>
         {showIntroBanner ? (
           <motion.div
@@ -458,33 +458,19 @@ export function CoraDashboard() {
         ) : null}
       </AnimatePresence>
 
-      <div className="min-w-0">
+      <div className="border-t border-[var(--border)] pt-2 sm:pt-3">
         <FacultyModuleSplitLayout
-          splitMode="container"
-          containerName="cora-hub"
-          className="lg:min-h-[min(640px,72vh)]"
-          menuWidthClass="@[720px]/cora-hub:w-44 @[880px]/cora-hub:w-52"
+          className="gap-2 sm:gap-3 lg:gap-4"
+          menuWidthClass="lg:w-52 xl:w-56"
           menu={
             <CoraPlatformNav activeTab={activeTab} onNavigate={setActiveTab} chrome={chrome} />
           }
         >
           <AnimatePresence mode="wait">
             {activeTab === "home" && (
-              <motion.div
-                key="home"
-                initial={false}
-                className="min-w-0 w-full"
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-              >
+              <motion.div key="home" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
                 <CoraHomePanel
                   studentName={studentName}
-                  courseLabel={
-                    studentCoraContext?.courseCode ??
-                    studentCoraContext?.courseTitle ??
-                    preparedStudentContext?.account?.courseCode ??
-                    null
-                  }
                   recommendations={recommendations}
                   capabilities={capabilities}
                   chrome={chrome}

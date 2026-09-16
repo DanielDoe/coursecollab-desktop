@@ -5,22 +5,16 @@ import { AdminHeader } from "@/components/admin-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react"
-import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 export default function ReEvaluateQuizzesPage() {
   const [isRunning, setIsRunning] = useState(false)
-  const { confirm } = useAppConfirm()
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
 
   const handleReEvaluate = async () => {
-    const ok = await confirm({
-      title: "Re-evaluate all quiz attempts?",
-      description: "This may take several minutes.",
-      confirmLabel: "Continue",
-      cancelLabel: "Cancel",
-    })
-    if (!ok) return
+    if (!confirm("This will re-evaluate ALL quiz attempts. This may take several minutes. Continue?")) {
+      return
+    }
 
     setIsRunning(true)
     setError(null)

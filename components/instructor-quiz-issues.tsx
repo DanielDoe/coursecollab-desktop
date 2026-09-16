@@ -13,8 +13,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { buildAdminAuthorizedApiHeaders } from "@/lib/admin-api-headers"
 import { buildInstructorAuthorizedApiHeaders, instructorApiFetch } from "@/lib/instructor-api-headers"
 import { useInstructorDashboardV2 } from "@/components/instructor/dashboard-v2/InstructorDashboardV2Context"
-import { cn } from "@/lib/utils"
-import { AM_PANEL_FILL, AM_PANEL_SCROLL, AM_PANEL_SECTION } from "@/lib/assessments/assessment-management-surface-classes"
 import type { PortalKind } from "@/lib/portal-config"
 
 function resolveIssuesApiHeaders(portal: PortalKind): Record<string, string> {
@@ -66,15 +64,12 @@ interface InstructorQuizIssuesProps {
   assessmentType?: string
   /** Course code for headings (falls back to selected course in instructor session). */
   courseCode?: string
-  /** Fill dashboard panel height when embedded in FacultyModuleSplitLayout. */
-  panelLayout?: boolean
 }
 
 export function InstructorQuizIssues({
   assessmentId,
   assessmentType,
   courseCode: courseCodeProp,
-  panelLayout = false,
 }: InstructorQuizIssuesProps) {
   const { toast } = useToast()
   const { portal } = useInstructorDashboardV2()
@@ -340,18 +335,18 @@ export function InstructorQuizIssues({
   }
 
   return (
-    <div className={cn(panelLayout ? AM_PANEL_SECTION : "space-y-6")}>
-      <Card className={cn(panelLayout && "flex min-h-0 flex-1 flex-col overflow-hidden")}>
-        <CardHeader className="shrink-0">
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
           <CardTitle>{issuesTitle}</CardTitle>
           <CardDescription>{issuesDescription}</CardDescription>
           <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-medium">
             Do not dismiss concerns—some may indicate critical errors. Investigate before closing. Use Reopen if a fix didn&apos;t work.
           </p>
         </CardHeader>
-        <CardContent className={cn(panelLayout && "flex min-h-0 flex-1 flex-col overflow-hidden")}>
+        <CardContent>
           {/* Tabs */}
-          <div className="flex gap-2 mb-6 shrink-0">
+          <div className="flex gap-2 mb-6">
             <Button
               variant={activeTab === "open" ? "default" : "outline"}
               onClick={() => setActiveTab("open")}
@@ -371,11 +366,9 @@ export function InstructorQuizIssues({
           </div>
 
           {/* Issues List */}
-          <div className={cn("space-y-4", panelLayout && cn(AM_PANEL_SECTION, AM_PANEL_SCROLL))}>
+          <div className="space-y-4">
             {issues.length === 0 ? (
-              <div className={cn("text-center py-12 text-muted-foreground", panelLayout && AM_PANEL_FILL)}>
-                No {activeTab} issues found
-              </div>
+              <div className="text-center py-12 text-muted-foreground">No {activeTab} issues found</div>
             ) : (
               issues.map((issue) => (
                 <Card key={issue.id} className="border border-border/50">

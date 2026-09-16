@@ -116,6 +116,19 @@ export async function POST(request: NextRequest) {
       RETURNING *
     `
 
+    if (isPublished) {
+      const { notifyCourseStudents } = await import("@/lib/notify-course-students")
+      void notifyCourseStudents(
+        { courseId: scope.course.id, sessionCode: session },
+        {
+          type: "flashcards",
+          title: "New flashcard deck",
+          message: `"${title}" is ready to study.`,
+          link: "/student/dashboard-v2/flashcards",
+        },
+      ).catch((err) => console.warn("[flashcards] create notify failed:", err))
+    }
+
     return NextResponse.json({ deck: mapFlashcardDeck(rows[0] as never, true) })
   } catch (error) {
     console.error("[instructor/flashcards/decks POST]", error)

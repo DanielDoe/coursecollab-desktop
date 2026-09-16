@@ -96,6 +96,25 @@ export async function recordAskCoraAssessmentEvent(input: RecordAskCoraEventInpu
       )
     `
 
+    const { recordCoraInteractionEvent } = await import("@/lib/cora/insights/record")
+    await recordCoraInteractionEvent({
+      userId: input.studentId,
+      courseId: input.courseId ?? null,
+      assessmentId: input.assessmentId ?? null,
+      questionId: input.questionId ?? null,
+      questionType: input.questionType ?? null,
+      interactionCategory: input.policy.answerSeeking ? "answer_seeking" : "assessment_help",
+      concept: input.topic ?? input.questionType ?? null,
+      assistanceLevel: input.hintLevel ?? 1,
+      answerSeekingDetected: input.policy.answerSeeking,
+      answerBlocked: Boolean(input.answerBlocked),
+      assessmentProtected: Boolean(input.answerBlocked || input.policy.answerSeeking),
+      source: "assessment",
+      sourceRef: `assessment:${input.studentId}:${input.assessmentId ?? "x"}:${input.questionId ?? "x"}:${Date.now()}`,
+      assistanceCategory: input.policy.assistanceCategory,
+      feature: "ask_cora",
+    })
+
     if (input.institutionId && Number.isFinite(input.institutionId) && input.institutionId > 0) {
       await recordAnalyticsEvent({
         institutionId: input.institutionId,

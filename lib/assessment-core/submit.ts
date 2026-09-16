@@ -11,6 +11,7 @@ import { evaluateAssessmentAnswer } from "./evaluate"
 import { getQuizQuestionForEvaluateResolved } from "@/lib/resolve-quiz-question-from-bank"
 import { reconcileFinalGradeFlagsForStudent } from "@/lib/auto-finalize-quiz-attempts"
 import { setResultsFinalized } from "@/lib/results-finalized"
+import { resolveSelectAllCorrectLetters } from "@/lib/practice-answer-review"
 import type { AssessmentType } from "./db"
 
 export interface SubmitAnswerPayload {
@@ -35,6 +36,8 @@ export interface SubmitAnswerResult {
   maxPoints: number
   feedback?: string
   requiresReview: boolean
+  /** Post-submit only: correct option letters for select_all highlighting (answer key withheld during take). */
+  correctLetters?: string[]
   error?: string
 }
 
@@ -97,13 +100,27 @@ export async function submitAnswer(
     // Update attempt score
     await updateAttemptTotalScore(assessmentType, attemptId)
 
+    const qt = (questionType || "").toLowerCase()
+    const correctLetters =
+      qt === "select_all" || qt === "multi_output"
+        ? resolveSelectAllCorrectLetters({
+            option_a: question.option_a,
+            option_b: question.option_b,
+            option_c: question.option_c,
+            option_d: question.option_d,
+            option_e: question.option_e,
+            correct_answer: question.correct_answer,
+          })
+        : undefined
+
     return {
       success: true,
       isCorrect: evaluation.isCorrect,
       pointsEarned: evaluation.pointsEarned,
       maxPoints,
       feedback: evaluation.feedback || undefined,
-      requiresReview: evaluation.requiresReview
+      requiresReview: evaluation.requiresReview,
+      correctLetters: correctLetters?.length ? correctLetters : undefined,
     }
   } catch (error: any) {
     console.error(`[assessment-core/submit] Attempt ${retryCount + 1}/${maxRetries} failed:`, error?.message, error?.stack)

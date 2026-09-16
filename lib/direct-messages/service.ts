@@ -3,13 +3,19 @@ import { ensureDirectMessagesSchema } from "@/lib/ensure-direct-messages-schema"
 import { ensurePortalRbacSchema } from "@/lib/ensure-portal-rbac-schema"
 import { resolveStudentCourseContextByDbId } from "@/lib/student-course-scope"
 import {
+  studentInInstructorSessionScopeSql,
+  type InstructorSessionScope,
+} from "@/lib/instructor-session-scope"
+import {
   actorDisplayName,
   buildPairKey,
   participantKey,
 } from "@/lib/direct-messages/auth"
 import { notifyDirectMessageRecipient } from "@/lib/direct-messages/notify"
 import { resolveMessageDeliveryStatus } from "@/lib/direct-messages/delivery-status"
-import { messagePreviewText, sanitizeMessageHtml, stripHtmlToPlain } from "@/lib/direct-messages/html"
+import { stripHtmlToPlain, sanitizeMessageHtml, messagePreviewText } from "@/lib/direct-messages/html"
+import { validateMessageAttachmentInput } from "@/lib/direct-messages/attachments"
+import { consumeStagedMessageUploads } from "@/lib/direct-messages/upload-staging"
 import { unsentAuditLabel } from "@/lib/direct-messages/message-lifecycle"
 import { loadReactionsForMessages } from "@/lib/direct-messages/reactions"
 import type {
@@ -216,6 +222,7 @@ type StudentSearchRow = {
   full_name: string | null
   email: string | null
   student_id: string | null
+  sis_user_id: string | null
   is_platform_guest: boolean
   student_program_role: string | null
 }
@@ -228,13 +235,19 @@ type InstructorSearchRow = {
   role: string
 }
 
-function mapStudentSearchRow(row: StudentSearchRow): MessageRecipient {
+function mapStudentSearchRow(row: StudentSearchRow, forStudentSender = false): MessageRecipient {
+  const demo = isInstructorDemoStudent(row)
+  const messageable = !forStudentSender || !demo
   return {
     kind: "student",
     id: row.id,
     displayName: row.full_name?.trim() || row.student_id || "Student",
     email: row.email,
-    subtitle: studentSubtitle(row),
+    subtitle:
+      demo && forStudentSender
+        ? "Demo account · message your instructor instead"
+        : studentSubtitle(row),
+    messageable,
   }
 }
 
@@ -252,9 +265,17 @@ function mergeRecipients(
   students: StudentSearchRow[],
   instructors: InstructorSearchRow[],
   limit: number,
+  forStudentSender = false,
 ): MessageRecipient[] {
-  return [...students.map(mapStudentSearchRow), ...instructors.map(mapInstructorSearchRow)]
-    .sort((a, b) => a.displayName.localeCompare(b.displayName))
+  return [
+    ...instructors.map(mapInstructorSearchRow),
+    ...students.map((row) => mapStudentSearchRow(row, forStudentSender)),
+  ]
+    .sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === "instructor" ? -1 : 1
+      if (a.messageable !== b.messageable) return a.messageable === false ? 1 : -1
+      return a.displayName.localeCompare(b.displayName)
+    })
     .slice(0, limit)
 }
 
@@ -278,24 +299,86 @@ async function instructorAccessibleCourseIds(instructorId: number): Promise<numb
   return rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0)
 }
 
+/** Instructor-owned demo student logins — students may see them grayed out but cannot DM them. */
+function isInstructorDemoStudent(row: {
+  student_id?: string | null
+  sis_user_id?: string | null
+}): boolean {
+  const sid = String(row.student_id ?? "").trim().toLowerCase()
+  const sis = String(row.sis_user_id ?? "").trim().toUpperCase()
+  return sid.startsWith("dmdoe") || sid.includes("-demo-") || sis.startsWith("DEMO")
+}
+
+async function assertRecipientInOffering(
+  recipient: MessageActor,
+  offering?: MessageOfferingScope | null,
+): Promise<void> {
+  if (recipient.kind !== "student") return
+  const pred = studentOfferingPredicate(offering)
+  if (!pred) return
+  const rows = (await sql`
+    SELECT 1 FROM students s
+    WHERE s.id = ${recipient.id}
+      AND s.deleted_at IS NULL
+      AND ${sql.unsafe(pred)}
+    LIMIT 1
+  `) as unknown[]
+  if (rows.length === 0) {
+    throw new Error("This student is not in the selected course offering.")
+  }
+}
+
+async function assertStudentCanMessageRecipient(
+  sender: MessageActor,
+  recipient: MessageActor,
+): Promise<void> {
+  if (sender.kind !== "student" || recipient.kind !== "student") return
+  const rows = (await sql`
+    SELECT student_id, sis_user_id
+    FROM students
+    WHERE id = ${recipient.id}
+      AND deleted_at IS NULL
+    LIMIT 1
+  `) as Array<{ student_id: string | null; sis_user_id: string | null }>
+  if (rows.length === 0) throw new Error("Recipient not found")
+  if (isInstructorDemoStudent(rows[0])) {
+    throw new Error("This is a demo account. Please message your instructor instead.")
+  }
+}
+
+export type MessageOfferingScope = InstructorSessionScope & { courseId: number | null }
+
+function studentOfferingPredicate(scope?: MessageOfferingScope | null): string | null {
+  if (scope?.courseId == null) return null
+  return studentInInstructorSessionScopeSql({
+    courseId: scope.courseId,
+    sessionId: scope.sessionId,
+    academicTermId: scope.sessionId != null ? null : scope.academicTermId,
+  })
+}
+
 async function searchStudentsInCourseIds(
   courseIds: number[],
   excludeStudentId: number,
   pattern: string,
   limit: number,
+  offering?: MessageOfferingScope | null,
 ): Promise<StudentSearchRow[]> {
   if (courseIds.length === 0) return []
+  const offeringPred = studentOfferingPredicate(offering)
   return (await sql`
-    SELECT s.id, s.full_name, s.email, s.student_id,
+    SELECT s.id, s.full_name, s.email, s.student_id, s.sis_user_id,
            COALESCE(s.is_platform_guest, false) AS is_platform_guest,
            s.student_program_role
     FROM students s
     LEFT JOIN sessions sess ON sess.id = s.session_id
     WHERE s.id <> ${excludeStudentId}
+      AND s.deleted_at IS NULL
       AND (
         s.course_id = ANY(${courseIds})
         OR sess.course_id = ANY(${courseIds})
       )
+      ${offeringPred ? sql.unsafe(`AND ${offeringPred}`) : sql.unsafe("")}
       AND (
         s.full_name ILIKE ${pattern}
         OR s.email ILIKE ${pattern}
@@ -353,6 +436,13 @@ async function searchRecipientsForStudent(
 
   if (ctx) {
     courseIds = [ctx.courseId]
+    const students = await searchStudentsInCourseIds(courseIds, studentId, pattern, limit, {
+      courseId: ctx.courseId,
+      sessionId: ctx.sessionId,
+      academicTermId: null,
+    })
+    const instructors = await searchInstructorsOnCourseIds(courseIds, -1, pattern, limit)
+    return mergeRecipients(students, instructors, limit, true)
   } else {
     const row = (await sql`
       SELECT session_id, section
@@ -371,11 +461,12 @@ async function searchRecipientsForStudent(
     const students =
       sessionId != null
         ? ((await sql`
-            SELECT s.id, s.full_name, s.email, s.student_id,
+            SELECT s.id, s.full_name, s.email, s.student_id, s.sis_user_id,
                    COALESCE(s.is_platform_guest, false) AS is_platform_guest,
                    s.student_program_role
             FROM students s
             WHERE s.id <> ${studentId}
+              AND s.deleted_at IS NULL
               AND s.session_id = ${sessionId}
               AND (
                 s.full_name ILIKE ${pattern}
@@ -386,13 +477,22 @@ async function searchRecipientsForStudent(
             LIMIT ${limit}
           `) as StudentSearchRow[])
         : ((await sql`
-            SELECT s.id, s.full_name, s.email, s.student_id,
+            SELECT s.id, s.full_name, s.email, s.student_id, s.sis_user_id,
                    COALESCE(s.is_platform_guest, false) AS is_platform_guest,
                    s.student_program_role
             FROM students s
+            INNER JOIN sessions sess ON sess.id = s.session_id
             WHERE s.id <> ${studentId}
-              AND TRIM(s.section) <> ''
-              AND TRIM(s.section) = ${section}
+              AND s.deleted_at IS NULL
+              AND TRIM(sess.code) = ${section}
+              AND (
+                sess.academic_term_id IS NULL
+                OR EXISTS (
+                  SELECT 1 FROM academic_terms at
+                  WHERE at.id = sess.academic_term_id
+                    AND COALESCE(at.is_active, false) = true
+                )
+              )
               AND (
                 s.full_name ILIKE ${pattern}
                 OR s.email ILIKE ${pattern}
@@ -410,22 +510,22 @@ async function searchRecipientsForStudent(
       if (Number.isFinite(courseId) && courseId > 0) courseIds = [courseId]
     }
     const instructors = await searchInstructorsOnCourseIds(courseIds, -1, pattern, limit)
-    return mergeRecipients(students, instructors, limit)
+    return mergeRecipients(students, instructors, limit, true)
   }
-
-  const students = await searchStudentsInCourseIds(courseIds, studentId, pattern, limit)
-  const instructors = await searchInstructorsOnCourseIds(courseIds, -1, pattern, limit)
-  return mergeRecipients(students, instructors, limit)
 }
 
 async function searchRecipientsForInstructor(
   instructorId: number,
   pattern: string,
   limit: number,
+  offering?: MessageOfferingScope | null,
 ): Promise<MessageRecipient[]> {
-  const courseIds = await instructorAccessibleCourseIds(instructorId)
+  const courseIds =
+    offering?.courseId != null
+      ? [offering.courseId]
+      : await instructorAccessibleCourseIds(instructorId)
   if (courseIds.length === 0) return []
-  const students = await searchStudentsInCourseIds(courseIds, -1, pattern, limit)
+  const students = await searchStudentsInCourseIds(courseIds, -1, pattern, limit, offering)
   const instructors = await searchInstructorsOnCourseIds(courseIds, instructorId, pattern, limit)
   return mergeRecipients(students, instructors, limit)
 }
@@ -434,6 +534,7 @@ export async function searchMessageRecipients(
   actor: MessageActor,
   query: string,
   limit = 20,
+  offering?: MessageOfferingScope | null,
 ): Promise<MessageRecipient[]> {
   await ensureDirectMessagesSchema()
   const q = query.trim()
@@ -443,10 +544,13 @@ export async function searchMessageRecipients(
   if (actor.kind === "student") {
     return searchRecipientsForStudent(actor.id, pattern, limit)
   }
-  return searchRecipientsForInstructor(actor.id, pattern, limit)
+  return searchRecipientsForInstructor(actor.id, pattern, limit, offering)
 }
 
-export async function listThreadsForActor(actor: MessageActor): Promise<ThreadSummary[]> {
+export async function listThreadsForActor(
+  actor: MessageActor,
+  offering?: MessageOfferingScope | null,
+): Promise<ThreadSummary[]> {
   await ensureDirectMessagesSchema()
 
   const rows = (await sql`
@@ -492,6 +596,20 @@ export async function listThreadsForActor(actor: MessageActor): Promise<ThreadSu
     INNER JOIN dm_participants p_other
       ON p_other.thread_id = t.id
      AND NOT (p_other.participant_kind = ${actor.kind} AND p_other.participant_id = ${actor.id})
+    ${
+      actor.kind === "instructor" && studentOfferingPredicate(offering)
+        ? sql.unsafe(`
+    AND (
+      p_other.participant_kind <> 'student'
+      OR EXISTS (
+        SELECT 1 FROM students s
+        WHERE s.id = p_other.participant_id
+          AND s.deleted_at IS NULL
+          AND ${studentOfferingPredicate(offering)}
+      )
+    )`)
+        : sql.unsafe("")
+    }
     ORDER BY t.updated_at DESC
     LIMIT 100
   `) as Array<{
@@ -733,6 +851,7 @@ export async function sendDirectMessage(params: {
   body: string
   attachments?: MessageAttachmentInput[]
   existingThreadId?: number | null
+  offering?: MessageOfferingScope | null
 }): Promise<{ threadId: number; messageId: number }> {
   await ensureDirectMessagesSchema()
 
@@ -741,7 +860,12 @@ export async function sendDirectMessage(params: {
   const plain = stripHtmlToPlain(rawBody)
   if (!plain && attachments.length === 0) throw new Error("Message body is required")
 
-  const body = rawBody ? sanitizeMessageHtml(rawBody) : "<p></p>"
+  for (const att of attachments) {
+    const attachmentError = validateMessageAttachmentInput(att)
+    if (attachmentError) throw new Error(attachmentError)
+  }
+
+  const body = plain ? sanitizeMessageHtml(rawBody) : ""
 
   const recipient: MessageActor = { kind: params.recipientKind, id: params.recipientId }
   if (participantKey(recipient.kind, recipient.id) === participantKey(params.sender.kind, params.sender.id)) {
@@ -750,6 +874,10 @@ export async function sendDirectMessage(params: {
 
   const recipientProfile = await loadRecipient(recipient.kind, recipient.id)
   if (!recipientProfile) throw new Error("Recipient not found")
+  await assertStudentCanMessageRecipient(params.sender, recipient)
+  if (params.sender.kind === "instructor") {
+    await assertRecipientInOffering(recipient, params.offering)
+  }
 
   const subject = params.subject?.trim() || null
   let threadId = params.existingThreadId ?? null
@@ -767,42 +895,60 @@ export async function sendDirectMessage(params: {
     threadId = await findOrCreateThread(params.sender, recipient, subject)
   }
 
-  const inserted = (await sql`
-    INSERT INTO dm_messages (thread_id, sender_kind, sender_id, subject, body)
-    VALUES (${threadId}, ${params.sender.kind}, ${params.sender.id}, ${subject}, ${body})
-    RETURNING id
-  `) as Array<{ id: number }>
-  const messageId = Number(inserted[0].id)
+  await sql`BEGIN`
+  try {
+    const inserted = (await sql`
+      INSERT INTO dm_messages (thread_id, sender_kind, sender_id, subject, body)
+      VALUES (${threadId}, ${params.sender.kind}, ${params.sender.id}, ${subject}, ${body})
+      RETURNING id
+    `) as Array<{ id: number }>
+    const messageId = Number(inserted[0].id)
 
-  for (const att of attachments) {
+    for (const att of attachments) {
+      await sql`
+        INSERT INTO dm_message_attachments (message_id, file_name, file_url, mime_type, file_size)
+        VALUES (
+          ${messageId},
+          ${att.fileName},
+          ${att.fileUrl},
+          ${att.mimeType ?? null},
+          ${att.fileSize ?? null}
+        )
+      `
+    }
+
+    if (attachments.length > 0) {
+      await consumeStagedMessageUploads(params.sender, messageId, attachments)
+      const counted = (await sql`
+        SELECT COUNT(*)::int AS n FROM dm_message_attachments WHERE message_id = ${messageId}
+      `) as Array<{ n: number }>
+      if ((counted[0]?.n ?? 0) !== attachments.length) {
+        throw new Error("Message attachments could not be saved. Please try sending again.")
+      }
+    }
+
     await sql`
-      INSERT INTO dm_message_attachments (message_id, file_name, file_url, mime_type, file_size)
-      VALUES (
-        ${messageId},
-        ${att.fileName},
-        ${att.fileUrl},
-        ${att.mimeType ?? null},
-        ${att.fileSize ?? null}
-      )
+      UPDATE dm_threads
+      SET updated_at = NOW(),
+          subject = COALESCE(subject, ${subject})
+      WHERE id = ${threadId}
     `
+
+    await sql`COMMIT`
+
+    void notifyDirectMessageRecipient({
+      sender: params.sender,
+      recipient,
+      threadId,
+      subject,
+      body: plain || "(Attachment)",
+    })
+
+    return { threadId, messageId }
+  } catch (error) {
+    await sql`ROLLBACK`
+    throw error
   }
-
-  await sql`
-    UPDATE dm_threads
-    SET updated_at = NOW(),
-        subject = COALESCE(subject, ${subject})
-    WHERE id = ${threadId}
-  `
-
-  void notifyDirectMessageRecipient({
-    sender: params.sender,
-    recipient,
-    threadId,
-    subject,
-    body: plain || "(Attachment)",
-  })
-
-  return { threadId, messageId }
 }
 
 export async function deleteMessageForActor(

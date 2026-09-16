@@ -10,7 +10,7 @@ import { ModuleListSkeleton } from "@/components/data/module-list-skeleton"
 import {
   DesktopChromeTitle,
   DesktopChromeTitleActions,
-} from "@/components/desktop/DesktopLangSmithChrome"
+} from "@/components/dashboard-v2/DashboardChromeTitlePortal"
 import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
 import {
   dashboardV2ModuleShellClass,

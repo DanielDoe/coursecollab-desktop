@@ -104,14 +104,14 @@ export function InstructorFlashcardsPanel() {
 
   if (loading && decks.length === 0 && activeMenu === "all") {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center">
+      <div className="flex min-h-[320px] items-center justify-center">
         <Loader2 className="h-7 w-7 animate-spin text-[var(--cc-accent)]" />
       </div>
     )
   }
 
   return (
-    <FacultyModuleSplitLayout scrollMode="panel" className="min-h-0 flex-1" menu={sidebar}>
+    <FacultyModuleSplitLayout menu={sidebar}>
       {activeMenu === "all" ? (
         <InstructorFlashcardsAllView
           decks={decks}
@@ -130,11 +130,7 @@ export function InstructorFlashcardsPanel() {
       {activeMenu === "configuration" ? <InstructorFlashcardsConfigView /> : null}
 
       {activeMenu === "student-activity" ? (
-        <InstructorModuleStudentActivityView
-          module="flashcards"
-          moduleId={FLASHCARD_MODULE_ID}
-          embedInDashboard
-        />
+        <InstructorModuleStudentActivityView module="flashcards" moduleId={FLASHCARD_MODULE_ID} />
       ) : null}
 
       {activeMenu === "deleted" ? <InstructorFlashcardsDeletedView onRestored={reload} /> : null}

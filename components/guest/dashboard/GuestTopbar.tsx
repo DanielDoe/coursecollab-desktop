@@ -81,7 +81,7 @@ export function GuestTopbar() {
     <header
       data-dashboard-topbar
       data-guest-portal
-      className="fixed inset-x-0 top-0 z-[60] h-16 overflow-visible border-b border-[var(--border)] bg-[var(--card)] shadow-[0_1px_2px_rgba(0,0,0,0.04)] lg:h-[3.25rem]"
+      className="fixed inset-x-0 top-0 z-[60] h-16 overflow-visible border-b border-[var(--border)] bg-[var(--card)] shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
     >
       <div className="flex h-full w-full items-center gap-3 px-3 sm:px-4 lg:px-6">
         <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 shrink-0">

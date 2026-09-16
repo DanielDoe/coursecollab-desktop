@@ -22,12 +22,6 @@ describe("CORS allowlist", () => {
     assert.ok(corsAllowOriginValue("https://www.course-collab.com", prod))
   })
 
-  it("allows Vite desktop dev origins in non-production", () => {
-    const dev = { NODE_ENV: "development" } as NodeJS.ProcessEnv
-    assert.equal(isAllowedCorsOrigin("http://127.0.0.1:5173", dev), true)
-    assert.equal(isBlockedCrossOriginMutation("POST", "http://127.0.0.1:5173", dev), false)
-  })
-
   it("blocks credentialed mutations from unknown origins", () => {
     assert.equal(isBlockedCrossOriginMutation("POST", "https://evil.example", prod), true)
     assert.equal(isBlockedCrossOriginMutation("POST", "https://course-collab.com", prod), false)

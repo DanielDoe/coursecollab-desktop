@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { CodebenchHubPageSkeleton } from "@/components/codebench/CodebenchSkeletons"
+import { Loader2 } from "lucide-react"
 
 const TAB_TO_BROWSE: Record<string, string> = {
   analytics: "analytics",
@@ -28,5 +28,9 @@ export default function CodeBenchMorePage() {
     router.replace("/student/dashboard-v2/codebench")
   }, [router])
 
-  return <CodebenchHubPageSkeleton view="analytics" />
+  return (
+    <div className="flex min-h-[320px] items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-[var(--cc-accent)]" />
+    </div>
+  )
 }

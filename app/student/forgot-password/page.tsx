@@ -13,19 +13,16 @@ import { motion } from "framer-motion"
 import Link from "next/link"
 import {
   AlertCircle,
+  ArrowLeft,
   CheckCircle2,
   ChevronDown,
-  ChevronLeft,
   KeyRound,
   ShieldCheck,
   UserCheck,
 } from "lucide-react"
-import { authCardClass, authGhostBackButtonClass } from "@/components/auth/AuthShell"
-import { desktopAuth } from "@/components/auth/desktop-auth-primitives"
 import { CourseCollabLogo } from "@/components/course-collab-logo"
 import { appendNativeAppQuery } from "@/lib/mobile-native-app"
 import { useNativeApp } from "@/hooks/use-native-app"
-import { cn } from "@/lib/utils"
 
 /**
  * Brand-locked, so it renders identically for every visitor regardless of the
@@ -34,34 +31,24 @@ import { cn } from "@/lib/utils"
  * previously hardcoded indigo/purple gradients and green success states that
  * matched neither the brand nor the rest of the auth flow.
  */
-const SHELL =
-  "cc-brand-surface cc-brand-auth relative min-h-screen flex flex-col bg-[var(--cc-background)]"
+const SHELL = "cc-brand-surface cc-brand-auth min-h-screen flex flex-col"
 
-/** Ambient aurora wash behind the centered column — CSS-only, never intercepts input. */
-function AuroraBackground() {
-  return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_55%_at_50%_-12%,color-mix(in_srgb,var(--cc-accent)_8%,transparent),transparent),radial-gradient(ellipse_50%_40%_at_88%_110%,color-mix(in_srgb,var(--cc-brand-gold)_5%,transparent),transparent)]"
-    />
-  )
-}
-
-/**
- * Shared between the form and the confirmation state — it used to be duplicated.
- * Rendered centered above the card; hidden inside the native app shell, which
- * provides its own chrome (see `[data-native-auth-chrome]` in globals.css).
- */
+/** Shared between the form and the confirmation state — it used to be duplicated. */
 function AuthHeader() {
   return (
-    <div data-native-auth-chrome className="mb-6 flex flex-col items-center gap-2 text-center">
-      <Link href="/" className="transition-opacity hover:opacity-80">
-        <CourseCollabLogo size="sm" withWordmark />
-      </Link>
-      <span className="text-xs font-semibold uppercase tracking-widest text-[var(--cc-text-muted)]">
-        Account recovery
-      </span>
-    </div>
+    <header
+      data-native-auth-chrome
+      className="sticky top-0 z-50 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--cc-surface)_78%,transparent)] backdrop-blur-xl"
+    >
+      <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3.5 sm:px-6">
+        <Link href="/" className="transition-opacity hover:opacity-80">
+          <CourseCollabLogo size="sm" withWordmark />
+        </Link>
+        <span className="hidden text-xs font-semibold uppercase tracking-widest text-[var(--cc-text-muted)] sm:block">
+          Account recovery
+        </span>
+      </div>
+    </header>
   )
 }
 
@@ -113,9 +100,12 @@ function ApprovalSteps({ activeIndex }: { activeIndex: number }) {
 }
 
 const fieldClass =
-  "h-10 rounded-lg border-[var(--border)] bg-[var(--cc-surface)] text-[14px] text-[var(--cc-text)] placeholder:text-[var(--cc-text-muted)] focus-visible:border-[var(--cc-accent)] focus-visible:ring-2 focus-visible:ring-[var(--cc-accent-soft-strong)]"
+  "h-11 rounded-xl border-[var(--border)] bg-[var(--cc-surface)] text-[var(--cc-text)] placeholder:text-[var(--cc-text-muted)] focus-visible:border-[var(--cc-accent)] focus-visible:ring-2 focus-visible:ring-[var(--cc-accent-soft-strong)]"
 
-const labelClass = "text-[13px] font-medium text-[var(--cc-text)]"
+const labelClass = "text-[13px] font-semibold text-[var(--cc-text)]"
+
+const cardClass =
+  "rounded-3xl border border-[var(--border)] bg-[var(--cc-surface)] p-6 shadow-[0_24px_60px_-32px_color-mix(in_srgb,var(--cc-accent)_45%,transparent)] sm:p-8"
 
 export default function ForgotPasswordPage() {
   const router = useRouter()
@@ -159,9 +149,9 @@ export default function ForgotPasswordPage() {
   if (success) {
     return (
       <div className={SHELL}>
-        <AuroraBackground />
+        <AuthHeader />
         <main
-          className={`relative flex flex-1 items-center justify-center px-4 py-10 sm:py-14${
+          className={`flex flex-1 items-center justify-center px-4 py-10 sm:py-14${
             isNativeApp ? " native-app-compact" : ""
           }`}
         >
@@ -169,18 +159,17 @@ export default function ForgotPasswordPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
-            className="w-full max-w-[420px]"
+            className="w-full max-w-md"
           >
-            <AuthHeader />
-            <div className={authCardClass}>
-              <span className="mb-4 flex size-12 items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--cc-success)_16%,transparent)]">
-                <CheckCircle2 className="h-6 w-6 text-[var(--cc-success)]" aria-hidden />
+            <div className={cardClass}>
+              <span className="mb-5 flex size-14 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,var(--cc-success)_16%,transparent)]">
+                <CheckCircle2 className="h-7 w-7 text-[var(--cc-success)]" aria-hidden />
               </span>
 
-              <h1 className="text-[21px] font-semibold leading-[1.3] tracking-[-0.01em] text-[var(--cc-text)]">
+              <h1 className="text-2xl font-extrabold tracking-tight text-[var(--cc-text)]">
                 Request submitted
               </h1>
-              <p className="mt-1.5 text-[14px] leading-snug text-[var(--cc-text-secondary)]">
+              <p className="mt-2 text-[15px] leading-relaxed text-[var(--cc-text-secondary)]">
                 It&rsquo;s with your instructor or an administrator now. You&rsquo;ll be notified
                 once it&rsquo;s approved, then you can set a new password.
               </p>
@@ -201,13 +190,13 @@ export default function ForgotPasswordPage() {
               </div>
 
               <Button
-                className="mt-5 h-10 w-full rounded-lg bg-[var(--cc-accent)] text-[14px] font-semibold text-white transition-colors hover:bg-[var(--cc-accent-hover)]"
+                className="mt-6 h-12 w-full rounded-xl bg-[var(--cc-accent)] text-[15px] font-semibold text-white shadow-md transition-colors hover:bg-[var(--cc-accent-hover)]"
                 onClick={() => router.push(loginPath)}
               >
+                {!isNativeApp ? <ArrowLeft className="mr-2 h-4 w-4" aria-hidden /> : null}
                 Back to login
               </Button>
             </div>
-            <p className="mt-auto pt-8 pb-6 text-center text-[11px] text-[var(--cc-text-muted)]">CourseCollab Desktop</p>
           </motion.div>
         </main>
       </div>
@@ -216,10 +205,10 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className={SHELL}>
-      <AuroraBackground />
+      <AuthHeader />
 
       <main
-        className={`relative flex flex-1 items-center justify-center px-4 py-10 sm:py-14${
+        className={`flex flex-1 items-center justify-center px-4 py-10 sm:py-14${
           isNativeApp ? " native-app-compact" : ""
         }`}
       >
@@ -227,18 +216,17 @@ export default function ForgotPasswordPage() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="w-full max-w-[420px]"
+          className="w-full max-w-md"
         >
-          <AuthHeader />
-          <div className={authCardClass}>
-            <span className="mb-4 flex size-12 items-center justify-center rounded-xl bg-[var(--cc-accent-soft)]">
-              <KeyRound className="h-6 w-6 text-[var(--cc-accent)]" aria-hidden />
+          <div className={cardClass}>
+            <span className="mb-5 flex size-14 items-center justify-center rounded-2xl bg-[var(--cc-accent-soft)]">
+              <KeyRound className="h-7 w-7 text-[var(--cc-accent)]" aria-hidden />
             </span>
 
-            <h1 className="text-[21px] font-semibold leading-[1.3] tracking-[-0.01em] text-[var(--cc-text)]">
+            <h1 className="text-2xl font-extrabold tracking-tight text-[var(--cc-text)]">
               Reset your password
             </h1>
-            <p className="mt-1.5 text-[14px] leading-snug text-[var(--cc-text-secondary)]">
+            <p className="mt-2 text-[15px] leading-relaxed text-[var(--cc-text-secondary)]">
               For security, a member of staff approves password resets. Send your request and
               we&rsquo;ll take it from there.
             </p>
@@ -340,23 +328,25 @@ export default function ForgotPasswordPage() {
                 </Alert>
               )}
 
-              <div className={desktopAuth.actionStack}>
-                <Button
-                  type="submit"
-                  className="h-9 w-full rounded-md bg-[var(--cc-accent)] text-[13px] font-semibold text-white transition-colors hover:bg-[var(--cc-accent-hover)] disabled:opacity-70"
-                  disabled={loading}
-                >
-                  {loading ? "Submitting…" : "Submit request"}
-                </Button>
-                <Link href={loginPath} className={cn(authGhostBackButtonClass)}>
-                  <ChevronLeft className="h-4 w-4" aria-hidden />
-                  Back to login
-                </Link>
-              </div>
+              <Button
+                type="submit"
+                className="h-12 w-full rounded-xl bg-[var(--cc-accent)] text-[15px] font-semibold text-white shadow-md transition-colors hover:bg-[var(--cc-accent-hover)] disabled:opacity-70"
+                disabled={loading}
+              >
+                {loading ? "Submitting…" : "Submit request"}
+              </Button>
             </form>
           </div>
 
-          <p className="mt-auto pt-8 pb-6 text-center text-[11px] text-[var(--cc-text-muted)]">CourseCollab Desktop</p>
+          <div className="mt-5 text-center">
+            <Link
+              href={loginPath}
+              className="inline-flex min-h-[44px] items-center gap-1.5 px-3 text-sm font-semibold text-[var(--cc-accent)] transition-opacity hover:opacity-80"
+            >
+              {!isNativeApp ? <ArrowLeft className="h-4 w-4" aria-hidden /> : null}
+              Back to login
+            </Link>
+          </div>
         </motion.div>
       </main>
     </div>

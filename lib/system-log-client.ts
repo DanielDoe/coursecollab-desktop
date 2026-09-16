@@ -236,13 +236,7 @@ export function reportClientError(partial: Partial<ClientLogPayload> & { errorMe
 const CHUNK_RELOAD_SESSION_KEY = "cc_chunk_reload"
 
 function isChunkLoadError(message: string, errorName?: string): boolean {
-  if (errorName === "ChunkLoadError") return true
-  if (/Loading chunk .* failed/i.test(message)) return true
-  // Vite / dynamic import failures during HMR or dep re-optimization
-  if (/Failed to fetch dynamically imported module/i.test(message)) return true
-  if (/Importing a module script failed/i.test(message)) return true
-  if (/error loading dynamically imported module/i.test(message)) return true
-  return false
+  return /Loading chunk .* failed/i.test(message) || errorName === "ChunkLoadError"
 }
 
 /** Stale webpack chunks after deploy — auto-reload handles recovery; do not open log groups. */

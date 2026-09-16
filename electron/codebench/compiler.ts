@@ -1,35 +1,9 @@
 import { spawn } from 'node:child_process'
 import { CONTROLLED_COMPILE_ARGS, CONTROLLED_MSVC_ARGS, CODEBENCH_LIMITS, SOURCE_FILE_NAME } from './limits'
 import { parseCompilerDiagnostics, sanitizeStudentOutput } from './diagnostics'
-import { binDirForCompiler, prependPath } from './toolchain-paths'
+import { buildCompilerChildEnv } from './process-env'
 import { getExecutableName } from './workspace'
 import type { CompileResult, CompilerInfo, ExecutionSandboxCompileInput } from './types'
-
-function compilerEnvironment(compiler: CompilerInfo): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {
-    PATH: process.env.PATH,
-    Path: process.env.Path,
-    HOME: process.env.HOME,
-    USERPROFILE: process.env.USERPROFILE,
-    TMPDIR: process.env.TMPDIR,
-    TMP: process.env.TMP,
-    TEMP: process.env.TEMP,
-    LANG: process.env.LANG ?? 'en_US.UTF-8',
-    LC_ALL: process.env.LC_ALL,
-    SDKROOT: process.env.SDKROOT,
-    DEVELOPER_DIR: process.env.DEVELOPER_DIR,
-    INCLUDE: process.env.INCLUDE,
-    LIB: process.env.LIB,
-    LIBPATH: process.env.LIBPATH,
-    SystemRoot: process.env.SystemRoot,
-    SYSTEMROOT: process.env.SYSTEMROOT,
-    WINDIR: process.env.WINDIR,
-  }
-  for (const [key, value] of Object.entries(env)) {
-    if (value == null) delete env[key]
-  }
-  return prependPath(env, binDirForCompiler(compiler.path))
-}
 
 function compileArgs(compiler: CompilerInfo, outputName: string): string[] {
   if (compiler.compiler === 'cl') {
@@ -88,7 +62,7 @@ export async function compileCppSource(
 
     const child = spawn(compilerPath, args, {
       cwd: input.workspaceDir,
-      env: compilerEnvironment(compiler),
+      env: buildCompilerChildEnv(compiler.path, compiler.compiler),
       shell: false,
       windowsHide: true,
     })

@@ -11,10 +11,12 @@ import { sanitizeAttemptTimerState } from "@/lib/sanitize-attempt-timer-state"
 import { getExamSharedTimerSeconds, EXAM_SHARED_TIMER_SECTION_KEY, usesSectionCountdown } from "@/lib/assessment-timer"
 import { ensureUtcDate } from "@/lib/timezone"
 import {
+  ANY_ANSWER_FINALIZED_SQL,
   CIRCUIT_ANSWER_FINALIZED_SQL,
   LOCKABLE_ANSWER_FINALIZED_SQL,
 } from "@/lib/quiz-answer-data-sql"
 import { requireStudentIdParamMatchesCaller } from "@/lib/student-api-auth"
+import { requiresStrictAttemptAnswerLock } from "@/lib/assessment-resume-integrity"
 
 export const dynamic = 'force-dynamic'
 // Mark as dynamic to prevent build-time database initialization
@@ -261,6 +263,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       ]),
     ]
 
+    const strictAnswerLock = requiresStrictAttemptAnswerLock({ savedForLaterAt })
+
+    let lockedQuestionIds = submittedQuestionIds
+    if (strictAnswerLock) {
+      const allFinalized = await sql`
+        SELECT qa.question_id
+        FROM quiz_answers qa
+        INNER JOIN quiz_questions qq ON qq.id = qa.question_id AND qq.quiz_id = ${quizId}
+        WHERE qa.attempt_id = ${attemptId}
+          AND (qa.selected_answer IS NOT NULL OR qa.answer_data IS NOT NULL)
+          AND ${sql.unsafe(ANY_ANSWER_FINALIZED_SQL)}
+      `
+      lockedQuestionIds = [
+        ...new Set([
+          ...allFinalized.map((r: { question_id: number }) => r.question_id),
+          ...circuitFinalized.map((r: { question_id: number }) => r.question_id),
+        ]),
+      ]
+    }
+
     let restartPolicy: { canRestart: boolean; blockedReason?: string } = { canRestart: true }
     if (!completedAt) {
       const { getAttemptRestartPolicy } = await import("@/lib/restart-saved-attempt")
@@ -302,8 +324,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       superpowers: normalizeSuperpowerListFromUnknown((attempt as { superpowers?: unknown }).superpowers),
       flaggedQuestionIds: flaggedQuestions.map((q: any) => q.question_id),
       usedHintQuestionIds: usedHints.map((h: any) => h.question_id),
-      submittedQuestionIds,
-      lockedQuestionIds: submittedQuestionIds,
+      submittedQuestionIds: strictAnswerLock ? lockedQuestionIds : submittedQuestionIds,
+      lockedQuestionIds,
       answeredQuestionIds,
       canRestart: restartPolicy.canRestart,
       restartBlockedReason: restartPolicy.blockedReason ?? null,

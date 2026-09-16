@@ -12,6 +12,8 @@ export type ClassroomPointsLeaderboardRow = {
   section?: string | null
   course_id?: number | null
   academic_term_id?: number | null
+  full_name?: string | null
+  is_current_user?: boolean
 }
 
 function numeric(value: unknown): number {
@@ -21,6 +23,19 @@ function numeric(value: unknown): number {
 
 function entrySection(entry: ClassroomPointsLeaderboardRow): string {
   return String(entry.session ?? entry.section ?? "").trim().toUpperCase()
+}
+
+function entryRank(entry: ClassroomPointsLeaderboardRow, fallbackIndex: number): number {
+  const parsed = Number(entry.rank)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackIndex + 1
+}
+
+/** Peer rows reduced by FERPA sanitize (no name; may or may not keep points). */
+export function isClassroomLeaderboardPrivacyStub(entry: ClassroomPointsLeaderboardRow): boolean {
+  if (entry.is_current_user === true) return false
+  const hasName = Boolean(String(entry.full_name ?? "").trim())
+  const hasPointsField = entry.total_points != null && String(entry.total_points).trim() !== ""
+  return !hasName && !hasPointsField && entryRank(entry, 0) > 0
 }
 
 export function classroomPointsEntryMatchesOffering(
@@ -50,13 +65,19 @@ export function classroomPointsLeaderboardHasAwards(
   return entries.some((entry) => numeric(entry.total_points) > 0)
 }
 
-/** Hide 0-pt roster dumps. Rankings start when someone earns approved points this offering. */
+/** Hide 0-pt roster dumps. Keep privacy stubs beside real awards; preserve API ranks. */
 export function classroomPointsLeaderboardForCurrentOffering<T extends ClassroomPointsLeaderboardRow>(
   entries: T[],
   session: OfferingSession = {},
 ): T[] {
   const scoped = entries.filter((entry) => classroomPointsEntryMatchesOffering(entry, session))
-  const awarded = scoped.filter((entry) => numeric(entry.total_points) > 0)
-  if (awarded.length === 0) return []
-  return awarded.map((entry, index) => ({ ...entry, rank: index + 1 }))
+  if (!classroomPointsLeaderboardHasAwards(scoped)) return []
+
+  const kept = scoped.filter(
+    (entry) => numeric(entry.total_points) > 0 || isClassroomLeaderboardPrivacyStub(entry),
+  )
+
+  return kept
+    .map((entry, index) => ({ ...entry, rank: entryRank(entry, index) }))
+    .sort((a, b) => entryRank(a, 0) - entryRank(b, 0))
 }

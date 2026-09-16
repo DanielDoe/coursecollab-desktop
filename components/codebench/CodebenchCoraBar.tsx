@@ -1,6 +1,7 @@
 "use client"
 
 import { BookOpen, Bug, ChevronsRight, Eraser, FileCode, GraduationCap, Lightbulb, Loader2, MessageSquare, Sparkles, Wand2, Zap } from "lucide-react"
+import { CoraBotMark } from "@/components/cora/CoraBotMark"
 import { useCodebenchCoraPanel } from "@/components/codebench/codebench-cora-panel-context"
 import {
   Select,
@@ -81,6 +82,7 @@ export function CodebenchCoraBar({
       data-codebench-cora-bar
       className="flex h-9 min-w-0 shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--card)] px-3"
     >
+      <CoraBotMark size="xs" idle className="shrink-0" decorative />
       <span
         className="shrink-0 pr-0.5 text-[10px] font-semibold uppercase tracking-wide"
         style={{ color: accent }}

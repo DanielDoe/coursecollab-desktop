@@ -15,7 +15,6 @@ import { FacultyContentNavigator } from "@/components/instructor/dashboard-v2/Fa
 import { cn } from "@/lib/utils"
 import { Eye, EyeOff, FilePenLine, Plus } from "lucide-react"
 import { toast } from "@/lib/app-toast"
-import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 const MODULE_ID = "course-notes"
 
@@ -47,7 +46,6 @@ export function InstructorCourseNoteEditor({
 }: Props) {
   const chrome = facultyEmbedChrome(MODULE_ID)
   const [loading, setLoading] = useState(false)
-  const { confirm } = useAppConfirm()
   const [title, setTitle] = useState("")
   const [bodyText, setBodyText] = useState("")
   const [topic, setTopic] = useState("")
@@ -111,15 +109,7 @@ export function InstructorCourseNoteEditor({
   }
 
   const deleteNote = async () => {
-    if (!noteId) return
-    const ok = await confirm({
-      title: "Move this note to Deleted Items?",
-      description: "You can restore it later from Deleted Items.",
-      confirmLabel: "Move to Deleted",
-      cancelLabel: "Cancel",
-      variant: "destructive",
-    })
-    if (!ok) return
+    if (!noteId || !confirm("Move this note to Deleted Items?")) return
     try {
       const res = await instructorApiFetch(`/api/instructor/course-notes/${noteId}`, {
         method: "DELETE",

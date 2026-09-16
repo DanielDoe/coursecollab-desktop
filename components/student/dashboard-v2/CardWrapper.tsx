@@ -55,7 +55,7 @@ export function CardWrapper({
             "dark:bg-[var(--card)] dark:shadow-none",
             "transition-[box-shadow,border-color,transform] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
             hover &&
-              "hover:scale-[1.005] hover:border-[var(--border)] hover:shadow-[0_8px_28px_rgba(0,0,0,0.12)] dark:hover:shadow-[0_12px_36px_rgba(0,0,0,0.45)]",
+              "hover:shadow-[0_8px_28px_rgba(0,0,0,0.12)] hover:border-[var(--border)] dark:hover:shadow-[0_12px_36px_rgba(0,0,0,0.45)] hover:scale-[1.005]",
           ),
         className,
       )}

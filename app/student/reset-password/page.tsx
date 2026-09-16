@@ -231,40 +231,34 @@ export default function ResetPasswordPage() {
 
   if (loading) {
     return (
-      <div className="cc-brand-surface cc-brand-auth min-h-screen flex items-center justify-center bg-[var(--cc-background)]">
+      <div className="cc-brand-surface cc-brand-auth min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
-          <div className="w-16 h-16 rounded-2xl bg-[var(--cc-accent)] flex items-center justify-center mx-auto">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center mx-auto">
             <Shield className="h-8 w-8 text-white animate-pulse" />
           </div>
-          <p className="text-lg font-medium text-[var(--cc-text-secondary)]">Loading security settings...</p>
+          <p className="text-lg font-medium text-slate-600 dark:text-slate-300">Loading security settings...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="cc-brand-surface cc-brand-auth relative min-h-screen bg-[var(--cc-background)]">
-      {/* Ambient aurora wash */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_55%_at_50%_-12%,color-mix(in_srgb,var(--cc-accent)_8%,transparent),transparent),radial-gradient(ellipse_50%_40%_at_88%_110%,color-mix(in_srgb,var(--cc-brand-gold)_5%,transparent),transparent)]"
-      />
-
+    <div className="cc-brand-surface cc-brand-auth min-h-screen">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--cc-surface)]">
+      <header className="sticky top-0 z-50 border-b border-white/20 dark:border-gray-800/50 backdrop-blur-xl bg-white/80 dark:bg-gray-900/80">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href={homeLink} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="h-8 w-8 rounded-lg bg-[var(--cc-accent)] flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center">
               <GraduationCap className="h-5 w-5 text-white" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-[var(--cc-text)]">CourseCollab</h1>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">CourseCollab</h1>
           </Link>
           <StudentProfileDropdown />
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="relative container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8">
         <Button variant="ghost" onClick={() => router.push(homeLink)} className="mb-6">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Dashboard
@@ -278,13 +272,13 @@ export default function ResetPasswordPage() {
             transition={{ duration: 0.6 }}
             className="text-center space-y-4"
           >
-            <div className="w-16 h-16 rounded-2xl bg-[var(--cc-accent-soft)] flex items-center justify-center mx-auto">
-              <Shield className="h-8 w-8 text-[var(--cc-accent)]" />
+            <div className="w-20 h-20 rounded-full bg-gradient-to-r from-red-500 to-pink-600 flex items-center justify-center mx-auto">
+              <Shield className="h-10 w-10 text-white" />
             </div>
-            <h1 className="text-[21px] font-semibold leading-[1.3] tracking-[-0.01em] text-[var(--cc-text)]">
+            <h1 className="text-4xl font-bold text-slate-800 dark:text-white">
               Reset Password
             </h1>
-            <p className="text-[14px] text-[var(--cc-text-secondary)]">
+            <p className="text-slate-600 dark:text-slate-300 text-lg">
               Secure your account with a strong password
             </p>
           </motion.div>
@@ -296,14 +290,14 @@ export default function ResetPasswordPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
-              <Card className="rounded-2xl border border-[var(--border)] bg-[var(--cc-surface)] shadow-[0_1px_2px_rgba(15,10,40,0.05),0_8px_24px_-8px_color-mix(in_srgb,var(--cc-accent)_12%,transparent)]">
-                <CardHeader className="p-6">
+              <Card className="border-0 shadow-xl bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm">
+                <CardHeader className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 p-6">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[var(--cc-accent-soft)] flex items-center justify-center">
-                      <Clock className="h-5 w-5 text-[var(--cc-accent)]" />
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-600 flex items-center justify-center">
+                      <Clock className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <CardTitle className="text-[21px] font-semibold leading-[1.3]">Password History</CardTitle>
+                      <CardTitle className="text-lg font-bold">Password History</CardTitle>
                       <CardDescription>Your account security information</CardDescription>
                     </div>
                   </div>
@@ -311,8 +305,8 @@ export default function ResetPasswordPage() {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <Key className="h-5 w-5 text-[var(--cc-text-muted)]" />
-                      <span className="text-sm text-[var(--cc-text-secondary)]">
+                      <Key className="h-5 w-5 text-slate-500" />
+                      <span className="text-sm text-slate-600 dark:text-slate-300">
                         Last changed: {new Date(lastPasswordChange).toLocaleDateString()}
                       </span>
                     </div>
@@ -331,14 +325,14 @@ export default function ResetPasswordPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.4 }}
           >
-            <Card className="rounded-2xl border border-[var(--border)] bg-[var(--cc-surface)] shadow-[0_1px_2px_rgba(15,10,40,0.05),0_8px_24px_-8px_color-mix(in_srgb,var(--cc-accent)_12%,transparent)]">
-              <CardHeader className="p-6">
+            <Card className="border-0 shadow-xl bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm">
+              <CardHeader className="bg-gradient-to-r from-red-500/10 to-pink-500/10 p-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[var(--cc-accent)] flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-red-500 to-pink-600 flex items-center justify-center">
                     <Lock className="h-5 w-5 text-white" />
                   </div>
                   <div>
-                    <CardTitle className="text-[21px] font-semibold leading-[1.3]">Change Password</CardTitle>
+                    <CardTitle className="text-xl font-bold">Change Password</CardTitle>
                     <CardDescription>Update your account password</CardDescription>
                   </div>
                 </div>
@@ -347,7 +341,7 @@ export default function ResetPasswordPage() {
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {/* Current Password */}
                   <div className="space-y-2">
-                    <Label htmlFor="currentPassword" className="text-[13px] font-medium">
+                    <Label htmlFor="currentPassword" className="text-sm font-semibold">
                       Current Password *
                     </Label>
                     <div className="relative">
@@ -356,7 +350,7 @@ export default function ResetPasswordPage() {
                         type={showPasswords.current ? "text" : "password"}
                         value={formData.currentPassword}
                         onChange={(e) => setFormData({ ...formData, currentPassword: e.target.value })}
-                        className={`h-10 rounded-lg pr-10 text-[14px] ${errors.currentPassword ? "border-red-500" : ""}`}
+                        className={`rounded-xl pr-10 ${errors.currentPassword ? "border-red-500" : ""}`}
                         placeholder="Enter your current password"
                       />
                       <Button
@@ -379,7 +373,7 @@ export default function ResetPasswordPage() {
 
                   {/* New Password */}
                   <div className="space-y-2">
-                    <Label htmlFor="newPassword" className="text-[13px] font-medium">
+                    <Label htmlFor="newPassword" className="text-sm font-semibold">
                       New Password *
                     </Label>
                     <div className="relative">
@@ -388,7 +382,7 @@ export default function ResetPasswordPage() {
                         type={showPasswords.new ? "text" : "password"}
                         value={formData.newPassword}
                         onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
-                        className={`h-10 rounded-lg pr-10 text-[14px] ${errors.newPassword ? "border-red-500" : ""}`}
+                        className={`rounded-xl pr-10 ${errors.newPassword ? "border-red-500" : ""}`}
                         placeholder="Enter your new password"
                       />
                       <Button
@@ -412,14 +406,14 @@ export default function ResetPasswordPage() {
                     {formData.newPassword && (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-[var(--cc-text-muted)]">Password Strength</span>
-                          <span className="text-xs text-[var(--cc-text-muted)]">{passwordStrength.score}/5</span>
+                          <span className="text-xs text-slate-500">Password Strength</span>
+                          <span className="text-xs text-slate-500">{passwordStrength.score}/5</span>
                         </div>
                         <Progress value={(passwordStrength.score / 5) * 100} className="h-2">
                           <div className={`h-full ${passwordStrength.color} transition-all duration-300`} />
                         </Progress>
                         {passwordStrength.feedback.length > 0 && (
-                          <div className="text-xs text-[var(--cc-text-muted)]">
+                          <div className="text-xs text-slate-500">
                             Missing: {passwordStrength.feedback.join(", ")}
                           </div>
                         )}
@@ -429,7 +423,7 @@ export default function ResetPasswordPage() {
 
                   {/* Confirm Password */}
                   <div className="space-y-2">
-                    <Label htmlFor="confirmPassword" className="text-[13px] font-medium">
+                    <Label htmlFor="confirmPassword" className="text-sm font-semibold">
                       Confirm New Password *
                     </Label>
                     <div className="relative">
@@ -438,7 +432,7 @@ export default function ResetPasswordPage() {
                         type={showPasswords.confirm ? "text" : "password"}
                         value={formData.confirmPassword}
                         onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                        className={`h-10 rounded-lg pr-10 text-[14px] ${errors.confirmPassword ? "border-red-500" : ""}`}
+                        className={`rounded-xl pr-10 ${errors.confirmPassword ? "border-red-500" : ""}`}
                         placeholder="Confirm your new password"
                       />
                       <Button
@@ -466,12 +460,12 @@ export default function ResetPasswordPage() {
                   </div>
 
                   {/* Security Tips */}
-                  <div className="p-4 bg-[color-mix(in_srgb,var(--cc-accent-soft)_45%,transparent)] rounded-xl">
-                    <h4 className="font-semibold text-[var(--cc-text)] mb-2 flex items-center gap-2">
+                  <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+                    <h4 className="font-semibold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
                       <Shield className="h-4 w-4" />
                       Security Tips
                     </h4>
-                    <ul className="text-sm text-[var(--cc-text-secondary)] space-y-1">
+                    <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1">
                       <li>• Use a unique password for this account</li>
                       <li>• Avoid using personal information</li>
                       <li>• Consider using a password manager</li>
@@ -483,7 +477,7 @@ export default function ResetPasswordPage() {
                     <Button
                       type="submit"
                       disabled={submitting || passwordStrength.score < 4}
-                      className="h-10 rounded-lg bg-[var(--cc-accent)] px-8 text-[14px] font-semibold hover:bg-[var(--cc-accent-hover)] text-white"
+                      className="bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white rounded-xl px-8"
                     >
                       {submitting ? (
                         <>
@@ -509,26 +503,26 @@ export default function ResetPasswordPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.6 }}
           >
-            <Card className="rounded-2xl border border-[var(--border)] bg-[var(--cc-surface)] shadow-[0_1px_2px_rgba(15,10,40,0.05),0_8px_24px_-8px_color-mix(in_srgb,var(--cc-accent)_12%,transparent)]">
-              <CardHeader className="p-6">
+            <Card className="border-0 shadow-xl bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm">
+              <CardHeader className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 p-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[var(--cc-accent-soft)] flex items-center justify-center">
-                    <Shield className="h-5 w-5 text-[var(--cc-accent)]" />
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 flex items-center justify-center">
+                    <Shield className="h-5 w-5 text-white" />
                   </div>
                   <div>
-                    <CardTitle className="text-[21px] font-semibold leading-[1.3]">Additional Security</CardTitle>
+                    <CardTitle className="text-lg font-bold">Additional Security</CardTitle>
                     <CardDescription>Enhance your account security</CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-[color-mix(in_srgb,var(--cc-accent-soft)_45%,transparent)] rounded-xl">
+                  <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
                     <div className="flex items-center gap-3">
-                      <Mail className="h-5 w-5 text-[var(--cc-text-muted)]" />
+                      <Mail className="h-5 w-5 text-slate-500" />
                       <div>
-                        <h4 className="font-semibold text-[var(--cc-text)]">Email Verification</h4>
-                        <p className="text-sm text-[var(--cc-text-secondary)]">Verify your email address</p>
+                        <h4 className="font-semibold text-slate-800 dark:text-white">Email Verification</h4>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">Verify your email address</p>
                       </div>
                     </div>
                     <Badge variant="outline" className="text-green-600 border-green-600">
@@ -536,12 +530,12 @@ export default function ResetPasswordPage() {
                     </Badge>
                   </div>
                   
-                  <div className="flex items-center justify-between p-4 bg-[color-mix(in_srgb,var(--cc-accent-soft)_45%,transparent)] rounded-xl">
+                  <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
                     <div className="flex items-center gap-3">
-                      <User className="h-5 w-5 text-[var(--cc-text-muted)]" />
+                      <User className="h-5 w-5 text-slate-500" />
                       <div>
-                        <h4 className="font-semibold text-[var(--cc-text)]">Two-Factor Authentication</h4>
-                        <p className="text-sm text-[var(--cc-text-secondary)]">Add an extra layer of security</p>
+                        <h4 className="font-semibold text-slate-800 dark:text-white">Two-Factor Authentication</h4>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">Add an extra layer of security</p>
                       </div>
                     </div>
                     <Button variant="outline" size="sm" className="rounded-xl">
@@ -549,12 +543,12 @@ export default function ResetPasswordPage() {
                     </Button>
                   </div>
                   
-                  <div className="flex items-center justify-between p-4 bg-[color-mix(in_srgb,var(--cc-accent-soft)_45%,transparent)] rounded-xl">
+                  <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
                     <div className="flex items-center gap-3">
-                      <Clock className="h-5 w-5 text-[var(--cc-text-muted)]" />
+                      <Clock className="h-5 w-5 text-slate-500" />
                       <div>
-                        <h4 className="font-semibold text-[var(--cc-text)]">Login Activity</h4>
-                        <p className="text-sm text-[var(--cc-text-secondary)]">Review recent login attempts</p>
+                        <h4 className="font-semibold text-slate-800 dark:text-white">Login Activity</h4>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">Review recent login attempts</p>
                       </div>
                     </div>
                     <Button variant="outline" size="sm" className="rounded-xl">

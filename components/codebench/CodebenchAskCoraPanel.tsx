@@ -1,7 +1,9 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Bot, Maximize2, Minimize2 } from "lucide-react"
+import { Maximize2, Minimize2 } from "lucide-react"
+import { CoraBotMark } from "@/components/cora/CoraBotMark"
+import { CoraImportedQuestionPreview } from "@/components/cora/CoraImportedQuestionPreview"
 import { Button } from "@/components/ui/button"
 import { CoraChatInput } from "@/components/cora/CoraChatInput"
 import { CoraQuestionImportDialog } from "@/components/cora/CoraQuestionImportDialog"
@@ -22,6 +24,7 @@ import {
   consumeCodebenchChallengeHandoff,
 } from "@/lib/codebench-challenge-handoff"
 import { cn } from "@/lib/utils"
+import { withCodebenchCoraContext } from "@/lib/codebench-cora-client"
 
 type Message = {
   role: "user" | "assistant"
@@ -46,6 +49,12 @@ type Props = {
   retainImportedQuestion?: boolean
   /** Hide the Ask Cora title bar when a parent already shows the tool. */
   hideChrome?: boolean
+  /** Quiz / homework / practice drawer — parent header, themed question preview. */
+  assessmentEmbed?: boolean
+  /** When true, this chat is a CodeBench Cora action (membership-gated). */
+  codebenchCora?: boolean
+  coraAccess?: boolean
+  onLockedCora?: (label: string) => void
 }
 
 export function CodebenchAskCoraPanel({
@@ -62,7 +71,12 @@ export function CodebenchAskCoraPanel({
   skipHandoffConsume = false,
   retainImportedQuestion = false,
   hideChrome = false,
+  assessmentEmbed = false,
+  codebenchCora = false,
+  coraAccess = true,
+  onLockedCora,
 }: Props) {
+  const chromeHidden = hideChrome || assessmentEmbed
   const isLight = theme === "light"
   const [messages, setMessages] = useState<Message[]>(cachedMessages || [])
   const [input, setInput] = useState("")
@@ -107,6 +121,10 @@ export function CodebenchAskCoraPanel({
   }, [messages, isLoading])
 
   const sendMessage = async (rawInput?: string) => {
+    if (codebenchCora && !coraAccess) {
+      onLockedCora?.("Ask Cora")
+      return
+    }
     const text = (rawInput ?? input).trim()
     // Require an actual student question/message; imported challenge alone is not enough to send.
     if (!text || isLoading || !studentId) return
@@ -138,14 +156,17 @@ export function CodebenchAskCoraPanel({
           message: messageContent + codeContext,
           attachments: imageAttachmentsForApi(attachments),
           problemContext: importedQuestion ?? undefined,
-          context: {
-            topic: "tutor",
-            learningMode,
-            importedQuestion: importedQuestion ?? undefined,
-            attemptId: importedQuestion?.attemptId,
-            quizId: importedQuestion?.quizId,
-            codeContext: code.trim().length > 10 ? code : undefined,
-          },
+          context: (() => {
+            const ctx = {
+              topic: "tutor",
+              learningMode,
+              importedQuestion: importedQuestion ?? undefined,
+              attemptId: importedQuestion?.attemptId,
+              quizId: importedQuestion?.quizId,
+              codeContext: code.trim().length > 10 ? code : undefined,
+            }
+            return codebenchCora ? withCodebenchCoraContext(ctx) : ctx
+          })(),
         }),
       })
 
@@ -184,14 +205,16 @@ export function CodebenchAskCoraPanel({
     <div
       className={cn(
         "flex h-full min-h-[320px] flex-col overflow-hidden",
-        hideChrome
-          ? ""
-          : cn("rounded-xl border", isLight ? "border-slate-200 bg-white" : "border-[#582c83]/25 bg-[#0a0e14]"),
+        assessmentEmbed
+          ? "rounded-xl border border-[var(--border)] bg-[var(--card)]"
+          : chromeHidden
+            ? ""
+            : cn("rounded-xl border", isLight ? "border-slate-200 bg-white" : "border-[#582c83]/25 bg-[#0a0e14]"),
         expanded && "fixed inset-4 z-[70] min-h-0 shadow-2xl",
         className,
       )}
     >
-      {hideChrome ? (
+      {chromeHidden && !assessmentEmbed ? (
         <div className="flex shrink-0 justify-end px-2 py-1">
           <Button
             type="button"
@@ -204,7 +227,8 @@ export function CodebenchAskCoraPanel({
             {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
           </Button>
         </div>
-      ) : (
+      ) : null}
+      {!chromeHidden ? (
       <div
         className={cn(
           "flex shrink-0 items-center justify-between border-b px-4 py-2.5",
@@ -230,18 +254,41 @@ export function CodebenchAskCoraPanel({
           {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
         </Button>
       </div>
-      )}
+      ) : null}
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
+        {assessmentEmbed && importedQuestion ? (
+          <CoraImportedQuestionPreview
+            label={importedLabel}
+            problem={importedQuestion}
+            compact
+            variant="theme"
+            collapsible
+            defaultCollapsed
+          />
+        ) : null}
+
         {messages.length === 0 ? (
-          <div className={cn("text-center text-sm mt-6", isLight ? "text-slate-500" : "text-slate-400")}>
-            <Bot className={cn("mx-auto mb-2 h-8 w-8", isLight ? "text-[var(--cc-accent)]" : "text-[#eaaa00]")} />
+          <div
+            className={cn(
+              "text-center text-sm",
+              assessmentEmbed ? "mt-2" : "mt-6",
+              isLight ? "text-slate-500" : "text-slate-400",
+            )}
+          >
+            <CoraBotMark size="md" idle className="mx-auto mb-2" decorative />
             <p className="font-medium">
-              {importedQuestion ? "Challenge attached — ask your question" : "Start a tutoring session"}
+              {importedQuestion
+                ? assessmentEmbed
+                  ? "Ask about this question"
+                  : "Challenge attached — ask your question"
+                : "Start a tutoring session"}
             </p>
             <p className="mt-1 text-xs">
               {importedQuestion
-                ? "Type a hint request or question below. Cora will use the imported daily challenge with your message."
+                ? assessmentEmbed
+                  ? "Cora sees this question and your attempt context. Ask for a hint or clarification — not the final answer."
+                  : "Type a hint request or question below. Cora will use the imported daily challenge with your message."
                 : "Import a quiz question or attach a screenshot of your work."}
             </p>
           </div>
@@ -262,7 +309,16 @@ export function CodebenchAskCoraPanel({
         <div ref={messagesEndRef} />
       </div>
 
-      <div className={cn("shrink-0 border-t p-3", isLight ? "border-slate-200 bg-white" : "border-[#582c83]/25 bg-[#0a0e14]")}>
+      <div
+        className={cn(
+          "shrink-0 border-t p-3",
+          assessmentEmbed
+            ? "border-[var(--border)] bg-[var(--card)]"
+            : isLight
+              ? "border-slate-200 bg-white"
+              : "border-[#582c83]/25 bg-[#0a0e14]",
+        )}
+      >
         <CoraChatInput
           inputValue={input}
           onInputChange={setInput}
@@ -278,10 +334,15 @@ export function CodebenchAskCoraPanel({
           onImportCourseQuestion={() => setImportOpen(true)}
           importedQuestion={importedQuestion}
           importedQuestionLabel={importedLabel}
-          onClearImportedQuestion={() => {
-            setImportedQuestion(null)
-            setImportedLabel(null)
-          }}
+          onClearImportedQuestion={
+            retainImportedQuestion
+              ? undefined
+              : () => {
+                  setImportedQuestion(null)
+                  setImportedLabel(null)
+                }
+          }
+          showImportedQuestionPreview={!assessmentEmbed}
           isLoading={isLoading || !studentId}
           placeholder={
             importedQuestion

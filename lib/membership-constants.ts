@@ -108,7 +108,10 @@ export interface MembershipFeatures {
   leaderboard: boolean
   /** Monthly Cora Credits (membership bucket; does not roll over). */
   aiTutor: number
+  /** Core CodeBench IDE, run/compile, challenges, Live Classroom, gamification. */
   codeBench: boolean
+  /** Cora-powered CodeBench actions (explain, debug, improve, suggest fix, evaluate). */
+  codeBenchCora: boolean
   earlyAccess: boolean
   playgroundCredits: number | "unlimited" // Number of credits per week or "unlimited"
   /** Past-deadline self-service rollover: false, or max applies per assessment + window length */
@@ -183,29 +186,31 @@ export const MEMBERSHIP_PLANS: MembershipPlan[] = [
     name: "Scholar",
     displayName: "Scholar (Free)",
     priceInCents: 0,
-    description: "Everything you need to participate in your course.",
-    subtitle: "Essential Course Access",
+    description: "Code, practice, and participate — including CodeBench.",
+    subtitle: "Code, practice and participate",
     ctaLabel: "Current plan",
     features: {
       quizAttempts: 1, // 1 attempt per quiz (no retakes) - allows first-time access
       lectures: true,
       leaderboard: false,
       aiTutor: 250, // Cora Credits / month (Lite after exhaustion; no agent workflows)
-      codeBench: false,
+      codeBench: true,
+      codeBenchCora: false,
       earlyAccess: false,
       playgroundCredits: PLAYGROUND_WEEKLY_CREDITS, // resets weekly
       assessmentRollover: false,
       saveAndFinishLater: false, // No access
     },
     highlights: [
+      "CodeBench IDE + run/compile",
       "Course lectures & materials",
       "Standard assessments",
-      "Forum & collaboration",
       "250 Cora Credits / month",
     ],
     secondaryBenefits: [
+      "Daily Challenge, XP, streak & badges",
+      "Live Classroom & Classroom Points coding",
       "Cora explanations & study help",
-      "Basic practice tools",
       "3 Playground credits / week",
       "Basic support",
     ],
@@ -219,15 +224,16 @@ export const MEMBERSHIP_PLANS: MembershipPlan[] = [
     priceInCents: 599, // legacy monthly catalog (semester-only campuses do not sell this)
     monthlyPriceInCents: 599,
     semesterPriceInCents: 1999, // $19.99/semester after $10 student discount (was $29.99)
-    description: "Cora, retakes, and study tools — $10 off this semester.",
-    subtitle: "AI-Powered Learning",
+    description: "Learn with Cora — explanations, debugging help, and study tools. $10 off this semester.",
+    subtitle: "Learn with Cora",
     ctaLabel: "Get Explorer for $19.99",
     features: {
       quizAttempts: 2, // 1 main attempt + 1 retake from membership perks
       lectures: true,
       leaderboard: true,
       aiTutor: 3000, // Cora Credits / month
-      codeBench: false,
+      codeBench: true,
+      codeBenchCora: true,
       earlyAccess: false,
       playgroundCredits: EXPLORER_PLAYGROUND_WEEKLY_CREDITS, // resets weekly
       assessmentRollover: { maxAttemptsPerAssessment: 1, windowHours: 24 },
@@ -235,12 +241,13 @@ export const MEMBERSHIP_PLANS: MembershipPlan[] = [
     },
     highlights: [
       "3,000 Cora Credits / month",
+      "Cora in CodeBench (explain, debug, improve)",
       "Full Cora learning assistant",
       "Interactive problem walkthroughs",
-      "Cora Notes & Flashcards",
     ],
     secondaryBenefits: [
-      "Everything in Scholar",
+      "Everything in Scholar, including CodeBench",
+      "Cora CodeBench tools (uses Cora credits)",
       "Personalized study assistance",
       "Enhanced Practice Hub",
       "2 assessment attempts",
@@ -260,8 +267,8 @@ export const MEMBERSHIP_PLANS: MembershipPlan[] = [
     priceInCents: 999, // legacy monthly catalog
     monthlyPriceInCents: 999,
     semesterPriceInCents: 3999, // $39.99/semester after $10 student discount (was $49.99)
-    description: "Full Cora, CodeBench, and unlimited Playground — $10 off this semester.",
-    subtitle: "Complete AI Learning Experience",
+    description: "Use Cora more — highest existing Cora allowance, plus unlimited Playground. $10 off this semester.",
+    subtitle: "Use Cora more",
     ctaLabel: "Get Trailblazer for $39.99",
     popular: true,
     features: {
@@ -270,6 +277,7 @@ export const MEMBERSHIP_PLANS: MembershipPlan[] = [
       leaderboard: true,
       aiTutor: 7500, // Cora Credits / month (+ Cora Lite after exhaustion)
       codeBench: true,
+      codeBenchCora: true,
       earlyAccess: true,
       playgroundCredits: "unlimited", // Unlimited playground access
       assessmentRollover: { maxAttemptsPerAssessment: 3, windowHours: 24 },
@@ -277,13 +285,13 @@ export const MEMBERSHIP_PLANS: MembershipPlan[] = [
     },
     highlights: [
       "7,500 Cora Credits / month",
+      "Highest Cora allowance",
       "Full Agentic Cora",
-      "CodeBench IDE + Cora coding assistant",
       "Cora Lite after allowance",
     ],
     secondaryBenefits: [
-      "Everything in Explorer",
-      "Advanced interactive problem solving",
+      "Everything in Explorer (same Cora CodeBench tools)",
+      "More Cora credits for the same Cora tools",
       "Course-context intelligence",
       "Cora-powered study planning",
       "Smart learning recommendations",

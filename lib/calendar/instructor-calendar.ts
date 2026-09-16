@@ -1,7 +1,7 @@
 import { sql } from "@/lib/db"
 import { buildStudentClassMeetingEventsForRange } from "@/lib/calendar/student-class-meetings"
 import { buildRegularOfficeHourOccurrences } from "@/lib/calendar/regular-office-hours"
-import { ensureOfficeHoursCourseScopeColumns, hasOfficeHourRequestsCourseIdColumn, buildOfficeHourRequestCourseScopeSqlFragment, buildOfficeHourStudentInCourseSqlFragment } from "@/lib/office-hours-course-scope"
+import { ensureOfficeHoursCourseScopeColumns, hasOfficeHourRequestsCourseIdColumn, buildOfficeHourRequestCourseScopeSqlFragment, buildOfficeHourStudentInOfferingSqlFragment } from "@/lib/office-hours-course-scope"
 import { expandClassMeetingsForRange } from "@/lib/syllabus/calendar-export"
 import { getEffectiveCourseMeetingSchedules } from "@/lib/schedule-adjustment/schedule-source"
 import { listCourseRequests } from "@/lib/schedule-adjustment/workflow-service"
@@ -156,7 +156,11 @@ export async function buildInstructorCalendar(params: {
 
   const hasRequestCourseId = await hasOfficeHourRequestsCourseIdColumn()
   const requestScope = buildOfficeHourRequestCourseScopeSqlFragment("ohr", courseId, hasRequestCourseId)
-  const studentScope = buildOfficeHourStudentInCourseSqlFragment("s", courseId)
+  const studentScope = buildOfficeHourStudentInOfferingSqlFragment({
+    studentAlias: "s",
+    courseId,
+    sessionId,
+  })
   const rangeStartIso = rangeStart.toISOString()
   const rangeEndIso = rangeEnd.toISOString()
   const bookedRows = (await sql`

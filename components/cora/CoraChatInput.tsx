@@ -99,6 +99,8 @@ type Props = {
   importedQuestion?: CoraProblemContext | null
   importedQuestionLabel?: string | null
   onClearImportedQuestion?: () => void
+  /** When false, preview is rendered elsewhere (assessment drawer). */
+  showImportedQuestionPreview?: boolean
   isLoading?: boolean
   className?: string
   placeholder?: string
@@ -127,6 +129,7 @@ export function CoraChatInput({
   importedQuestion,
   importedQuestionLabel,
   onClearImportedQuestion,
+  showImportedQuestionPreview = true,
   isLoading = false,
   className,
   placeholder = "How can I help you today?",
@@ -471,7 +474,7 @@ export function CoraChatInput({
           "dark:border-white/10 dark:bg-[#1c1c22]",
         )}
       >
-        {importedQuestion ? (
+        {showImportedQuestionPreview && importedQuestion ? (
           <CoraImportedQuestionPreview
             label={importedQuestionLabel}
             problem={importedQuestion}

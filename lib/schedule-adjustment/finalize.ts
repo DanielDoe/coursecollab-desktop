@@ -21,6 +21,7 @@ import { regenerateAttendanceSessionsForRequest } from "@/lib/schedule-adjustmen
 import { formatTime12h, DAY_CODE_LABELS, minutesToTime, scheduleTextFromParts, type DayCode } from "@/lib/schedule-adjustment/time-slots"
 import { notifyScheduleAdjustmentStudents } from "@/lib/schedule-adjustment/notifications"
 import { resyncClassMeetingsForCourseSection } from "@/lib/calendar/student-class-meetings"
+import { createInstructorNotification } from "@/lib/create-instructor-notification"
 
 function updateSyllabusMeetingField(
   sections: SyllabusSection[],
@@ -300,14 +301,21 @@ export async function finalizeScheduleAdjustment(params: {
   }
 
   const isMakeup = request.poll_kind === "one_off"
+  const sectionLabel = String(request.section_code ?? "").trim()
   const title =
     params.announcementTitle ??
     request.announcement_draft?.title ??
     (isMakeup
-      ? "Makeup class scheduled"
+      ? sectionLabel
+        ? `Makeup class scheduled — ${sectionLabel}`
+        : "Makeup class scheduled"
       : dual
-        ? "Schedule Update Confirmed"
-        : "Class Schedule Change Confirmed")
+        ? sectionLabel
+          ? `Schedule Update Confirmed — ${sectionLabel}`
+          : "Schedule Update Confirmed"
+        : sectionLabel
+          ? `Class Schedule Change Confirmed — ${sectionLabel}`
+          : "Class Schedule Change Confirmed")
   const dayLabel = DAY_CODE_LABELS[request.proposed_day as DayCode] ?? request.proposed_day
   const lateMinutes = Number(request.attendance_late_threshold_minutes ?? 20) || 20
   const defaultContent = dual
@@ -375,7 +383,7 @@ Please review the updated schedule and contact the instructor immediately if you
       ${content},
       ${instructorId},
       ${request.course_id},
-      false,
+      true,
       true,
       true,
       '[]'::jsonb,
@@ -407,11 +415,21 @@ Please review the updated schedule and contact the instructor immediately if you
   const announcementId = Number((ann[0] as { id: number } | undefined)?.id)
   try {
     if (announcementId) {
+      let academicTermId: number | null = null
+      if (request.section_id) {
+        const [sess] = await sql`
+          SELECT academic_term_id FROM sessions WHERE id = ${request.section_id} LIMIT 1
+        `
+        const tid = Number((sess as { academic_term_id?: number } | undefined)?.academic_term_id)
+        academicTermId = Number.isFinite(tid) && tid > 0 ? tid : null
+      }
       await notifyStudentsForAnnouncement({
         courseId: request.course_id,
         title,
         content: announcementPlainText(content, 150),
         announcementId,
+        targetSession: request.section_code ?? null,
+        academicTermId,
       })
     }
     await notifyScheduleAdjustmentStudents({
@@ -420,23 +438,39 @@ Please review the updated schedule and contact the instructor immediately if you
       title: "Schedule change finalized",
       message: "Your CourseCollab class schedule and calendar have been updated.",
     })
-    await resyncClassMeetingsForCourseSection(request.course_id, request.section_id)
-    await regenerateAttendanceSessionsForRequest(request)
-    await logScheduleAudit({
-      requestId: request.id,
-      actorId: instructorId,
-      actorRole: "instructor",
-      action: "ATTENDANCE_SESSIONS_REGENERATED",
+    await createInstructorNotification({
+      type: "schedule_adjustment",
+      title: "Schedule finalized",
+      message: `${request.section_code ?? "Section"} schedule change is live. Students were notified and calendars/attendance were updated.`,
+      link: `/faculty/dashboard/administration/schedule-adjustment?id=${request.id}`,
+      source_type: "schedule_adjustment",
+      source_id: String(request.id),
     })
+    await resyncClassMeetingsForCourseSection(request.course_id, request.section_id)
   } catch (notifyError) {
     console.error("[schedule-adjustment] finalize notify failed", notifyError)
   }
 
+  // Mark complete before attendance regen — regenerating a full term of sessions can take
+  // 60–90s and was leaving the faculty UI stuck on "Finalizing…" until the HTTP call returned.
   await sql`
     UPDATE schedule_adjustment_requests
     SET status = 'COMPLETED', updated_at = NOW()
     WHERE id = ${request.id} AND status = 'FINALIZED'
   `
+
+  void regenerateAttendanceSessionsForRequest(request)
+    .then(async () => {
+      await logScheduleAudit({
+        requestId: request.id,
+        actorId: instructorId,
+        actorRole: "instructor",
+        action: "ATTENDANCE_SESSIONS_REGENERATED",
+      })
+    })
+    .catch((error) => {
+      console.error("[schedule-adjustment] attendance regen failed after finalize", error)
+    })
 }
 
 async function preserveOriginalScheduleVersion(params: {

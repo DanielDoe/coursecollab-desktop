@@ -32,7 +32,6 @@ export function coraContextFromQuestion(input: {
   bankQuestionId?: number
   lectureId?: number
   quizId?: number
-  attemptId?: number
   studentDatabaseId?: number | null
   domain?: CoraDomain
 }): CoraProblemContext {
@@ -54,7 +53,6 @@ export function coraContextFromQuestion(input: {
     bankQuestionId: input.bankQuestionId,
     lectureId: input.lectureId,
     quizId: input.quizId,
-    attemptId: input.attemptId,
     studentDatabaseId: input.studentDatabaseId,
   })
 }

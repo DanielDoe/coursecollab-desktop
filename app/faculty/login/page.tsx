@@ -2,22 +2,21 @@
 
 import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { DesktopAuthLoading } from "@/components/auth/DesktopAuthLoading"
-import { DesktopAuthPanel } from "@/components/auth/desktop-auth-primitives"
-import { DesktopAuthShell } from "@/components/auth/DesktopAuthShell"
+import { Loader2 } from "lucide-react"
+import { AuthGlassCard, AuthShell } from "@/components/auth/AuthShell"
 import { FacultyAuthForm } from "@/components/auth/FacultyAuthForm"
 import { useAuth } from "@/lib/auth-context"
 import { useNativeApp } from "@/hooks/use-native-app"
 import { isNativeAppSearchParams } from "@/lib/mobile-native-app"
 import {
+  hasRememberedFacultyUniversity,
+  hydrateFacultySessionUniversityFromRemembered,
   readRememberedFacultyUniversity,
   resolveFacultyPortalUniversity,
 } from "@/lib/remembered-auth"
+import { readSessionSelectedUniversity } from "@/lib/universities-shared"
 import { facultySessionReadyForDashboard, readFacultySession } from "@/lib/faculty-auth-flow"
-import { hasFacultyExplicitSignOut } from "@/lib/faculty-session-restore-client"
-import { restoreFacultySessionWithRetry } from "@/lib/faculty-session-restore-retry"
-import { readDesktopRefreshToken } from "@/lib/desktop-refresh-token"
-import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
+import { tryRestoreFacultySessionFromRefresh, hasFacultyExplicitSignOut } from "@/lib/faculty-session-restore-client"
 import { clearLeftoverClientSessions } from "@/lib/session-restore-guard"
 
 function resolveFacultyLoginUniversity() {
@@ -37,7 +36,6 @@ export default function FacultyLoginPage() {
   const expired = searchParams.get("reason") === "session_expired"
   const signedOut = searchParams.get("signed_out") === "1"
   const displayUniversity = university ?? resolvedUniversity
-  const backHref = "/auth/university?next=faculty&change=1"
 
   useEffect(() => {
     setMounted(true)
@@ -74,7 +72,7 @@ export default function FacultyLoginPage() {
       }
 
       if (!onCourseStep) {
-        const restored = await restoreFacultySessionWithRetry()
+        const restored = await tryRestoreFacultySessionFromRefresh()
         if (cancelled) return
 
         const session = readFacultySession()
@@ -83,11 +81,7 @@ export default function FacultyLoginPage() {
           return
         }
         if (!restored && !readFacultySession()) {
-          const keepRefreshFallback =
-            isDesktopAppShell() && Boolean(readDesktopRefreshToken())
-          if (!keepRefreshFallback) {
-            clearLeftoverClientSessions()
-          }
+          clearLeftoverClientSessions()
         }
       }
 
@@ -109,18 +103,27 @@ export default function FacultyLoginPage() {
     }
   }, [expired, initialStep, router, setSelectedUniversity, signedOut, university])
 
+  const backHref =
+    mounted && hasRememberedFacultyUniversity()
+      ? "/auth/university?change=1&next=faculty"
+      : "/auth/university?next=faculty"
+
   if (!mounted || !displayUniversity) {
     if (isNativeApp) {
       return (
         <div className="native-app-shell min-h-[100dvh] w-full bg-[var(--cc-background)] flex items-center justify-center px-4 py-6">
-          <DesktopAuthLoading label="Preparing faculty sign in" compact />
+          <Loader2 className="h-8 w-8 animate-spin text-[var(--cc-accent)]" aria-label="Loading" />
         </div>
       )
     }
     return (
-      <DesktopAuthShell>
-        <DesktopAuthLoading label="Preparing faculty sign in" />
-      </DesktopAuthShell>
+      <AuthShell backHref={backHref}>
+        <AuthGlassCard>
+          <div className="flex justify-center py-16">
+            <Loader2 className="h-8 w-8 animate-spin text-[var(--cc-accent)]" aria-label="Loading" />
+          </div>
+        </AuthGlassCard>
+      </AuthShell>
     )
   }
 
@@ -128,24 +131,32 @@ export default function FacultyLoginPage() {
     return (
       <div className="native-app-shell min-h-[100dvh] w-full bg-[var(--cc-background)] flex flex-col px-4 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto flex w-full max-w-md min-h-0 flex-1 flex-col">
-          <FacultyAuthForm university={displayUniversity} initialStep={initialStep} nativeApp expired={expired} signedOut={signedOut} />
+          <FacultyAuthForm
+          university={displayUniversity}
+          initialStep={initialStep}
+          nativeApp
+          expired={expired}
+          signedOut={signedOut}
+          backHref={backHref}
+          backLabel="Change university"
+        />
         </div>
       </div>
     )
   }
 
   return (
-    <DesktopAuthShell sidebarTagline={`Faculty sign-in for ${displayUniversity.name}.`}>
-      <DesktopAuthPanel>
+    <AuthShell backHref={backHref} university={displayUniversity}>
+      <AuthGlassCard>
         <FacultyAuthForm
           university={displayUniversity}
           initialStep={initialStep}
           expired={expired}
           signedOut={signedOut}
-          variant="desktop"
           backHref={backHref}
+          backLabel="Change university"
         />
-      </DesktopAuthPanel>
-    </DesktopAuthShell>
+      </AuthGlassCard>
+    </AuthShell>
   )
 }

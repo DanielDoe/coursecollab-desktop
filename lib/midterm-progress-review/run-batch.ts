@@ -21,6 +21,7 @@ export type RunBatchParams = {
   createNotification?: boolean
   /** When true, skip students who already have a saved review for this period. */
   onlyMissing?: boolean
+  sessionScope?: { sessionId?: number | null; academicTermId?: number | null }
   onProgress?: (done: number, total: number, studentId: number) => void
 }
 
@@ -28,8 +29,9 @@ export async function listMissingReviewStudentIds(
   courseId: number,
   reviewPeriod?: ProgressReviewPeriod | string,
   asOfDate?: string | null,
+  sessionScope?: { sessionId?: number | null; academicTermId?: number | null },
 ): Promise<number[]> {
-  const roster = await listCourseStudentIds(courseId)
+  const roster = await listCourseStudentIds(courseId, sessionScope)
   const saved = new Set(
     await listSavedReviewStudentIds(courseId, reviewPeriod ?? "midterm", asOfDate),
   )
@@ -51,13 +53,14 @@ export async function runMidtermProgressReviewBatch(  params: RunBatchParams,
   let studentIds =
     params.studentIds && params.studentIds.length > 0
       ? params.studentIds
-      : await listCourseStudentIds(params.courseId)
+      : await listCourseStudentIds(params.courseId, params.sessionScope)
 
   if (params.onlyMissing) {
     const missing = await listMissingReviewStudentIds(
       params.courseId,
       params.reviewPeriod,
       params.asOfDate,
+      params.sessionScope,
     )
     const missingSet = new Set(missing)
     studentIds =

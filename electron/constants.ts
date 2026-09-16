@@ -45,11 +45,12 @@ export function resolveStartupPath(): string {
  * immediately bounces to a login screen and skips portal/university selection.
  */
 export function resolveInitialStartPath(
-  readLastRoute: () => string | null,
-  isPackaged: boolean,
+  _readLastRoute: () => string | null,
+  _isPackaged: boolean,
 ): string {
-  if (isPackaged) return resolveStartupPath()
-  return readLastRoute() || resolveStartupPath()
+  // Always open the portal picker first. Resume happens inside /auth/welcome so a stale
+  // saved route (e.g. after sync removed a page) cannot brick the shell on launch.
+  return resolveStartupPath()
 }
 
 export function buildDesktopUserAgent(appVersion: string): string {

@@ -67,7 +67,6 @@ export async function notifyDirectMessageRecipient(params: {
       link,
       source_type: "dm_thread",
       source_id: String(threadId),
-      instructorId: recipient.id,
       skipPush: true,
     }).catch((err) => {
       console.warn("[DM] instructor notification failed:", err)

@@ -115,6 +115,7 @@ function MembershipPageContent() {
       description: "Perfect for getting started with the basics",
       price: 0,
       features: [
+        "CodeBench IDE, run/compile, Daily Challenge",
         "1 quiz attempt per assessment",
         "Access to all lecture materials",
         "Forum participation",
@@ -126,7 +127,7 @@ function MembershipPageContent() {
       limitations: [
         "No leaderboard access",
         "Limited Cora (explanations & study help)",
-        "No CodeBench access",
+        "Cora in CodeBench requires Explorer or Trailblazer",
         "No early access features",
         "No Save and Finish Later",
       ],
@@ -136,7 +137,7 @@ function MembershipPageContent() {
     {
       id: "Explorer",
       name: "Explorer",
-      description: "Study smarter with Cora.",
+      description: "Study smarter with Cora and CodeBench.",
       price: 5.99,
       features: [
         "2 quiz attempts per assessment (1 retake)",
@@ -145,13 +146,13 @@ function MembershipPageContent() {
         "Access to all lecture materials",
         "Leaderboard participation",
         "3,000 Cora Credits / month",
+        "Cora in CodeBench (explain, debug, improve)",
         "5 Playground credits per week",
         "Priority support",
       ],
       limitations: [
-        "No CodeBench access",
         "No early access features",
-        "Limited Cora & Playground usage",
+        "Lower Cora credit allowance than Trailblazer",
       ],
       color: "from-blue-500 to-cyan-600",
       icon: <Star className="h-6 w-6" />,
@@ -168,7 +169,7 @@ function MembershipPageContent() {
         "Leaderboard participation",
         "7,500 Cora Credits / month + Cora Lite after allowance",
         "Unlimited Playground access",
-        "CodeBench IDE access",
+        "Cora in CodeBench with the same tools as Explorer",
         "Early access to new features",
         "Priority support",
         "Achievement Badges & Progress Milestones",

@@ -99,7 +99,7 @@ export function StudentDashboardHero({ onCustomize }: { onCustomize: () => void 
           </h1>
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {LAUNCHERS.map((item) => {
             const Icon = item.icon
             return (

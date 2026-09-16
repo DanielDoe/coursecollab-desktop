@@ -3,5 +3,5 @@ export default function LearningCenterLayout({
 }: {
   children: React.ReactNode
 }) {
-  return <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-x-hidden">{children}</div>
+  return <div className="space-y-4 sm:space-y-6 w-full min-w-0 overflow-x-hidden">{children}</div>
 }

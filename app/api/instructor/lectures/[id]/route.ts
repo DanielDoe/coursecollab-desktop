@@ -54,6 +54,17 @@ export async function PATCH(
 
     const hasSa = session_access !== undefined
 
+    const beforeRows = await sql`
+      SELECT is_published, title FROM lectures
+      WHERE id = ${lectureId}
+        AND (course_id = ${courseId} OR course_id IS NULL)
+      LIMIT 1
+    `
+    if (beforeRows.length === 0) {
+      return NextResponse.json({ error: "Lecture not found" }, { status: 404 })
+    }
+    const wasPublished = Boolean((beforeRows[0] as { is_published?: boolean }).is_published)
+
     let result
     if (hasSa && published !== undefined && allowDownload !== undefined) {
       const scol = sessionColValue(session_access)
@@ -213,6 +224,21 @@ export async function PATCH(
         WHERE id = ${lectureId}
           AND (course_id = ${courseId} OR course_id IS NULL)
       `
+    }
+
+    const nowPublished = Boolean((result[0] as { is_published?: boolean }).is_published)
+    if (nowPublished && !wasPublished) {
+      const { notifyCourseStudents } = await import("@/lib/notify-course-students")
+      const titleText = String((result[0] as { title?: string }).title ?? "Lecture")
+      void notifyCourseStudents(
+        { courseId },
+        {
+          type: "lecture",
+          title: "New lecture available",
+          message: `"${titleText}" is now published.`,
+          link: "/student/dashboard-v2/lectures",
+        },
+      ).catch((err) => console.warn("[lectures] patch notify failed:", err))
     }
 
     return NextResponse.json({ lecture: result[0] })

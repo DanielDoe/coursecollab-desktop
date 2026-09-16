@@ -8,8 +8,9 @@ import {
 } from "@/lib/circuit-submission"
 import { getDocumentAtTime, type TypingReplay } from "@/lib/typing-replay"
 import { isCodeAnswerCorrupt } from "@/lib/code-answer-validation"
-import { isLockableAnswerFinalized, isLockableQuizQuestionType } from "@/lib/quiz-answer-lock"
+import { isAnswerFinalized, isLockableQuizQuestionType } from "@/lib/quiz-answer-lock"
 import { requireAttemptOwnership, requireCallerStudentDbId } from "@/lib/student-api-auth"
+import { getAttemptStrictAnswerLockContext } from "@/lib/assessment-resume-integrity"
 
 export const dynamic = 'force-dynamic'
 export const runtime = "nodejs"
@@ -89,6 +90,7 @@ export async function POST(request: NextRequest) {
     const attemptResult = await sql`
       SELECT 
         a.id,
+        a.saved_for_later_at,
         q.assessment_type as quiz_assessment_type
       FROM quiz_attempts a
       LEFT JOIN quizzes q ON a.quiz_id = q.id
@@ -128,11 +130,15 @@ export async function POST(request: NextRequest) {
     // Prepare answer value for storage
     // For multi-select, answer is already JSON stringified, for others it's a string
     const answerValue = typeof answer === 'string' ? answer : JSON.stringify(answer)
+    const clientAutoSave = autoSave !== false && autoSave !== "false"
     const answerDataObj: Record<string, unknown> = {
       answer: typeof answer === 'string' ? answer : answer,
       questionType,
-      autoSave: true,
+      autoSave: clientAutoSave,
       savedAt: new Date().toISOString(),
+    }
+    if (!clientAutoSave) {
+      answerDataObj.finalizedAt = new Date().toISOString()
     }
     if (clearSubmissionFailed === true || clearSubmissionFailed === "true") {
       answerDataObj.submissionFailed = false
@@ -163,10 +169,15 @@ export async function POST(request: NextRequest) {
         ? false
         : Boolean(submissionFailed)
 
+    const { strict: strictAnswerLock } = await getAttemptStrictAnswerLockContext(
+      Number(attemptId),
+      request,
+    )
+
     if (
-      isLockableQuizQuestionType(questionType) &&
       existing.length > 0 &&
-      isLockableAnswerFinalized(existing[0].answer_data, existing[0].selected_answer)
+      isAnswerFinalized(existing[0].answer_data, existing[0].selected_answer) &&
+      (isLockableQuizQuestionType(questionType) || strictAnswerLock)
     ) {
       return NextResponse.json(
         { error: "Answer already submitted and locked", locked: true },

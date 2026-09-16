@@ -129,16 +129,8 @@ export async function GET(request: NextRequest) {
               ? "Your Cora Credits are getting low."
               : null,
       month: {
-        creditsUsed: Math.max(month.creditsCharged, account.periodCreditsUsed ?? 0),
-        interactions:
-          month.interactions > 0
-            ? month.interactions
-            : Math.max(
-                month.agentRuns,
-                account.periodCreditsUsed > 0
-                  ? Math.max(1, Math.round(account.periodCreditsUsed / 5))
-                  : 0,
-              ),
+        creditsUsed: month.creditsCharged,
+        interactions: month.interactions,
         agentRuns: month.agentRuns,
         tokensProcessed: month.totalTokens,
         inputTokens: month.inputTokens,

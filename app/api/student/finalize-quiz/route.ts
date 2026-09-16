@@ -687,15 +687,12 @@ export async function POST(request: NextRequest) {
       if (submissionStalled) {
         try {
           const [info] = await sql`
-            SELECT s.full_name, s.email, q.title as quiz_title, q.course_id::INTEGER as course_id
+            SELECT s.full_name, s.email, q.title as quiz_title
             FROM quiz_attempts qa
             JOIN students s ON qa.student_id = s.id
             JOIN quizzes q ON qa.quiz_id = q.id
             WHERE qa.id = ${attemptId}
           `
-          // Owner for the instructor notification below — without it the alert
-          // is not attributable to any instructor's feed.
-          const stalledCourseId = info?.course_id != null ? Number(info.course_id) : null
           if (info?.full_name && info?.quiz_title) {
             await sql`
               INSERT INTO quiz_issues (
@@ -715,7 +712,6 @@ export async function POST(request: NextRequest) {
               link: `/instructor/results/${attemptId}`,
               source_type: "quiz_attempt",
               source_id: String(attemptId),
-              courseId: stalledCourseId,
             }).catch(() => {})
           }
         } catch (e) {

@@ -164,8 +164,13 @@ def main() -> None:
 
     write_png(app_icon, BUILD / "icon.png")
     write_png(resize(app_icon, 512), BUILD / "icon-512.png")
+    # macOS menu bar: white template (Electron setTemplateImage)
     write_png(make_template(source, 32), BUILD / "tray-icon.png")
     write_png(make_template(source, 64), BUILD / "tray-icon@2x.png")
+    # Windows/Linux tray: colored branded tile — white templates are invisible on light taskbars
+    write_png(resize(app_icon, 32), BUILD / "tray-icon-win.png")
+    write_png(resize(app_icon, 64), BUILD / "tray-icon-win@2x.png")
+    write_png(resize(app_icon, 32), BUILD / "tray-icon-win-tile.png")
 
     write_png(resize(app_icon, 180), BRAND / "apple-icon.png")
     write_png(resize(app_icon, 180), PUBLIC / "apple-icon.png")

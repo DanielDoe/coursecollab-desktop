@@ -9,7 +9,7 @@ import { buildProgressReviewDeliveryPreview } from "@/lib/midterm-progress-revie
 import { reapplyProgressReviewGradebook } from "@/lib/midterm-progress-review/adjust-gradebook-for-review"
 import type { ProgressReviewSections, StudentProgressData } from "@/lib/midterm-progress-review/types"
 import { parseReviewPeriod, formatReviewAsOfDateIso } from "@/lib/midterm-progress-review/review-period"
-import { readInstructorSessionScopeFromRequest } from "@/lib/instructor-session-scope"
+import { readInstructorSessionScopeFromRequest, studentOfferingAndSql } from "@/lib/instructor-session-scope"
 import { runMidtermProgressReviewBatch, listMissingReviewStudentIds } from "@/lib/midterm-progress-review/run-batch"
 import { runDeliverSavedProgressReviewBatch } from "@/lib/midterm-progress-review/deliver-saved-batch"
 
@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
           JOIN students s ON s.id = spr.student_id
           WHERE spr.id = ${reviewId}
             AND spr.course_id = ${scope.course.id}
+            ${studentOfferingAndSql(req, scope.course.id, "s")}
           LIMIT 1
         `,
       )
@@ -118,6 +119,18 @@ export async function GET(req: NextRequest) {
       }
 
       const asOfDate = req.nextUrl.searchParams.get("asOfDate")
+      const inOffering = sqlRows<{ id: number }>(
+        await sql`
+          SELECT s.id FROM students s
+          WHERE s.id = ${studentId}
+            AND (s.deleted_at IS NULL)
+            ${studentOfferingAndSql(req, scope.course.id, "s")}
+          LIMIT 1
+        `,
+      )
+      if (inOffering.length === 0) {
+        return NextResponse.json({ error: "Student not found" }, { status: 404 })
+      }
       const progressData = await gatherStudentProgressData(studentId, scope.course.id, {
         reviewPeriod,
         asOfDate,
@@ -130,6 +143,27 @@ export async function GET(req: NextRequest) {
       const delivery = buildProgressReviewDeliveryPreview(review.sections, progressData)
       return NextResponse.json({ success: true, progressData, review, delivery })
     }
+
+    // Custom tab also surfaces Cora "targeted practice" reviews (review_period = targeted_practice).
+    // Use sql.unsafe string predicates — nested sql`` fragments break Neon (boolean "[object Promise]").
+    const safePeriod = reviewPeriod === "final" || reviewPeriod === "custom" ? reviewPeriod : "midterm"
+    const safeAsOf =
+      asOfDate && /^\d{4}-\d{2}-\d{2}$/.test(asOfDate) ? asOfDate : null
+    const periodPred =
+      safePeriod === "custom"
+        ? `(spr.review_period IN ('custom', 'targeted_practice'))`
+        : `(spr.review_period = '${safePeriod}')`
+    const asOfPred =
+      safePeriod === "custom"
+        ? safeAsOf
+          ? `(
+              spr.review_period = 'targeted_practice'
+              OR spr.as_of_date = '${safeAsOf}'::date
+            )`
+          : `(TRUE)`
+        : safeAsOf
+          ? `(spr.as_of_date = '${safeAsOf}'::date)`
+          : `(spr.as_of_date IS NULL)`
 
     const rows = sqlRows<Record<string, unknown>>(
       await sql`
@@ -147,11 +181,9 @@ export async function GET(req: NextRequest) {
         FROM student_progress_reviews spr
         JOIN students s ON s.id = spr.student_id
         WHERE spr.course_id = ${scope.course.id}
-          AND spr.review_period = ${reviewPeriod}
-          AND (
-            (${asOfDate}::date IS NULL AND spr.as_of_date IS NULL)
-            OR spr.as_of_date = ${asOfDate}::date
-          )
+          AND ${sql.unsafe(periodPred)}
+          AND ${sql.unsafe(asOfPred)}
+          ${studentOfferingAndSql(req, scope.course.id, "s")}
         ORDER BY spr.created_at DESC
       `,
     )
@@ -160,20 +192,23 @@ export async function GET(req: NextRequest) {
       await sql`
         SELECT COUNT(*)::int AS count
         FROM student_progress_reviews spr
+        JOIN students s ON s.id = spr.student_id
         WHERE spr.course_id = ${scope.course.id}
-          AND spr.review_period = ${reviewPeriod}
-          AND (
-            (${asOfDate}::date IS NULL AND spr.as_of_date IS NULL)
-            OR spr.as_of_date = ${asOfDate}::date
-          )
+          AND ${sql.unsafe(periodPred)}
+          AND ${sql.unsafe(asOfPred)}
+          ${studentOfferingAndSql(req, scope.course.id, "s")}
       `,
     )
     const savedReviewCount = Number(countRows[0]?.count ?? 0)
     const sessionScope = readInstructorSessionScopeFromRequest(req)
     const enrolledStudentCount = (await listCourseStudentIds(scope.course.id, sessionScope)).length
-    const missingReviewCount = (
-      await listMissingReviewStudentIds(scope.course.id, reviewPeriod, asOfDate)
-    ).length
+    // Missing = batch custom/midterm/final gaps only — do not treat targeted_practice as covering the roster.
+    const missingReviewCount =
+      safePeriod === "custom" && !safeAsOf
+        ? 0
+        : (
+            await listMissingReviewStudentIds(scope.course.id, safePeriod, safeAsOf, sessionScope)
+          ).length
 
     return NextResponse.json({
       success: true,
@@ -228,9 +263,15 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const sessionScope = readInstructorSessionScopeFromRequest(req)
+    const roster = new Set(await listCourseStudentIds(scope.course.id, sessionScope))
     const studentIds: number[] = Array.isArray(body.studentIds)
-      ? body.studentIds.map(Number).filter((n: number) => Number.isFinite(n))
+      ? body.studentIds.map(Number).filter((n: number) => Number.isFinite(n) && roster.has(n))
       : []
+
+    if (previewOnly && Array.isArray(body.studentIds) && body.studentIds.length === 1 && studentIds.length === 0) {
+      return NextResponse.json({ error: "Student not found" }, { status: 404 })
+    }
 
     if (previewOnly && studentIds.length === 1) {
       const progressData = await gatherStudentProgressData(studentIds[0], scope.course.id, {
@@ -256,6 +297,7 @@ export async function POST(req: NextRequest) {
         courseId: scope.course.id,
         instructorId: scope.instructorId,
         studentIds: studentIds.length > 0 ? studentIds : undefined,
+        sessionScope,
         reviewPeriod,
         asOfDate,
         sendEmail,
@@ -269,6 +311,7 @@ export async function POST(req: NextRequest) {
       courseId: scope.course.id,
       instructorId: scope.instructorId,
       studentIds: studentIds.length > 0 ? studentIds : undefined,
+      sessionScope,
       reviewPeriod,
       asOfDate,
       dryRun,

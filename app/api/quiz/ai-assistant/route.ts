@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
     const askCoraGate = await enforceAskCoraGate({
       studentId: studentDatabaseId,
       message: helpRequest,
+      conversationHistory: Array.isArray(conversationHistory) ? conversationHistory : [],
       source: "quiz",
       questionId: Number(questionId),
       questionType: null,

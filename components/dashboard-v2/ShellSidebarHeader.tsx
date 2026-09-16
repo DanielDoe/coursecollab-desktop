@@ -13,7 +13,7 @@ export function ShellSidebarHeader({ collapsed, homeHref }: ShellSidebarHeaderPr
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center gap-0.5 px-3 pb-2 pt-3.5",
+        "relative z-10 flex shrink-0 items-center gap-0.5 border-b border-[#EBEBEB] bg-white px-3 pb-2 pt-3.5 dark:border-[#262626] dark:bg-[#111111]",
         collapsed && "flex-col justify-center px-2",
       )}
     >

@@ -1,7 +1,7 @@
 "use client"
 
 
-import { getStudentData, studentApiFetch } from "@/lib/auth"
+import { studentApiFetch } from "@/lib/auth"
 import { useStudentAnnouncementsQuery } from "@/hooks/data/use-student-announcements-query"
 import { ModuleListSkeleton, StaleRefreshHint } from "@/components/data/module-list-skeleton"
 import { useState, useEffect, useMemo, useRef } from "react"
@@ -9,14 +9,6 @@ import { AnnouncementCardRedesign } from "./announcement-card-redesign"
 import { AnnouncementDetailModal } from "./announcement-detail-modal"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination"
 import {
   Search, Filter, X, CheckCircle2,
   AlertCircle, Inbox, LayoutGrid, List, SlidersHorizontal
@@ -62,27 +54,9 @@ interface AnnouncementsFeedRedesignProps {
   embedInDashboard?: boolean
   /** Open announcement detail modal from notification deep link (?open=id) */
   initialOpenId?: number | null
-  /** Hub layout: search/unread live in StudentModuleHubLayout chrome */
-  hubLayout?: boolean
-  searchQuery?: string
-  onSearchQueryChange?: (query: string) => void
-  showUnreadOnly?: boolean
-  onShowUnreadOnlyChange?: (value: boolean) => void
-  onHubMetaChange?: (meta: { total: number; filtered: number; unread: number; loading: boolean }) => void
 }
 
-export function AnnouncementsFeedRedesign({
-  studentId,
-  onViewDetails,
-  embedInDashboard = false,
-  initialOpenId = null,
-  hubLayout = false,
-  searchQuery: searchQueryProp,
-  onSearchQueryChange,
-  showUnreadOnly: showUnreadOnlyProp,
-  onShowUnreadOnlyChange,
-  onHubMetaChange,
-}: AnnouncementsFeedRedesignProps) {
+export function AnnouncementsFeedRedesign({ studentId, onViewDetails, embedInDashboard = false, initialOpenId = null }: AnnouncementsFeedRedesignProps) {
   const {
     announcements,
     isLoading: loading,
@@ -99,20 +73,10 @@ export function AnnouncementsFeedRedesign({
   
   // View and filters
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
-  const [searchQueryInternal, setSearchQueryInternal] = useState("")
+  const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
-  const [showUnreadOnlyInternal, setShowUnreadOnlyInternal] = useState(false)
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false)
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'mostViewed'>('newest')
-  const [page, setPage] = useState(1)
-
-  const listPageSize = 6
-  const gridPageSize = 6
-  const pageSize = viewMode === "grid" ? gridPageSize : listPageSize
-
-  const searchQuery = searchQueryProp ?? searchQueryInternal
-  const setSearchQuery = onSearchQueryChange ?? setSearchQueryInternal
-  const showUnreadOnly = showUnreadOnlyProp ?? showUnreadOnlyInternal
-  const setShowUnreadOnly = onShowUnreadOnlyChange ?? setShowUnreadOnlyInternal
 
 
   useEffect(() => {
@@ -182,28 +146,8 @@ export function AnnouncementsFeedRedesign({
     return filtered
   }, [announcements, searchQuery, selectedCategories, showUnreadOnly, sortBy])
 
-  useEffect(() => {
-    setPage(1)
-  }, [searchQuery, selectedCategories, showUnreadOnly, sortBy, viewMode])
-
-  const totalPages = Math.max(1, Math.ceil(filteredAnnouncements.length / pageSize))
-  const safePage = Math.min(page, totalPages)
-  const pageStart = (safePage - 1) * pageSize
-  const pagedAnnouncements = filteredAnnouncements.slice(pageStart, pageStart + pageSize)
-  const rangeStart = filteredAnnouncements.length === 0 ? 0 : pageStart + 1
-  const rangeEnd = Math.min(pageStart + pageSize, filteredAnnouncements.length)
-
   const unreadCount = announcements.filter(a => !a.is_read).length
-  const activeFiltersCount = selectedCategories.length + (showUnreadOnly && !hubLayout ? 1 : 0)
-
-  useEffect(() => {
-    onHubMetaChange?.({
-      total: announcements.length,
-      filtered: filteredAnnouncements.length,
-      unread: unreadCount,
-      loading,
-    })
-  }, [announcements.length, filteredAnnouncements.length, unreadCount, loading, onHubMetaChange])
+  const activeFiltersCount = selectedCategories.length + (showUnreadOnly ? 1 : 0)
 
   const clearFilters = () => {
     setSearchQuery("")
@@ -271,7 +215,6 @@ export function AnnouncementsFeedRedesign({
         ))}
       </div>
     )
-    if (hubLayout) return skeleton
     return embedInDashboard ? (
       <div className={feedCardShell}>
         <div className="p-4 sm:p-5">{skeleton}</div>
@@ -295,10 +238,6 @@ export function AnnouncementsFeedRedesign({
   }
 
   if (announcements.length === 0) {
-    const sectionLabel =
-      getStudentData()?.section?.trim() ||
-      getStudentData()?.courseCode?.trim() ||
-      null
     return (
       <div className="rounded-xl border-2 border-dashed border-[var(--border)] bg-[var(--card)] p-8 sm:p-12 text-center">
         <div className="mx-auto w-16 h-16 rounded-2xl bg-[var(--cc-accent-soft)] flex items-center justify-center mb-4">
@@ -306,9 +245,7 @@ export function AnnouncementsFeedRedesign({
         </div>
         <h3 className="text-lg font-bold text-[var(--cc-text)] mb-2">No Announcements Yet</h3>
         <p className="text-sm text-[var(--cc-text-muted)] max-w-md mx-auto">
-          {sectionLabel
-            ? `Nothing has been posted for ${sectionLabel} yet. Instructors can publish course-wide or section-specific updates here.`
-            : "Check back later for important updates from your instructors."}
+          Check back later for important updates from your instructors.
         </p>
       </div>
     )
@@ -333,8 +270,7 @@ export function AnnouncementsFeedRedesign({
         </div>
       )}
 
-      <div className={cn("flex items-center gap-1.5 sm:gap-2", hubLayout && "justify-end")}>
-        {!hubLayout ? (
+      <div className="flex items-center gap-1.5 sm:gap-2">
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--cc-text-muted)]" />
           <Input
@@ -360,7 +296,6 @@ export function AnnouncementsFeedRedesign({
             </Button>
           )}
         </div>
-        ) : null}
 
         <div className="flex shrink-0 items-center gap-0.5">
           {categories.length > 0 && (
@@ -422,7 +357,6 @@ export function AnnouncementsFeedRedesign({
             className={cn(
               "h-10 w-10 rounded-full",
               showUnreadOnly && "bg-[var(--cc-accent)] text-white hover:bg-[var(--cc-accent-hover)] hover:text-white",
-              hubLayout && "hidden",
             )}
             title="Unread only"
             aria-label="Unread only"
@@ -497,7 +431,7 @@ export function AnnouncementsFeedRedesign({
               : "space-y-2 p-4 sm:p-5",
           )}
         >
-          {pagedAnnouncements.map((announcement, index) => (
+          {filteredAnnouncements.map((announcement, index) => (
             <motion.div
               key={announcement.id}
               layout
@@ -524,68 +458,10 @@ export function AnnouncementsFeedRedesign({
     </AnimatePresence>
   )
 
-  const pagination =
-    filteredAnnouncements.length > pageSize ? (
-      <div className="flex flex-col gap-2 border-t border-[var(--border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-        <p className="text-center text-xs tabular-nums text-[var(--cc-text-muted)] sm:text-left">
-          {rangeStart}–{rangeEnd} of {filteredAnnouncements.length}
-        </p>
-        <Pagination className="mx-0 w-auto justify-center sm:justify-end">
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious
-                href="#"
-                onClick={(event) => {
-                  event.preventDefault()
-                  if (safePage > 1) setPage(safePage - 1)
-                }}
-                className={safePage <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                aria-disabled={safePage <= 1}
-              />
-            </PaginationItem>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
-              <PaginationItem key={pageNumber} className="hidden sm:list-item">
-                <PaginationLink
-                  href="#"
-                  onClick={(event) => {
-                    event.preventDefault()
-                    setPage(pageNumber)
-                  }}
-                  isActive={safePage === pageNumber}
-                  className="cursor-pointer"
-                >
-                  {pageNumber}
-                </PaginationLink>
-              </PaginationItem>
-            ))}
-            <PaginationItem>
-              <PaginationNext
-                href="#"
-                onClick={(event) => {
-                  event.preventDefault()
-                  if (safePage < totalPages) setPage(safePage + 1)
-                }}
-                className={
-                  safePage >= totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"
-                }
-                aria-disabled={safePage >= totalPages}
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      </div>
-    ) : null
-
   return (
     <div className="space-y-5 w-full min-w-0 overflow-visible">
       <StaleRefreshHint visible={refreshFailed} onRetry={() => void refetch()} />
-      {hubLayout ? (
-        <>
-          {announcements.length > 0 ? <div className="mb-3">{toolbar}</div> : null}
-          {feedBody}
-          {pagination}
-        </>
-      ) : embedInDashboard ? (
+      {embedInDashboard ? (
         <motion.section
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -594,7 +470,6 @@ export function AnnouncementsFeedRedesign({
         >
           <div className="p-4 sm:p-5">{toolbar}</div>
           {feedBody}
-          {pagination}
         </motion.section>
       ) : (
         <>
@@ -607,7 +482,6 @@ export function AnnouncementsFeedRedesign({
             {toolbar}
           </motion.div>
           {feedBody}
-          {pagination}
         </>
       )}
 

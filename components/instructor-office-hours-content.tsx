@@ -4,7 +4,7 @@ import { getFacultyModuleTheme } from "@/lib/faculty-module-themes"
 import { PORTAL_CARD, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
 import { cn } from "@/lib/utils"
 
-import { useState, useEffect, type ReactNode } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import {
   Clock,
@@ -55,7 +55,7 @@ import {
   FacultyIntegratedToolbar,
   facultyToolbarFilterButtonClass,
 } from "@/components/instructor/dashboard-v2/FacultyIntegratedToolbar"
-import { AM_PANEL, AM_PANEL_FILL, AM_PANEL_SCROLL } from "@/lib/assessments/assessment-management-surface-classes"
+import { AM_EMPTY } from "@/lib/assessments/assessment-management-surface-classes"
 
 const DAY_OPTIONS = [
   { value: 0, label: "Sunday" },
@@ -312,34 +312,8 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
 
   const completedCount = requests.filter((r: any) => r.status === "completed").length
 
-  const renderPanelEmpty = (title: string, description: string, action?: ReactNode) => (
-    <div className={cn(AM_PANEL, "flex min-h-0 flex-1 flex-col overflow-hidden")}>
-      <div className={cn(AM_PANEL_FILL, "gap-3 px-4 py-16 text-center")}>
-        <div className={cn("mx-auto flex h-14 w-14 items-center justify-center rounded-xl", fp.iconBg)}>
-          <Clock className={cn("h-7 w-7", fp.iconText)} />
-        </div>
-        <p className={cn("text-sm font-semibold", PORTAL_TEXT)}>{title}</p>
-        <p className={cn("max-w-md text-xs leading-relaxed", PORTAL_TEXT_MUTED)}>{description}</p>
-        {action}
-      </div>
-    </div>
-  )
-
-  const renderPanelLoading = () => (
-    <div className={cn(AM_PANEL, "flex min-h-0 flex-1 flex-col overflow-hidden")}>
-      <div className={cn(AM_PANEL_FILL, "gap-3 px-4 py-16")}>
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--cc-accent)] border-t-transparent" />
-        <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>Loading requests…</p>
-      </div>
-    </div>
-  )
-
   return (
-    <div
-      className={cn(
-        embedInDashboard ? "flex min-h-0 flex-1 flex-col overflow-hidden gap-3" : "space-y-3 sm:space-y-4",
-      )}
-    >
+    <div className="space-y-3 sm:space-y-4">
       {embedInDashboard ? (
         <FacultyIntegratedToolbar
           moduleId="office-hours"
@@ -580,23 +554,12 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
         </div>
       )}
 
-      <div className={cn(embedInDashboard && "flex min-h-0 flex-1 flex-col overflow-hidden")}>
       {loading ? (
-        embedInDashboard ? (
-          renderPanelLoading()
-        ) : (
         <div className="flex flex-col items-center justify-center py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-teal-500 border-t-transparent" />
           <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Loading requests...</p>
         </div>
-        )
       ) : requests.length === 0 ? (
-        embedInDashboard ? (
-          renderPanelEmpty(
-            "No office hour requests yet",
-            "Students can request from Support → Office Hours.",
-          )
-        ) : (
         <div className="bg-white/80 dark:bg-white/[0.02] backdrop-blur-sm border border-slate-200/60 dark:border-white/[0.08] rounded-xl sm:rounded-2xl shadow-sm p-8 sm:p-12 text-center">
           <div className="p-3 sm:p-4 rounded-xl fp.iconBg w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 flex items-center justify-center">
             <Clock className="h-7 w-7 sm:h-8 sm:w-8 fp.iconText" />
@@ -605,9 +568,7 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
             No office hour requests yet. Students can request from Support → Office Hours.
           </p>
         </div>
-        )
       ) : (
-        <div className={cn(embedInDashboard && cn(AM_PANEL, "flex min-h-0 flex-1 flex-col overflow-hidden"))}>
         <>
           {!embedInDashboard && (
           <div className="bg-white/80 dark:bg-white/[0.02] backdrop-blur-sm border border-slate-200/60 dark:border-white/[0.08] rounded-xl sm:rounded-2xl shadow-sm overflow-hidden">
@@ -680,34 +641,14 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
           )}
 
           {filteredRequests.length === 0 ? (
-            embedInDashboard ? (
-              renderPanelEmpty(
-                "No requests match your filters",
-                "Try clearing filters or searching with different keywords.",
-                (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-1"
-                    onClick={() => {
-                      setStatusFilter("all")
-                      setSearchQuery("")
-                    }}
-                  >
-                    Clear filters
-                  </Button>
-                ),
-              )
-            ) : (
             <div className="bg-white/80 dark:bg-white/[0.02] backdrop-blur-sm border border-slate-200/60 dark:border-white/[0.08] rounded-xl sm:rounded-2xl shadow-sm p-8 text-center">
               <p className="text-sm text-slate-600 dark:text-slate-400">No requests match your filters.</p>
               <Button variant="outline" size="sm" className="mt-3" onClick={() => { setStatusFilter("all"); setSearchQuery(""); }}>
                 Clear filters
               </Button>
             </div>
-            )
           ) : viewMode === "grid" ? (
-        <div className={cn("grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4", embedInDashboard && cn(AM_PANEL_SCROLL, "min-h-0 flex-1 p-4 sm:p-5"))}>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
           {filteredRequests.map((r: any) => (
             <div
               key={r.id}
@@ -930,11 +871,7 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
           ))}
         </div>
           ) : (
-            <div className={cn(
-              "bg-white/80 dark:bg-white/[0.02] backdrop-blur-sm border border-slate-200/60 dark:border-white/[0.08] rounded-xl sm:rounded-2xl shadow-sm overflow-hidden",
-              embedInDashboard && cn(AM_PANEL, "min-h-0 flex-1"),
-            )}>
-              <div className={cn(embedInDashboard && AM_PANEL_SCROLL)}>
+            <div className="bg-white/80 dark:bg-white/[0.02] backdrop-blur-sm border border-slate-200/60 dark:border-white/[0.08] rounded-xl sm:rounded-2xl shadow-sm overflow-hidden">
               {filteredRequests.map((r: any) => (
                 <div key={r.id} className="border-b border-slate-200/60 dark:border-white/[0.08] last:border-0">
                   <div
@@ -1059,13 +996,10 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
                   )}
                 </div>
               ))}
-              </div>
             </div>
           )}
         </>
-        </div>
       )}
-      </div>
     </div>
   )
 }

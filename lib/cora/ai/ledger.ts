@@ -127,6 +127,23 @@ export async function recordUsageEvent(args: {
   `) as Array<{ id: number }>
 
   const eventId = rows[0]?.id ?? null
+  if (eventId != null && a.userRole === "student") {
+    const { recordCoraInteractionEvent } = await import("@/lib/cora/insights/record")
+    await recordCoraInteractionEvent({
+      userId: a.userId,
+      courseId: a.courseId ?? null,
+      sectionId: a.sectionId ?? null,
+      conversationId: args.context.conversationId ?? null,
+      feature: args.context.feature,
+      module: args.context.module,
+      latencyMs: args.latencyMs ?? null,
+      tokensIn: u.inputTokens,
+      tokensOut: u.outputTokens,
+      creditsUsed: args.creditsCharged,
+      source: "usage",
+      sourceRef: `usage:${eventId}`,
+    }).catch(() => undefined)
+  }
 
   if (args.context.agentRunId && eventId != null) {
     await sql`
@@ -292,15 +309,6 @@ export async function listUsageActivity(args: {
     OFFSET ${offset}
   `) as Array<Record<string, unknown>>
 
-  if (rows.length === 0 && total === 0 && !q && args.userRole === "student") {
-    const fallback = await listLegacyStudentActivity({
-      userId: args.userId,
-      limit,
-      offset,
-    })
-    if (fallback) return fallback
-  }
-
   const nextOffset = offset + rows.length
   return {
     activity: rows.map((row) => ({
@@ -327,94 +335,6 @@ export async function listUsageActivity(args: {
     total,
     limit,
     offset,
-  }
-}
-
-async function listLegacyStudentActivity(args: {
-  userId: number
-  limit: number
-  offset: number
-}): Promise<{
-  activity: Array<{
-    id: number
-    feature: CoraAiFeature
-    module: string | null
-    operation: string | null
-    toolName: string | null
-    model: string | null
-    provider: string | null
-    creditsCharged: number
-    totalTokens: number
-    inputTokens: number
-    cachedInputTokens: number
-    outputTokens: number
-    reasoningTokens: number
-    agentRunId: string | null
-    createdAt: string
-    latencyMs: number | null
-    status: string | null
-  }>
-  hasMore: boolean
-  nextOffset: number
-  total: number
-  limit: number
-  offset: number
-} | null> {
-  try {
-    const countRows = (await sql`
-      SELECT COUNT(*)::int AS total
-      FROM ai_tutor_credit_transactions
-      WHERE student_id = ${args.userId}
-        AND transaction_type = 'spent'
-    `) as Array<{ total: number }>
-    const total = Number(countRows[0]?.total ?? 0)
-    if (total === 0) return null
-
-    const rows = (await sql`
-      SELECT id, credits, description, source, created_at
-      FROM ai_tutor_credit_transactions
-      WHERE student_id = ${args.userId}
-        AND transaction_type = 'spent'
-      ORDER BY created_at DESC
-      LIMIT ${args.limit}
-      OFFSET ${args.offset}
-    `) as Array<{
-      id: number
-      credits: number
-      description: string | null
-      source: string | null
-      created_at: string
-    }>
-
-    const nextOffset = args.offset + rows.length
-    return {
-      activity: rows.map((row) => ({
-        id: -Number(row.id),
-        feature: "CHAT" as CoraAiFeature,
-        module: row.source ?? "usage",
-        operation: row.description ?? "Cora usage",
-        toolName: null,
-        model: null,
-        provider: null,
-        creditsCharged: Number(row.credits ?? 0),
-        totalTokens: 0,
-        inputTokens: 0,
-        cachedInputTokens: 0,
-        outputTokens: 0,
-        reasoningTokens: 0,
-        agentRunId: null,
-        createdAt: String(row.created_at),
-        latencyMs: null,
-        status: "success",
-      })),
-      hasMore: nextOffset < total,
-      nextOffset,
-      total,
-      limit: args.limit,
-      offset: args.offset,
-    }
-  } catch {
-    return null
   }
 }
 

@@ -352,7 +352,7 @@ export function RetakeUpgradeModal({ open, onClose, assessmentType = "assessment
                     <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-slate-800/60 rounded-lg border border-purple-200 dark:border-purple-800">
                       <Code2 className="h-5 w-5 text-purple-600 mt-0.5 flex-shrink-0" />
                       <div>
-                        <div className="font-semibold text-sm">CodeBench IDE access</div>
+                        <div className="font-semibold text-sm">Cora in CodeBench</div>
                         <div className="text-xs text-slate-600 dark:text-slate-400">Full development environment</div>
                       </div>
                     </div>

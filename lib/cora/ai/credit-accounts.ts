@@ -13,12 +13,6 @@ import {
   creditPeriodAction,
   shouldPersistMembershipTier,
 } from "@/lib/cora/credits/period-reset"
-import {
-  pickCanonicalIncluded,
-  pickCanonicalLifetime,
-  pickCanonicalPurchased,
-} from "@/lib/cora/ai/credit-reconcile"
-import { observeCoraUsage } from "@/lib/cora/ai/credit-usage-sources"
 
 export type CoraCreditAccountSnapshot = {
   userId: number
@@ -30,7 +24,6 @@ export type CoraCreditAccountSnapshot = {
   available: number
   periodKey: string
   lifetimeCreditsUsed: number
-  periodCreditsUsed: number
   lowBalanceFraction: number
 }
 
@@ -62,18 +55,6 @@ export async function ensureCreditAccount(args: {
   billingCadence?: "semester" | "annual" | null
 }): Promise<CoraCreditAccountSnapshot> {
   await ensureCoraAiAccountingSchema()
-
-  if (args.userRole === "student" || args.userRole === "instructor") {
-    try {
-      await migrateOpeningBalanceFromLegacy({
-        userId: args.userId,
-        userRole: args.userRole,
-        membershipTier: args.membershipTier,
-      })
-    } catch {
-      /* first-time seed is best-effort */
-    }
-  }
 
   const requestedTier = args.membershipTier ?? null
   let periodKey: string
@@ -220,126 +201,19 @@ export async function ensureCreditAccount(args: {
   const included = Number(row.included_balance ?? 0)
   const purchased = Number(row.purchased_balance ?? 0)
   const reserved = Number(row.reserved_credits ?? 0)
-  const lifetime = Number(row.lifetime_credits_used ?? 0)
-  const reconciled = await applyObservedUsage({
-    userId: args.userId,
-    userRole: args.userRole,
-    periodKey: String(row.period_key ?? periodKey),
-    periodStart: start,
-    allocation,
-    included,
-    purchased,
-    reserved,
-    lifetime,
-    membershipTier: (row.membership_tier as string | null) ?? effectiveTier,
-  })
+  const available = Math.max(0, included + purchased - reserved)
   const monthlyOrSemester = Math.max(1, allocation)
   return {
     userId: args.userId,
     userRole: args.userRole,
-    membershipTier: reconciled.membershipTier,
-    includedBalance: reconciled.includedBalance,
-    purchasedBalance: reconciled.purchasedBalance,
-    reservedCredits: reconciled.reservedCredits,
-    available: reconciled.available,
-    periodKey: reconciled.periodKey,
-    lifetimeCreditsUsed: reconciled.lifetimeCreditsUsed,
-    periodCreditsUsed: reconciled.periodCreditsUsed,
-    lowBalanceFraction: reconciled.available / monthlyOrSemester,
-  }
-}
-
-async function applyObservedUsage(args: {
-  userId: number
-  userRole: CoraUserRole
-  periodKey: string
-  periodStart: Date
-  allocation: number
-  included: number
-  purchased: number
-  reserved: number
-  lifetime: number
-  membershipTier: string | null
-}): Promise<CoraCreditAccountSnapshot> {
-  let included = args.included
-  let purchased = args.purchased
-  let lifetime = args.lifetime
-  let periodUsed = 0
-
-  try {
-    const observed = await observeCoraUsage({
-      userId: args.userId,
-      userRole: args.userRole,
-      periodKey: args.periodKey,
-      periodStart: args.periodStart,
-    })
-    periodUsed = observed.periodUsed
-    included = pickCanonicalIncluded({
-      allocation: args.allocation,
-      includedBalance: included,
-      periodUsed,
-      legacyIncluded: observed.legacyIncluded,
-      legacyPeriodMatches: observed.legacyPeriodMatches,
-    })
-    purchased = pickCanonicalPurchased(purchased, observed.legacyPurchased)
-    lifetime = pickCanonicalLifetime(lifetime, observed.lifetimeUsed)
-  } catch {
-    /* keep stored balances if usage tables are unavailable */
-  }
-
-  if (
-    included !== args.included ||
-    purchased !== args.purchased ||
-    lifetime !== args.lifetime
-  ) {
-    await sql`
-      UPDATE cora_credit_accounts SET
-        included_balance = ${included},
-        purchased_balance = ${purchased},
-        lifetime_credits_used = ${lifetime},
-        updated_at = CURRENT_TIMESTAMP
-      WHERE user_role = ${args.userRole} AND user_id = ${args.userId}
-    `
-    if (args.userRole === "student") {
-      try {
-        await sql`
-          UPDATE ai_tutor_credits
-          SET credits = ${included},
-              purchased_credits = ${purchased},
-              updated_at = CURRENT_TIMESTAMP
-          WHERE student_id = ${args.userId}
-        `
-      } catch {
-        /* legacy table may lag */
-      }
-    } else if (args.userRole === "instructor") {
-      try {
-        await sql`
-          UPDATE instructor_cora_credits
-          SET membership_credits = ${included},
-              purchased_credits = ${purchased},
-              updated_at = CURRENT_TIMESTAMP
-          WHERE instructor_id = ${args.userId}
-        `
-      } catch {
-        /* legacy table may lag */
-      }
-    }
-  }
-
-  const reserved = Math.max(0, args.reserved)
-  return {
-    userId: args.userId,
-    userRole: args.userRole,
-    membershipTier: args.membershipTier,
+    membershipTier: (row.membership_tier as string | null) ?? effectiveTier,
     includedBalance: included,
     purchasedBalance: purchased,
     reservedCredits: reserved,
-    available: Math.max(0, included + purchased - reserved),
-    periodKey: args.periodKey,
-    lifetimeCreditsUsed: lifetime,
-    periodCreditsUsed: periodUsed,
-    lowBalanceFraction: 0,
+    available,
+    periodKey: String(row.period_key),
+    lifetimeCreditsUsed: Number(row.lifetime_credits_used ?? 0),
+    lowBalanceFraction: available / monthlyOrSemester,
   }
 }
 

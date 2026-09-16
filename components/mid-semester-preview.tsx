@@ -11,7 +11,7 @@ import Link from "next/link"
 import { usePreventBack } from "@/hooks/use-prevent-back"
 import { QuestionTextRenderer } from "@/components/question-text-renderer"
 import { QuestionRenderer } from "@/components/question-renderer"
-import { useAppConfirm } from "@/components/providers/app-confirm-provider"
+import { scoreSelectAllQuestion } from "@/lib/select-all-scoring"
 
 interface Question {
   id: number
@@ -35,7 +35,6 @@ interface MidSemester {
 
 export function MidSemesterPreview({ examId }: { examId: string }) {
   const router = useRouter()
-  const { alert } = useAppConfirm()
   usePreventBack("/admin/login")
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
@@ -268,7 +267,7 @@ int main() {
     }
   }
 
-  const handleSubmitAnswer = async () => {
+  const handleSubmitAnswer = () => {
     const currentQuestion = questions[currentQuestionIndex]
     const questionType = currentQuestion.question_type?.toLowerCase() || "mcq"
     const isMultiSelect = questionType === "multi_output" || questionType === "select_all"
@@ -310,10 +309,7 @@ int main() {
           description: "For code_write_plot questions, you must upload a plot image before submitting. Please use the 'Upload Plot' section above.",
           variant: "destructive",
         })
-        await alert({
-          title: "Plot image required",
-          description: "Please upload a plot image before submitting this code_write_plot question.",
-        })
+        alert("Please upload a plot image before submitting this code_write_plot question!")
         return
       }
 
@@ -361,6 +357,57 @@ int main() {
     setIsTimerActive(false)
     setShowFeedback(true)
     markQuestionAsAnswered(currentQuestionIndex)
+
+    if (isMultiSelect) {
+      const maxPts =
+        Number((currentQuestion as { max_points?: number; points?: number }).max_points ??
+          (currentQuestion as { points?: number }).points ??
+          1) || 1
+      let correctAnswers: string[] = []
+      try {
+        const raw = currentQuestion.correct_answer
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw
+        correctAnswers = Array.isArray(parsed) ? parsed.map(String) : [String(parsed)]
+      } catch {
+        correctAnswers = [String(currentQuestion.correct_answer ?? "")]
+      }
+      const allLetters = correctAnswers.every(
+        (a) => typeof a === "string" && a.trim().length === 1 && /^[A-E]$/i.test(a.trim()),
+      )
+      const correctTexts = (
+        allLetters
+          ? correctAnswers.map((letter) => {
+              const key = `option_${letter.trim().toLowerCase()}` as keyof Question
+              return currentQuestion[key] as string
+            })
+          : correctAnswers
+      ).filter(Boolean)
+      const selectedTexts = selectedMultiAnswers
+        .map((letter) => {
+          const key = `option_${letter.toLowerCase()}` as keyof Question
+          return currentQuestion[key] as string
+        })
+        .filter(Boolean)
+
+      const scored = scoreSelectAllQuestion(selectedTexts, correctTexts, maxPts)
+      setFeedback({
+        isCorrect: scored.isFullyCorrect,
+        explanation: scored.isFullyCorrect
+          ? "Correct! You selected all the right answers and no incorrect ones."
+          : scored.points > 0
+            ? `Partial credit: ${scored.correctSelected} of ${scored.correctCount} correct selected` +
+              (scored.incorrectSelected > 0 ? `, ${scored.incorrectSelected} incorrect` : "") +
+              `. Score = max(0, (C−I)/T) × points.`
+            : scored.incorrectSelected > 0 && scored.correctSelected === 0
+              ? "Incorrect — only wrong options were selected."
+              : "Incorrect — check the highlighted answers.",
+        earnedPoints: scored.points,
+        totalPoints: maxPts,
+      })
+      return
+    }
+
+    setFeedback(null)
   }
 
   const handleRetry = () => {
@@ -689,7 +736,11 @@ int main() {
               showFeedback={showFeedback}
               isSubmittingAnswer={false}
               isCorrect={isCorrect}
-              partialCreditPoints={null}
+              partialCreditPoints={
+                showFeedback && feedback && !feedback.isCorrect && feedback.earnedPoints > 0
+                  ? feedback.earnedPoints / Math.max(feedback.totalPoints, 1)
+                  : null
+              }
               onAnswerChange={handleAnswerSelect}
               onMultiAnswerToggle={toggleMultiAnswer}
               onCodeChange={handleCodeChange}
@@ -728,7 +779,8 @@ int main() {
                       <>
                         <XCircle className="h-5 w-5 text-amber-600" />
                         <span className="font-semibold text-amber-700">
-                          Needs Improvement ({feedback.earnedPoints}/{feedback.totalPoints} points)
+                          {feedback.earnedPoints > 0 ? "Partial credit" : "Needs Improvement"} (
+                          {feedback.earnedPoints}/{feedback.totalPoints} points)
                         </span>
                       </>
                     )}

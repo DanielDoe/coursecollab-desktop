@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -33,7 +32,6 @@ import {
   Trophy,
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
-import { getStudentData, studentApiFetch } from "@/lib/auth"
 import {
   buildUnifiedTimeline,
   TradeHistoryCard,
@@ -45,7 +43,6 @@ import { DEFAULT_TRADE_CENTER_CONFIG } from "@/lib/trade-center-shared"
 import type { AssessmentPrivilegeSource } from "@/lib/assessment-privilege-governance-shared"
 import { cn } from "@/lib/utils"
 import { getStudentModuleTheme, studentModuleSpinnerClass } from "@/lib/student-module-themes"
-import { StudentModuleHubLayout } from "@/components/student/dashboard-v2/StudentModuleHubLayout"
 import { portalOutlineButtonClass, portalStatusBadgeClass } from "@/lib/portal-module-themes"
 import {
   PORTAL_CARD,
@@ -82,8 +79,6 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
   const pageTheme = theme.page
   const iconAccent = pageTheme.iconText
   const panelCard = cn("rounded-2xl border shadow-sm", PORTAL_CARD)
-  const peerExchangeCard = cn(panelCard, "flex h-full flex-col p-4 sm:p-5")
-  const peerExchangeIconWrap = "rounded-lg bg-[var(--muted)] p-2 ring-1 ring-[var(--border)]"
   const softTile = cn("rounded-xl border", pageTheme.softBg, pageTheme.border)
   const progressTrack = "bg-[var(--muted)] [&_[data-slot=progress-indicator]]:!bg-[var(--cc-accent)]"
   const optionActive = cn(
@@ -164,14 +159,15 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
   } | null>(null)
 
   useEffect(() => {
-    const data = getStudentData()
-    if (!data?.databaseId) {
+    const studentSessionData = localStorage.getItem("studentSession")
+    if (!studentSessionData) {
       router.push("/student/login")
       return
     }
     const init = async () => {
       try {
-        const dbId = Number(data.databaseId)
+        const data = JSON.parse(studentSessionData)
+        const dbId = data.databaseId
         const session = data.section || ""
         setStudentId(dbId)
         setStudentSession(session)
@@ -180,50 +176,49 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
           return
         }
         try {
-          await studentApiFetch("/api/trade-center/sync", {
+          await fetch("/api/admin/playground/sync-points", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ studentId: dbId, session }),
+            body: JSON.stringify({ studentDbId: dbId, fixCompletedAt: true }),
           })
         } catch {
-          // ignore background sync failures
+          // ignore
         }
         fetchPoints(false, dbId, session)
-        studentApiFetch(`/api/trade-center/peers?session=${encodeURIComponent(session)}&excludeId=${dbId}`)
-          .then((r) => r.json())
-          .then((d) => setPeers(d.peers || []))
-          .catch(() => {})
-        studentApiFetch(`/api/trade-center/donation-requests?studentId=${dbId}`)
-          .then((r) => r.json())
-          .then((d) => setDonationRequests(d.requests || []))
-          .catch(() => {})
-        studentApiFetch(`/api/trade-center/point-requests?studentId=${dbId}`)
-          .then((r) => r.json())
-          .then((d) => setPointRequests(d.requests || []))
-          .catch(() => {})
-        studentApiFetch(
-          `/api/trade-center/points-for-rollover?studentId=${dbId}&session=${encodeURIComponent(session)}`,
-        )
-          .then((r) => r.json())
-          .then((d) => {
-            if (!d.error) setRolloverData(d)
-          })
-          .catch(() => {})
-        studentApiFetch(
-          `/api/trade-center/points-for-extra-attempts?studentId=${dbId}&session=${encodeURIComponent(session)}`,
-        )
-          .then((r) => r.json())
-          .then((d) => {
-            if (!d.error) setExtraAttemptsData(d)
-          })
-          .catch(() => {})
-        fetchClassroomPeerEligibility(dbId, session)
-        studentApiFetch(`/api/trade-center/my-history?studentId=${dbId}`)
-          .then((r) => r.json())
-          .then((d) => {
-            if (!d.error) setTradeHistory(d)
-          })
-          .catch(() => {})
+        if (dbId && (data.section || data.session)) {
+          const sess = data.section || data.session
+          fetch(`/api/trade-center/peers?session=${encodeURIComponent(sess)}&excludeId=${dbId}`)
+            .then((r) => r.json())
+            .then((d) => setPeers(d.peers || []))
+            .catch(() => {})
+          fetch(`/api/trade-center/donation-requests?studentId=${dbId}`)
+            .then((r) => r.json())
+            .then((d) => setDonationRequests(d.requests || []))
+            .catch(() => {})
+          fetch(`/api/trade-center/point-requests?studentId=${dbId}`)
+            .then((r) => r.json())
+            .then((d) => setPointRequests(d.requests || []))
+            .catch(() => {})
+          fetch(`/api/trade-center/points-for-rollover?studentId=${dbId}&session=${encodeURIComponent(sess)}`)
+            .then((r) => r.json())
+            .then((d) => {
+              if (!d.error) setRolloverData(d)
+            })
+            .catch(() => {})
+          fetch(`/api/trade-center/points-for-extra-attempts?studentId=${dbId}&session=${encodeURIComponent(sess)}`)
+            .then((r) => r.json())
+            .then((d) => {
+              if (!d.error) setExtraAttemptsData(d)
+            })
+            .catch(() => {})
+          fetchClassroomPeerEligibility(dbId, sess)
+          fetch(`/api/trade-center/my-history?studentId=${dbId}`)
+            .then((r) => r.json())
+            .then((d) => {
+              if (!d.error) setTradeHistory(d)
+            })
+            .catch(() => {})
+        }
       } catch {
         router.push("/student/login")
       } finally {
@@ -238,8 +233,8 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
     const sessionToUse = overrideSession ?? studentSession
     if (!idToUse || !sessionToUse) return
     try {
-      const r = await studentApiFetch(
-        `/api/trade-center/classroom-transfer-eligibility?studentId=${idToUse}&session=${encodeURIComponent(sessionToUse)}`,
+      const r = await fetch(
+        `/api/trade-center/classroom-transfer-eligibility?studentId=${idToUse}&session=${encodeURIComponent(sessionToUse)}`
       )
       const d = await r.json()
       if (!d.error) {
@@ -259,9 +254,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
     const sessionToUse = overrideSession ?? studentSession
     if (!idToUse || !sessionToUse) return
     try {
-      const response = await studentApiFetch(
-        `/api/trade-center/points?studentId=${idToUse}&session=${sessionToUse}`,
-      )
+      const response = await fetch(`/api/trade-center/points?studentId=${idToUse}&session=${sessionToUse}`)
       const data = await response.json()
       if (response.ok) {
         if (data.config) setTradeConfig(data.config)
@@ -304,26 +297,19 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
     if (!studentId || !studentSession) return
     setSyncing(true)
     try {
-      const response = await studentApiFetch("/api/trade-center/sync", {
+      const response = await fetch("/api/admin/playground/sync-points", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, session: studentSession }),
+        body: JSON.stringify({ studentDbId: studentId, fixCompletedAt: true }),
       })
       const data = await response.json()
       if (response.ok && data.success) {
-        toast({
-          title: "Sync Successful! ✅",
-          description: data.message || "Activity points synced from all sources.",
-        })
+        toast({ title: "Sync Successful! ✅", description: `Playground points synced! You now have ${data.syncResult?.playgroundPoints || 0} playground points.` })
         await fetchPoints()
         await fetchClassroomPeerEligibility()
         await refreshTradeHistory()
       } else {
-        toast({
-          title: "Sync Failed",
-          description: data.error || "Could not sync activity points.",
-          variant: "destructive",
-        })
+        toast({ title: "Syncing Points...", description: "Syncing your activity points from all sources." })
         await fetchPoints(true)
         await fetchClassroomPeerEligibility()
         await refreshTradeHistory()
@@ -342,7 +328,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
     const id = overrideId ?? studentId
     if (!id) return
     try {
-      const r = await studentApiFetch(`/api/trade-center/my-history?studentId=${id}`)
+      const r = await fetch(`/api/trade-center/my-history?studentId=${id}`)
       const d = await r.json()
       if (!d.error) setTradeHistory(d)
     } catch {
@@ -374,7 +360,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
     }
     setTrading(true)
     try {
-      const response = await studentApiFetch("/api/trade-center/trade", {
+      const response = await fetch("/api/trade-center/trade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ studentId, session: studentSession, pointsToTrade: pts }),
@@ -423,7 +409,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
     }
     setDonating(true)
     try {
-      const response = await studentApiFetch("/api/trade-center/donation-requests", {
+      const response = await fetch("/api/trade-center/donation-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -442,7 +428,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
         fetchPoints()
         fetchClassroomPeerEligibility()
         refreshTradeHistory()
-        studentApiFetch(`/api/trade-center/donation-requests?studentId=${studentId}`)
+        fetch(`/api/trade-center/donation-requests?studentId=${studentId}`)
           .then((r) => r.json())
           .then((d) => setDonationRequests(d.requests || []))
       } else {
@@ -468,7 +454,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
     }
     setRequesting(true)
     try {
-      const response = await studentApiFetch("/api/trade-center/point-requests", {
+      const response = await fetch("/api/trade-center/point-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -487,7 +473,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
         setRequestPeerId("")
         setRequestMessage("")
         refreshTradeHistory()
-        studentApiFetch(`/api/trade-center/point-requests?studentId=${studentId}`)
+        fetch(`/api/trade-center/point-requests?studentId=${studentId}`)
           .then((r) => r.json())
           .then((d) => setPointRequests(d.requests || []))
       } else {
@@ -502,7 +488,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
 
   const handleApproveRequest = async (reqId: number) => {
     try {
-      const r = await studentApiFetch(`/api/trade-center/point-requests/${reqId}/approve-peer`, {
+      const r = await fetch(`/api/trade-center/point-requests/${reqId}/approve-peer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requesteeId: studentId }),
@@ -510,7 +496,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
       const d = await r.json()
       if (r.ok && d.success) {
         toast({ title: "Approved", description: d.message })
-        studentApiFetch(`/api/trade-center/point-requests?studentId=${studentId}`).then((res) => res.json()).then((data) => setPointRequests(data.requests || []))
+        fetch(`/api/trade-center/point-requests?studentId=${studentId}`).then((res) => res.json()).then((data) => setPointRequests(data.requests || []))
         fetchClassroomPeerEligibility()
         refreshTradeHistory()
       } else {
@@ -525,9 +511,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
     if (!studentId || !studentSession) return
     setRolloverLoading(true)
     try {
-      const r = await studentApiFetch(
-        `/api/trade-center/points-for-rollover?studentId=${studentId}&session=${encodeURIComponent(studentSession)}`,
-      )
+      const r = await fetch(`/api/trade-center/points-for-rollover?studentId=${studentId}&session=${encodeURIComponent(studentSession)}`)
       const d = await r.json()
       if (!d.error) setRolloverData(d)
     } catch {
@@ -541,7 +525,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
     if (!studentId || !studentSession) return
     setExtraAttemptsLoading(true)
     try {
-      const r = await studentApiFetch(
+      const r = await fetch(
         `/api/trade-center/points-for-extra-attempts?studentId=${studentId}&session=${encodeURIComponent(studentSession)}`,
       )
       const d = await r.json()
@@ -563,7 +547,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
     }
     setRolloverTrading(true)
     try {
-      const r = await studentApiFetch("/api/trade-center/points-for-rollover", {
+      const r = await fetch("/api/trade-center/points-for-rollover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -612,7 +596,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
     }
     setExtraAttemptsTrading(true)
     try {
-      const r = await studentApiFetch("/api/trade-center/points-for-extra-attempts", {
+      const r = await fetch("/api/trade-center/points-for-extra-attempts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -649,7 +633,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
 
   const handleRejectRequest = async (reqId: number) => {
     try {
-      const r = await studentApiFetch(`/api/trade-center/point-requests/${reqId}/reject-peer`, {
+      const r = await fetch(`/api/trade-center/point-requests/${reqId}/reject-peer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requesteeId: studentId }),
@@ -657,7 +641,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
       const d = await r.json()
       if (r.ok && d.success) {
         toast({ title: "Declined", description: d.message })
-        studentApiFetch(`/api/trade-center/point-requests?studentId=${studentId}`).then((res) => res.json()).then((data) => setPointRequests(data.requests || []))
+        fetch(`/api/trade-center/point-requests?studentId=${studentId}`).then((res) => res.json()).then((data) => setPointRequests(data.requests || []))
         refreshTradeHistory()
       } else {
         toast({ title: "Failed", description: d.error || "Could not decline", variant: "destructive" })
@@ -690,26 +674,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
     [unifiedHistory]
   )
 
-  const tradeCenterMenuItems = useMemo(
-    () => [
-      { id: "overview", label: "Overview", icon: TrendingUp },
-      { id: "trade-ec", label: "Trade for EC", icon: Sparkles },
-      { id: "rollover", label: "Points for Rollover", icon: FileQuestion },
-      { id: "extra-attempts", label: "Extra Attempts", icon: RotateCw },
-      {
-        id: "peers",
-        label: "Peer Exchange",
-        icon: Users,
-        badge:
-          donationRequests.length + pointRequests.length > 0
-            ? donationRequests.length + pointRequests.length
-            : undefined,
-      },
-    ],
-    [donationRequests.length, pointRequests.length],
-  )
-
-  if (loading && !embedInDashboard) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[300px]">
         <div className={cn("animate-spin rounded-full h-10 w-10 border-2 border-[var(--border)]", studentModuleSpinnerClass("trade-center"))} />
@@ -793,12 +758,6 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
   const tabContentNarrow = embedInDashboard
     ? "w-full min-w-0 space-y-6"
     : "w-full max-w-xl mx-auto space-y-6"
-  const embedTabPanelsScroll = embedInDashboard
-    ? "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain min-w-0"
-    : ""
-  const embedTabsShellClass = embedInDashboard
-    ? "flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden"
-    : "w-full min-w-0"
 
   const tradeCenterTabTriggerClass = embedInDashboard
     ? cn(
@@ -819,17 +778,56 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
       )
     : ""
 
-  const tradeHubMetaLine = loading ? (
-    <span className="inline-block h-4 w-56 animate-pulse rounded bg-[var(--muted)]" />
-  ) : (
-    <>
-      {totalPoints.toLocaleString()} tradable · {weeklyPoints.toLocaleString()} this week
-      {carriedOverPoints > 0 ? ` · ${carriedOverPoints.toLocaleString()} carried forward` : ""}
-    </>
-  )
+  return (
+    <div className="space-y-6 sm:space-y-8">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className={cn(embedInDashboard ? "flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6" : "space-y-6")}
+      >
+        <TabsList
+          className={cn(
+            embedInDashboard
+              ? cn(
+                  "!flex !flex-col !h-auto !items-stretch !justify-start shrink-0 gap-0.5",
+                  "w-full lg:w-52 xl:w-56",
+                  "lg:sticky lg:top-4 lg:border-l-2 lg:border-[var(--cc-drawer-soft-border)] lg:pl-3",
+                  "!bg-transparent !p-0 !rounded-none !border-0 !shadow-none",
+                )
+              : "grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 h-auto p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-[var(--border)]",
+          )}
+        >
+          <TabsTrigger value="overview" className={tradeCenterTabTriggerClass}>
+            <div className={tradeCenterTabIconClass}><TrendingUp className="h-4 w-4 shrink-0" /></div>
+            <span className="truncate">Overview</span>
+          </TabsTrigger>
+          <TabsTrigger value="trade-ec" className={tradeCenterTabTriggerClass}>
+            <div className={tradeCenterTabIconClass}><Sparkles className="h-4 w-4 shrink-0" /></div>
+            <span className="truncate">Trade for EC</span>
+          </TabsTrigger>
+          <TabsTrigger value="rollover" className={tradeCenterTabTriggerClass}>
+            <div className={tradeCenterTabIconClass}><FileQuestion className="h-4 w-4 shrink-0" /></div>
+            <span className="truncate">Points for Rollover</span>
+          </TabsTrigger>
+          <TabsTrigger value="extra-attempts" className={tradeCenterTabTriggerClass}>
+            <div className={tradeCenterTabIconClass}><RotateCw className="h-4 w-4 shrink-0" /></div>
+            <span className="truncate">Extra Attempts</span>
+          </TabsTrigger>
+          <TabsTrigger value="peers" className={cn(tradeCenterTabTriggerClass, "flex-wrap")}>
+            <div className={tradeCenterTabIconClass}><Users className="h-4 w-4 shrink-0" /></div>
+            <span className="truncate">Peer Exchange</span>
+            {(donationRequests.length > 0 || pointRequests.length > 0) && (
+              <Badge
+                variant="secondary"
+                className="ml-auto h-5 min-w-5 px-1.5 text-xs shrink-0 border-0 group-data-[state=active]:bg-[var(--cc-accent-soft)] group-data-[state=active]:text-[var(--cc-accent-dark)] group-data-[state=inactive]:bg-[var(--cc-accent-soft)] group-data-[state=inactive]:text-[var(--cc-accent-dark)]"
+              >
+                {donationRequests.length + pointRequests.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
-  const tabPanels = (
-        <div className={cn("min-w-0", embedTabPanelsScroll)}>
+        <div className="min-w-0 flex-1">
         {/* Overview Tab */}
         <TabsContent value="overview" className="mt-0">
           <div className={tabSectionOuter}>
@@ -842,7 +840,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
                     <p className="text-sm text-[var(--cc-text-muted)] mt-1">Weekly earning caps reset Monday; untraded points carry forward</p>
                   </div>
                   <div className="flex items-center justify-center sm:justify-end gap-2 shrink-0">
-                    {!embedInDashboard ? syncRefreshButtons : null}
+                    {syncRefreshButtons}
                     {!embedInDashboard && (
                       <Button onClick={() => router.push("/student/dashboard")} variant="outline" size="sm" className="h-8 rounded-lg">
                         <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
@@ -1466,21 +1464,19 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
               </div>
 
               {/* Donate & Request cards */}
-              <div className="grid items-stretch gap-4 md:grid-cols-2 md:gap-5">
+              <div className="grid md:grid-cols-2 gap-6">
                 {/* Donate to Peer */}
-                <div className={peerExchangeCard}>
-                  <div className="mb-4 flex min-h-11 items-center justify-between gap-3">
+                <div className={cn("rounded-2xl border p-6 shadow-sm", pageTheme.softBg, pageTheme.border)}>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                     <div className="flex items-center gap-2">
-                      <div className={peerExchangeIconWrap}>
+                      <div className={cn("p-2 rounded-lg", theme.page.iconBg)}>
                         <Gift className={cn("h-5 w-5", theme.page.iconText)} />
                       </div>
                       <h4 className="font-semibold text-[var(--cc-text)]">Donate to Peer</h4>
                     </div>
-                    {!embedInDashboard ? (
-                      <div className="flex shrink-0 items-center gap-1">{syncRefreshButtons}</div>
-                    ) : null}
+                    <div className="flex items-center gap-1">{syncRefreshButtons}</div>
                   </div>
-                  <div className="flex flex-1 flex-col gap-4">
+                  <div className="space-y-4">
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-[var(--cc-text)]">Recipient</Label>
                       <Select value={donationRecipientId} onValueChange={setDonationRecipientId}>
@@ -1529,15 +1525,11 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
                         className="rounded-xl border-[var(--border)] h-11"
                       />
                     </div>
-                    <div className="pointer-events-none invisible space-y-2 select-none" aria-hidden>
-                      <Label className="text-sm font-medium text-[var(--cc-text)]">Message (optional)</Label>
-                      <div className="min-h-[88px] rounded-xl border border-[var(--border)]" />
-                    </div>
                     <Button
                       onClick={handleDonate}
                       disabled={donating || !donationPoints || parseInt(donationPoints) < 100 || !donationRecipientId}
                       variant="ghost"
-                      className={cn("mt-auto w-full shrink-0 rounded-xl h-11", PORTAL_CTA)}
+                      className={cn("w-full rounded-xl h-11", PORTAL_CTA)}
                     >
                       {donating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Gift className="h-4 w-4 mr-2" />}
                       {donating ? "Submitting..." : "Submit Donation Request"}
@@ -1546,14 +1538,14 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
                 </div>
 
                 {/* Request Points from Peer */}
-                <div className={peerExchangeCard}>
-                  <div className="mb-4 flex min-h-11 items-center gap-2">
-                    <div className={peerExchangeIconWrap}>
+                <div className={cn("rounded-2xl border p-6 shadow-sm", pageTheme.softBg, pageTheme.border)}>
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className={cn("p-2 rounded-lg", theme.page.iconBg)}>
                       <Send className={cn("h-5 w-5", theme.page.iconText)} />
                     </div>
                     <h4 className="font-semibold text-[var(--cc-text)]">Request Points</h4>
                   </div>
-                  <div className="flex flex-1 flex-col gap-4">
+                  <div className="space-y-4">
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-[var(--cc-text)]">Request From</Label>
                       <Select value={requestPeerId} onValueChange={setRequestPeerId}>
@@ -1602,19 +1594,18 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-[var(--cc-text)]">Message (optional)</Label>
-                      <Textarea
+                      <Input
                         value={requestMessage}
                         onChange={(e) => setRequestMessage(e.target.value)}
                         placeholder="e.g. I need a few more points for EC..."
-                        rows={3}
-                        className="min-h-[88px] resize-none rounded-xl border-[var(--border)]"
+                        className="rounded-xl border-[var(--border)] h-11"
                       />
                     </div>
                     <Button
                       onClick={handleRequestPoints}
                       disabled={requesting || !requestPoints || parseInt(requestPoints) < 100 || !requestPeerId}
                       variant="ghost"
-                      className={cn("mt-auto w-full shrink-0 rounded-xl h-11", PORTAL_CTA)}
+                      className={cn("w-full rounded-xl h-11", PORTAL_CTA)}
                     >
                       {requesting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
                       {requesting ? "Sending..." : "Send Request"}
@@ -1709,61 +1700,6 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
           </div>
         </TabsContent>
         </div>
-  )
-
-  if (embedInDashboard) {
-    return (
-      <StudentModuleHubLayout
-        moduleId="trade-center"
-        title="Trade Center"
-        metaLine={tradeHubMetaLine}
-        metaSuffix="trade activity points for perks and extensions"
-        headerAction={syncRefreshButtons}
-        menuView={activeTab}
-        onMenuSelect={setActiveTab}
-        menuItems={tradeCenterMenuItems}
-        loading={loading}
-        loadingRows={8}
-        scrollMode="panel"
-      >
-        <Tabs value={activeTab} onValueChange={setActiveTab} className={embedTabsShellClass}>
-          {tabPanels}
-        </Tabs>
-      </StudentModuleHubLayout>
-    )
-  }
-
-  return (
-    <div className="space-y-6 sm:space-y-8">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 h-auto p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-[var(--border)]">
-          <TabsTrigger value="overview" className={tradeCenterTabTriggerClass}>
-            <TrendingUp className="h-4 w-4 shrink-0" />
-            <span className="truncate">Overview</span>
-          </TabsTrigger>
-          <TabsTrigger value="trade-ec" className={tradeCenterTabTriggerClass}>
-            <Sparkles className="h-4 w-4 shrink-0" />
-            <span className="truncate">Trade for EC</span>
-          </TabsTrigger>
-          <TabsTrigger value="rollover" className={tradeCenterTabTriggerClass}>
-            <FileQuestion className="h-4 w-4 shrink-0" />
-            <span className="truncate">Points for Rollover</span>
-          </TabsTrigger>
-          <TabsTrigger value="extra-attempts" className={tradeCenterTabTriggerClass}>
-            <RotateCw className="h-4 w-4 shrink-0" />
-            <span className="truncate">Extra Attempts</span>
-          </TabsTrigger>
-          <TabsTrigger value="peers" className={cn(tradeCenterTabTriggerClass, "flex-wrap")}>
-            <Users className="h-4 w-4 shrink-0" />
-            <span className="truncate">Peer Exchange</span>
-            {(donationRequests.length > 0 || pointRequests.length > 0) && (
-              <Badge variant="secondary" className="ml-auto h-5 min-w-5 px-1.5 text-xs shrink-0">
-                {donationRequests.length + pointRequests.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
-        {tabPanels}
       </Tabs>
     </div>
   )

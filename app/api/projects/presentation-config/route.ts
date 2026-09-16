@@ -2,20 +2,42 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { requireInstructorCourse } from "@/lib/instructor-course-scope";
 import { requireProjectsListScope } from "@/lib/project-request-auth";
+import {
+  presentationConfigSessionLikePrefix,
+  presentationSessionBelongsToCourse,
+} from "@/lib/project-presentation-course-scope";
+
+async function courseCodeForScope(courseId: number | null | undefined): Promise<string> {
+  if (courseId == null) return ""
+  const rows = await sql`SELECT course_code FROM courses WHERE id = ${courseId} LIMIT 1`
+  return String((rows[0] as { course_code?: string } | undefined)?.course_code ?? "")
+}
 
 // GET - Fetch presentation configuration
 export async function GET(request: NextRequest) {
   try {
     const scope = await requireProjectsListScope(request)
     if (!scope.ok) return scope.response
+    const courseCode = await courseCodeForScope(scope.courseId)
+    const familyPrefix = presentationConfigSessionLikePrefix(courseCode)
+    const sessionClause = familyPrefix
+      ? sql.unsafe(`AND TRIM(UPPER(REPLACE(COALESCE(session, ''), ' ', ''))) LIKE '${familyPrefix}%'`)
+      : sql.unsafe("")
     const { searchParams } = new URL(request.url);
     const session = searchParams.get("session");
 
     if (session) {
+      if (courseCode && !presentationSessionBelongsToCourse(session, courseCode)) {
+        return NextResponse.json(
+          { error: "Configuration not found for this session" },
+          { status: 404 }
+        );
+      }
       // Get config for specific session
       const config = await sql`
         SELECT * FROM presentation_config
         WHERE session = ${session} AND is_active = TRUE
+          ${sessionClause}
       `;
 
       if (config.length === 0) {
@@ -31,6 +53,7 @@ export async function GET(request: NextRequest) {
       const configs = await sql`
         SELECT * FROM presentation_config
         WHERE is_active = TRUE
+          ${sessionClause}
         ORDER BY session ASC
       `;
 
@@ -38,10 +61,6 @@ export async function GET(request: NextRequest) {
     }
   } catch (error) {
     console.error("Error fetching presentation config:", error);
-    const message = error instanceof Error ? error.message : String(error);
-    if (/presentation_config|relation.*does not exist/i.test(message)) {
-      return NextResponse.json({ configs: [] });
-    }
     return NextResponse.json(
       { error: "Failed to fetch configuration" },
       { status: 500 }
@@ -55,6 +74,9 @@ export async function POST(request: NextRequest) {
     const instructor = await requireInstructorCourse(request)
     if (!instructor.ok) return instructor.response
     const body = await request.json();
+    if (!presentationSessionBelongsToCourse(body?.session, instructor.course.course_code)) {
+      return NextResponse.json({ error: "Session is not in the selected course" }, { status: 403 })
+    }
     const {
       session,
       presentationStartDate,
@@ -153,6 +175,9 @@ export async function DELETE(request: NextRequest) {
         { error: "Session is required" },
         { status: 400 }
       );
+    }
+    if (!presentationSessionBelongsToCourse(session, instructor.course.course_code)) {
+      return NextResponse.json({ error: "Session is not in the selected course" }, { status: 403 })
     }
 
     const result = await sql`

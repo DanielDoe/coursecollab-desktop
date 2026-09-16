@@ -10,10 +10,12 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/components/ui/use-toast"
+import { toast as appToast } from "@/lib/app-toast"
 import { buildInstructorApiHeaders, instructorApiFetch } from "@/lib/instructor-api-headers"
 import { useInstructorDashboardV2 } from "@/components/instructor/dashboard-v2/InstructorDashboardV2Context"
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 import { INSTRUCTOR_CALENDAR_INVALIDATE_EVENT } from "@/lib/calendar/instructor-calendar-events"
+import { INSTRUCTOR_NOTIFICATIONS_INVALIDATE_EVENT } from "@/lib/instructor-notification-events"
 import { ScheduleAdjustmentStepper } from "@/components/schedule-adjustment/ScheduleAdjustmentStepper"
 import { AvailabilityHeatmap, AvailabilityPicker } from "@/components/schedule-adjustment/AvailabilityPicker"
 import { ScheduleAdjustmentNoticeBanner } from "@/components/schedule-adjustment/ScheduleAdjustmentNoticeBanner"
@@ -41,7 +43,6 @@ import { ScheduleStatusPill, scheduleChoiceCardClass, scheduleDayPillClass, sche
 import { ProposedArrangementCard } from "@/components/schedule-adjustment/ProposedArrangementCard"
 import { ConsentRosterPanel } from "@/components/schedule-adjustment/ConsentRosterPanel"
 import { isDirectProposal } from "@/lib/schedule-adjustment/types"
-import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 type RequestSummary = {
   id: number
@@ -110,7 +111,6 @@ function requestTitle(request: { section_code?: string | null; meeting_type?: st
 
 export function InstructorScheduleAdjustmentPanel() {
   const { toast } = useToast()
-  const { confirm } = useAppConfirm()
   const { courseScopeVersion } = useInstructorDashboardV2()
   const chrome = facultyEmbedChrome("course-settings")
   const router = useRouter()
@@ -135,6 +135,8 @@ export function InstructorScheduleAdjustmentPanel() {
   const [showArchived, setShowArchived] = useState(false)
 
   const [confirmText, setConfirmText] = useState("")
+  const [justFinalized, setJustFinalized] = useState(false)
+  const [finalizing, setFinalizing] = useState(false)
   const [cancelReason, setCancelReason] = useState("")
 
   const [deptForm, setDeptForm] = useState({
@@ -213,6 +215,7 @@ export function InstructorScheduleAdjustmentPanel() {
       setDetail(null)
       setCandidates([])
       setLiveAggregate(null)
+      setJustFinalized(false)
       return
     }
     let cancelled = false
@@ -220,6 +223,7 @@ export function InstructorScheduleAdjustmentPanel() {
       setDetail(null)
       setCandidates([])
       setLiveAggregate(null)
+      setJustFinalized(false)
       const ok = await loadDetail(selectedId)
       if (!cancelled && !ok) goList()
     })()
@@ -235,8 +239,70 @@ export function InstructorScheduleAdjustmentPanel() {
 
   const postAction = async (body: Record<string, unknown>) => {
     if (!selectedId) return
+    const isFinalize = body.action === "finalize"
     setSaving(true)
+    if (isFinalize) setFinalizing(true)
+
+    const markFinalizeSuccess = async () => {
+      setJustFinalized(true)
+      setConfirmText("")
+      setFinalizing(false)
+      setSaving(false)
+      appToast.success("Schedule finalized", {
+        description:
+          "Students were notified, the announcement was posted, and calendars/attendance were updated.",
+        duration: 15000,
+      })
+      window.dispatchEvent(new Event(INSTRUCTOR_CALENDAR_INVALIDATE_EVENT))
+      window.dispatchEvent(new Event(INSTRUCTOR_NOTIFICATIONS_INVALIDATE_EVENT))
+      await loadDetail(selectedId)
+      await loadList()
+    }
+
     try {
+      if (isFinalize) {
+        // Poll status while finalize runs — attendance regen used to block the HTTP
+        // response for ~90s, leaving the UI stuck even after the schedule was live.
+        let finished = false
+        const poll = window.setInterval(() => {
+          void (async () => {
+            if (finished) return
+            try {
+              const res = await instructorApiFetch(`/api/instructor/schedule-adjustments/${selectedId}`, {
+                headers: buildInstructorApiHeaders(),
+              })
+              const data = await res.json()
+              const status = String(data?.request?.status ?? "")
+              if (status === "FINALIZED" || status === "COMPLETED") {
+                finished = true
+                window.clearInterval(poll)
+                await markFinalizeSuccess()
+              }
+            } catch {
+              // ignore poll errors; POST path still handles failure
+            }
+          })()
+        }, 2000)
+
+        try {
+          const res = await instructorApiFetch(`/api/instructor/schedule-adjustments/${selectedId}/actions`, {
+            method: "POST",
+            headers: { ...buildInstructorApiHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          })
+          const data = await res.json()
+          if (!res.ok) throw new Error(data.error ?? "Action failed")
+          if (!finished) {
+            finished = true
+            window.clearInterval(poll)
+            await markFinalizeSuccess()
+          }
+        } finally {
+          window.clearInterval(poll)
+        }
+        return
+      }
+
       const res = await instructorApiFetch(`/api/instructor/schedule-adjustments/${selectedId}/actions`, {
         method: "POST",
         headers: { ...buildInstructorApiHeaders(), "Content-Type": "application/json" },
@@ -247,9 +313,6 @@ export function InstructorScheduleAdjustmentPanel() {
       toast({ title: "Saved" })
       await loadDetail(selectedId)
       await loadList()
-      if (body.action === "finalize") {
-        window.dispatchEvent(new Event(INSTRUCTOR_CALENDAR_INVALIDATE_EVENT))
-      }
     } catch (e) {
       toast({
         title: "Error",
@@ -258,6 +321,7 @@ export function InstructorScheduleAdjustmentPanel() {
       })
     } finally {
       setSaving(false)
+      setFinalizing(false)
     }
   }
 
@@ -338,14 +402,7 @@ export function InstructorScheduleAdjustmentPanel() {
 
   const deleteDraft = async () => {
     if (!selectedId) return
-    const ok = await confirm({
-      title: "Delete this draft permanently?",
-      description: "This cannot be undone.",
-      confirmLabel: "Delete",
-      cancelLabel: "Cancel",
-      variant: "destructive",
-    })
-    if (!ok) return
+    if (!window.confirm("Delete this draft permanently? This cannot be undone.")) return
     setSaving(true)
     try {
       const res = await instructorApiFetch(`/api/instructor/schedule-adjustments/${selectedId}/actions`, {
@@ -1158,16 +1215,49 @@ export function InstructorScheduleAdjustmentPanel() {
                         value={confirmText}
                         onChange={(e) => setConfirmText(e.target.value)}
                         placeholder="CONFIRM"
+                        disabled={finalizing}
                       />
                       <Button
                         className={cn(chrome.solid, "w-full !text-white sm:w-auto")}
                         disabled={confirmText !== "CONFIRM" || saving}
                         onClick={() => void postAction({ action: "finalize", confirmText })}
                       >
-                        Finalize Revised Schedule
+                        {finalizing ? (
+                          <>
+                            <Loader2 className="mr-2 size-4 animate-spin" />
+                            Finalizing…
+                          </>
+                        ) : (
+                          "Finalize Revised Schedule"
+                        )}
                       </Button>
+                      {finalizing ? (
+                        <p className="text-sm text-[var(--cc-text-muted)]">
+                          Confirming schedule and notifying students. Keep this page open — usually finishes in a
+                          few seconds.
+                        </p>
+                      ) : null}
                     </div>
                   ) : null}
+                </div>
+              ) : null}
+
+              {justFinalized ||
+              String(request.status) === "FINALIZED" ||
+              String(request.status) === "COMPLETED" ? (
+                <div className="rounded-xl border-2 border-emerald-500/50 bg-emerald-500/15 p-4 dark:border-emerald-400/40 dark:bg-emerald-500/20">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="mt-0.5 size-6 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    <div className="space-y-1">
+                      <p className="text-base font-semibold text-emerald-900 dark:text-emerald-200">
+                        Schedule finalized
+                      </p>
+                      <p className="text-sm text-emerald-900/80 dark:text-emerald-100/80">
+                        {String(request.section_code ?? "This section")} is live. Students were notified, the
+                        announcement was posted, and CourseCollab calendars/attendance were updated.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ) : null}
 

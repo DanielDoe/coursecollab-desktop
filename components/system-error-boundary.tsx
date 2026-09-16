@@ -23,6 +23,16 @@ type State = {
   error: Error | null
 }
 
+function isNextRedirectError(error: Error): boolean {
+  const digest = (error as Error & { digest?: string }).digest ?? ""
+  return (
+    error.message.startsWith("NEXT_REDIRECT") ||
+    digest.startsWith("NEXT_REDIRECT") ||
+    error.message.includes("redirect() is not supported in the Vite desktop shell") ||
+    error.message.includes("permanentRedirect() is not supported in the Vite desktop shell")
+  )
+}
+
 export class SystemErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props)
@@ -31,6 +41,11 @@ export class SystemErrorBoundary extends React.Component<Props, State> {
 
   static getDerivedStateFromError(error: Error): State {
     const stack = error.stack ?? ""
+    // Keep redirect errors in the error state so React does not re-render the
+    // throwing page in a loop. resetKeys clear this after navigation.
+    if (isNextRedirectError(error)) {
+      return { hasError: true, error }
+    }
     if (isBrowserExtensionDomNoise(error.message, stack)) {
       return { hasError: false, error: null }
     }
@@ -57,6 +72,9 @@ export class SystemErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     const combinedStack = [error.stack, info.componentStack].filter(Boolean).join("\n")
+    if (isNextRedirectError(error)) {
+      return
+    }
     if (isBrowserExtensionDomNoise(error.message, combinedStack)) {
       return
     }
@@ -86,6 +104,14 @@ export class SystemErrorBoundary extends React.Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      if (this.state.error && isNextRedirectError(this.state.error)) {
+        return (
+          <div className="flex min-h-[12rem] items-center justify-center text-sm text-slate-500">
+            Redirecting…
+          </div>
+        )
+      }
+
       return (
         <div className="flex min-h-[200px] flex-col items-center justify-center gap-4 rounded-xl border border-red-200/80 bg-red-50/50 p-8 text-center dark:border-red-900/40 dark:bg-red-950/20">
           <AlertTriangle className="h-10 w-10 text-red-500" />
@@ -96,6 +122,13 @@ export class SystemErrorBoundary extends React.Component<Props, State> {
             <p className="mt-1 max-w-md text-sm text-slate-600 dark:text-slate-400">
               This error has been logged for review. Try refreshing the page.
             </p>
+            {import.meta.env.DEV && this.state.error ? (
+              <pre className="mt-3 max-h-48 max-w-lg overflow-auto rounded-lg bg-black/5 p-3 text-left text-xs text-red-700 dark:bg-black/30 dark:text-red-300">
+                {this.state.error.message}
+                {"\n"}
+                {this.state.error.stack?.split("\n").slice(0, 8).join("\n")}
+              </pre>
+            ) : null}
           </div>
           <Button
             variant="outline"

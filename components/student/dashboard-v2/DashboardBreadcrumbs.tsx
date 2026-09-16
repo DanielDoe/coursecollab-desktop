@@ -309,187 +309,15 @@ function BreadcrumbChip({
   )
 }
 
-function BreadcrumbChipTrail({
-  pathname,
-  parts,
-  embedded = false,
-}: {
-  pathname: string
-  parts: CrumbPart[]
-  embedded?: boolean
-}) {
-  const mobileVisible = getVisibleParts(parts)
-  const desktopVisible = parts.map((part, index) => ({ part, index, collapsed: false }))
-  const fadeFrom = embedded
-    ? "from-white dark:from-[#111111]"
-    : "from-[var(--card)]"
-
-  return (
-    <>
-      <div
-        className={cn(
-          "pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r to-transparent sm:hidden",
-          fadeFrom,
-        )}
-        aria-hidden
-      />
-      <div
-        className={cn(
-          "pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l to-transparent sm:hidden",
-          fadeFrom,
-        )}
-        aria-hidden
-      />
-
-      <ol className="flex sm:hidden items-center gap-1 overflow-x-auto scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {mobileVisible.map(({ part, index, collapsed }, i) => {
-          const isLast = i === mobileVisible.length - 1
-          const isFirst = i === 0
-          const isGroup =
-            (part.href === "#" && part.label !== "…" && !part.nonNavigable) || part.groupId != null
-
-          return (
-            <li key={`m-${part.href}-${index}-${i}`} className="flex shrink-0 items-center gap-1">
-              {i > 0 && (
-                <ChevronRight
-                  className="h-3.5 w-3.5 shrink-0 text-[var(--cc-text-muted)]"
-                  aria-hidden
-                />
-              )}
-              <BreadcrumbChip
-                part={part}
-                isLast={isLast}
-                isFirst={isFirst && !collapsed}
-                isGroup={isGroup}
-                isCollapsed={collapsed}
-                pathname={pathname}
-              />
-            </li>
-          )
-        })}
-      </ol>
-
-      <ol className="hidden sm:flex flex-wrap items-center gap-1.5">
-        {desktopVisible.map(({ part, index }, i) => {
-          const isLast = i === desktopVisible.length - 1
-          const isFirst = i === 0
-          const isGroup = part.href === "#" && (part.groupId != null || !part.nonNavigable)
-
-          return (
-            <li key={`d-${part.href}-${index}`} className="flex items-center gap-1.5">
-              {i > 0 && (
-                <ChevronRight
-                  className="h-4 w-4 shrink-0 text-[var(--cc-text-muted)]"
-                  aria-hidden
-                />
-              )}
-              <BreadcrumbChip
-                part={part}
-                isLast={isLast}
-                isFirst={isFirst}
-                isGroup={isGroup}
-                pathname={pathname}
-              />
-            </li>
-          )
-        })}
-      </ol>
-    </>
-  )
-}
-
-export function DashboardBreadcrumbs({
-  compact,
-  variant = "card",
-}: {
-  compact?: boolean
-  variant?: "card" | "inline" | "magnific" | "embedded"
-}) {
+export function DashboardBreadcrumbs({ compact }: { compact?: boolean }) {
   const pathname = usePathname()
   const { aiNotetakerBreadcrumbTitle, campModuleBreadcrumbTitle } = useDashboardV2()
   const parts = getBreadcrumbParts(pathname || "", aiNotetakerBreadcrumbTitle, campModuleBreadcrumbTitle)
 
   if (parts.length <= 1) return null
 
-  if (variant === "magnific") {
-    return (
-      <nav aria-label="Breadcrumb" data-native-hide>
-        <ol className="flex flex-wrap items-center gap-1.5 text-[13px]">
-          {parts.map((part, index) => {
-            const isLast = index === parts.length - 1
-            const isStatic = isLast || part.nonNavigable || part.href === "#"
-            return (
-              <li key={`magnific-${part.href}-${index}`} className="flex items-center gap-1.5">
-                {index > 0 ? (
-                  <span className="text-[#A3A3A3] font-normal">/</span>
-                ) : null}
-                {isStatic ? (
-                  <span
-                    className={cn(
-                      isLast
-                        ? "font-semibold text-[#1A1A1A] dark:text-white"
-                        : "text-[#6B6B6B]",
-                    )}
-                    aria-current={isLast ? "page" : undefined}
-                  >
-                    {part.label}
-                  </span>
-                ) : (
-                  <Link
-                    href={part.href}
-                    className="text-[#6B6B6B] transition-colors hover:text-[#1A1A1A] dark:hover:text-white"
-                  >
-                    {part.label}
-                  </Link>
-                )}
-              </li>
-            )
-          })}
-        </ol>
-      </nav>
-    )
-  }
-
-  if (variant === "inline") {
-    return (
-      <nav aria-label="Breadcrumb" data-native-hide className="px-0.5">
-        <ol className="flex flex-wrap items-center gap-1 text-[13px] text-[var(--cc-text-muted)]">
-          {parts.map((part, index) => {
-            const isLast = index === parts.length - 1
-            const isStatic = isLast || part.nonNavigable || part.href === "#"
-            return (
-              <li key={`inline-${part.href}-${index}`} className="flex items-center gap-1">
-                {index > 0 ? <span className="text-[var(--cc-text-muted)]/70">/</span> : null}
-                {isStatic ? (
-                  <span
-                    className={cn(isLast && "font-semibold text-[var(--cc-text)]")}
-                    aria-current={isLast ? "page" : undefined}
-                  >
-                    {part.label}
-                  </span>
-                ) : (
-                  <Link
-                    href={part.href}
-                    className="hover:text-[var(--cc-text)] transition-colors"
-                  >
-                    {part.label}
-                  </Link>
-                )}
-              </li>
-            )
-          })}
-        </ol>
-      </nav>
-    )
-  }
-
-  if (variant === "embedded") {
-    return (
-      <nav aria-label="Breadcrumb" data-native-hide className="relative overflow-hidden">
-        <BreadcrumbChipTrail pathname={pathname || ""} parts={parts} embedded />
-      </nav>
-    )
-  }
+  const mobileVisible = getVisibleParts(parts)
+  const desktopVisible = parts.map((part, index) => ({ part, index, collapsed: false }))
 
   return (
     <>
@@ -501,11 +329,76 @@ export function DashboardBreadcrumbs({
         <div
           className={cn(
             "relative overflow-hidden rounded-xl sm:rounded-2xl",
+            "border border-[var(--border)]",
             "bg-[var(--card)]/95 backdrop-blur-xl",
+            "shadow-[0_2px_12px_rgba(15,23,42,0.06)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.25)]",
             "px-2.5 py-2 sm:px-3 sm:py-2.5",
           )}
         >
-          <BreadcrumbChipTrail pathname={pathname || ""} parts={parts} />
+          <div
+            className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-[var(--card)] to-transparent sm:hidden"
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-[var(--card)] to-transparent sm:hidden"
+            aria-hidden
+          />
+
+          {/* Mobile: collapsed trail */}
+          <ol className="flex sm:hidden items-center gap-1 overflow-x-auto scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {mobileVisible.map(({ part, index, collapsed }, i) => {
+              const isLast = i === mobileVisible.length - 1
+              const isFirst = i === 0
+              const isGroup =
+                (part.href === "#" && part.label !== "…" && !part.nonNavigable) || part.groupId != null
+
+              return (
+                <li key={`m-${part.href}-${index}-${i}`} className="flex shrink-0 items-center gap-1">
+                  {i > 0 && (
+                    <ChevronRight
+                      className="h-3.5 w-3.5 shrink-0 text-[var(--cc-text-muted)]"
+                      aria-hidden
+                    />
+                  )}
+                  <BreadcrumbChip
+                    part={part}
+                    isLast={isLast}
+                    isFirst={isFirst && !collapsed}
+                    isGroup={isGroup}
+                    isCollapsed={collapsed}
+                    pathname={pathname || ""}
+                  />
+                </li>
+              )
+            })}
+          </ol>
+
+          {/* Desktop: full trail */}
+          <ol className="hidden sm:flex flex-wrap items-center gap-1.5">
+            {desktopVisible.map(({ part, index }, i) => {
+              const isLast = i === desktopVisible.length - 1
+              const isFirst = i === 0
+              const isGroup = part.href === "#" && (part.groupId != null || !part.nonNavigable)
+
+              return (
+                <li key={`d-${part.href}-${index}`} className="flex items-center gap-1.5">
+                  {i > 0 && (
+                    <ChevronRight
+                      className="h-4 w-4 shrink-0 text-[var(--cc-text-muted)]"
+                      aria-hidden
+                    />
+                  )}
+                  <BreadcrumbChip
+                    part={part}
+                    isLast={isLast}
+                    isFirst={isFirst}
+                    isGroup={isGroup}
+                    pathname={pathname || ""}
+                  />
+                </li>
+              )
+            })}
+          </ol>
         </div>
       </nav>
     </>

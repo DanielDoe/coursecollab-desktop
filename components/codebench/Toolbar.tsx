@@ -1,6 +1,6 @@
 "use client"
 
-import { Files, Loader2, Play, Save, Send, Square } from "lucide-react"
+import { Files, Loader2, Play, Save, Send, Square, BookOpenCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -59,6 +59,9 @@ interface ToolbarProps {
   onSave?: () => void
   canSave?: boolean
   projectName?: string
+  questionOpen?: boolean
+  onToggleQuestion?: () => void
+  liveClassroomTitle?: string | null
 }
 
 export function Toolbar({
@@ -82,6 +85,9 @@ export function Toolbar({
   onAssignmentChange,
   onClassroomSubmit,
   classroomSubmitLoading = false,
+  questionOpen = false,
+  onToggleQuestion,
+  liveClassroomTitle,
 }: ToolbarProps) {
   const isNative = useNativeApp()
   const { roles } = useCodebenchChrome()
@@ -138,6 +144,12 @@ export function Toolbar({
         {projectName ? (
           <span className="hidden min-w-0 max-w-[9rem] truncate text-[12px] font-medium text-[var(--cc-text-muted)] sm:inline">
             {projectName}
+          </span>
+        ) : null}
+
+        {liveClassroomTitle ? (
+          <span className="hidden min-w-0 max-w-[10rem] truncate rounded-md bg-[color-mix(in_srgb,var(--cc-accent)_10%,var(--card))] px-1.5 py-0.5 text-[10px] font-medium text-[var(--cc-accent)] lg:inline">
+            {liveClassroomTitle}
           </span>
         ) : null}
 
@@ -243,6 +255,17 @@ export function Toolbar({
                 </Button>
               ) : null}
             </>
+          ) : null}
+          {onToggleQuestion ? (
+            <Button
+              type="button"
+              variant={questionOpen ? "secondary" : "outline"}
+              onClick={onToggleQuestion}
+              className="h-7 rounded-md px-2 text-[12px] font-semibold text-[var(--cc-text)]"
+            >
+              <BookOpenCheck className="mr-1 h-3.5 w-3.5" />
+              Question
+            </Button>
           ) : null}
         </div>
 

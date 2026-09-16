@@ -14,7 +14,6 @@ import {
   facultyOfferingPrimaryLabel,
   facultyOfferingShowsAsSection,
 } from "@/lib/faculty-course-offerings-shared"
-import { syncInstructorMembershipTierCache } from "@/lib/faculty-membership-cache"
 import {
   clearRememberedFacultyAuth,
   readRememberedFacultyCourseKey,
@@ -24,12 +23,6 @@ import {
 import { lookupUniversityById } from "@/lib/universities-shared"
 import { appendNativeAppQuery } from "@/lib/mobile-native-app"
 import { tryRestoreFacultySessionFromRefresh, markFacultyExplicitSignOut } from "@/lib/faculty-session-restore-client"
-import {
-  desktopSessionDurationMs,
-  effectiveRememberMeForClient,
-  isDesktopAppShell,
-} from "@/lib/desktop-auth-policy"
-import { readDesktopRefreshToken } from "@/lib/desktop-refresh-token"
 
 type SessionRecord = Record<string, unknown>
 
@@ -37,12 +30,7 @@ const FACULTY_SESSION_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 const FACULTY_REMEMBER_ME_MS = 30 * 24 * 60 * 60 * 1000
 
 function facultySessionDurationMs(session: SessionRecord): number {
-  if (typeof window !== "undefined" && isDesktopAppShell()) {
-    return desktopSessionDurationMs()
-  }
-  return effectiveRememberMeForClient(session.rememberMe === true)
-    ? FACULTY_REMEMBER_ME_MS
-    : FACULTY_SESSION_DAYS_MS
+  return session.rememberMe === true ? FACULTY_REMEMBER_ME_MS : FACULTY_SESSION_DAYS_MS
 }
 
 function withFacultyExpiry(session: SessionRecord): SessionRecord {
@@ -130,18 +118,7 @@ export function readFacultySession(): SessionRecord | null {
     let session = withFacultyExpiry(JSON.parse(raw) as SessionRecord)
     if (session?.id == null) return null
     if (typeof session.expiresAt === "number" && Date.now() >= session.expiresAt) {
-      const hasDesktopRefresh = isDesktopAppShell() && Boolean(readDesktopRefreshToken())
-      if (hasDesktopRefresh) {
-        session = slideFacultySessionExpiry({ ...session, rememberMe: true })
-        void import("@/lib/session-keepalive").then(({ tryKeepAliveServerSession }) =>
-          tryKeepAliveServerSession({ force: true }),
-        )
-      } else {
-        void import("@/lib/session-keepalive").then(({ tryKeepAliveServerSession }) =>
-          tryKeepAliveServerSession({ force: true }),
-        )
-        return null
-      }
+      return null
     }
     hydrateFacultySessionStorage(session)
     if (session.id != null) {
@@ -189,8 +166,6 @@ export async function logoutFaculty(options?: { sessionExpired?: boolean }): Pro
     markFacultyExplicitSignOut()
     clearRememberedFacultyAuth()
     clearFacultySessionStorage()
-    const { clearDesktopRefreshToken } = await import("@/lib/desktop-refresh-token")
-    clearDesktopRefreshToken()
     try {
       await fetch("/api/auth/logout", {
         method: "POST",
@@ -314,7 +289,6 @@ export function enterFacultyDashboard(
   options?: { nativeApp?: boolean },
 ): void {
   saveFacultySession(session)
-  void syncInstructorMembershipTierCache(session.id)
   const path = options?.nativeApp ? appendNativeAppQuery("/faculty/dashboard") : "/faculty/dashboard"
   router.push(path)
 }
@@ -330,7 +304,6 @@ export async function completeFacultySessionAfterRestore(
   try {
     if (working.courseScopeSkipped === true) {
       saveFacultySession(working)
-      void syncInstructorMembershipTierCache(working.id)
       return working
     }
 
@@ -338,7 +311,6 @@ export async function completeFacultySessionAfterRestore(
       working.selectedCourseId != null && !facultySessionNeedsCourseCompletion(working)
     if (alreadyComplete) {
       hydrateFacultySessionStorage(working)
-      void syncInstructorMembershipTierCache(working.id)
       return working
     }
 
@@ -363,12 +335,10 @@ export async function completeFacultySessionAfterRestore(
     }
 
     saveFacultySession(working)
-    void syncInstructorMembershipTierCache(working.id)
     return working
   } catch (error) {
     console.warn("[completeFacultySessionAfterRestore]", error)
     saveFacultySession(working)
-    void syncInstructorMembershipTierCache(working.id)
     return working
   }
 }

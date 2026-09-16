@@ -1331,8 +1331,6 @@ export async function executeApprovedCourseCopy(input: {
     await notifyCourseExchangeCopyCompleted({
       destinationCourseCode: destOwned.course.course_code,
       requestId: input.requestId,
-      requesterInstructorId: Number(request.requester_instructor_id),
-      destinationCourseId: input.destinationCourseId ?? null,
     })
 
     return {
@@ -1355,7 +1353,6 @@ export async function executeApprovedCourseCopy(input: {
       sourceCourseCode: sourceRows[0]?.course_code ?? "course",
       requestId: input.requestId,
       error: message,
-      requesterInstructorId: Number(request.requester_instructor_id),
     })
     throw error
   }

@@ -93,6 +93,17 @@ export async function POST(request: NextRequest) {
       RETURNING id, group_id, student_id, joined_at
     `
 
+    const groupTitleRows = await sql`SELECT name FROM groups WHERE id = ${groupId} LIMIT 1`
+    const groupLabel = String((groupTitleRows[0] as { name?: string } | undefined)?.name ?? "your group")
+    const { createNotification } = await import("@/lib/create-notification")
+    void createNotification({
+      studentId,
+      type: "group",
+      title: "Added to a group",
+      message: `You were added to ${groupLabel}.`,
+      link: "/student/dashboard-v2/groups",
+    }).catch((err) => console.warn("[groups] add-member notify failed:", err))
+
     return NextResponse.json({ member: memberResult[0] })
   } catch (error) {
     console.error("[v0] Failed to add member:", error)

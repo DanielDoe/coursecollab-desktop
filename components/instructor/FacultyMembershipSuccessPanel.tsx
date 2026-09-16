@@ -1,6 +1,5 @@
 "use client"
 
-import { persistInstructorMembershipTier } from "@/lib/faculty-membership-cache"
 import { instructorApiFetch } from "@/lib/instructor-api-headers"
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -53,7 +52,8 @@ function SuccessContent() {
         if (res.ok) {
           const data = await res.json()
           if (data.tier) {
-            persistInstructorMembershipTier(data.tier)
+            localStorage.setItem("instructorMembershipTier", data.tier)
+            sessionStorage.setItem("instructorMembershipTier", data.tier)
             const plan = INSTRUCTOR_MEMBERSHIP_PLANS.find((p) => p.id === data.tier)
             if (plan) setPlanName(plan.displayName)
           }

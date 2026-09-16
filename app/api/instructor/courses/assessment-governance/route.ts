@@ -11,6 +11,11 @@ import {
   logAssessmentPrivilegeSourceChange,
   logCoursePolicyNoticeChange,
 } from "@/lib/course-assessment-audit"
+import { parseAssessmentPlatformAccess } from "@/lib/assessment-platform-access"
+import {
+  getAssessmentPolicyForCourse,
+  saveAssessmentPlatformAccessForCourse,
+} from "@/lib/assessment-policy-settings.server"
 
 export const dynamic = "force-dynamic"
 
@@ -45,10 +50,12 @@ export async function GET(request: NextRequest) {
     } | undefined
 
     const studentsImpacted = await countCourseStudents(scope.course.id)
+    const policy = await getAssessmentPolicyForCourse(scope.course.id)
 
     return NextResponse.json({
       assessment_privilege_source: parseAssessmentPrivilegeSource(row?.assessment_privilege_source),
       show_course_policy_notice: row?.show_course_policy_notice !== false,
+      platform_access: policy.access.platform_access,
       course_label: `${row?.course_code ?? scope.course.course_code} — ${row?.course_title ?? scope.course.course_title}`,
       students_impacted: studentsImpacted,
     })
@@ -119,12 +126,23 @@ export async function PATCH(request: NextRequest) {
       })
     }
 
+    let platformAccess = (await getAssessmentPolicyForCourse(scope.course.id)).access.platform_access
+    if (body.platform_access != null) {
+      const saved = await saveAssessmentPlatformAccessForCourse(
+        scope.course.id,
+        scope.instructorId,
+        parseAssessmentPlatformAccess(body.platform_access),
+      )
+      platformAccess = saved.access.platform_access
+    }
+
     const studentsImpacted = await countCourseStudents(scope.course.id)
 
     return NextResponse.json({
       success: true,
       assessment_privilege_source: newSource,
       show_course_policy_notice: newNotice,
+      platform_access: platformAccess,
       students_impacted: studentsImpacted,
     })
   } catch (error) {

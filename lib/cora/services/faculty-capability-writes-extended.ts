@@ -5,7 +5,6 @@ import { updateSyllabusSection } from "@/lib/cora/services/update-syllabus-secti
 import { createLectureShell } from "@/lib/cora/services/create-lecture-shell"
 import { replaceLectureSessionAccessFromRecord } from "@/lib/lecture-session-access-sync"
 import { createInstructorNotification } from "@/lib/create-instructor-notification"
-import { instructorNotificationOwnershipSqlFragment } from "@/lib/ensure-instructor-notification-ownership"
 import { ensureCourseDigitalNotesSchema, fetchCourseDigitalNoteById } from "@/lib/course-digital-notes"
 import {
   ensureFlashcardSchema,
@@ -1245,8 +1244,6 @@ export const EXTENDED_FACULTY_CAPABILITY_HANDLERS: Record<
         link: "/module/playground",
         source_type: "playground",
         source_id: String(ctx.courseId),
-        instructorId: ctx.instructorId ?? null,
-        courseId: ctx.courseId ?? null,
       })
       return successResult("Playground pool update recorded.", {
         type: "playground_pool",
@@ -2378,8 +2375,6 @@ export const EXTENDED_FACULTY_CAPABILITY_HANDLERS: Record<
         link: "/module/messages",
         source_type: "message",
         source_id: String(ctx.courseId),
-        instructorId: ctx.instructorId ?? null,
-        courseId: ctx.courseId ?? null,
       })
       return successResult("Message draft saved.", {
         type: "message",
@@ -2420,19 +2415,11 @@ export const EXTENDED_FACULTY_CAPABILITY_HANDLERS: Record<
       const action = asString(ctx.args.action ?? "create").trim()
       if (action === "mark_read") {
         if (!notificationId) return invalidResult("notificationId is required.")
-        // Scope to the caller: this could previously clear any instructor's row.
-        const owned = instructorNotificationOwnershipSqlFragment(
-          "n",
-          Number(ctx.instructorId ?? 0),
-          ctx.courseId ?? null,
-        )
-        const marked = (await sql`
-          UPDATE instructor_notifications n
+        await sql`
+          UPDATE instructor_notifications
           SET is_read = true, read_at = NOW()
-          WHERE n.id = ${notificationId} AND ${owned}
-          RETURNING n.id
-        `) as { id: number }[]
-        if (marked.length === 0) return invalidResult("Notification not found.")
+          WHERE id = ${notificationId}
+        `
         return successResult("Notification marked as read.", {
           type: "notification",
           id: notificationId,
@@ -2451,8 +2438,6 @@ export const EXTENDED_FACULTY_CAPABILITY_HANDLERS: Record<
         link: trimOrNull(ctx.args.link),
         source_type: trimOrNull(ctx.args.source_type),
         source_id: trimOrNull(ctx.args.source_id),
-        instructorId: ctx.instructorId ?? null,
-        courseId: ctx.courseId ?? null,
       })
       return successResult("Notification created.", {
         type: "notification",
@@ -2693,8 +2678,6 @@ export const EXTENDED_FACULTY_CAPABILITY_HANDLERS: Record<
         link: "/module/reports",
         source_type: "report",
         source_id: String(ctx.courseId),
-        instructorId: ctx.instructorId ?? null,
-        courseId: ctx.courseId ?? null,
       })
       return successResult("Report export generated.", {
         type: "report_export",

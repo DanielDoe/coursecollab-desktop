@@ -19,6 +19,8 @@ export interface GeminiDetectorConfig {
   requireFullscreen?: boolean
   /** Synchronous pause (e.g. native file picker) — checked at detection time, not only when `enabled` toggles. */
   isDetectionPaused?: () => boolean
+  /** Electron desktop: keep fullscreen lock only; skip browser AI side-panel heuristics. */
+  skipBrowserAiHeuristics?: boolean
 }
 
 const MANUAL_CLEAR_COOLDOWN_MS = 8000
@@ -48,6 +50,7 @@ export function useGeminiDetector({
   maxWidthDifference = 450,
   requireFullscreen,
   isDetectionPaused,
+  skipBrowserAiHeuristics = false,
 }: GeminiDetectorConfig) {
   const lastWidthRef = useRef<number>(typeof window !== "undefined" ? window.innerWidth : 0)
   const isDetectionPausedRef = useRef(isDetectionPaused)
@@ -512,12 +515,20 @@ export function useGeminiDetector({
     }
   }, [enabled])
 
-  const effectiveEnabled =
-    enabled && (typeof window === "undefined" || shouldUseDesktopGeminiHeuristics())
+  const aiHeuristicsEnabled =
+    enabled &&
+    !skipBrowserAiHeuristics &&
+    (typeof window === "undefined" || shouldUseDesktopGeminiHeuristics())
+
+  const fullscreenLockEnabled =
+    enabled &&
+    requireFullscreen === true &&
+    (typeof window === "undefined" || (!isMobileDevice() && !isTabletDevice())) &&
+    (skipBrowserAiHeuristics || shouldUseDesktopGeminiHeuristics())
 
   // Set up resize listener for layout detection (desktop only)
   useEffect(() => {
-    if (!effectiveEnabled || typeof window === "undefined") return
+    if (!aiHeuristicsEnabled || typeof window === "undefined") return
 
     lastWidthRef.current = window.innerWidth
     window.addEventListener("resize", handleResize)
@@ -525,11 +536,11 @@ export function useGeminiDetector({
     return () => {
       window.removeEventListener("resize", handleResize)
     }
-  }, [effectiveEnabled, handleResize])
+  }, [aiHeuristicsEnabled, handleResize])
 
   // Set up periodic side-panel fingerprint check (desktop only)
   useEffect(() => {
-    if (!effectiveEnabled || typeof window === "undefined") return
+    if (!aiHeuristicsEnabled || typeof window === "undefined") return
 
     checkForSidePanel()
 
@@ -540,11 +551,11 @@ export function useGeminiDetector({
     return () => {
       clearInterval(interval)
     }
-  }, [effectiveEnabled, checkForSidePanel])
+  }, [aiHeuristicsEnabled, checkForSidePanel])
 
   // macOS/Windows desktop: focus/visibility monitoring
   useEffect(() => {
-    if (!effectiveEnabled || typeof window === "undefined") return
+    if (!aiHeuristicsEnabled || typeof window === "undefined") return
 
     window.addEventListener("blur", handleWindowBlur)
     window.addEventListener("focus", handleWindowFocus)
@@ -560,11 +571,11 @@ export function useGeminiDetector({
       window.removeEventListener("blur", handleWindowBlur)
       window.removeEventListener("focus", handleWindowFocus)
     }
-  }, [effectiveEnabled, handleWindowBlur, handleWindowFocus, checkActiveState])
+  }, [aiHeuristicsEnabled, handleWindowBlur, handleWindowFocus, checkActiveState])
 
   // Fullscreen Enforcement: Enforce fullscreen on macOS and Windows to block overlays/side-panels
   useEffect(() => {
-    if (!effectiveEnabled || typeof window === "undefined") return
+    if (!fullscreenLockEnabled || typeof window === "undefined") return
 
     // Attempt to enter fullscreen when enabled (only once)
     enforceFullscreen()
@@ -580,7 +591,7 @@ export function useGeminiDetector({
           (document as any).msFullscreenElement
         )
         
-        if (isFullscreen && effectiveEnabled) {
+        if (isFullscreen && fullscreenLockEnabled) {
           e.preventDefault()
           e.stopPropagation()
           // Immediately re-enter fullscreen if they try to exit
@@ -603,7 +614,7 @@ export function useGeminiDetector({
 
       // CRITICAL: If user exits fullscreen, immediately try to re-enter (no delay)
       // This prevents students from using browser menus to exit fullscreen
-      if (!isCurrentlyFullscreen && effectiveEnabled) {
+      if (!isCurrentlyFullscreen && fullscreenLockEnabled) {
         if (macDetectionTimeoutRef.current) {
           clearTimeout(macDetectionTimeoutRef.current)
         }
@@ -645,7 +656,7 @@ export function useGeminiDetector({
       document.removeEventListener("MSFullscreenChange", handleFullscreenChange)
       document.removeEventListener("keydown", handleKeyDown, true)
     }
-  }, [effectiveEnabled, enforceFullscreen])
+  }, [fullscreenLockEnabled, enforceFullscreen])
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -685,6 +696,6 @@ export function useGeminiDetector({
     isFullscreen: isFullscreen,
     // Only require fullscreen when quiz explicitly has require_fullscreen=true.
     // When false or undefined (default), never require - allows testing/screenshots without interruption.
-    isFullscreenRequired: requireFullscreen === true ? effectiveEnabled : false,
+    isFullscreenRequired: requireFullscreen === true ? fullscreenLockEnabled : false,
   }
 }

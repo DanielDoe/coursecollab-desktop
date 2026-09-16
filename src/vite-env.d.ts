@@ -126,6 +126,11 @@ interface CourseCollabDesktopBridge {
   getDeviceId: () => Promise<string>
   setLastRoute: (path: string) => Promise<{ ok: boolean; path: string | null }>
   getLastRoute: () => Promise<string | null>
+  openExternal: (url: string) => Promise<{ ok: boolean }>
+  enterAssessmentLockdown: () => Promise<{ ok: boolean; active?: boolean }>
+  exitAssessmentLockdown: () => Promise<{ ok: boolean; active?: boolean }>
+  reassertAssessmentLockdown: () => Promise<{ ok: boolean }>
+  isAssessmentLockdownActive: () => Promise<{ active: boolean }>
   getUpdateStatus: () => Promise<DesktopUpdateStatus>
   checkForUpdates: () => Promise<DesktopUpdateStatus>
   downloadUpdate: () => Promise<DesktopUpdateStatus>
@@ -182,6 +187,7 @@ interface CourseCollabDesktopBridge {
   }
   codebench: {
     checkCompiler: () => Promise<CodeBenchCompilerInfo>
+    warmupToolchain: () => Promise<CodeBenchCompilerInfo>
     ensureToolchain: () => Promise<CodeBenchCompilerInfo>
     loadWorkspace: (studentId?: string | null) => Promise<{ ok: boolean; workspace: unknown | null }>
     saveWorkspace: (

@@ -8,7 +8,6 @@ interface QuestionTimerProps {
   totalSeconds: number
   starting?: boolean
   className?: string
-  compact?: boolean
 }
 
 /** Per-question countdown for strict objective sections. */
@@ -17,27 +16,9 @@ export function QuestionTimer({
   totalSeconds,
   starting = false,
   className = "",
-  compact = false,
 }: QuestionTimerProps) {
   const urgent = secondsRemaining <= 10
   const progress = totalSeconds > 0 ? (secondsRemaining / totalSeconds) * 100 : 0
-
-  if (compact) {
-    return (
-      <div className={className}>
-        <div
-          className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold tabular-nums shrink-0 ${
-            urgent
-              ? "bg-[var(--cc-sem-danger-soft)] text-[var(--cc-sem-danger-text)] animate-pulse"
-              : "bg-[var(--cc-sem-info-soft)] text-[var(--cc-sem-info-text)]"
-          }`}
-        >
-          <Clock className="h-3 w-3" />
-          {starting ? "…" : `${secondsRemaining}s`}
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className={className}>
@@ -78,7 +59,6 @@ interface SectionTimerProps {
   examWide?: boolean
   starting?: boolean
   className?: string
-  compact?: boolean
 }
 
 /** Section-level pooled countdown for circuit / multi-part sections. */
@@ -89,7 +69,6 @@ export function SectionTimer({
   examWide = false,
   starting = false,
   className = "",
-  compact = false,
 }: SectionTimerProps) {
   const urgent = secondsRemaining <= 120
   const progress = totalSeconds > 0 ? (secondsRemaining / totalSeconds) * 100 : 0
@@ -99,28 +78,6 @@ export function SectionTimer({
     : sectionTitle
       ? `${sectionTitle} — section time`
       : "Section time remaining"
-
-  if (compact) {
-    return (
-      <div className={className}>
-        <div className={`flex items-center gap-2 ${examWide ? "justify-between" : "justify-end"}`}>
-          {examWide ? (
-            <span className="min-w-0 truncate text-xs text-[var(--cc-text-muted)]">{label}</span>
-          ) : null}
-          <div
-            className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold tabular-nums shrink-0 ${
-              urgent
-                ? "bg-[var(--cc-sem-warning-soft)] text-[var(--cc-sem-warning-text)] animate-pulse"
-                : "bg-[var(--cc-accent-soft)] text-[var(--cc-accent-dark)]"
-            }`}
-          >
-            <Clock className="h-3 w-3" />
-            {starting ? "…" : formatTimerMmSs(secondsRemaining)}
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className={className}>

@@ -5,7 +5,6 @@ import { EmbedModuleCard } from "@/components/student/dashboard-v2/embed-module-
 import { PageEnter } from "@/components/student/dashboard-v2/light-motion"
 import { ModulePageSkeleton } from "@/components/student/dashboard-v2/ModulePageSkeleton"
 import { dashboardV2PageRootClass } from "@/lib/dashboard-v2-layout"
-import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
 
 const PlaygroundLobbyDashboardV2 = dynamic(
   () =>
@@ -16,24 +15,10 @@ const PlaygroundLobbyDashboardV2 = dynamic(
 )
 
 export default function DashboardV2PlaygroundPage() {
-  const desktopChrome = isDesktopAppShell()
-
-  if (desktopChrome) {
-    return (
-      <PageEnter className={`${dashboardV2PageRootClass} flex min-h-0 flex-1 flex-col`}>
-        <EmbedModuleCard className="flex min-h-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-5 md:p-6">
-            <PlaygroundLobbyDashboardV2 />
-          </div>
-        </EmbedModuleCard>
-      </PageEnter>
-    )
-  }
-
   return (
     <PageEnter className={dashboardV2PageRootClass}>
       <EmbedModuleCard>
-        <div className="p-4 sm:p-5">
+        <div className="p-3 sm:p-4 md:p-5">
           <PlaygroundLobbyDashboardV2 />
         </div>
       </EmbedModuleCard>

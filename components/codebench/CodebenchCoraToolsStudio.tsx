@@ -85,9 +85,11 @@ export const CODEBENCH_CORA_TOOLS: CodebenchCoraToolDef[] = [
 type Props = {
   studentId: string | null
   className?: string
+  coraAccess?: boolean
+  onLockedCora?: (label: string, run: () => void) => boolean
 }
 
-export function CodebenchCoraToolsStudio({ studentId, className }: Props) {
+export function CodebenchCoraToolsStudio({ studentId, className, coraAccess = true, onLockedCora }: Props) {
   const { soft, mid, accent, roles } = useCodebenchChrome()
   const [query, setQuery] = useState("")
   const [askOpen, setAskOpen] = useState(false)
@@ -105,6 +107,10 @@ export function CodebenchCoraToolsStudio({ studentId, className }: Props) {
   }, [query])
 
   const openTool = (tool: CodebenchCoraToolDef) => {
+    if (!coraAccess) {
+      onLockedCora?.(tool.title, () => {})
+      return
+    }
     if (tool.drawer === "ask-cora") {
       setAskOpen(true)
       return
@@ -193,7 +199,7 @@ export function CodebenchCoraToolsStudio({ studentId, className }: Props) {
                     >
                       <Icon className="h-5 w-5" />
                     </span>
-                    <Sparkles className="h-4 w-4 text-[var(--cc-text-muted)] opacity-60" />
+                    <Sparkles className={cn("h-4 w-4 opacity-60", coraAccess ? "text-[var(--cc-text-muted)]" : "text-[var(--cc-accent)]")} />
                   </div>
                   <h4 className="relative mt-4 text-base font-semibold text-[var(--cc-text)]">{tool.title}</h4>
                   <p className="relative mt-1.5 text-xs leading-relaxed text-[var(--cc-text-muted)]">
@@ -202,7 +208,7 @@ export function CodebenchCoraToolsStudio({ studentId, className }: Props) {
                   <div className="relative mt-4 flex items-center justify-between gap-2">
                     <span className="text-[11px] text-[var(--cc-text-muted)]">{tool.eta}</span>
                     <Button size="sm" variant="outline" className="rounded-xl" onClick={() => openTool(tool)}>
-                      Open →
+                      {coraAccess ? "Open →" : "Unlock"}
                     </Button>
                   </div>
                 </div>
@@ -222,6 +228,8 @@ export function CodebenchCoraToolsStudio({ studentId, className }: Props) {
         }}
         studentId={studentId}
         mode="general"
+        coraAccess={coraAccess}
+        onLockedCora={(label) => onLockedCora?.(label, () => {})}
       />
 
       {drawerToolId && studentId ? (

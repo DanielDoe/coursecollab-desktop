@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { CODEBENCH_LIMITS } from './limits'
-import { prependPath } from './toolchain-paths'
+import { buildCodebenchChildEnv } from './process-env'
 import type { CodeBenchStopReason } from './types'
 
 type PtyHandle = {
@@ -35,30 +35,6 @@ function resolveNodePty(): PtyModule {
     }
     throw firstError
   }
-}
-
-function runEnvironment(pathPrefix?: string | null): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {
-    PATH: process.env.PATH,
-    Path: process.env.Path,
-    HOME: process.env.HOME,
-    USERPROFILE: process.env.USERPROFILE,
-    TMPDIR: process.env.TMPDIR,
-    TMP: process.env.TMP,
-    TEMP: process.env.TEMP,
-    LANG: process.env.LANG ?? 'en_US.UTF-8',
-    TERM: 'xterm-256color',
-    COLORTERM: 'truecolor',
-    USER: process.env.USER,
-    USERNAME: process.env.USERNAME,
-    SystemRoot: process.env.SystemRoot,
-    SYSTEMROOT: process.env.SYSTEMROOT,
-    WINDIR: process.env.WINDIR,
-  }
-  for (const [key, value] of Object.entries(env)) {
-    if (value == null) delete env[key]
-  }
-  return prependPath(env, pathPrefix)
 }
 
 function spawnNoShell(command: string, args: string[]): Promise<void> {
@@ -125,7 +101,11 @@ export class PtySession {
       cols: options.cols ?? 80,
       rows: options.rows ?? 24,
       cwd: options.cwd,
-      env: runEnvironment(options.pathPrefix),
+      env: {
+        ...buildCodebenchChildEnv({ pathPrefix: options.pathPrefix }),
+        TERM: 'xterm-256color',
+        COLORTERM: 'truecolor',
+      },
     })
     this.handle = handle
     handle.onData((data) => {

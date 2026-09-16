@@ -1,8 +1,12 @@
 "use client"
 
 import { useToast } from "@/hooks/use-toast"
-import { SYSTEM_ALERT_CLOSE, SystemAlertShell } from "@/components/ui/system-alert-shell"
-import { radixVariantToAlert } from "@/lib/system-alert-theme"
+import {
+  SYSTEM_ALERT_CLOSE,
+  SystemAlertShell,
+  systemAlertButtonClass,
+} from "@/components/ui/system-alert-shell"
+import { defaultAlertActionLabel, radixVariantToAlert } from "@/lib/system-alert-theme"
 import { cn } from "@/lib/utils"
 import {
   Toast,
@@ -14,7 +18,7 @@ import {
 } from "@/components/ui/toast"
 
 export function Toaster() {
-  const { toasts } = useToast()
+  const { toasts, dismiss } = useToast()
 
   return (
     <ToastProvider swipeDirection="right">
@@ -31,11 +35,21 @@ export function Toaster() {
               description={
                 description ? <ToastDescription>{description}</ToastDescription> : undefined
               }
-              action={action}
+              action={
+                action ?? (
+                  <button
+                    type="button"
+                    className={systemAlertButtonClass(alertVariant)}
+                    onClick={() => dismiss(id)}
+                  >
+                    {defaultAlertActionLabel(alertVariant)}
+                  </button>
+                )
+              }
               onClose={
                 <ToastClose
                   className={cn(
-                    "absolute right-3.5 top-3.5 rounded-md p-1 transition-colors",
+                    "absolute right-3 top-3.5 rounded-md p-0.5 transition-colors",
                     SYSTEM_ALERT_CLOSE,
                   )}
                 />

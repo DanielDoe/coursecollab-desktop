@@ -14,7 +14,6 @@ import { TrainingPublishActions } from "@/components/summer-camp/CampPublishCont
 import { campModuleBreadcrumbLabel } from "@/lib/summer-camp/breadcrumb-labels"
 import type { CampBlockType, CampModuleBlock } from "@/lib/summer-camp/types"
 import { normalizeBlockContent, normalizeCampModuleBlock } from "@/lib/summer-camp/block-content"
-import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 type ModuleMeta = {
   id: number
@@ -28,7 +27,6 @@ type ModuleMeta = {
 
 export default function InstructorSummerCampModuleEditPage() {
   const params = useParams()
-  const { confirm } = useAppConfirm()
   const moduleId = params.moduleId as string
   const [moduleMeta, setModuleMeta] = useState<ModuleMeta | null>(null)
   const [titleDraft, setTitleDraft] = useState("")
@@ -114,14 +112,7 @@ export default function InstructorSummerCampModuleEditPage() {
   }
 
   const deleteBlock = async (blockId: number) => {
-    const ok = await confirm({
-      title: "Delete this block?",
-      description: "This removes the block from the module.",
-      confirmLabel: "Delete",
-      cancelLabel: "Cancel",
-      variant: "destructive",
-    })
-    if (!ok) return
+    if (!confirm("Delete this block?")) return
     await instructorApiFetch(`/api/instructor/summer-camp/blocks?blockId=${blockId}`, {
       method: "DELETE",
       headers: buildInstructorApiHeaders(),

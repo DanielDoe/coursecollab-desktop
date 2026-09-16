@@ -1,5 +1,4 @@
 import { sql } from "@/lib/db"
-import { getInstitutionAskCoraInsights } from "@/lib/cora/assessment-policy-analytics"
 import { ensureInstitutionSchema } from "@/lib/ensure-institution-schema"
 import { getActiveInstitutionLicense } from "@/lib/institutions/licenses"
 import { coraUsageAlerts } from "@/lib/institutions/cora-alerts"
@@ -104,6 +103,5 @@ export async function getInstitutionCoraModule(institutionId: number) {
     })),
     alerts: coraUsageAlerts(included, used),
     projectedExhaustion: null as string | null,
-    assessmentAssistance: await getInstitutionAskCoraInsights(institutionId).catch(() => null),
   }
 }

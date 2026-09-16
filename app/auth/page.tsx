@@ -1,8 +1,6 @@
-"use client"
+import { redirect } from "next/navigation"
 
-import { Navigate } from "react-router-dom"
-
-/** Auth entry — university-first login wizard. */
+/** Old role chooser — student and faculty login start from the landing CTAs. */
 export default function AuthWelcomePage() {
-  return <Navigate to="/auth/welcome" replace />
+  redirect("/student/login")
 }

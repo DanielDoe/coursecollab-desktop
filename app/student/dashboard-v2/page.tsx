@@ -4,7 +4,6 @@ import dynamic from "next/dynamic"
 import { PageEnter } from "@/components/student/dashboard-v2/light-motion"
 import { ModulePageSkeleton } from "@/components/student/dashboard-v2/ModulePageSkeleton"
 import { LazyMount } from "@/components/student/dashboard-v2/LazyMount"
-import { dashboardV2PageStackClass } from "@/lib/dashboard-v2-layout"
 
 const RoleDashboardPage = dynamic(
   () =>
@@ -72,7 +71,7 @@ const Ece2202ClassCancelBanner = dynamic(
 
 export default function StudentDashboardV2Page() {
   return (
-    <PageEnter className={dashboardV2PageStackClass}>
+    <PageEnter className="space-y-4 sm:space-y-5 md:space-y-6">
       <WelcomeTourCard />
       <LazyMount minHeight={0}>
         <StructuredSessionCheckIn />

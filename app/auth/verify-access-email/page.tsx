@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { CheckCircle2, AlertCircle, Mail } from "lucide-react"
-import { CcBookLoader } from "@/components/ui/cc-book-loader"
+import { CheckCircle2, AlertCircle, Loader2, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AccessStatusShell } from "@/components/auth/access-status-shell"
 import {
@@ -71,8 +70,8 @@ export default function VerifyAccessEmailPage() {
     <AccessStatusShell cardClassName="text-center">
       {state === "loading" && (
         <>
-          <div className="mx-auto mb-5 flex items-center justify-center">
-            <CcBookLoader size="md" label="Verifying your email" />
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-200">
+            <Loader2 className="h-7 w-7 animate-spin" aria-hidden />
           </div>
           <h1 className="mb-2 text-xl font-semibold text-[var(--cc-text)]">Verifying your email</h1>
           <p className="text-sm text-[var(--cc-text-secondary)]">This usually takes a moment…</p>

@@ -8,6 +8,7 @@ import {
 } from "@/lib/resolve-quiz-question-from-bank"
 import { assertQuizAccessibleInCourse } from "@/lib/quiz-course-access"
 import { taCanViewQuizContent } from "@/lib/quiz-ta-visibility"
+import { ensureQuizPlatformAccessColumn } from "@/lib/ensure-quiz-platform-access-column"
 
 
 
@@ -25,6 +26,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const access = await assertQuizAccessibleInCourse(request, Number(quizId))
     if (!access.ok) return access.response
+
+    await ensureQuizPlatformAccessColumn()
 
     // Get quiz details
     const quizResult = await sql`
@@ -68,6 +71,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         COALESCE(restrict_access_to_students, false) as restrict_access_to_students,
         COALESCE(allowed_student_ids, '[]'::jsonb) as allowed_student_ids,
         access_restriction_session_id,
+        platform_access,
         COALESCE(ai_evaluation_mode,
           CASE
             WHEN assessment_type IN ('homework', 'quiz') THEN 'relaxed'

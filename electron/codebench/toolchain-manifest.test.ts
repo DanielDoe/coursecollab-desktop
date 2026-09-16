@@ -15,11 +15,22 @@ describe('portableToolchainKey', () => {
     assert.equal(portableToolchainKey('linux', 'arm64'), 'aarch64-linux')
   })
 
-  it('keeps a sha256 and clang-compatible zig driver for every host', () => {
+  it('keeps a sha256 and driver for every host', () => {
     for (const artifact of Object.values(PORTABLE_TOOLCHAINS)) {
       assert.match(artifact.sha256, /^[a-f0-9]{64}$/)
-      assert.match(artifact.binary, /zig(\.exe)?$/)
-      assert.ok(artifact.url.includes(artifact.version))
+      assert.ok(artifact.driver === 'g++' || artifact.driver === 'zig')
+      if (artifact.driver === 'g++') {
+        assert.match(artifact.binary, /g\+\+(\.exe)?$/)
+      } else {
+        assert.match(artifact.binary, /zig(\.exe)?$/)
+      }
+      assert.ok(artifact.url.includes(artifact.version) || artifact.url.includes('winlibs'))
     }
+  })
+
+  it('uses MinGW g++ on Windows x64', () => {
+    const win = PORTABLE_TOOLCHAINS['x86_64-windows']
+    assert.equal(win.driver, 'g++')
+    assert.equal(win.binary, 'mingw64/bin/g++.exe')
   })
 })

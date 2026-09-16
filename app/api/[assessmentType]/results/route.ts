@@ -12,7 +12,8 @@ import { batchComputeShouldShowPnd } from "@/lib/results-pnd"
 import { normalizedSectionVariantsForSql } from "@/lib/session-code-aliases"
 import { quizAttemptEffectiveCompletedAtExpr } from "@/lib/quiz-attempt-completed-at"
 import { requireInstructorCourse } from "@/lib/instructor-course-scope"
-import { studentInSelectedCourseSql } from "@/lib/instructor-results-course-scope"
+import { resolveStudentScopeSqlFromRequest } from "@/lib/instructor-results-course-scope"
+import { readInstructorSessionScopeFromRequest } from "@/lib/instructor-session-scope"
 import { ensureResultsFinalizedColumns } from "@/lib/ensure-results-finalized-columns"
 
 export const dynamic = 'force-dynamic'
@@ -134,7 +135,8 @@ export async function GET(
       baseWhereConditions.push(`att.${config.idColumn} = ${Number.parseInt(assessmentId)}`)
     }
     
-    if (section && section !== "all") {
+    const sessionScope = readInstructorSessionScopeFromRequest(request)
+    if (section && section !== "all" && sessionScope.sessionId == null) {
       const variants = normalizedSectionVariantsForSql(section)
       const list = variants.map((v) => `'${v.replace(/'/g, "''")}'`).join(", ")
       baseWhereConditions.push(
@@ -144,7 +146,7 @@ export async function GET(
 
     if (scopedCourseId != null) {
       baseWhereConditions.push(
-        studentInSelectedCourseSql(scopedCourseId, scopedCourseCode),
+        resolveStudentScopeSqlFromRequest(request, scopedCourseId, scopedCourseCode),
       )
     }
     

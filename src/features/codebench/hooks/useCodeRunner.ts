@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { parseCompilerDiagnosticsText, type StudioDiagnostic } from '@/lib/codebench-compiler-diagnostics'
 import { isDesktopElectronShell } from '@/lib/desktop-notifications'
 import type { CodeBenchRunState } from '../types/codebench'
+import type { ToolchainSetupOutcome, ToolchainSetupPhase } from '../types/toolchain-setup'
 
 export type CodeBenchRunResult = {
   outcome: 'compile-error' | 'ran' | 'failed'
@@ -29,12 +30,15 @@ export function useCodeRunner({ onWrite, onRunResult }: UseCodeRunnerOptions) {
   const [installing, setInstalling] = useState(false)
   const [installProgress, setInstallProgress] = useState<number | null>(null)
   const [installMessage, setInstallMessage] = useState<string | null>(null)
+  const [toolchainPhase, setToolchainPhase] = useState<ToolchainSetupPhase | null>(null)
+  const [setupOutcome, setSetupOutcome] = useState<ToolchainSetupOutcome>('hidden')
   const [runState, setRunState] = useState<CodeBenchRunState>('idle')
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [lastDiagnostics, setLastDiagnostics] = useState<StudioDiagnostic[]>([])
   const [lastStderr, setLastStderr] = useState('')
   const [lastFailed, setLastFailed] = useState(false)
   const [unavailableReason, setUnavailableReason] = useState<string | null>(null)
+  const setupStartedRef = useRef(false)
   const sessionRef = useRef<string | null>(null)
   const stderrRef = useRef('')
   const onWriteRef = useRef(onWrite)
@@ -44,11 +48,41 @@ export function useCodeRunner({ onWrite, onRunResult }: UseCodeRunnerOptions) {
 
   const available = Boolean((isDesktopElectronShell() && getApi()) || canUseViteBridge())
 
+  const beginToolchainSetup = useCallback(() => {
+    setupStartedRef.current = true
+    setSetupOutcome('active')
+    setToolchainPhase('searching')
+    setInstallMessage('Looking for a C++ compiler…')
+  }, [])
+
   const applyCompiler = useCallback((info: CodeBenchCompilerInfo) => {
     setCompiler(info)
     setUnavailableReason(info.available ? null : info.setupGuidance)
+    if (setupStartedRef.current) {
+      if (info.available) {
+        setToolchainPhase('ready')
+        setSetupOutcome('success')
+      } else {
+        setToolchainPhase('failed')
+        setSetupOutcome('error')
+      }
+    }
     return info
   }, [])
+
+  const dismissToolchainSetup = useCallback(() => {
+    setSetupOutcome('hidden')
+    setupStartedRef.current = false
+  }, [])
+
+  useEffect(() => {
+    if (setupOutcome !== 'success') return
+    const timer = window.setTimeout(() => {
+      setSetupOutcome('hidden')
+      setupStartedRef.current = false
+    }, 1800)
+    return () => window.clearTimeout(timer)
+  }, [setupOutcome])
 
   const checkCompiler = useCallback(async () => {
     const api = getApi()
@@ -75,49 +109,91 @@ export function useCodeRunner({ onWrite, onRunResult }: UseCodeRunnerOptions) {
 
   const ensureToolchain = useCallback(async () => {
     const api = getApi()
+    beginToolchainSetup()
     setInstalling(true)
-    setInstallMessage("Looking for a C++ compiler…")
     try {
       if (api) {
         return applyCompiler(await api.ensureToolchain())
       }
       if (canUseViteBridge()) {
-        const res = await fetch("/__codebench/ensure", { method: "POST" })
+        const res = await fetch('/__codebench/ensure', { method: 'POST' })
         return applyCompiler((await res.json()) as CodeBenchCompilerInfo)
       }
+      setSetupOutcome('error')
+      setToolchainPhase('failed')
       return null
     } catch {
-      setUnavailableReason("Could not install a C++ compiler on this computer.")
+      setUnavailableReason('Could not install a C++ compiler on this computer.')
+      setSetupOutcome('error')
+      setToolchainPhase('failed')
       return null
     } finally {
       setInstalling(false)
     }
-  }, [applyCompiler])
+  }, [applyCompiler, beginToolchainSetup])
 
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      const info = await checkCompiler()
-      if (cancelled || info?.available || !info?.canInstall) return
-      await ensureToolchain()
+      const api = getApi()
+      if (!api && !canUseViteBridge()) {
+        setChecking(false)
+        setUnavailableReason('Local C++ execution is available in the CourseCollab desktop app.')
+        return
+      }
+      setChecking(true)
+      try {
+        if (api?.warmupToolchain) {
+          if (!cancelled) applyCompiler(await api.warmupToolchain())
+          return
+        }
+        if (api) {
+          if (!cancelled) applyCompiler(await api.checkCompiler())
+          return
+        }
+        const res = await fetch('/__codebench/warmup', { method: 'POST' })
+        if (!cancelled) applyCompiler((await res.json()) as CodeBenchCompilerInfo)
+      } catch {
+        if (!cancelled) {
+          setCompiler(null)
+          setUnavailableReason('Could not set up the local C++ environment.')
+        }
+      } finally {
+        if (!cancelled) setChecking(false)
+      }
     })()
     return () => {
       cancelled = true
     }
-  }, [checkCompiler, ensureToolchain])
+  }, [applyCompiler])
 
   useEffect(() => {
     const api = getApi()
     if (!api?.subscribeToolchain) return
+    const activePhases = new Set([
+      'searching',
+      'downloading',
+      'installing',
+      'verifying',
+      'prompting-system',
+    ])
     return api.subscribeToolchain((progress) => {
-      setInstalling(progress.phase !== "ready" && progress.phase !== "failed")
-      setInstallProgress(typeof progress.percent === "number" ? progress.percent : null)
+      if (activePhases.has(progress.phase) && !setupStartedRef.current) {
+        beginToolchainSetup()
+      }
+      setToolchainPhase(progress.phase)
+      setInstalling(progress.phase !== 'ready' && progress.phase !== 'failed')
+      setInstallProgress(typeof progress.percent === 'number' ? progress.percent : null)
       setInstallMessage(progress.message)
-      if (progress.phase === "failed") {
+      if (progress.phase === 'failed') {
         setUnavailableReason(progress.message)
+        if (setupStartedRef.current) setSetupOutcome('error')
+      }
+      if (progress.phase === 'ready' && setupStartedRef.current) {
+        setSetupOutcome('success')
       }
     })
-  }, [])
+  }, [beginToolchainSetup])
 
   useEffect(() => {
     const api = getApi()
@@ -303,6 +379,9 @@ export function useCodeRunner({ onWrite, onRunResult }: UseCodeRunnerOptions) {
     await api.resize({ sessionId: id, cols, rows })
   }, [])
 
+  const toolchainSetupOpen =
+    available && setupOutcome !== 'hidden' && (setupOutcome === 'active' || setupOutcome === 'success' || setupOutcome === 'error')
+
   return {
     available,
     compiler,
@@ -310,6 +389,9 @@ export function useCodeRunner({ onWrite, onRunResult }: UseCodeRunnerOptions) {
     installing,
     installProgress,
     installMessage,
+    toolchainPhase,
+    setupOutcome,
+    toolchainSetupOpen,
     runState,
     sessionId,
     lastDiagnostics,
@@ -318,6 +400,7 @@ export function useCodeRunner({ onWrite, onRunResult }: UseCodeRunnerOptions) {
     unavailableReason,
     checkCompiler,
     ensureToolchain,
+    dismissToolchainSetup,
     run,
     writeInput,
     stop,

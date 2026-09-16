@@ -89,20 +89,6 @@ interface QuizAIAssistantProps {
   studentWork?: string
   studentId: string
   membershipTier: string
-  /** Quiz exam uses quiz_questions; practice hub uses question_bank ids. */
-  context?: "quiz" | "practice"
-  /** Practice session attempt — used for analytics attribution. */
-  practiceAttemptId?: number | null
-}
-
-function isObjectivePracticeQuestion(questionType?: string) {
-  const t = (questionType ?? "").toLowerCase()
-  return ["mcq", "multiple_choice", "true_false", "select_all", "multi_output", "fill_blank"].includes(t)
-}
-
-function isCodePracticeQuestion(questionType?: string) {
-  const t = (questionType ?? "").toLowerCase()
-  return t === "code_write" || t === "code_write_plot"
 }
 
 function isMultiPartAssistant(questionType?: string) {
@@ -124,25 +110,15 @@ export function QuizAIAssistant({
   studentWork = "",
   studentId,
   membershipTier,
-  context = "quiz",
-  practiceAttemptId = null,
 }: QuizAIAssistantProps) {
-  const isPractice = context === "practice"
   const isCircuitAssistant = isMultiPartAssistant(questionType)
-  const isObjectiveAssistant = isPractice && isObjectivePracticeQuestion(questionType)
 
   const getWelcomeMessage = (): Message[] => [
     {
       role: "assistant",
-      content: isPractice
-        ? isObjectiveAssistant
-          ? "👋 Practice coach:\n• Concept hints\n• Clarify the question\n• Review your approach\n\nI won't give the final answer — ask for the next step."
-          : isCircuitAssistant
-            ? "👋 Practice coach:\n• Concept hints\n• Procedure guidance\n• Work review\n\nI won't give final answers — ask for the next step."
-            : "👋 Practice coding help:\n• Logic hints\n• Syntax nudges\n• Approach guidance\n\nAsk concisely — I'll stay brief."
-        : isCircuitAssistant
-          ? "👋 ECE2202 Learning Assistant:\n• Concept hints\n• Procedure guidance\n• Work review\n\nI won't give final answers — ask for the next step."
-          : "👋 Quick help available:\n• Review code\n• Syntax errors\n• Logic hints\n\nAsk concisely - I'll respond briefly.",
+      content: isCircuitAssistant
+        ? "👋 ECE2202 Learning Assistant:\n• Concept hints\n• Procedure guidance\n• Work review\n\nI won't give final answers — ask for the next step."
+        : "👋 Quick help available:\n• Review code\n• Syntax errors\n• Logic hints\n\nAsk concisely - I'll respond briefly.",
     },
   ]
 
@@ -194,33 +170,6 @@ export function QuizAIAssistant({
     }
   }, [open, membershipTier])
 
-  const assistantApiPath = isPractice ? "/api/practice/ai-assistant" : "/api/quiz/ai-assistant"
-
-  const buildAssistantPayload = (userRequest: string, history: Message[]) => {
-    if (isPractice) {
-      return {
-        studentId,
-        questionBankId: questionId,
-        questionText,
-        questionType,
-        studentCode: studentCode || "",
-        studentWork: studentWork || "",
-        conversationHistory: history,
-        userRequest,
-        attemptId: practiceAttemptId,
-      }
-    }
-    return {
-      studentId,
-      questionId,
-      questionText,
-      studentCode: studentCode || "",
-      studentWork: studentWork || "",
-      conversationHistory: history,
-      userRequest,
-    }
-  }
-
   const handleSend = async () => {
     if (!input.trim() || isLoading || requiresUpgrade) return
 
@@ -236,12 +185,20 @@ export function QuizAIAssistant({
 
     try {
       // Always send question text and student code for context
-      const response = await fetch(assistantApiPath, {
+      const response = await fetch("/api/quiz/ai-assistant", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(buildAssistantPayload(input.trim(), messages)),
+        body: JSON.stringify({
+          studentId,
+          questionId,
+          questionText,
+          studentCode: studentCode || "",
+          studentWork: studentWork || "",
+          conversationHistory: messages,
+          userRequest: input.trim(),
+        }),
       })
 
       const data = await response.json()
@@ -297,24 +254,18 @@ export function QuizAIAssistant({
     let quickMessage = ""
     switch (action) {
       case "review":
-        quickMessage = isObjectiveAssistant
+        quickMessage = isCircuitAssistant
           ? studentWork
-            ? "Review my current approach and tell me what concept to focus on next — no final answer."
-            : "Help me understand how to approach this question."
-          : isCircuitAssistant
-            ? studentWork
-              ? "Review my current selections and tell me what concept to focus on next — no final answers."
-              : "Help me identify which circuit analysis concepts apply to this problem."
-            : studentCode
-              ? "Review my code and tell me what's wrong or how to improve it."
-              : "Help me understand how to approach this problem."
+            ? "Review my current selections and tell me what concept to focus on next — no final answers."
+            : "Help me identify which circuit analysis concepts apply to this problem."
+          : studentCode
+            ? "Review my code and tell me what's wrong or how to improve it."
+            : "Help me understand how to approach this problem."
         break
       case "hint":
-        quickMessage = isObjectiveAssistant
-          ? "Give me the next conceptual hint only — do not reveal the final answer."
-          : isCircuitAssistant
-            ? "Give me the next conceptual step only — do not compute final values."
-            : "Give me step-by-step hints on how to approach this problem."
+        quickMessage = isCircuitAssistant
+          ? "Give me the next conceptual step only — do not compute final values."
+          : "Give me step-by-step hints on how to approach this problem."
         break
       case "pseudocode":
         quickMessage = isCircuitAssistant
@@ -350,12 +301,20 @@ export function QuizAIAssistant({
     setError(null)
 
     try {
-      const response = await fetch(assistantApiPath, {
+      const response = await fetch("/api/quiz/ai-assistant", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(buildAssistantPayload(quickMessage, messages)),
+        body: JSON.stringify({
+          studentId,
+          questionId,
+          questionText,
+          studentCode: studentCode || "",
+          studentWork: studentWork || "",
+          conversationHistory: messages,
+          userRequest: quickMessage,
+        }),
       })
 
       const data = await response.json()
@@ -415,13 +374,7 @@ export function QuizAIAssistant({
           <div className="flex items-center gap-2">
             <SheetTitle className="flex items-center gap-2 text-base sm:text-lg flex-1 min-w-0 text-slate-900 dark:text-slate-100">
               <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500 dark:text-purple-400 shrink-0" />
-              <span className="truncate">
-                {isPractice
-                  ? `${CORA_NAME} · Practice`
-                  : isCircuitAssistant
-                    ? `${CORA_NAME} · Circuits`
-                    : `${CORA_NAME} · Code`}
-              </span>
+              <span className="truncate">{isCircuitAssistant ? `${CORA_NAME} · Circuits` : `${CORA_NAME} · Code`}</span>
             </SheetTitle>
             {open && canUseInExamAiAssistantTier(membershipTier) && !requiresUpgrade && (
               <Badge variant="secondary" className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 text-[10px] sm:text-xs shrink-0 mr-0">
@@ -430,11 +383,9 @@ export function QuizAIAssistant({
             )}
           </div>
           <SheetDescription className="text-[11px] sm:text-xs mt-1 text-slate-600 dark:text-slate-300">
-            {isPractice
-              ? "Hints and concept help while you practice — stays open beside the question."
-              : isCircuitAssistant
-                ? "Concept hints and procedure guidance — no final answers."
-                : "Quick help while coding. Responses stay visible."}
+            {isCircuitAssistant
+              ? "Concept hints and procedure guidance — no final answers."
+              : "Quick help while coding. Responses stay visible."}
           </SheetDescription>
         </SheetHeader>
 
@@ -571,29 +522,6 @@ export function QuizAIAssistant({
           {!requiresUpgrade && messages.length === 1 && (
             <div className="px-2 sm:px-3 pb-2 sm:pb-3">
               <div className="flex gap-1.5 sm:gap-2 flex-wrap">
-                {isObjectiveAssistant ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleQuickAction("hint")}
-                      disabled={isLoading}
-                      className="text-[11px] sm:text-xs h-7 sm:h-8 px-2 sm:px-3 whitespace-nowrap flex-shrink-0 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-                    >
-                      Get Hint
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleQuickAction("review")}
-                      disabled={isLoading}
-                      className="text-[11px] sm:text-xs h-7 sm:h-8 px-2 sm:px-3 whitespace-nowrap flex-shrink-0 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-                    >
-                      Review Approach
-                    </Button>
-                  </>
-                ) : (
-                  <>
                 <Button
                   variant="outline"
                   size="sm"
@@ -639,8 +567,6 @@ export function QuizAIAssistant({
                 >
                   Syntax Help
                 </Button>
-                  </>
-                )}
               </div>
             </div>
           )}

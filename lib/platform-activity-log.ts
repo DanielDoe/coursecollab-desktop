@@ -1,4 +1,5 @@
 import { type NextRequest } from "next/server"
+import { resolveClientPlatformFromRequest } from "@/lib/client-platform"
 import { sql } from "@/lib/db"
 import { ensurePlatformActivitySchema } from "@/lib/ensure-platform-activity-schema"
 import {
@@ -82,11 +83,22 @@ export async function logPlatformActivityFromRequest(
     Partial<Pick<PlatformActivityInput, "path" | "method">>,
 ) {
   const ctx = getRequestActivityContext(request)
+  const clientPlatform = resolveClientPlatformFromRequest({
+    headers: request.headers,
+    nextUrl:
+      "nextUrl" in request && request.nextUrl
+        ? { searchParams: (request as NextRequest).nextUrl.searchParams }
+        : undefined,
+  })
   await logPlatformActivity({
     ...input,
     path: input.path ?? ctx.path,
     method: input.method ?? ctx.method,
     ipAddress: ctx.ipAddress,
     userAgent: ctx.userAgent,
+    metadata: {
+      ...input.metadata,
+      clientPlatform,
+    },
   })
 }

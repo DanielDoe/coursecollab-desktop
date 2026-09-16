@@ -111,8 +111,8 @@ function PvamuCompactLogo({
       alt={university.name}
       width={px}
       height={px}
-      className={cn("shrink-0 object-contain w-auto", className)}
-      style={{ width: "auto", height: `${px}px` }}
+      className={cn("shrink-0 rounded-full", className)}
+      style={{ width: px, height: px }}
     />
   )
 }
@@ -145,8 +145,8 @@ function PvamuFullLogo({
           alt={university.name}
           width={markPx}
           height={markPx}
-          className="h-auto w-auto shrink-0 object-contain"
-          style={{ width: "auto", height: `${markPx}px` }}
+          className="rounded-full"
+          style={{ width: markPx, height: markPx }}
         />
         <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-slate-400">Prairie View</p>
         <p className="text-xl font-bold uppercase leading-none tracking-wide text-[#FFB81C]">A&amp;M University</p>

@@ -93,7 +93,6 @@ export async function createOfficeHourMeetingRequest(params: {
       link: "/instructor/office-hours",
       source_type: "office_hour",
       source_id: String(requestId),
-      instructorId: params.instructorId ?? null,
     })
   } catch {
     /* non-critical */
@@ -179,7 +178,7 @@ export async function updateOfficeHourRequest(params: {
       : `Your office hours request (${result.topic}) has been ${newStatus}.`
     await createNotification({
       studentId: result.student_id,
-      type: "forum",
+      type: "office_hours",
       title: "Office Hours Update",
       message,
       link: "/student/dashboard-v2/office-hours",

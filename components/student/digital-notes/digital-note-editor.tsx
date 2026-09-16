@@ -50,7 +50,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
 import { cn } from "@/lib/utils"
 import {
   isMarkdownNoteContent,
@@ -80,17 +79,6 @@ type DigitalNoteEditorProps = {
 
 function runEditorCommand(editor: Editor, command: () => boolean) {
   command()
-}
-
-function noteEditorShellClass(disabled: boolean, className?: string, mutedDisabled = false) {
-  return cn(
-    "digital-note-editor flex h-full flex-col overflow-hidden",
-    isDesktopAppShell()
-      ? "min-h-0 rounded-none border-0 bg-transparent"
-      : "min-h-[320px] rounded-xl border border-[var(--border)] bg-[var(--card)]",
-    disabled && (mutedDisabled ? "opacity-60" : "opacity-90"),
-    className,
-  )
 }
 
 function ToolbarButton({
@@ -157,8 +145,7 @@ function MarkdownNotePreview({ markdown }: { markdown: string }) {
   return (
     <div
       className={cn(
-        "digital-note-markdown-body prose prose-slate dark:prose-invert max-w-none",
-        isDesktopAppShell() ? "px-0 pt-0 pb-3 [&>:first-child]:!mt-0" : "px-5 py-4",
+        "digital-note-markdown-body prose prose-slate dark:prose-invert max-w-none px-5 py-4",
         "prose-headings:font-semibold prose-headings:tracking-tight",
         "prose-a:text-[var(--cc-accent)]",
         "prose-img:max-h-[480px] prose-img:rounded-lg prose-img:object-contain",
@@ -583,7 +570,13 @@ function MarkdownNoteEditor({
   }, [emitChange, markdown])
 
   return (
-    <div className={noteEditorShellClass(Boolean(disabled), className)}>
+    <div
+      className={cn(
+        "digital-note-editor flex h-full min-h-[320px] flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)]",
+        disabled && "opacity-90",
+        className,
+      )}
+    >
       {!disabled ? (
         <div className="flex shrink-0 items-center gap-1 border-b border-[var(--border)] bg-[var(--muted)]/40 px-2 py-1.5">
           <Button
@@ -643,14 +636,7 @@ function MarkdownNoteEditor({
           {markdown.trim() ? (
             <MarkdownNotePreview markdown={markdown} />
           ) : (
-            <p
-              className={cn(
-                "text-sm text-[var(--cc-text-muted)]",
-                isDesktopAppShell() ? "px-0 pt-1 pb-3" : "px-5 py-4",
-              )}
-            >
-              {placeholder}
-            </p>
+            <p className="px-5 py-4 text-sm text-[var(--cc-text-muted)]">{placeholder}</p>
           )}
         </div>
       ) : (
@@ -763,7 +749,13 @@ function RichHtmlNoteEditor({
   )
 
   return (
-    <div className={noteEditorShellClass(Boolean(disabled), className, true)}>
+    <div
+      className={cn(
+        "digital-note-editor flex h-full min-h-[320px] flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)]",
+        disabled && "opacity-60",
+        className,
+      )}
+    >
       {!disabled ? (
         <>
           <EditorToolbar

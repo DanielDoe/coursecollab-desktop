@@ -56,8 +56,12 @@ export class CodeBenchProcessManager {
     return detectCppCompiler()
   }
 
+  async warmupToolchain(): Promise<CompilerInfo> {
+    return ensureCppToolchain({ installIfMissing: true, mode: 'startup' })
+  }
+
   async ensureToolchain(): Promise<CompilerInfo> {
-    return ensureCppToolchain({ installIfMissing: true })
+    return ensureCppToolchain({ installIfMissing: true, mode: 'full' })
   }
 
   hasBusySession(): boolean {

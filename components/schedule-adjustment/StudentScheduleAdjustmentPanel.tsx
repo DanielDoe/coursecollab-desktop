@@ -49,13 +49,7 @@ function getStudentId(): string | null {
   }
 }
 
-export function StudentScheduleAdjustmentPanel({
-  requestId,
-  hubLayout = false,
-}: {
-  requestId?: number
-  hubLayout?: boolean
-}) {
+export function StudentScheduleAdjustmentPanel({ requestId }: { requestId?: number }) {
   const { toast } = useToast()
   const studentId = getStudentId()
   const [loading, setLoading] = useState(true)
@@ -247,12 +241,11 @@ export function StudentScheduleAdjustmentPanel({
   }
 
   if (loading) {
-    const loader = (
+    return (
       <div className="flex min-h-[40vh] w-full items-center justify-center gap-2 text-sm text-[var(--muted-foreground)]">
         <Loader2 className="h-4 w-4 animate-spin" /> Loading…
       </div>
     )
-    return hubLayout ? loader : loader
   }
 
   if (!requestId) {
@@ -264,17 +257,15 @@ export function StudentScheduleAdjustmentPanel({
         section_code?: string | null
         meeting_type?: string
       }>) ?? []
-    const listBody = (
-          <div className="w-full min-w-0">
-            {!hubLayout ? (
-              <>
-                <h1 className="text-lg font-semibold sm:text-xl">Schedule Adjustment</h1>
-                <p className="mt-1 text-sm text-[var(--cc-text-muted)]">
-                  Review availability polls and sign consent for proposed class time changes.
-                </p>
-              </>
-            ) : null}
-            <div className={hubLayout ? "mt-0" : "mt-3"}>
+    return (
+      <PageEnter className={dashboardV2PageRootClass}>
+        <EmbedModuleCard>
+          <div className="w-full min-w-0 p-3 sm:p-4 md:p-5">
+            <h1 className="text-lg font-semibold sm:text-xl">Schedule Adjustment</h1>
+            <p className="mt-1 text-sm text-[var(--cc-text-muted)]">
+              Review availability polls and sign consent for proposed class time changes.
+            </p>
+            <div className="mt-3">
               <ScheduleAdjustmentNoticeBanner audience="student" />
             </div>
             <div className="mt-4 divide-y divide-[var(--border)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)]">
@@ -316,11 +307,6 @@ export function StudentScheduleAdjustmentPanel({
               )}
             </div>
           </div>
-    )
-    return hubLayout ? listBody : (
-      <PageEnter className={dashboardV2PageRootClass}>
-        <EmbedModuleCard>
-          <div className="w-full min-w-0 p-3 sm:p-4 md:p-5">{listBody}</div>
         </EmbedModuleCard>
       </PageEnter>
     )
@@ -345,8 +331,10 @@ export function StudentScheduleAdjustmentPanel({
     | undefined
   const status = String(request?.status ?? "")
 
-  const detailBody = (
-        <div className={cn("w-full min-w-0 space-y-6", !hubLayout && "p-3 sm:p-4 md:p-5")}>
+  return (
+    <PageEnter className={dashboardV2PageRootClass}>
+      <EmbedModuleCard>
+        <div className="w-full min-w-0 space-y-6 p-3 sm:p-4 md:p-5">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <h1 className="text-lg font-semibold capitalize text-[var(--cc-text)] sm:text-xl">
@@ -563,11 +551,7 @@ export function StudentScheduleAdjustmentPanel({
             </div>
           ) : null}
         </div>
-  )
-
-  return hubLayout ? detailBody : (
-    <PageEnter className={dashboardV2PageRootClass}>
-      <EmbedModuleCard>{detailBody}</EmbedModuleCard>
+      </EmbedModuleCard>
     </PageEnter>
   )
 }

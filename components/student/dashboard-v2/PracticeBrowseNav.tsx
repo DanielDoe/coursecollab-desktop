@@ -38,10 +38,7 @@ export function PracticeBrowseNav({
   return (
     <FacultyModuleSideMenu
       embedded
-      className={cn(
-        "@[720px]/practice-hub:border-r @[720px]/practice-hub:border-[var(--border)] @[720px]/practice-hub:pr-4",
-        className,
-      )}
+      className={cn("lg:border-r lg:border-[var(--border)] lg:pr-4", className)}
       moduleId={MODULE_ID}
       accent={{ soft: "var(--cc-accent-soft)", ink: "var(--cc-text)" }}
       title="Browse"

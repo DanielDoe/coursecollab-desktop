@@ -22,8 +22,6 @@ type StudentPushInput = {
 }
 
 type InstructorPushInput = {
-  /** Target instructor. Omitted means "no known owner" and nothing is sent. */
-  instructorId?: number | null
   type: string
   title: string
   body: string
@@ -45,7 +43,6 @@ const PREFERENCE_COLUMN: Record<string, string> = {
   project: "project_updates",
   lecture: "lecture_updates",
   code_submission: "codebench_results",
-  classroom_points: "codebench_results",
   announcement: "announcement_alerts",
   grade: "quiz_reminders",
   membership: "quiz_reminders",
@@ -55,11 +52,21 @@ const PREFERENCE_COLUMN: Record<string, string> = {
   recommendation_instructor_update: "quiz_reminders",
   upgrade_reminder: "quiz_reminders",
   calendar: "deadline_alerts",
+  progress_review: "exam_alerts",
+  office_hours: "deadline_alerts",
+  issue: "forum_replies",
+  notes: "lecture_updates",
+  flashcards: "practice_updates",
 }
 
 function pushChannelForType(type: string): { categoryId: string; channelId: string; priority: "default" | "high" } {
   const normalized = type.toLowerCase()
-  if (normalized.includes("message") || normalized === "forum" || normalized === "direct_message") {
+  if (
+    normalized.includes("message") ||
+    normalized === "forum" ||
+    normalized === "direct_message" ||
+    normalized === "group"
+  ) {
     return { categoryId: "coursecollab.message", channelId: "messages", priority: "high" }
   }
   if (
@@ -70,12 +77,13 @@ function pushChannelForType(type: string): { categoryId: string; channelId: stri
     normalized === "grade" ||
     normalized === "calendar" ||
     normalized.includes("study") ||
-    normalized === "classroom_points" ||
-    normalized === "code_submission"
+    normalized === "progress_review" ||
+    normalized === "office_hours" ||
+    normalized === "project"
   ) {
     return { categoryId: "coursecollab.quiz", channelId: "urgent", priority: "high" }
   }
-  if (normalized.includes("announce")) {
+  if (normalized.includes("announce") || normalized === "lecture" || normalized === "notes") {
     return { categoryId: "coursecollab.announcement", channelId: "announcements", priority: "default" }
   }
   if (normalized.includes("grade")) {
@@ -103,6 +111,25 @@ export async function registerExpoPushToken(input: RegisterPushTokenInput): Prom
       device = EXCLUDED.device,
       updated_at = NOW()
   `
+
+  // One physical device should not fan out under multiple owners (account switch / shared login).
+  await sql`
+    DELETE FROM expo_push_tokens
+    WHERE expo_push_token = ${input.expoPushToken}
+      AND NOT (owner_kind = ${input.ownerKind} AND owner_id = ${input.ownerId})
+  `
+
+  // Keep a single active token per owner+platform so Expo Go + production (or reinstalls)
+  // do not deliver the same alert twice to one phone.
+  if (input.platform) {
+    await sql`
+      DELETE FROM expo_push_tokens
+      WHERE owner_kind = ${input.ownerKind}
+        AND owner_id = ${input.ownerId}
+        AND platform = ${input.platform}
+        AND expo_push_token <> ${input.expoPushToken}
+    `
+  }
 }
 
 export async function unregisterExpoPushToken(params: {
@@ -132,12 +159,15 @@ export async function unregisterExpoPushToken(params: {
 async function listPushTokens(owner: MessageActor): Promise<string[]> {
   await ensurePushTokensSchema()
 
+  // Prefer the newest token only — older Expo Go / reinstall rows otherwise
+  // deliver the same alert multiple times to one device.
   const rows = (await sql`
     SELECT expo_push_token
     FROM expo_push_tokens
     WHERE owner_kind = ${owner.kind}
       AND owner_id = ${owner.id}
     ORDER BY updated_at DESC
+    LIMIT 1
   `) as Array<{ expo_push_token: string }>
 
   return rows.map((row) => row.expo_push_token).filter(Boolean)
@@ -169,14 +199,11 @@ async function unreadBadgeForStudent(studentInternalId: number): Promise<number>
   return Number(rows[0]?.count ?? 0)
 }
 
-async function unreadBadgeForInstructor(instructorId?: number | null): Promise<number> {
-  // Without an owner filter this counted every instructor's unread notifications.
-  const id = Number(instructorId)
-  if (!Number.isFinite(id) || id < 1) return 0
+async function unreadBadgeForInstructor(): Promise<number> {
   const rows = (await sql`
     SELECT COUNT(*)::int AS count
     FROM instructor_notifications
-    WHERE is_read = FALSE AND instructor_id = ${id}
+    WHERE is_read = FALSE
   `) as Array<{ count: number }>
   return Number(rows[0]?.count ?? 0)
 }
@@ -235,10 +262,11 @@ export async function sendStudentPushToMany(params: {
   await ensurePushTokensSchema()
 
   const tokenRows = (await sql`
-    SELECT owner_id, expo_push_token
+    SELECT DISTINCT ON (owner_id) owner_id, expo_push_token
     FROM expo_push_tokens
     WHERE owner_kind = 'student'
       AND owner_id = ANY(${uniqueIds})
+    ORDER BY owner_id, updated_at DESC
   `) as Array<{ owner_id: number; expo_push_token: string }>
 
   if (tokenRows.length === 0) return
@@ -254,14 +282,19 @@ export async function sendStudentPushToMany(params: {
   const channel = pushChannelForType(params.type)
 
   const messages: ExpoPushMessage[] = []
+  const seenTokens = new Set<string>()
   for (const row of tokenRows) {
+    const token = row.expo_push_token
+    if (!token || seenTokens.has(token)) continue
+
     if (column) {
       const prefs = preferenceByStudent.get(Number(row.owner_id))
       if (prefs && prefs[column] === false) continue
     }
 
+    seenTokens.add(token)
     messages.push({
-      to: row.expo_push_token,
+      to: token,
       title: params.title,
       body: params.body,
       sound: "default",
@@ -276,28 +309,18 @@ export async function sendStudentPushToMany(params: {
 }
 
 export async function sendInstructorPushNotification(input: InstructorPushInput): Promise<void> {
-  // This used to select every instructor device token, so one instructor's
-  // notification was pushed to every faculty member's phone.
-  const instructorId = Number(input.instructorId)
-  if (!Number.isFinite(instructorId) || instructorId < 1) {
-    console.warn(
-      `[Push] instructor notification "${input.type}" has no instructorId; skipping push rather than broadcasting it.`,
-    )
-    return
-  }
-
   await ensurePushTokensSchema()
 
   const tokenRows = (await sql`
     SELECT DISTINCT expo_push_token
     FROM expo_push_tokens
-    WHERE owner_kind = 'instructor' AND owner_id = ${instructorId}
+    WHERE owner_kind = 'instructor'
   `) as Array<{ expo_push_token: string }>
 
   const tokens = tokenRows.map((row) => row.expo_push_token).filter(Boolean)
   if (tokens.length === 0) return
 
-  const badge = await unreadBadgeForInstructor(instructorId)
+  const badge = await unreadBadgeForInstructor()
   const channel = pushChannelForType(input.type)
 
   const messages: ExpoPushMessage[] = tokens.map((token) => ({
@@ -340,7 +363,6 @@ export async function sendDirectMessagePush(params: {
   }
 
   await sendInstructorPushNotification({
-    instructorId: recipient.id,
     type: notificationType,
     title,
     body,

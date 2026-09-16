@@ -1,5 +1,5 @@
 import { Suspense, lazy, useMemo, type ComponentType, type LazyExoticComponent, type ReactNode } from 'react'
-import { useLocation, Navigate } from 'react-router-dom'
+import { useLocation, Navigate, Link } from 'react-router-dom'
 import { ModulePageSkeleton } from '@/components/student/dashboard-v2/ModulePageSkeleton'
 import { RouteParamsContext } from '@/src/shims/next-navigation'
 import {
@@ -26,9 +26,18 @@ function RouteModuleShell({ children }: { children: ReactNode }) {
 
 function NotFound() {
   return (
-    <div className="min-h-[100dvh] flex flex-col items-center justify-center gap-3 bg-[#F8FAFC] dark:bg-slate-950 px-6 text-center">
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center gap-4 bg-[#F8FAFC] dark:bg-slate-950 px-6 text-center">
       <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">Page not found</p>
-      <p className="text-sm text-slate-500">This route is not available in the desktop shell yet.</p>
+      <p className="text-sm text-slate-500 max-w-md">
+        This route is not available in the desktop shell yet, or your last session pointed at a page
+        that was removed.
+      </p>
+      <Link
+        to={defaultDesktopPath()}
+        className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500"
+      >
+        Back to sign in
+      </Link>
     </div>
   )
 }
@@ -93,6 +102,9 @@ export function AppRoute() {
   }, [pageModule])
 
   if (!pageModule || !Page) {
+    if (pathname !== defaultDesktopPath()) {
+      return <Navigate to={defaultDesktopPath()} replace />
+    }
     return <NotFound />
   }
 

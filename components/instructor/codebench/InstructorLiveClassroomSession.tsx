@@ -24,6 +24,8 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { LiveTypingReplayPanel } from "@/components/codebench/LiveTypingReplayPanel"
+import { invalidateInstructorClassroomAssignmentsCache } from "@/hooks/use-instructor-classroom-assignments"
+import { notifyInstructorClassroomAssignmentsChanged } from "@/lib/instructor-classroom-assignments-changed"
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 import type { InstructorClassroomHandoff } from "@/lib/codebench-instructor-classroom"
 import type {
@@ -336,6 +338,8 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
       )
       const parsed = await readInstructorApiJson<{ ok?: boolean }>(res, "End live session")
       if (!parsed.ok) throw new Error(parsed.error)
+      invalidateInstructorClassroomAssignmentsCache()
+      notifyInstructorClassroomAssignmentsChanged()
       onBack()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to end live session")

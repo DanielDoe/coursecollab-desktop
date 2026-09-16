@@ -3,6 +3,7 @@ import { sql } from "@/lib/db";
 import { requireProjectsListScope } from "@/lib/project-request-auth";
 import { requireCallerStudentDbId } from "@/lib/student-api-auth";
 import { requireInstructorSession } from "@/lib/instructor-session-auth";
+import { resolveGroupProjectTermScope } from "@/lib/group-project-term-scope";
 import {
   formatLocalDateYmd,
   isStartEndValidBookableSlotInWindows,
@@ -14,7 +15,6 @@ import {
   toPresentationConfigLike,
 } from "@/lib/presentation-sequential-booking";
 import type { PresentationSqlTagged } from "@/lib/presentation-sequential-booking";
-import { resolveGroupProjectTermScope } from "@/lib/group-project-term-scope";
 
 // GET - Fetch all presentations or filter by query params
 export const dynamic = 'force-dynamic'
@@ -30,8 +30,10 @@ export async function GET(request: NextRequest) {
     const groupId = searchParams.get("groupId");
     const date = searchParams.get("date");
     const status = searchParams.get("status") || "scheduled";
-    const session = searchParams.get("session");
-    const gTermScope = await resolveGroupProjectTermScope(request, scope.courseId, session)
+    const sessionRaw = searchParams.get("session");
+    const session =
+      sessionRaw && sessionRaw.trim().toLowerCase() !== "all" ? sessionRaw.trim() : null;
+    const gTermScope = await resolveGroupProjectTermScope(request, scope.courseId, session);
 
 
     // Build WHERE conditions

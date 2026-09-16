@@ -5,6 +5,7 @@ import { normalizeSessionForStorage } from "@/lib/session-catalog"
 import { requireInstructorCourse } from "@/lib/instructor-course-scope"
 import { loadInstructorActor } from "@/lib/instructor-actor-scope"
 import { sqlQuizVisibleInCourse } from "@/lib/quiz-course-access"
+import { studentOfferingAndSql } from "@/lib/instructor-session-scope"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -21,6 +22,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
     const courseOwnerId = Number(scope.course.instructor_id)
+    const offeringS = studentOfferingAndSql(req, platformCourseId, "s")
 
     const { searchParams } = req.nextUrl
     const q = (searchParams.get("q") || "").trim()
@@ -44,6 +46,7 @@ export async function GET(req: NextRequest) {
         INNER JOIN sessions sess ON sess.id = s.session_id AND sess.course_id = ${platformCourseId}
         WHERE s.id = ${studentId}
           AND (s.deleted_at IS NULL)
+          ${offeringS}
         LIMIT 1
       `
       const studentRow = rows[0] as
@@ -208,6 +211,7 @@ export async function GET(req: NextRequest) {
       FROM students s
       INNER JOIN sessions sess ON sess.id = s.session_id AND sess.course_id = ${platformCourseId}
       WHERE (s.deleted_at IS NULL)
+        ${offeringS}
         AND (          s.full_name ILIKE ${pattern}
           OR s.email ILIKE ${pattern}
           OR CAST(s.student_id AS TEXT) ILIKE ${pattern}

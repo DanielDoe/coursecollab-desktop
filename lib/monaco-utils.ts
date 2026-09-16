@@ -135,3 +135,16 @@ export function addHighlightStyles() {
   `
   document.head.appendChild(style)
 }
+
+/** Monaco 0.56+ can leave lines as a single default token until forced (quiz boilerplate). */
+export function forceMonacoModelTokenization(model: {
+  getLineCount(): number
+  tokenization?: { forceTokenization(lineNumber: number): void }
+}) {
+  const tokenization = model.tokenization
+  if (!tokenization?.forceTokenization) return
+  const lineCount = model.getLineCount()
+  for (let line = 1; line <= lineCount; line++) {
+    tokenization.forceTokenization(line)
+  }
+}

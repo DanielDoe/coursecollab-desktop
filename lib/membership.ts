@@ -797,16 +797,6 @@ export async function getAITutorCredits(studentId: number): Promise<number> {
 export async function getStudentCoraBalance(studentId: number) {
   const { getStudentCoraBalanceForTier } = await import("@/lib/cora/credits/student-ledger")
   const tier = await resolveStudentCoraTier(studentId)
-  try {
-    const { ensureCreditAccount } = await import("@/lib/cora/ai/credit-accounts")
-    await ensureCreditAccount({
-      userId: studentId,
-      userRole: "student",
-      membershipTier: tier,
-    })
-  } catch {
-    /* display ledger may lag; fall through to personal row */
-  }
   const bal = await getStudentCoraBalanceForTier(studentId, tier)
   try {
     const { getCoraAllowance } = await import("@/lib/institutions/cora")
@@ -930,48 +920,28 @@ export async function grantMembershipPerks(studentId: number, tier: MembershipTi
         const { currentStudentPeriodKey, ensureStudentCoraCreditsSchema } = await import(
           "@/lib/cora/credits/student-ledger"
         )
-        const { creditPeriodAction } = await import("@/lib/cora/credits/period-reset")
         await ensureStudentCoraCreditsSchema()
         const periodKey = currentStudentPeriodKey()
-        const existing = (await sql`
-          SELECT credits, period_key FROM ai_tutor_credits
-          WHERE student_id = ${studentId}
-          LIMIT 1
-        `) as Array<{ credits: number; period_key: string | null }>
-        const refill =
-          existing.length === 0 ||
-          creditPeriodAction(existing[0]?.period_key, periodKey) === "period_reset"
-
-        if (refill) {
-          await sql`
-            INSERT INTO ai_tutor_credits (student_id, credits, purchased_credits, last_reset_date, period_key, membership_tier)
-            VALUES (${studentId}, ${aiTutorConfig}, 0, CURRENT_DATE, ${periodKey}, ${tier})
-            ON CONFLICT (student_id) DO UPDATE SET
-              credits = ${aiTutorConfig},
-              period_key = ${periodKey},
-              membership_tier = ${tier},
-              last_reset_date = CURRENT_DATE,
-              updated_at = CURRENT_TIMESTAMP
-          `
-          await sql`
-            INSERT INTO ai_tutor_credit_transactions (student_id, transaction_type, credits, description, source)
-            VALUES (
-              ${studentId},
-              'reset',
-              ${aiTutorConfig},
-              ${`Membership upgrade to ${tier} - monthly Cora Credits`},
-              'membership'
-            )
-          `
-        } else {
-          await sql`
-            UPDATE ai_tutor_credits
-            SET membership_tier = ${tier},
-                period_key = ${periodKey},
-                updated_at = CURRENT_TIMESTAMP
-            WHERE student_id = ${studentId}
-          `
-        }
+        await sql`
+          INSERT INTO ai_tutor_credits (student_id, credits, purchased_credits, last_reset_date, period_key, membership_tier)
+          VALUES (${studentId}, ${aiTutorConfig}, 0, CURRENT_DATE, ${periodKey}, ${tier})
+          ON CONFLICT (student_id) DO UPDATE SET
+            credits = ${aiTutorConfig},
+            period_key = ${periodKey},
+            membership_tier = ${tier},
+            last_reset_date = CURRENT_DATE,
+            updated_at = CURRENT_TIMESTAMP
+        `
+        await sql`
+          INSERT INTO ai_tutor_credit_transactions (student_id, transaction_type, credits, description, source)
+          VALUES (
+            ${studentId},
+            'reset',
+            ${aiTutorConfig},
+            ${`Membership upgrade to ${tier} - monthly Cora Credits`},
+            'membership'
+          )
+        `
 
         // Authoritative balance API reads cora_credit_accounts — keep it in sync on upgrade/downgrade
         const { ensureCreditAccount } = await import("@/lib/cora/ai/credit-accounts")

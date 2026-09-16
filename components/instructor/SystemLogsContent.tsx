@@ -59,7 +59,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 type StatsPayload = {
   today: { errors_today: number; critical_today: number; error_level_today: number }
@@ -316,7 +315,6 @@ export function SystemLogsContent({
   portal = "admin",
 }: SystemLogsContentProps) {
   const { toast } = useToast()
-  const { confirm } = useAppConfirm()
 
   const [logs, setLogs] = useState<SystemLogRow[]>([])
   const [groups, setGroups] = useState<SystemLogGroupRow[]>([])
@@ -499,13 +497,13 @@ export function SystemLogsContent({
       openDevIssueCount > 0
         ? `${openDevIssueCount} open dev issue(s) on this page`
         : "all open dev issues (localhost/preview)"
-    const ok = await confirm({
-      title: `Resolve ${countHint}?`,
-      description: "Production issues are not affected. Dev groups auto-close after 30 min quiet anyway.",
-      confirmLabel: "Resolve",
-      cancelLabel: "Cancel",
-    })
-    if (!ok) return
+    if (
+      !window.confirm(
+        `Resolve ${countHint}? Production issues are not affected. Dev groups auto-close after 30 min quiet anyway.`,
+      )
+    ) {
+      return
+    }
     setDevResolveLoading(true)
     try {
       const headers = buildPortalApiHeaders(portal)

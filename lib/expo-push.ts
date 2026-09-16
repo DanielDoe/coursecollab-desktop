@@ -30,7 +30,16 @@ function chunk<T>(items: T[], size: number): T[][] {
 export async function sendExpoPushMessages(messages: ExpoPushMessage[]): Promise<void> {
   if (messages.length === 0) return
 
-  for (const batch of chunk(messages, 100)) {
+  // Same Expo token twice in one batch = two identical alerts on one phone.
+  const seen = new Set<string>()
+  const deduped = messages.filter((message) => {
+    if (!message.to || seen.has(message.to)) return false
+    seen.add(message.to)
+    return true
+  })
+  if (deduped.length === 0) return
+
+  for (const batch of chunk(deduped, 100)) {
     try {
       const response = await fetch(EXPO_PUSH_URL, {
         method: "POST",

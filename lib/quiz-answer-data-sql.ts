@@ -5,13 +5,16 @@
 /** answer_data looks like JSON object/array (safe to cast to jsonb). */
 export const ANSWER_DATA_LOOKS_JSON = `(qa.answer_data IS NOT NULL AND qa.answer_data ~ '^\\s*[\\{\\[]')`
 
-/** Lockable MCQ/TF/select: finalized when not draft autosave or already evaluated. */
-export const LOCKABLE_ANSWER_FINALIZED_SQL = `(
+/** Finalized when not draft autosave or already evaluated (all question types). */
+export const ANY_ANSWER_FINALIZED_SQL = `(
   qa.answer_data IS NULL
   OR NOT ${ANSWER_DATA_LOOKS_JSON}
   OR ((qa.answer_data::jsonb)->>'autoSave') IS DISTINCT FROM 'true'
   OR ((qa.answer_data::jsonb)->>'evaluatedAt') IS NOT NULL
 )`
+
+/** Lockable MCQ/TF/select: finalized when not draft autosave or already evaluated. */
+export const LOCKABLE_ANSWER_FINALIZED_SQL = ANY_ANSWER_FINALIZED_SQL
 
 /** Circuit submission row counts as submitted/graded (not draft autosave). */
 export const CIRCUIT_ANSWER_FINALIZED_SQL = `(

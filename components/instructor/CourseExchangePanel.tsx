@@ -40,9 +40,12 @@ import {
   parseExchangeProvenance,
   summarizeCloneCounts,
 } from "@/lib/course-exchange/provenance-shared"
+import { EmbedModuleCard } from "@/components/student/dashboard-v2/embed-module-ui"
+import { PageEnter } from "@/components/student/dashboard-v2/light-motion"
 import { FacultyModuleSplitLayout } from "@/components/instructor/dashboard-v2/FacultyModuleSplitLayout"
 import { FacultyModuleSideMenu, type FacultySideMenuItem } from "@/components/instructor/dashboard-v2/FacultyModuleSideMenu"
 import { buildInstructorApiHeaders, instructorApiFetch } from "@/lib/instructor-api-headers"
+import { dashboardV2PageRootClass } from "@/lib/dashboard-v2-layout"
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 import {
   COURSE_EXCHANGE_DEFAULT_APPROVAL_MODULES,
@@ -148,14 +151,6 @@ function statusPillClass(status: string) {
   return "bg-muted text-muted-foreground"
 }
 
-function TabPane({ children }: { children: ReactNode }) {
-  return <div className="flex min-h-0 flex-1 flex-col gap-5">{children}</div>
-}
-
-function TabPaneBody({ children }: { children: ReactNode }) {
-  return <div className="flex min-h-0 flex-1 flex-col">{children}</div>
-}
-
 function EmptyPanel({
   icon: Icon,
   title,
@@ -169,12 +164,7 @@ function EmptyPanel({
 }) {
   const chrome = facultyEmbedChrome("course-exchange")
   return (
-    <div
-      className={cn(
-        "flex min-h-0 flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-[var(--border)] px-6 py-14 text-center",
-        chrome.card,
-      )}
-    >
+    <div className={cn("flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-[var(--border)] px-6 py-14 text-center", chrome.card)}>
       <div className={cn("flex h-12 w-12 items-center justify-center rounded-2xl", chrome.p.softBg, chrome.p.iconText)}>
         <Icon className="h-5 w-5" />
       </div>
@@ -855,13 +845,7 @@ export function CourseExchangePanel({ initialTab = "discover" }: { initialTab?: 
   }
 
   function renderRequestList(items: RequestRow[], mode: "received" | "sent") {
-    if (loading && items.length === 0) {
-      return (
-        <div className="flex min-h-0 flex-1 flex-col justify-center">
-          <ListSkeleton />
-        </div>
-      )
-    }
+    if (loading && items.length === 0) return <ListSkeleton />
     if (items.length === 0) {
       return (
         <EmptyPanel
@@ -888,25 +872,24 @@ export function CourseExchangePanel({ initialTab = "discover" }: { initialTab?: 
     }
 
     return (
-      <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border)]", chrome.card)}>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="divide-y divide-[var(--border)]">
-            {items.map((r, index) => {
-              const stripe = portalListStripe(index, chrome.theme.family)
-              return (
-                <div
-                  key={r.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => openRequestDetail(r, mode)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault()
-                      openRequestDetail(r, mode)
-                    }
-                  }}
-                  className="flex w-full cursor-pointer flex-wrap items-center justify-between gap-3 px-3 py-3 text-left hover:bg-[var(--cc-accent-soft)]/45 sm:px-4"
-                >
+      <div className={cn("overflow-hidden rounded-2xl border border-[var(--border)]", chrome.card)}>
+        <div className="divide-y divide-[var(--border)]">
+          {items.map((r, index) => {
+            const stripe = portalListStripe(index, chrome.theme.family)
+            return (
+              <div
+                key={r.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => openRequestDetail(r, mode)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    openRequestDetail(r, mode)
+                  }
+                }}
+                className="flex w-full cursor-pointer flex-wrap items-center justify-between gap-3 px-3 py-3 text-left hover:bg-[var(--cc-accent-soft)]/45 sm:px-4"
+              >
                 <div className="flex min-w-0 flex-1 items-start gap-3">
                   <div className={cn("mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", stripe.iconBg, stripe.iconText)}>
                     {mode === "received" ? <Inbox className="h-4 w-4" /> : <Send className="h-4 w-4" />}
@@ -967,7 +950,6 @@ export function CourseExchangePanel({ initialTab = "discover" }: { initialTab?: 
               </div>
             )
           })}
-          </div>
         </div>
       </div>
     )
@@ -1163,257 +1145,237 @@ export function CourseExchangePanel({ initialTab = "discover" }: { initialTab?: 
   }
 
   return (
-    <>
-      <FacultyModuleSplitLayout
-        scrollMode="panel"
-        className="min-h-0 flex-1"
-        menu={
-          <FacultyModuleSideMenu
-            moduleId="course-exchange"
-            title="Course Exchange"
-            activeId={tab}
-            onSelect={(id) => setTab(id as TabId)}
-            items={menuItems}
-          />
-        }
-      >
-        <div className="flex min-h-0 flex-1 flex-col gap-5">
-          {tab === "discover" ? (
-            <TabPane>
-              <PanelHeader
-                title="Discover Courses"
-                description="Browse shared courses. Open details, pick only the modules you need, and import into a dedicated course shell for your term."
+    <PageEnter className={dashboardV2PageRootClass}>
+      <EmbedModuleCard>
+        <div className="w-full min-w-0 p-3 sm:p-4 md:p-5">
+          <FacultyModuleSplitLayout
+            menu={
+              <FacultyModuleSideMenu
+                moduleId="course-exchange"
+                title="Course Exchange"
+                activeId={tab}
+                onSelect={(id) => setTab(id as TabId)}
+                items={menuItems}
               />
-              {renderExchangeToolbar({
-                searchPlaceholder: "Search courses, instructors…",
-                filters: (
-                  <Select value={discoverFilter} onValueChange={(v) => setDiscoverFilter(v as DiscoverFilter)}>
-                    <SelectTrigger className={cn(facultyToolbarSelectTriggerClass(discoverFilter !== "all"), "h-9 w-[120px] shadow-none")}>
-                      <SelectValue placeholder="Filter" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All courses</SelectItem>
-                      <SelectItem value="instant">Instant only</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ),
-                meta: (
-                  <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
-                    {discoverHasActiveFilters
-                      ? `${filteredDiscoverRows.length} of ${discoverRows.length} courses`
-                      : `${discoverRows.length} courses`}
-                  </p>
-                ),
-              })}
-              <TabPaneBody>
-                {loading && discoverRows.length === 0 ? (
-                  <div className="flex min-h-0 flex-1 flex-col justify-center">
-                    <ListSkeleton />
-                  </div>
-                ) : filteredDiscoverRows.length === 0 ? (
-                  <EmptyPanel
-                    icon={Search}
-                    title={discoverRows.length === 0 ? "No shareable courses yet" : "No matching courses"}
-                    description={
-                      discoverRows.length === 0
-                        ? "When instructors turn on sharing and pick modules, those courses show up here."
-                        : "Try a different search or filter."
-                    }
-                    action={
-                      discoverRows.length === 0 ? (
-                        <Button className={chrome.solid} onClick={() => setTab("share-settings")}>
-                          Share one of my courses
-                        </Button>
-                      ) : undefined
-                    }
+            }
+          >
+            <div className="space-y-5">
+              {tab === "discover" ? (
+                <>
+                  <PanelHeader
+                    title="Discover Courses"
+                    description="Browse shared courses. Open details, pick only the modules you need, and import into a dedicated course shell for your term."
                   />
-                ) : viewMode === "grid" ? (
-                  <div className="min-h-0 flex-1 overflow-y-auto">
+                  {renderExchangeToolbar({
+                    searchPlaceholder: "Search courses, instructors…",
+                    filters: (
+                      <Select value={discoverFilter} onValueChange={(v) => setDiscoverFilter(v as DiscoverFilter)}>
+                        <SelectTrigger className={cn(facultyToolbarSelectTriggerClass(discoverFilter !== "all"), "h-9 w-[120px] shadow-none")}>
+                          <SelectValue placeholder="Filter" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All courses</SelectItem>
+                          <SelectItem value="instant">Instant only</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ),
+                    meta: (
+                      <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
+                        {discoverHasActiveFilters
+                          ? `${filteredDiscoverRows.length} of ${discoverRows.length} courses`
+                          : `${discoverRows.length} courses`}
+                      </p>
+                    ),
+                  })}
+                  {loading && discoverRows.length === 0 ? (
+                    <ListSkeleton />
+                  ) : filteredDiscoverRows.length === 0 ? (
+                    <EmptyPanel
+                      icon={Search}
+                      title={discoverRows.length === 0 ? "No shareable courses yet" : "No matching courses"}
+                      description={
+                        discoverRows.length === 0
+                          ? "When instructors turn on sharing and pick modules, those courses show up here."
+                          : "Try a different search or filter."
+                      }
+                      action={
+                        discoverRows.length === 0 ? (
+                          <Button className={chrome.solid} onClick={() => setTab("share-settings")}>
+                            Share one of my courses
+                          </Button>
+                        ) : undefined
+                      }
+                    />
+                  ) : viewMode === "grid" ? (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       {filteredDiscoverRows.map((row, index) => renderDiscoverRow(row, index, true))}
                     </div>
-                  </div>
-                ) : (
-                  <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border)]", chrome.card)}>
-                    <div className="min-h-0 flex-1 overflow-y-auto">
+                  ) : (
+                    <div className={cn("overflow-hidden rounded-2xl border border-[var(--border)]", chrome.card)}>
                       <div className="divide-y divide-[var(--border)]">
                         {filteredDiscoverRows.map((row, index) => renderDiscoverRow(row, index))}
                       </div>
                     </div>
-                  </div>
-                )}
-              </TabPaneBody>
-            </TabPane>
-          ) : null}
+                  )}
+                </>
+              ) : null}
 
-          {tab === "received" ? (
-            <TabPane>
-              <PanelHeader
-                title="Requests Received"
-                description="Review who wants to reuse materials from courses you have shared."
-              />
-              <CourseExchangeGuidanceCallout kind="owner-sharing" dismissId="exchange:received:owner" />
-              {renderExchangeToolbar({
-                searchPlaceholder: "Search requests…",
-                filters: (
-                  <Select value={receivedFilter} onValueChange={(v) => setReceivedFilter(v as ReceivedFilter)}>
-                    <SelectTrigger className={cn(facultyToolbarSelectTriggerClass(receivedFilter !== "all"), "h-9 w-[120px] shadow-none")}>
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ),
-                meta: (
-                  <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
-                    {filteredReceived.length === received.length
-                      ? `${received.length} requests`
-                      : `${filteredReceived.length} of ${received.length} requests`}
-                  </p>
-                ),
-              })}
-              <TabPaneBody>{renderRequestList(filteredReceived, "received")}</TabPaneBody>
-            </TabPane>
-          ) : null}
-
-          {tab === "sent" ? (
-            <TabPane>
-              <PanelHeader
-                title="Requests Sent"
-                description="Track outbound requests. When a destination course was chosen, approval copies materials automatically into your course shell."
-              />
-              <CourseExchangeGuidanceCallout kind="independent-copy" dismissId="exchange:sent:copy" />
-              {renderExchangeToolbar({
-                searchPlaceholder: "Search sent requests…",
-                filters: (
-                  <Select value={sentFilter} onValueChange={(v) => setSentFilter(v as SentFilter)}>
-                    <SelectTrigger className={cn(facultyToolbarSelectTriggerClass(sentFilter !== "all"), "h-9 w-[120px] shadow-none")}>
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="active">In progress</SelectItem>
-                      <SelectItem value="done">Completed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ),
-                meta: (
-                  <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
-                    {filteredSent.length === sent.length
-                      ? `${sent.length} requests`
-                      : `${filteredSent.length} of ${sent.length} requests`}
-                  </p>
-                ),
-                trailing: (
-                  <Button size="sm" className={cn("h-9 shrink-0 rounded-xl", chrome.solid)} onClick={() => setTab("discover")}>
-                    <Plus className="mr-1.5 h-3.5 w-3.5" />
-                    New request
-                  </Button>
-                ),
-              })}
-              <TabPaneBody>{renderRequestList(filteredSent, "sent")}</TabPaneBody>
-            </TabPane>
-          ) : null}
-
-          {tab === "shared-with-me" ? (
-            <TabPane>
-              <PanelHeader
-                title="Shared With Me"
-                description="Independent copies in your courses. Each import is a separate fork — safe to edit without affecting the source."
-              />
-              <CourseExchangeGuidanceCallout kind="independent-copy" dismissId="exchange:shared-with-me:copy" />
-              {renderExchangeToolbar({
-                searchPlaceholder: "Search imports…",
-                meta: (
-                  <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
-                    {filteredSharedWithMe.length === sharedWithMe.length
-                      ? `${sharedWithMe.length} copies`
-                      : `${filteredSharedWithMe.length} of ${sharedWithMe.length} copies`}
-                  </p>
-                ),
-                trailing: (
-                  <Button size="sm" className={cn("h-9 shrink-0 rounded-xl", chrome.solid)} onClick={() => setTab("discover")}>
-                    Browse courses
-                  </Button>
-                ),
-              })}
-              <TabPaneBody>
-                {loading && sharedWithMe.length === 0 ? (
-                  <div className="flex min-h-0 flex-1 flex-col justify-center">
-                    <ListSkeleton />
-                  </div>
-                ) : filteredSharedWithMe.length === 0 ? (
-                  <EmptyPanel
-                    icon={BookCopy}
-                    title="No imported copies yet"
-                    description="After a request is approved with a destination course, materials appear here and in your course modules."
-                    action={
-                      <Button className={chrome.solid} onClick={() => setTab("sent")}>
-                        View sent requests
-                      </Button>
-                    }
+              {tab === "received" ? (
+                <>
+                  <PanelHeader
+                    title="Requests Received"
+                    description="Review who wants to reuse materials from courses you have shared."
                   />
-                ) : viewMode === "grid" ? (
-                  <div className="min-h-0 flex-1 overflow-y-auto">
+                  <CourseExchangeGuidanceCallout kind="owner-sharing" dismissId="exchange:received:owner" />
+                  {renderExchangeToolbar({
+                    searchPlaceholder: "Search requests…",
+                    filters: (
+                      <Select value={receivedFilter} onValueChange={(v) => setReceivedFilter(v as ReceivedFilter)}>
+                        <SelectTrigger className={cn(facultyToolbarSelectTriggerClass(receivedFilter !== "all"), "h-9 w-[120px] shadow-none")}>
+                          <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ),
+                    meta: (
+                      <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
+                        {filteredReceived.length === received.length
+                          ? `${received.length} requests`
+                          : `${filteredReceived.length} of ${received.length} requests`}
+                      </p>
+                    ),
+                  })}
+                  {renderRequestList(filteredReceived, "received")}
+                </>
+              ) : null}
+
+              {tab === "sent" ? (
+                <>
+                  <PanelHeader
+                    title="Requests Sent"
+                    description="Track outbound requests. When a destination course was chosen, approval copies materials automatically into your course shell."
+                  />
+                  <CourseExchangeGuidanceCallout kind="independent-copy" dismissId="exchange:sent:copy" />
+                  {renderExchangeToolbar({
+                    searchPlaceholder: "Search sent requests…",
+                    filters: (
+                      <Select value={sentFilter} onValueChange={(v) => setSentFilter(v as SentFilter)}>
+                        <SelectTrigger className={cn(facultyToolbarSelectTriggerClass(sentFilter !== "all"), "h-9 w-[120px] shadow-none")}>
+                          <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All</SelectItem>
+                          <SelectItem value="active">In progress</SelectItem>
+                          <SelectItem value="done">Completed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ),
+                    meta: (
+                      <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
+                        {filteredSent.length === sent.length
+                          ? `${sent.length} requests`
+                          : `${filteredSent.length} of ${sent.length} requests`}
+                      </p>
+                    ),
+                    trailing: (
+                      <Button size="sm" className={cn("h-9 shrink-0 rounded-xl", chrome.solid)} onClick={() => setTab("discover")}>
+                        <Plus className="mr-1.5 h-3.5 w-3.5" />
+                        New request
+                      </Button>
+                    ),
+                  })}
+                  {renderRequestList(filteredSent, "sent")}
+                </>
+              ) : null}
+
+              {tab === "shared-with-me" ? (
+                <>
+                  <PanelHeader
+                    title="Shared With Me"
+                    description="Independent copies in your courses. Each import is a separate fork — safe to edit without affecting the source."
+                  />
+                  <CourseExchangeGuidanceCallout kind="independent-copy" dismissId="exchange:shared-with-me:copy" />
+                  {renderExchangeToolbar({
+                    searchPlaceholder: "Search imports…",
+                    meta: (
+                      <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
+                        {filteredSharedWithMe.length === sharedWithMe.length
+                          ? `${sharedWithMe.length} copies`
+                          : `${filteredSharedWithMe.length} of ${sharedWithMe.length} copies`}
+                      </p>
+                    ),
+                    trailing: (
+                      <Button size="sm" className={cn("h-9 shrink-0 rounded-xl", chrome.solid)} onClick={() => setTab("discover")}>
+                        Browse courses
+                      </Button>
+                    ),
+                  })}
+                  {loading && sharedWithMe.length === 0 ? (
+                    <ListSkeleton />
+                  ) : filteredSharedWithMe.length === 0 ? (
+                    <EmptyPanel
+                      icon={BookCopy}
+                      title="No imported copies yet"
+                      description="After a request is approved with a destination course, materials appear here and in your course modules."
+                      action={
+                        <Button className={chrome.solid} onClick={() => setTab("sent")}>
+                          View sent requests
+                        </Button>
+                      }
+                    />
+                  ) : viewMode === "grid" ? (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       {filteredSharedWithMe.map((c, index) => renderSharedWithMeCopy(c, index, true))}
                     </div>
-                  </div>
-                ) : (
-                  <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border)]", chrome.card)}>
-                    <div className="min-h-0 flex-1 overflow-y-auto">
+                  ) : (
+                    <div className={cn("overflow-hidden rounded-2xl border border-[var(--border)]", chrome.card)}>
                       <div className="divide-y divide-[var(--border)]">
                         {filteredSharedWithMe.map((c, index) => renderSharedWithMeCopy(c, index))}
                       </div>
                     </div>
-                  </div>
-                )}
-              </TabPaneBody>
-            </TabPane>
-          ) : null}
+                  )}
+                </>
+              ) : null}
 
-          {tab === "my-shared" ? (
-            <TabPane>
-              <PanelHeader
-                title="My Shared Courses"
-                description="Copies other instructors created from courses you approved. Each row is an independent fork in their account."
-              />
-              <CourseExchangeGuidanceCallout kind="owner-sharing" dismissId="exchange:my-shared:owner" />
-              {renderExchangeToolbar({
-                searchPlaceholder: "Search outbound copies…",
-                meta: (
-                  <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
-                    {filteredMyShared.length === myShared.length
-                      ? `${myShared.length} copies`
-                      : `${filteredMyShared.length} of ${myShared.length} copies`}
-                  </p>
-                ),
-                trailing: (
-                  <Button size="sm" className={cn("h-9 shrink-0 rounded-xl", chrome.solid)} onClick={() => setTab("share-settings")}>
-                    Share course
-                  </Button>
-                ),
-              })}
-              <TabPaneBody>
-                {loading && myShared.length === 0 ? (
-                  <div className="flex min-h-0 flex-1 flex-col justify-center">
-                    <ListSkeleton />
-                  </div>
-                ) : filteredMyShared.length === 0 ? (
-                  <EmptyPanel
-                    icon={Share2}
-                    title="No outbound shares yet"
-                    description="Turn on Share Course for one of your courses, approve incoming requests, and completed copies will appear here."
-                    action={
-                      <Button className={chrome.solid} onClick={() => setTab("share-settings")}>
-                        Manage sharing
-                      </Button>
-                    }
+              {tab === "my-shared" ? (
+                <>
+                  <PanelHeader
+                    title="My Shared Courses"
+                    description="Copies other instructors created from courses you approved. Each row is an independent fork in their account."
                   />
-                ) : viewMode === "grid" ? (
-                  <div className="min-h-0 flex-1 overflow-y-auto">
+                  <CourseExchangeGuidanceCallout kind="owner-sharing" dismissId="exchange:my-shared:owner" />
+                  {renderExchangeToolbar({
+                    searchPlaceholder: "Search outbound copies…",
+                    meta: (
+                      <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
+                        {filteredMyShared.length === myShared.length
+                          ? `${myShared.length} copies`
+                          : `${filteredMyShared.length} of ${myShared.length} copies`}
+                      </p>
+                    ),
+                    trailing: (
+                      <Button size="sm" className={cn("h-9 shrink-0 rounded-xl", chrome.solid)} onClick={() => setTab("share-settings")}>
+                        Share course
+                      </Button>
+                    ),
+                  })}
+                  {loading && myShared.length === 0 ? (
+                    <ListSkeleton />
+                  ) : filteredMyShared.length === 0 ? (
+                    <EmptyPanel
+                      icon={Share2}
+                      title="No outbound shares yet"
+                      description="Turn on Share Course for one of your courses, approve incoming requests, and completed copies will appear here."
+                      action={
+                        <Button className={chrome.solid} onClick={() => setTab("share-settings")}>
+                          Manage sharing
+                        </Button>
+                      }
+                    />
+                  ) : viewMode === "grid" ? (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       {filteredMyShared.map((c, index) => {
                         const stripe = portalListStripe(index, chrome.theme.family)
@@ -1436,10 +1398,8 @@ export function CourseExchangePanel({ initialTab = "discover" }: { initialTab?: 
                         )
                       })}
                     </div>
-                  </div>
-                ) : (
-                  <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border)]", chrome.card)}>
-                    <div className="min-h-0 flex-1 overflow-y-auto">
+                  ) : (
+                    <div className={cn("overflow-hidden rounded-2xl border border-[var(--border)]", chrome.card)}>
                       <div className="divide-y divide-[var(--border)]">
                         {filteredMyShared.map((c, index) => {
                           const stripe = portalListStripe(index, chrome.theme.family)
@@ -1460,39 +1420,33 @@ export function CourseExchangePanel({ initialTab = "discover" }: { initialTab?: 
                         })}
                       </div>
                     </div>
-                  </div>
-                )}
-              </TabPaneBody>
-            </TabPane>
-          ) : null}
+                  )}
+                </>
+              ) : null}
 
-          {tab === "share-settings" ? (
-            <TabPane>
-              <PanelHeader
-                title="Share Course"
-                description="List your courses, turn sharing on, and toggle which teaching modules others may request. Student results are never shared."
-                actions={
-                  <span className="rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1 text-xs font-semibold tabular-nums text-[var(--cc-text)]">
-                    {sharedOnCount} of {mySharingCourses.length} sharing
-                  </span>
-                }
-              />
-              <CourseExchangeGuidanceCallout kind="owner-sharing" dismissId="exchange:share-settings:owner" />
-
-              <TabPaneBody>
-                {loading && mySharingCourses.length === 0 ? (
-                  <div className="flex min-h-0 flex-1 flex-col justify-center">
-                    <ListSkeleton rows={5} />
-                  </div>
-                ) : mySharingCourses.length === 0 ? (
-                  <EmptyPanel
-                    icon={Settings2}
-                    title="No courses to share"
-                    description="Create or get assigned to a course first. Your owned courses will appear here so you can opt them into Discover."
+              {tab === "share-settings" ? (
+                <>
+                  <PanelHeader
+                    title="Share Course"
+                    description="List your courses, turn sharing on, and toggle which teaching modules others may request. Student results are never shared."
+                    actions={
+                      <span className="rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1 text-xs font-semibold tabular-nums text-[var(--cc-text)]">
+                        {sharedOnCount} of {mySharingCourses.length} sharing
+                      </span>
+                    }
                   />
-                ) : (
-                  <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border)]", chrome.card)}>
-                    <div className="min-h-0 flex-1 overflow-y-auto">
+                  <CourseExchangeGuidanceCallout kind="owner-sharing" dismissId="exchange:share-settings:owner" />
+
+                  {loading && mySharingCourses.length === 0 ? (
+                    <ListSkeleton rows={5} />
+                  ) : mySharingCourses.length === 0 ? (
+                    <EmptyPanel
+                      icon={Settings2}
+                      title="No courses to share"
+                      description="Create or get assigned to a course first. Your owned courses will appear here so you can opt them into Discover."
+                    />
+                  ) : (
+                    <div className={cn("overflow-hidden rounded-2xl border border-[var(--border)]", chrome.card)}>
                       <div className="divide-y divide-[var(--border)]">
                         {mySharingCourses.map((course, index) => {
                           const stripe = portalListStripe(index, chrome.theme.family)
@@ -1590,55 +1544,53 @@ export function CourseExchangePanel({ initialTab = "discover" }: { initialTab?: 
                         })}
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {accessLog.length > 0 ? (
-                  <div className="space-y-3 pt-2">
-                    <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>Who accessed your materials</h3>
-                    <div className={cn("overflow-hidden rounded-2xl border border-[var(--border)]", chrome.card)}>
-                      <div className="divide-y divide-[var(--border)]">
-                        {accessLog.slice(0, 40).map((ev, index) => {
-                          const stripe = portalListStripe(index, chrome.theme.family)
-                          return (
-                            <div key={ev.id} className="flex items-start gap-3 px-3 py-3 sm:px-4">
-                              <div className={cn("mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", stripe.iconBg, stripe.iconText)}>
-                                <Share2 className="h-4 w-4" />
+                  {accessLog.length > 0 ? (
+                    <div className="space-y-3 pt-2">
+                      <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>Who accessed your materials</h3>
+                      <div className={cn("overflow-hidden rounded-2xl border border-[var(--border)]", chrome.card)}>
+                        <div className="divide-y divide-[var(--border)]">
+                          {accessLog.slice(0, 40).map((ev, index) => {
+                            const stripe = portalListStripe(index, chrome.theme.family)
+                            return (
+                              <div key={ev.id} className="flex items-start gap-3 px-3 py-3 sm:px-4">
+                                <div className={cn("mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", stripe.iconBg, stripe.iconText)}>
+                                  <Share2 className="h-4 w-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className={cn("text-sm font-medium", PORTAL_TEXT)}>
+                                    {ev.requesterName}
+                                    <span className={cn("font-normal", PORTAL_TEXT_MUTED)}> · {ev.eventType.replace(/_/g, " ")}</span>
+                                    {ev.autoApproved ? (
+                                      <span className="ml-2 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-700 dark:text-emerald-300">
+                                        auto
+                                      </span>
+                                    ) : null}
+                                  </p>
+                                  <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
+                                    {ev.courseCode} — {ev.courseTitle}
+                                  </p>
+                                  <p className={cn("mt-0.5 text-[11px]", PORTAL_TEXT_MUTED)}>
+                                    {ev.modules.map((m) => COURSE_EXCHANGE_MODULE_LABELS[m]).join(", ") || "—"}
+                                  </p>
+                                  <p className={cn("text-[11px]", PORTAL_TEXT_MUTED)}>
+                                    {new Date(ev.createdAt).toLocaleString()}
+                                  </p>
+                                </div>
                               </div>
-                              <div className="min-w-0">
-                                <p className={cn("text-sm font-medium", PORTAL_TEXT)}>
-                                  {ev.requesterName}
-                                  <span className={cn("font-normal", PORTAL_TEXT_MUTED)}> · {ev.eventType.replace(/_/g, " ")}</span>
-                                  {ev.autoApproved ? (
-                                    <span className="ml-2 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-700 dark:text-emerald-300">
-                                      auto
-                                    </span>
-                                  ) : null}
-                                </p>
-                                <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
-                                  {ev.courseCode} — {ev.courseTitle}
-                                </p>
-                                <p className={cn("mt-0.5 text-[11px]", PORTAL_TEXT_MUTED)}>
-                                  {ev.modules.map((m) => COURSE_EXCHANGE_MODULE_LABELS[m]).join(", ") || "—"}
-                                </p>
-                                <p className={cn("text-[11px]", PORTAL_TEXT_MUTED)}>
-                                  {new Date(ev.createdAt).toLocaleString()}
-                                </p>
-                              </div>
-                            </div>
-                          )
-                        })}
+                            )
+                          })}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ) : null}
-              </TabPaneBody>
-            </TabPane>
-          ) : null}
-        </div>
-      </FacultyModuleSplitLayout>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          </FacultyModuleSplitLayout>
 
-      <CourseExchangeUpdateSheet
+          <CourseExchangeUpdateSheet
             copyId={updateCopyId}
             open={updateCopyId != null}
             onOpenChange={(open) => {
@@ -1857,6 +1809,8 @@ export function CourseExchangePanel({ initialTab = "discover" }: { initialTab?: 
               </div>
             </div>
           ) : null}
-    </>
+        </div>
+      </EmbedModuleCard>
+    </PageEnter>
   )
 }

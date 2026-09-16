@@ -82,6 +82,14 @@ function SyllabusViewerBody({
   const [openSections, setOpenSections] = useState<string[]>([])
   const [activeSection, setActiveSection] = useState<string | null>(null)
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [scrollRootReady, setScrollRootReady] = useState(false)
+
+  const bindScrollRef = useCallback((node: HTMLDivElement | null) => {
+    scrollRef.current = node
+    setScrollRootReady(Boolean(node))
+  }, [])
 
   const visibleSections = useMemo(
     () => getStudentVisibleSections(syllabus.sections),
@@ -108,6 +116,8 @@ function SyllabusViewerBody({
 
   useEffect(() => {
     if (!interactive || isPdfMode) return
+    const root = scrollRef.current
+    if (!root) return
     const observer = new IntersectionObserver(
       (entries) => {
         const visible = entries
@@ -117,21 +127,27 @@ function SyllabusViewerBody({
           setActiveSection(visible[0].target.id.replace("syllabus-section-", ""))
         }
       },
-      { root: null, rootMargin: "-20% 0px -55% 0px", threshold: [0, 0.25, 0.5] },
+      { root, rootMargin: "-12% 0px -55% 0px", threshold: [0, 0.25, 0.5] },
     )
     filteredSections.forEach((s) => {
       const el = sectionRefs.current[s.sectionId]
       if (el) observer.observe(el)
     })
     return () => observer.disconnect()
-  }, [filteredSections, interactive, isPdfMode])
+  }, [filteredSections, interactive, isPdfMode, scrollRootReady])
 
   const scrollToSection = useCallback((sectionId: string) => {
     setOpenSections((prev) => (prev.includes(sectionId) ? prev : [...prev, sectionId]))
     requestAnimationFrame(() => {
+      const container = scrollRef.current
       const el = sectionRefs.current[sectionId]
       if (!el) return
-      el.scrollIntoView({ behavior: "smooth", block: "start" })
+      if (!container) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" })
+        return
+      }
+      const offset = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 8
+      container.scrollTo({ top: offset, behavior: "smooth" })
     })
   }, [])
 
@@ -192,7 +208,8 @@ function SyllabusViewerBody({
   const syllabusToolbar = (
     <div
       id="syllabus-toolbar"
-      className="sticky top-0 z-20 shrink-0 space-y-3.5 border-b border-[var(--border)] bg-[var(--card)] px-4 py-4 shadow-[0_1px_0_color-mix(in_srgb,var(--cc-text)_6%,transparent)] sm:px-5 sm:py-4"
+      ref={toolbarRef}
+      className="shrink-0 space-y-3.5 border-b border-[var(--border)] px-4 py-4 sm:px-5 sm:py-4"
     >
       <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:gap-3">
         <div className="relative min-w-0 flex-1">
@@ -281,12 +298,12 @@ function SyllabusViewerBody({
           <aside className="hidden lg:block">
             <nav
               aria-label="Syllabus sections"
-              className="sticky top-28 z-10 self-start rounded-xl bg-[var(--muted)]/50"
+              className="sticky top-0 z-10 flex max-h-[min(70vh,calc(100dvh-14rem))] flex-col overflow-hidden rounded-xl bg-[var(--muted)]/50"
             >
-              <p className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[var(--cc-text-muted)]">
+              <p className="shrink-0 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[var(--cc-text-muted)]">
                 On this page
               </p>
-              <ul className="space-y-0.5 p-2 pt-0">
+              <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain p-2 [scrollbar-width:thin]">
                 {visibleSections.map((section) => {
                   const isActive = activeSection === section.sectionId
                   const matchesSearch =
@@ -341,7 +358,7 @@ function SyllabusViewerBody({
                 ref={(el) => {
                   sectionRefs.current[section.sectionId] = el
                 }}
-                className="scroll-mt-28"
+                className="scroll-mt-3"
               >
                 <AccordionItem
                   value={section.sectionId}
@@ -386,12 +403,17 @@ function SyllabusViewerBody({
 
   if (interactive) {
     return (
-      <div className="flex min-w-0 flex-col">
+      <div className="flex h-full min-h-0 flex-col">
         {studentId ? <SyllabusViewTracker syllabus={syllabus} studentId={studentId} /> : null}
         {syllabusToolbar}
-        <div className="space-y-6 px-4 pb-6 pt-4 sm:px-5">
-          {universityHeader}
-          {sectionsBody}
+        <div
+          ref={bindScrollRef}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]"
+        >
+          <div className="space-y-6 px-4 pb-6 pt-4 sm:px-5">
+            {universityHeader}
+            {sectionsBody}
+          </div>
         </div>
       </div>
     )

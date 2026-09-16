@@ -117,6 +117,7 @@ import {
 import { ClassroomAssignmentEditDialog } from "@/components/classroom-assignment-edit-dialog";
 import { ClassroomSolutionApprovalPreview } from "@/components/classroom-solution-approval-preview";
 import {
+  classroomAssignmentAvailableForInstructorManage,
   classroomAssignmentIsOpen,
   classroomAssignmentOpenState,
   formatAssignmentDueLabel,
@@ -312,7 +313,7 @@ export function InstructorClassroomPoints({
       setSubmissions(
         rows.map((row: { due_at?: string | null; duration_hours?: number | null; created_at?: string; expires_at?: string | null; is_active?: boolean }) => ({
           ...row,
-          is_active: classroomAssignmentIsOpen(row),
+          is_active: classroomAssignmentAvailableForInstructorManage(row),
         })),
       )
     } catch (error) {

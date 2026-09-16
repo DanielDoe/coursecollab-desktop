@@ -1,16 +1,16 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { CC_MODULE_SKELETON_SURFACE, CC_SKELETON } from "@/lib/appearance/ui-primitives"
+import { PORTAL_CARD } from "@/lib/appearance/portal-nav-classes"
 
 function Shimmer({ className }: { className?: string }) {
-  return <div data-slot="skeleton" className={cn(CC_SKELETON, className)} />
+  return <div className={cn("animate-pulse rounded-md bg-[var(--muted)]", className)} />
 }
 
 export function ProjectsListPanelSkeleton({ rows = 4 }: { rows?: number }) {
   return (
     <div
-      className={cn(CC_MODULE_SKELETON_SURFACE, "space-y-3 overflow-hidden p-5 sm:space-y-4 sm:p-6")}
+      className={cn(PORTAL_CARD, "space-y-3 overflow-hidden p-3 sm:p-4")}
       aria-busy
       aria-label="Loading projects list"
     >
@@ -41,7 +41,7 @@ export function ProjectsListPanelSkeleton({ rows = 4 }: { rows?: number }) {
 export function ProjectsManagerPanelSkeleton({ cards = 2 }: { cards?: number }) {
   return (
     <div
-      className={cn(CC_MODULE_SKELETON_SURFACE, "space-y-3 overflow-hidden p-3 sm:p-4")}
+      className={cn(PORTAL_CARD, "space-y-3 overflow-hidden p-3 sm:p-4")}
       aria-busy
       aria-label="Loading my projects"
     >

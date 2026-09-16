@@ -1,4 +1,12 @@
+import {
+  clientPlatformLabel,
+  resolveActivityClientPlatform,
+  type ClientPlatformId,
+} from "@/lib/client-platform"
 import { CAREER_MEMBER_LABEL } from "@/lib/guest/display"
+
+export type { ClientPlatformId }
+export { clientPlatformLabel, resolveActivityClientPlatform }
 
 export type PlatformPortal = "admin" | "faculty" | "student" | "summer_camper" | "guest" | "system"
 export type ActivityCategory = "auth" | "navigation" | "assessment" | "profile" | "admin" | "general"

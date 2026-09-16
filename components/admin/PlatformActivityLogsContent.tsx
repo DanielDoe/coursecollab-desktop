@@ -16,11 +16,13 @@ import {
 } from "lucide-react"
 import { buildAdminApiHeaders } from "@/lib/admin-api-headers"
 import {
+  clientPlatformLabel,
   formatActivityActorPrimary,
   formatActivityActorSecondary,
   formatActivitySummaryPrimary,
   formatActivitySummarySecondary,
   portalLabel,
+  resolveActivityClientPlatform,
   type PlatformActivityRow,
 } from "@/lib/platform-activity-constants"
 import { exportPlatformActivityPdf } from "@/lib/platform-activity-pdf"
@@ -135,6 +137,7 @@ export function PlatformActivityLogsContent() {
   const [portal, setPortal] = useState("all")
   const [category, setCategory] = useState("all")
   const [action, setAction] = useState("all")
+  const [clientPlatform, setClientPlatform] = useState("all")
   const [success, setSuccess] = useState("all")
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
@@ -150,12 +153,13 @@ export function PlatformActivityLogsContent() {
     if (portal !== "all") p.set("portal", portal)
     if (category !== "all") p.set("category", category)
     if (action !== "all") p.set("action", action)
+    if (clientPlatform !== "all") p.set("clientPlatform", clientPlatform)
     if (success !== "all") p.set("success", success)
     if (search.trim()) p.set("search", search.trim())
     if (dateFrom) p.set("dateFrom", dateFrom)
     if (dateTo) p.set("dateTo", dateTo)
     return p.toString()
-  }, [portal, category, action, success, search, dateFrom, dateTo, offset, pageSize])
+  }, [portal, category, action, clientPlatform, success, search, dateFrom, dateTo, offset, pageSize])
 
   const load = useCallback(async (opts?: { bustCache?: boolean }) => {
     setLoading(true)
@@ -213,6 +217,7 @@ export function PlatformActivityLogsContent() {
       exportPlatformActivityPdf(data.logs ?? [], {
         portal,
         category,
+        clientPlatform,
         dateFrom,
         dateTo,
         search: search.trim(),
@@ -233,6 +238,7 @@ export function PlatformActivityLogsContent() {
     setPortal("all")
     setCategory("all")
     setAction("all")
+    setClientPlatform("all")
     setSuccess("all")
     setSearch("")
     setDateFrom("")
@@ -244,6 +250,7 @@ export function PlatformActivityLogsContent() {
     portal !== "all" ||
     category !== "all" ||
     action !== "all" ||
+    clientPlatform !== "all" ||
     success !== "all" ||
     search.trim() ||
     dateFrom ||
@@ -262,8 +269,8 @@ export function PlatformActivityLogsContent() {
           <span className="min-w-0 leading-snug">Platform Activity &amp; Audit Logs</span>
         </h1>
         <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-2xl">
-          Track logins, page access, password changes, quiz activity, and other events across
-          admin, faculty, student, and summer camp portals.
+          Track logins, page access, password changes, quiz activity, and which client
+          students used (web, mobile app, or desktop app) across portals.
         </p>
       </div>
 
@@ -335,7 +342,7 @@ export function PlatformActivityLogsContent() {
                 }}
               />
             </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               <Select
                 value={portal}
                 onValueChange={(v) => {
@@ -352,6 +359,23 @@ export function PlatformActivityLogsContent() {
                 <SelectItem value="faculty">Faculty</SelectItem>
                 <SelectItem value="student">Student</SelectItem>
                 <SelectItem value="summer_camper">Summer Camp</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={clientPlatform}
+              onValueChange={(v) => {
+                setClientPlatform(v)
+                setOffset(0)
+              }}
+            >
+              <SelectTrigger className="min-w-0 w-full">
+                <SelectValue placeholder="Client" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All clients</SelectItem>
+                <SelectItem value="web">Web</SelectItem>
+                <SelectItem value="mobile">Mobile app</SelectItem>
+                <SelectItem value="desktop">Desktop app</SelectItem>
               </SelectContent>
             </Select>
             <Select
@@ -451,6 +475,7 @@ export function PlatformActivityLogsContent() {
                   const userSubLabel = formatActivityActorSecondary(row)
                   const summaryLabel = formatActivitySummaryPrimary(row)
                   const summarySubLabel = formatActivitySummarySecondary(row)
+                  const platformLabel = clientPlatformLabel(resolveActivityClientPlatform(row))
                   return (
                     <button
                       key={row.id}
@@ -480,6 +505,9 @@ export function PlatformActivityLogsContent() {
                         <Badge variant="outline" className="font-normal text-[10px] px-1.5 py-0">
                           {portalLabel(row.portal)}
                         </Badge>
+                        <Badge variant="secondary" className="font-normal text-[10px] px-1.5 py-0">
+                          {platformLabel}
+                        </Badge>
                       </div>
                       <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                         <span className="truncate min-w-0">
@@ -503,6 +531,7 @@ export function PlatformActivityLogsContent() {
                     <TableHead className="min-w-[200px]">Summary</TableHead>
                     <TableHead className="min-w-[100px]">Action</TableHead>
                     <TableHead className="min-w-[88px]">Portal</TableHead>
+                    <TableHead className="min-w-[96px]">Client</TableHead>
                     <TableHead className="w-[72px]">Status</TableHead>
                     <TableHead className="w-[88px] text-right">Details</TableHead>
                   </TableRow>
@@ -513,6 +542,7 @@ export function PlatformActivityLogsContent() {
                     const userSubLabel = formatActivityActorSecondary(row)
                     const summaryLabel = formatActivitySummaryPrimary(row)
                     const summarySubLabel = formatActivitySummarySecondary(row)
+                    const platformLabel = clientPlatformLabel(resolveActivityClientPlatform(row))
                     return (
                       <TableRow
                         key={row.id}
@@ -542,6 +572,11 @@ export function PlatformActivityLogsContent() {
                         <TableCell>
                           <Badge variant="outline" className="font-normal whitespace-nowrap">
                             {portalLabel(row.portal)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="font-normal whitespace-nowrap">
+                            {platformLabel}
                           </Badge>
                         </TableCell>
                         <TableCell>

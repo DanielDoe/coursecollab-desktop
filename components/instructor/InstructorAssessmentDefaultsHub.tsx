@@ -523,6 +523,45 @@ export function InstructorAssessmentDefaultsHub() {
                     onCheckedChange={(v) => patchSuperpowers({ enable_superpowers_default: v })}
                     switchClass={switchClass}
                   />
+                  <Toggle
+                    label="Quizzes on mobile"
+                    checked={policy.access.platform_access.quiz.mobile}
+                    onCheckedChange={(v) =>
+                      patchAccess({
+                        platform_access: {
+                          ...policy.access.platform_access,
+                          quiz: { ...policy.access.platform_access.quiz, mobile: v },
+                        },
+                      })
+                    }
+                    switchClass={switchClass}
+                  />
+                  <Toggle
+                    label="Mid-semester exams on mobile"
+                    checked={policy.access.platform_access.mid_semester.mobile}
+                    onCheckedChange={(v) =>
+                      patchAccess({
+                        platform_access: {
+                          ...policy.access.platform_access,
+                          mid_semester: { ...policy.access.platform_access.mid_semester, mobile: v },
+                        },
+                      })
+                    }
+                    switchClass={switchClass}
+                  />
+                  <Toggle
+                    label="Final exams on mobile"
+                    checked={policy.access.platform_access.final.mobile}
+                    onCheckedChange={(v) =>
+                      patchAccess({
+                        platform_access: {
+                          ...policy.access.platform_access,
+                          final: { ...policy.access.platform_access.final, mobile: v },
+                        },
+                      })
+                    }
+                    switchClass={switchClass}
+                  />
                 </SettingGroup>
               </InstructorPolicySurfaceCard>
             </div>

@@ -152,6 +152,13 @@ export function classroomAssignmentOpenState(
   return "unscheduled"
 }
 
+/** CodeBench / manage lists — hide only assignments that passed their due or duration window. */
+export function classroomAssignmentAvailableForInstructorManage(
+  row: ClassroomAssignmentOpenInput,
+): boolean {
+  return classroomAssignmentOpenState(row) !== "expired"
+}
+
 export function classroomAssignmentIsOpen(row: ClassroomAssignmentOpenInput): boolean {
   return classroomAssignmentOpenState(row) === "active"
 }

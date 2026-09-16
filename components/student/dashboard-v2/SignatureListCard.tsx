@@ -5,7 +5,6 @@ import type { LucideIcon } from "lucide-react"
 import { Calendar, ChevronRight, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { SolidListThumb } from "@/lib/student-color-hunt-theme"
-import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
 
 type ThumbSize = "list" | "compact"
 
@@ -67,7 +66,7 @@ export function SignatureListCard({
 
   const body = (
     <>
-      <SolidListThumbTile thumb={thumb} icon={Icon} size={isDesktopAppShell() ? "compact" : "list"} />
+      <SolidListThumbTile thumb={thumb} icon={Icon} />
 
       <div className="min-w-0 flex-1 space-y-0.5 overflow-hidden py-0.5">
         <p className="text-sm font-semibold leading-snug text-[var(--cc-text)] [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] overflow-hidden">
@@ -116,9 +115,7 @@ export function SignatureListCard({
   )
 
   const cardClass = cn(
-    isDesktopAppShell()
-      ? "flex min-h-[56px] w-full items-center gap-2.5 rounded-[8px] border border-[#e5e7eb] bg-white px-2.5 py-1.5 shadow-none dark:border-[#262626] dark:bg-[#171717]"
-      : "flex h-[88px] w-full items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]",
+    "flex h-[88px] w-full items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]",
     interactive && "transition-colors hover:bg-[var(--muted)]/30",
     className,
   )

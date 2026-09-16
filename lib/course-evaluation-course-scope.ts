@@ -6,14 +6,38 @@ export const COURSE_EVALUATION_SESSION_JOIN = sql.unsafe(`
   LEFT JOIN sessions sess ON sess.id = s.session_id
 `)
 
+/**
+ * ECE2202UH (and other ECE2202* shells) share the live ECE2202 evaluation roster.
+ * Using the full demo code as a LIKE prefix hides every historical row tagged ECE2202.
+ */
+export function evaluationCatalogFamilyPrefix(courseCode: string | null | undefined): string {
+  const key = normalizeCatalogCourseCode(courseCode).replace(/[^A-Z0-9]/g, "")
+  if (key.startsWith("ECE2202")) return "ECE2202"
+  return key
+}
+
 function courseEvaluationCoursePredicateSql(courseId: number, courseCode: string): string {
   const cid = Number(courseId)
-  const prefix = `${normalizeCatalogCourseCode(courseCode).replace(/'/g, "''")}%`
+  const family = evaluationCatalogFamilyPrefix(courseCode).replace(/'/g, "''")
+  // ECE2202UH / ECE2202 share one catalog family. Never LIKE section/session codes —
+  // ELEG1301P01 is reused across Spring and Fall.
+  if (family.startsWith("ECE2202")) {
+    return `(
+      s.course_id = ${cid}
+      OR sess.course_id = ${cid}
+      OR s.course_id IN (
+        SELECT c2.id FROM courses c2
+        WHERE TRIM(UPPER(REPLACE(COALESCE(c2.course_code, ''), ' ', ''))) LIKE 'ECE2202%'
+      )
+      OR sess.course_id IN (
+        SELECT c2.id FROM courses c2
+        WHERE TRIM(UPPER(REPLACE(COALESCE(c2.course_code, ''), ' ', ''))) LIKE 'ECE2202%'
+      )
+    )`
+  }
   return `(
       s.course_id = ${cid}
       OR sess.course_id = ${cid}
-      OR TRIM(UPPER(REPLACE(COALESCE(s.section, ''), ' ', ''))) LIKE '${prefix}'
-      OR TRIM(UPPER(REPLACE(COALESCE(ce.session, ''), ' ', ''))) LIKE '${prefix}'
     )`
 }
 
@@ -39,9 +63,9 @@ export function evaluationTextBelongsToCourse(
   session: string | null | undefined,
   courseCode: string | null | undefined,
 ): boolean {
-  const course = normalizeCatalogCourseCode(courseCode)
+  const course = evaluationCatalogFamilyPrefix(courseCode)
   if (!course) return true
-  const tokens = [section, session].map((value) => normalizeCatalogCourseCode(value)).filter(Boolean)
+  const tokens = [section, session].map((value) => evaluationCatalogFamilyPrefix(value)).filter(Boolean)
   if (tokens.length === 0) return true
-  return tokens.some((token) => token === course || token.startsWith(course))
+  return tokens.some((token) => token === course || token.startsWith(course) || course.startsWith(token))
 }

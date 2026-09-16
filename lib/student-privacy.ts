@@ -17,11 +17,30 @@ export function resolveEntryStudentId(entry: Record<string, unknown>, idFields: 
   return undefined
 }
 
+const LEADERBOARD_IDENTITY_FIELDS = [
+  "id",
+  "student_id",
+  "studentId",
+  "student_number",
+  "studentNumber",
+  "full_name",
+  "student_name",
+  "studentName",
+  "display_name",
+  "displayName",
+  "nickname",
+  "email",
+] as const
+
+/**
+ * FERPA peer blur: strip identity, keep rank + scores so clients can show
+ * placeholders ("Student", "••• pts") without dropping classmates from the board.
+ */
 export function sanitizeLeaderboardForStudent<T extends Record<string, unknown>>(
   entries: T[],
   currentStudentId: string,
   options?: { idFields?: string[] }
-): Array<T & { rank: number; is_current_user: boolean } | { rank: number; is_current_user: false }> {
+): Array<T & { rank: number; is_current_user: boolean }> {
   const idFields = options?.idFields ?? ["id", "student_id"]
 
   return entries.map((entry, index) => {
@@ -33,7 +52,11 @@ export function sanitizeLeaderboardForStudent<T extends Record<string, unknown>>
       return { ...entry, rank, is_current_user: true }
     }
 
-    return { rank, is_current_user: false }
+    const scrubbed: Record<string, unknown> = { ...entry, rank, is_current_user: false }
+    for (const field of [...idFields, ...LEADERBOARD_IDENTITY_FIELDS]) {
+      delete scrubbed[field]
+    }
+    return scrubbed as T & { rank: number; is_current_user: boolean }
   })
 }
 

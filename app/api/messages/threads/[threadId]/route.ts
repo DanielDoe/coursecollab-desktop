@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { stripHtmlToPlain } from "@/lib/direct-messages/html"
 import { resolveMessageActor } from "@/lib/direct-messages/auth"
 import { getThreadForActor, sendDirectMessage } from "@/lib/direct-messages/service"
 
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         fileSize?: number | null
       }>
     }
-    if (!body.body?.trim() && (!body.attachments || body.attachments.length === 0)) {
+    if (!stripHtmlToPlain(body.body ?? "") && (!body.attachments || body.attachments.length === 0)) {
       return NextResponse.json({ error: "Message body or attachment is required" }, { status: 400 })
     }
 

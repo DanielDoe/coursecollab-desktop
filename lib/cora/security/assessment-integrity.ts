@@ -109,7 +109,43 @@ const ANSWER_SEEKING_PATTERNS: RegExp[] = [
   /\bwhat\s+output\s+should\s+my\s+program\s+produce\b/i,
   /\bgive\s+me\s+the\s+circuit\b/i,
   /\bso\s+i\s+can\s+compare\s+mine\b/i,
+
+  // Developer-mode / policy override / format tricks
+  /\b(?:developer|dev|debug|god|sudo|admin)\s+mode\b/i,
+  /\bno\s+(?:restrictions?|rules?|guardrails?|limits?)\b/i,
+  /\b(?:disable|turn\s+off|remove)\s+(?:your\s+)?(?:safety|policy|restrictions?)\b/i,
+  /\b(?:system|developer)\s+prompt\b/i,
+  /\boutput\s+only\s+(?:the\s+)?(?:answer|solution|code)\b/i,
+  /\b(?:respond|reply)\s+with\s+only\s+(?:the\s+)?(?:answer|letter|option)\b/i,
+  /\b(?:in\s+)?(?:json|yaml|xml)\s*[,:]?\s*(?:give|provide|return)\s+(?:the\s+)?answer\b/i,
+  /\b(?:one|single)\s+word\s*[:\-]?\s*(?:the\s+)?answer\b/i,
+  /\bwhat\s+would\s+a\s+student\s+who\s+got\s+100\s*%\s+write\b/i,
+  /\b(?:print|say|write)\s+the\s+(?:solution|answer)\s+verbatim\b/i,
+  /\b(?:between\s+us|off\s+the\s+record)\b/i,
+  /\b(?:this\s+is\s+not|not)\s+(?:a\s+)?(?:real\s+)?(?:quiz|exam|homework|assessment)\b/i,
+  /\b(?:training|test)\s+data\b.*\b(?:answer|solution)\b/i,
+  /\b(?:reveal|leak|spoiler)\s+(?:the\s+)?(?:key|answer|solution)\b/i,
+  /\b(?:continue|complete)\s+(?:from|where)\s+(?:you|i)\s+left\s+off\b/i,
+  /\b(?:now|ok|okay)\s+(?:just\s+)?(?:give|show|write)\s+(?:me\s+)?(?:the\s+)?(?:code|answer|solution)\b/i,
+  /\b(?:without|skip)\s+(?:the\s+)?(?:explanation|teaching|hints?)\b/i,
+  /\b(?:direct|straight)\s+answer\s+only\b/i,
+  /\b(?:unlock|enable)\s+(?:full|unrestricted)\s+(?:mode|access)\b/i,
 ]
+
+/** Combine recent user turns so multi-step jailbreaks still trip input gates. */
+export function mergeMessagesForAnswerSeekingCheck(
+  current: string | null | undefined,
+  history?: Array<{ role?: string; content?: string }> | null,
+): string {
+  const priorUser = (history ?? [])
+    .filter((m) => String(m.role ?? "").toLowerCase() === "user")
+    .slice(-4)
+    .map((m) => String(m.content ?? "").trim())
+    .filter(Boolean)
+  const latest = String(current ?? "").trim()
+  if (!priorUser.length) return latest
+  return [...priorUser, latest].join("\n---\n")
+}
 
 /** Heuristic: user is asking for direct answers / solutions (vs study strategy). */
 export function looksLikeAnswerSeekingRequest(message: string): boolean {

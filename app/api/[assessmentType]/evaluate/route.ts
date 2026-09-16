@@ -4,7 +4,7 @@ import {
   AssessmentEvaluateHttpError,
   buildAssessmentCoreEvaluateResponse,
 } from "@/lib/assessment-core/evaluate-http"
-import { getLockableAnswerBlockReason } from "@/lib/quiz-answer-lock"
+import { getAnswerChangeBlockReasonForRequest } from "@/lib/quiz-answer-lock"
 
 export const dynamic = 'force-dynamic'
 export const runtime = "nodejs"
@@ -49,7 +49,8 @@ export async function POST(
       )
     }
 
-    const lockReason = await getLockableAnswerBlockReason(
+    const lockReason = await getAnswerChangeBlockReasonForRequest(
+      request,
       Number(attemptId),
       Number(questionId),
       questionType,

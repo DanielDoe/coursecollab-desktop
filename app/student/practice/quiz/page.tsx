@@ -758,11 +758,21 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
       {/* Glass Header */}
       {!embedded && <StudentHeader />}
 
-      {/* Main Content */}
-      <main className={cn(
-        "relative container mx-auto max-w-4xl min-w-0 overflow-x-hidden px-3 sm:px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]",
-        embedded ? "py-4 sm:py-6 min-h-[420px]" : "py-6 sm:py-8",
-      )}>
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row md:items-stretch",
+          coraDrawerOpen && canAskCoraOnCurrentQuestion && "md:max-w-none",
+        )}
+      >
+      <main
+        className={cn(
+          "relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-4",
+          coraDrawerOpen && canAskCoraOnCurrentQuestion
+            ? "container mx-auto max-w-4xl md:max-w-none md:px-5"
+            : "container mx-auto max-w-4xl",
+          embedded ? "py-4 sm:py-6 min-h-[420px]" : "py-6 sm:py-8",
+        )}
+      >
         <QuestionPrepareGate
           fetching={hydrating}
           texts={prepareTexts}
@@ -1119,8 +1129,9 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
         </QuestionPrepareGate>
       </main>
 
-      {currentQuestion && studentId && canAskCoraOnCurrentQuestion ? (
+      {coraDrawerOpen && currentQuestion && studentId && canAskCoraOnCurrentQuestion ? (
         <CoraAskDrawer
+          variant="panel"
           open={coraDrawerOpen}
           onClose={() => setCoraDrawerOpen(false)}
           studentId={String(studentId)}
@@ -1140,6 +1151,7 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
           })}
         />
       ) : null}
+      </div>
     </div>
   )
 }

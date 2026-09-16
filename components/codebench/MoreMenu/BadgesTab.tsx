@@ -51,6 +51,7 @@ export function BadgesTab({ embedInDashboard }: BadgesTabProps = {}) {
                 unlocked: unlockedIds.includes(badge.id),
               })),
             )
+            setLoading(false)
           } catch (e) {
             console.error("Failed to parse badges:", e)
           }

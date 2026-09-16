@@ -17,13 +17,13 @@ export type LecturePdfPage = {
 
 export async function fetchLecturePdfDocument(
   url: string,
-  options?: { headers?: Record<string, string> },
+  options?: RequestInit,
 ): Promise<LecturePdfDocument> {
   const pdfjs = await loadPdfJsBrowser()
   const res = await fetch(url, {
     credentials: "same-origin",
     cache: "no-store",
-    headers: options?.headers,
+    ...options,
   })
   const contentType = res.headers.get("content-type") ?? ""
   if (!res.ok) {

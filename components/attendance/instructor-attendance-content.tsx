@@ -56,7 +56,8 @@ export function InstructorAttendanceContent({ embedInDashboard }: InstructorAtte
   ]
 
   const panel = (
-    <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col" : "space-y-3"}>
+    <div className="space-y-3">
+
       {activeMenu === "overview" && instructorData?.id && (
         <InstructorAttendanceOverview
           instructorId={instructorData.id}
@@ -66,34 +67,24 @@ export function InstructorAttendanceContent({ embedInDashboard }: InstructorAtte
       )}
 
       {activeMenu === "configure" && (
-        <InstructorAttendanceConfig instructorId={instructorData?.id} embedInDashboard={embedInDashboard} />
+        <InstructorAttendanceConfig instructorId={instructorData?.id} />
       )}
 
-      {activeMenu === "qr-code" && (
-        <QRGenerator instructorId={instructorData?.id} embedInDashboard={embedInDashboard} />
-      )}
+      {activeMenu === "qr-code" && <QRGenerator instructorId={instructorData?.id} />}
 
       {activeMenu === "analytics" && (
-        <InstructorAttendanceAnalytics instructorId={instructorData?.id} embedInDashboard={embedInDashboard} />
+        <InstructorAttendanceAnalytics instructorId={instructorData?.id} />
       )}
 
       {activeMenu === "management" && instructorData?.id && (
-        <InstructorAttendanceManagement
-          instructorId={String(instructorData.id)}
-          embedInDashboard={embedInDashboard}
-        />
+        <InstructorAttendanceManagement instructorId={String(instructorData.id)} />
       )}
 
       {activeMenu === "gradebook" && (
-        <InstructorAttendanceGradebook
-          instructorId={String(instructorData?.id ?? "")}
-          embedInDashboard={embedInDashboard}
-        />
+        <InstructorAttendanceGradebook instructorId={String(instructorData?.id ?? "")} />
       )}
 
-      {activeMenu === "trash" && (
-        <AttendanceTrash instructorId={instructorData?.id} embedInDashboard={embedInDashboard} />
-      )}
+      {activeMenu === "trash" && <AttendanceTrash instructorId={instructorData?.id} />}
     </div>
   )
 
@@ -107,8 +98,6 @@ export function InstructorAttendanceContent({ embedInDashboard }: InstructorAtte
 
   return (
     <FacultyModuleSplitLayout
-      scrollMode={embedInDashboard ? "panel" : "page"}
-      className={embedInDashboard ? "min-h-0 flex-1" : undefined}
       menu={
         <FacultyModuleSideMenu
           moduleId="attendance"

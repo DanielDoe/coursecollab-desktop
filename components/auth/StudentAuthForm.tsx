@@ -12,20 +12,7 @@ import { setStudentSession } from "@/lib/auth"
 import { useAuth } from "@/lib/auth-context"
 import type { UniversityRecord } from "@/lib/universities-shared"
 import { cn } from "@/lib/utils"
-import { AlertCircle, Eye, EyeOff } from "lucide-react"
-import { Spinner } from "@/components/ui/spinner"
-import { AnimatePresence } from "framer-motion"
-import {
-  DesktopAuthBackLink,
-  DesktopAuthPanelBody,
-  DesktopAuthPanelCard,
-  DesktopAuthUniversityHeader,
-  desktopAuth,
-} from "@/components/auth/desktop-auth-primitives"
-import { DesktopAuthFormSwitch, DesktopAuthStagger } from "@/components/auth/desktop-auth-motion"
-import { DesktopWebSignupLink } from "@/components/auth/DesktopWebSignupLink"
-import { DESKTOP_WEB_SIGNUP_PATHS, effectiveRememberMeForClient, isDesktopAuthLoginOnly, openWebAppPath } from "@/lib/desktop-auth-policy"
-import { captureRefreshTokenFromResponse, withDesktopRefreshInit } from "@/lib/desktop-refresh-token"
+import { AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react"
 import {
   persistRememberedStudentAuth,
   readRememberedStudentLogin,
@@ -37,6 +24,31 @@ import { studentEnrollmentCount } from "@/lib/student-select-course"
 import { clearStudentExplicitSignOutFlag } from "@/lib/student-session-restore-client"
 import { MfaLoginStep, AuthProgressPanel, holdCompleteLoginSplash, parseMfaLoginResponse, type MfaLoginState } from "@/components/auth/MfaLoginStep"
 import { formatStudentLoginErrorMessage, isStudentAlreadyActivatedResponse } from "@/lib/student-login-errors"
+import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
+
+function StudentOtherSignInNav() {
+  const portalHub = isDesktopAppShell() ? "/auth/welcome?change=1" : "/auth/university?change=1"
+
+  return (
+    <p className="text-center text-[12px] leading-relaxed text-[var(--cc-text-secondary)]">
+      <Link href="/faculty/login" className="font-semibold text-[var(--cc-accent)] hover:underline">
+        Faculty sign in
+      </Link>
+      <span aria-hidden className="mx-1.5 text-[var(--cc-text-muted)]">
+        ·
+      </span>
+      <Link href="/auth/university?change=1" className="font-medium text-[var(--cc-accent)] hover:underline">
+        Change university
+      </Link>
+      <span aria-hidden className="mx-1.5 text-[var(--cc-text-muted)]">
+        ·
+      </span>
+      <Link href={portalHub} className="font-medium text-[var(--cc-accent)] hover:underline">
+        More options
+      </Link>
+    </p>
+  )
+}
 
 type EnrollmentOption = {
   courseId: number
@@ -49,18 +61,9 @@ type EnrollmentOption = {
 type Props = {
   university: UniversityRecord
   expired?: boolean
-  variant?: "default" | "desktop"
-  backHref?: string
-  backLabel?: string
 }
 
-export function StudentAuthForm({
-  university,
-  expired,
-  variant = "default",
-  backHref,
-  backLabel = "Back",
-}: Props) {
+export function StudentAuthForm({ university, expired }: Props) {
   const router = useRouter()
   const { setSelectedUniversity } = useAuth()
   const [identifier, setIdentifier] = useState("")
@@ -85,16 +88,8 @@ export function StudentAuthForm({
     }
   }, [])
 
-  const isDesktop = variant === "desktop"
-  const desktopLoginOnly = isDesktopAuthLoginOnly(variant)
-  const loginRememberMe = effectiveRememberMeForClient(rememberMe)
-  const inputClass = isDesktop
-    ? desktopAuth.input
-    : "h-12 rounded-xl border-[var(--border)] bg-[var(--cc-surface)] text-[var(--cc-text)] placeholder:text-[var(--cc-text-muted)]"
-  const actionButtonClass = isDesktop
-    ? desktopAuth.button
-    : "w-full h-12 rounded-2xl font-semibold text-white"
-  const alertClass = isDesktop ? desktopAuth.alert : "rounded-xl"
+  const inputClass =
+    "h-12 rounded-xl border-[var(--border)] bg-[var(--cc-surface)] text-[var(--cc-text)] placeholder:text-[var(--cc-text-muted)]"
 
   const finishLogin = async (data: {
     student: Record<string, unknown>
@@ -115,7 +110,7 @@ export function StudentAuthForm({
       name: String(s.full_name),
       section: String(s.section ?? enrollment?.section ?? ""),
       databaseId: String(s.id),
-      rememberMe: effectiveRememberMeForClient(data.rememberMe ?? rememberMe),
+      rememberMe: data.rememberMe ?? rememberMe,
       universityId: university.id,
       universityName: university.name,
       universityShortName: university.short_name,
@@ -130,7 +125,7 @@ export function StudentAuthForm({
     sessionStorage.setItem("studentMembershipTier", membershipTier)
     localStorage.setItem("studentMembershipTier", membershipTier)
 
-    const didRemember = effectiveRememberMeForClient(data.rememberMe ?? rememberMe)
+    const didRemember = data.rememberMe ?? rememberMe
     persistRememberedStudentAuth({
       university,
       identifier: identifier.trim() || String(s.student_id ?? ""),
@@ -175,23 +170,19 @@ export function StudentAuthForm({
     try {
       const id = pendingLogin?.identifier ?? identifier
       const pw = pendingLogin?.password ?? password
-      const res = await fetch(
-        "/api/auth/student/login",
-        withDesktopRefreshInit({
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            universityId: university.id,
-            identifier: id,
-            password: pw,
-            rememberMe: loginRememberMe,
-            courseId: course?.courseId,
-            section: course?.section,
-          }),
+      const res = await fetch("/api/auth/student/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          universityId: university.id,
+          identifier: id,
+          password: pw,
+          rememberMe,
+          courseId: course?.courseId,
+          section: course?.section,
         }),
-      )
-      captureRefreshTokenFromResponse(res)
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(formatStudentLoginErrorMessage(data))
 
@@ -214,7 +205,7 @@ export function StudentAuthForm({
         resetRequestId: data.resetRequestId,
         enrollment: data.enrollment,
         enrollments: data.enrollments,
-        rememberMe: effectiveRememberMeForClient(data.rememberMe),
+        rememberMe: data.rememberMe,
         coursePicked: Boolean(course),
       })
     } catch (err) {
@@ -287,10 +278,6 @@ export function StudentAuthForm({
   }
 
   const switchAuthMode = (next: "login" | "activate") => {
-    if (desktopLoginOnly && next === "activate") {
-      openWebAppPath(DESKTOP_WEB_SIGNUP_PATHS.student)
-      return
-    }
     setMode(next)
     setError("")
     setInfo("")
@@ -345,22 +332,14 @@ export function StudentAuthForm({
     )
   }
 
-  const mainContent = (
-    <>
-      {!isDesktop ? (
-      <div
-        className={cn(
-          "flex gap-4",
-          "flex-col items-center text-center gap-3",
-        )}
-      >
-        {university.logo ? (
-          <UniversityLogo university={university} size="md" />
-        ) : null}
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-col items-center text-center gap-2.5">
+        {university.logo ? <UniversityLogo university={university} size="md" /> : null}
         <div>
           {!universityHasFullWordmark(university) ? (
             <p
-              className="font-bold uppercase tracking-widest text-[10px]"
+              className="text-[10px] font-bold uppercase tracking-widest"
               style={{ color: university.primary_color }}
             >
               {university.short_name}
@@ -374,251 +353,41 @@ export function StudentAuthForm({
           ) : null}
         </div>
       </div>
-      ) : null}
-
-      {isDesktop ? (
-        <DesktopAuthUniversityHeader
-          media={
-            university.logo ? (
-              <UniversityLogo university={university} size="md" variant="compact" />
-            ) : undefined
-          }
-          name={university.name}
-          hint={
-            mode === "login" && !info
-              ? "Use your Student ID or email and the temporary password from your welcome email."
-              : undefined
-          }
-        />
-      ) : null}
 
       {expired ? (
-        <div
-          className={cn(
-            alertClass,
-            isDesktop
-              ? cn(desktopAuth.alert, desktopAuth.alertWarning)
-              : cn("border p-3 text-sm", desktopAuth.alertWarning),
-            "flex items-start gap-2",
-          )}
-          role="status"
-        >
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
+        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3 flex gap-2 text-sm text-amber-900 dark:text-amber-100">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
           <span>Your session expired. Please sign in again.</span>
         </div>
       ) : null}
 
       {info ? (
-        <div
-          className={cn(
-            alertClass,
-            "border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 p-3 flex gap-2 text-sm text-sky-950 dark:text-sky-100",
-          )}
-        >
+        <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 p-3 flex gap-2 text-sm text-sky-950 dark:text-sky-100">
           <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
           <span className="whitespace-pre-line">{info}</span>
         </div>
       ) : null}
 
       {error ? (
-        <div
-          className={cn(
-            alertClass,
-            isDesktop
-              ? cn(desktopAuth.alert, desktopAuth.alertError)
-              : cn("border p-3 text-sm", desktopAuth.alertError),
-            "flex items-start gap-2 whitespace-pre-line",
-          )}
-          role="alert"
-        >
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
-          <span>{error}</span>
+        <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-3 whitespace-pre-line">
+          {error}
         </div>
       ) : null}
 
-      {mode === "login" && !info && !isDesktop ? (
-        <div
-          className={cn(
-            alertClass,
-            "border border-violet-200/70 dark:border-violet-500/30 bg-violet-50/80 dark:bg-violet-500/10 p-3 flex gap-2 text-sm text-[var(--cc-text-secondary)]",
-          )}
-        >
+      {mode === "login" && !info ? (
+        <div className="rounded-xl border border-violet-200/70 dark:border-violet-500/30 bg-violet-50/80 dark:bg-violet-500/10 p-2.5 flex gap-2 text-xs leading-snug text-[var(--cc-text-secondary)] sm:text-[13px] sm:leading-normal">
           <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-[var(--cc-accent)]" />
           <span>
             <strong className="font-semibold text-[var(--cc-text)]">Enrolled by your instructor?</strong> Sign in with
-            your Student ID or email and the <strong className="font-semibold text-[var(--cc-text)]">temporary password</strong>{" "}
-            from your welcome email. CourseCollab will prompt you to set a new password — you do not need account
-            activation.
+            your Student ID or email and the temporary password from your welcome email.
           </span>
         </div>
       ) : null}
 
-      {isDesktop ? (
-        <div className="relative overflow-x-clip">
-          <AnimatePresence mode="popLayout" initial={false}>
-          {mode === "login" ? (
-            <DesktopAuthFormSwitch key="login" switchKey="login">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="student-identifier" className={desktopAuth.label}>
-                    Student ID or Email
-                  </Label>
-                  <Input
-                    id="student-identifier"
-                    autoComplete="username"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="e.g. P12345678 or mlawson13@pvamu.edu"
-                    className={inputClass}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="student-password" className={desktopAuth.label}>
-                      Password
-                    </Label>
-                    <Link
-                      href="/student/forgot-password"
-                      className="text-[13px] font-medium text-[var(--cc-accent)] hover:text-[var(--cc-accent-dark)] hover:underline"
-                    >
-                      Forgot password?
-                    </Link>
-                  </div>
-                  <div className="relative">
-                    <Input
-                      id="student-password"
-                      type={showPassword ? "text" : "password"}
-                      autoComplete="current-password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className={cn(inputClass, "pr-11")}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--cc-text-muted)] hover:text-[var(--cc-text-secondary)]"
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="remember-me"
-                    checked={rememberMe}
-                    onCheckedChange={(v) => {
-                      const next = v === true
-                      setRememberMe(next)
-                      if (!next) clearRememberedStudentAuth()
-                    }}
-                  />
-                  <Label htmlFor="remember-me" className="cursor-pointer text-[13px] font-normal text-[var(--cc-text-secondary)]">
-                    Remember me
-                  </Label>
-                </div>
-                <div className={desktopAuth.actionStack}>
-                  <Button
-                    type="submit"
-                    disabled={loading}
-                    className={cn(actionButtonClass, "rounded-md")}
-                    style={{ backgroundColor: university.primary_color }}
-                  >
-                    {loading ? <Spinner size="sm" /> : "Login"}
-                  </Button>
-                  {backHref ? <DesktopAuthBackLink href={backHref} label={backLabel} className="mt-0" /> : null}
-                </div>
-                {mode === "login" && !info ? (
-                  desktopLoginOnly ? (
-                    <DesktopWebSignupLink
-                      path={DESKTOP_WEB_SIGNUP_PATHS.student}
-                      prompt="New student?"
-                      label="Create account on web"
-                    />
-                  ) : (
-                  <p className="mt-3 text-center text-[12px] text-[var(--cc-text-muted)]">
-                    <button
-                      type="button"
-                      onClick={() => switchAuthMode("activate")}
-                      className="font-medium text-[var(--cc-accent)] hover:underline"
-                    >
-                      Set password manually
-                    </button>
-                  </p>
-                  )
-                ) : null}
-              </form>
-            </DesktopAuthFormSwitch>
-          ) : (
-            <DesktopAuthFormSwitch key="activate" switchKey="activate">
-              <form onSubmit={handleActivate} className="space-y-4">
-                <div
-                  className={cn(
-                    alertClass,
-                    "border border-amber-200/70 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 p-3 text-sm text-[var(--cc-text-secondary)]",
-                  )}
-                >
-                  Only use this if your instructor did <strong className="font-semibold text-[var(--cc-text)]">not</strong>{" "}
-                  enroll you or you were not sent a temporary password. Most students should{" "}
-                  <button
-                    type="button"
-                    onClick={() => switchAuthMode("login")}
-                    className="font-semibold text-[var(--cc-accent)] underline underline-offset-2"
-                  >
-                    sign in instead
-                  </button>
-                  .
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="activate-identifier">Student ID or University Email</Label>
-                  <Input
-                    id="activate-identifier"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="From your roster or syllabus"
-                    className={inputClass}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="activate-password">Create Password</Label>
-                  <Input
-                    id="activate-password"
-                    type="password"
-                    value={activatePassword}
-                    onChange={(e) => setActivatePassword(e.target.value)}
-                    className={inputClass}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="activate-confirm">Confirm Password</Label>
-                  <Input
-                    id="activate-confirm"
-                    type="password"
-                    value={activateConfirm}
-                    onChange={(e) => setActivateConfirm(e.target.value)}
-                    className={inputClass}
-                  />
-                </div>
-                <div className={desktopAuth.actionStack}>
-                  <Button
-                    type="submit"
-                    disabled={loading}
-                    className={cn(actionButtonClass, "rounded-md")}
-                    style={{ backgroundColor: university.primary_color }}
-                  >
-                    {loading ? <Spinner size="sm" /> : "Activate & Sign In"}
-                  </Button>
-                  {backHref ? <DesktopAuthBackLink href={backHref} label={backLabel} className="mt-0" /> : null}
-                </div>
-              </form>
-            </DesktopAuthFormSwitch>
-          )}
-        </AnimatePresence>
-        </div>
-      ) : mode === "login" ? (
+      {mode === "login" ? (
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="student-identifier" className={isDesktop ? desktopAuth.label : "text-[var(--cc-text)]"}>
+            <Label htmlFor="student-identifier" className="text-[var(--cc-text)]">
               Student ID or Email
             </Label>
             <Input
@@ -632,15 +401,12 @@ export function StudentAuthForm({
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="student-password" className={isDesktop ? desktopAuth.label : "text-[var(--cc-text)]"}>
+              <Label htmlFor="student-password" className="text-[var(--cc-text)]">
                 Password
               </Label>
               <Link
                 href="/student/forgot-password"
-                className={cn(
-                  "font-medium text-[var(--cc-accent)] hover:text-[var(--cc-accent-dark)] hover:underline",
-                  isDesktop ? "text-[13px]" : "text-xs",
-                )}
+                className="text-xs font-medium text-[var(--cc-accent)] hover:text-[var(--cc-accent-dark)] hover:underline"
               >
                 Forgot password?
               </Link>
@@ -680,37 +446,18 @@ export function StudentAuthForm({
             </Label>
           </div>
 
-          <div className={desktopAuth.actionStack}>
-            <Button
-              type="submit"
-              disabled={loading}
-              className={actionButtonClass}
-              style={{ backgroundColor: university.primary_color }}
-            >
-              {loading ? <Spinner size="sm" /> : "Login"}
-            </Button>
-            {backHref ? <DesktopAuthBackLink href={backHref} label={backLabel} className="mt-0" /> : null}
-          </div>
-          {!isDesktop && mode === "login" && !info ? (
-            <p className="mt-3 text-center text-xs text-[var(--cc-text-muted)]">
-              <button
-                type="button"
-                onClick={() => switchAuthMode("activate")}
-                className="font-medium text-[var(--cc-accent)] underline underline-offset-2"
-              >
-                Set password manually
-              </button>
-            </p>
-          ) : null}
+          <Button
+            type="submit"
+            disabled={loading}
+            className="w-full h-12 rounded-2xl font-semibold text-white"
+            style={{ backgroundColor: university.primary_color }}
+          >
+            {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Login"}
+          </Button>
         </form>
       ) : (
         <form onSubmit={handleActivate} className="space-y-4">
-          <div
-            className={cn(
-              alertClass,
-              "border border-amber-200/70 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 p-3 text-sm text-[var(--cc-text-secondary)]",
-            )}
-          >
+          <div className="rounded-xl border border-amber-200/70 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 p-3 text-sm text-[var(--cc-text-secondary)]">
             Only use this if your instructor did <strong className="font-semibold text-[var(--cc-text)]">not</strong>{" "}
             enroll you or you were not sent a temporary password. Most students should{" "}
             <button
@@ -752,31 +499,56 @@ export function StudentAuthForm({
               className={inputClass}
             />
           </div>
-          <div className={desktopAuth.actionStack}>
-            <Button
-              type="submit"
-              disabled={loading}
-              className={actionButtonClass}
-              style={{ backgroundColor: university.primary_color }}
-            >
-              {loading ? <Spinner size="sm" /> : "Activate & Sign In"}
-            </Button>
-            {backHref ? <DesktopAuthBackLink href={backHref} label={backLabel} className="mt-0" /> : null}
-          </div>
+          <Button
+            type="submit"
+            disabled={loading}
+            className="w-full h-12 rounded-2xl font-semibold text-white"
+            style={{ backgroundColor: university.primary_color }}
+          >
+            {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Activate & Sign In"}
+          </Button>
         </form>
       )}
-    </>
+
+      <div className="space-y-3 border-t border-[var(--border)] pt-4">
+        {mode === "login" ? (
+          <p className="text-center text-xs leading-relaxed text-[var(--cc-text-secondary)]">
+            Lost your welcome email or need to pick a password yourself?{" "}
+            <button
+              type="button"
+              onClick={() => switchAuthMode("activate")}
+              className="font-semibold text-[var(--cc-accent)] underline underline-offset-2"
+            >
+              Set password manually
+            </button>
+          </p>
+        ) : (
+          <p className="text-center text-xs leading-relaxed text-[var(--cc-text-secondary)]">
+            <button
+              type="button"
+              onClick={() => switchAuthMode("login")}
+              className="font-semibold text-[var(--cc-accent)] underline underline-offset-2"
+            >
+              Back to sign in with temporary password
+            </button>
+          </p>
+        )}
+
+        <p className="text-center text-[12px] leading-relaxed">
+          <Link
+            href="/auth/student/signup"
+            className="font-medium text-[var(--cc-accent)] hover:underline"
+          >
+            New student? Request course access
+          </Link>
+        </p>
+
+        <StudentOtherSignInNav />
+
+        <p className="text-center text-[11px] leading-relaxed text-[var(--cc-text-muted)]">
+          Need help? Contact your instructor.
+        </p>
+      </div>
+    </div>
   )
-
-  if (isDesktop) {
-    return (
-      <DesktopAuthPanelBody>
-        <DesktopAuthPanelCard>
-          <DesktopAuthStagger className="space-y-5">{mainContent}</DesktopAuthStagger>
-        </DesktopAuthPanelCard>
-      </DesktopAuthPanelBody>
-    )
-  }
-
-  return <div className="space-y-6">{mainContent}</div>
 }

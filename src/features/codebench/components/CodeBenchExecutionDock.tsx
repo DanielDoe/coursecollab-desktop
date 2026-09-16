@@ -15,6 +15,7 @@ import type { CodeBenchRunResult } from '../hooks/useCodeRunner'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useCodeRunner } from '../hooks/useCodeRunner'
+import { CodebenchToolchainSetupOverlay } from './CodebenchToolchainSetupOverlay'
 import { ProgramTerminal } from './Terminal'
 import type { CodeBenchRunState } from '../types/codebench'
 
@@ -291,7 +292,19 @@ export const CodeBenchExecutionDock = forwardRef<CodeBenchExecutionHandle, Props
     const collapsed = height <= COLLAPSED_HEIGHT + 8
 
     return (
-      <section
+      <>
+        <CodebenchToolchainSetupOverlay
+          open={runner.toolchainSetupOpen}
+          outcome={runner.setupOutcome === 'hidden' ? 'active' : runner.setupOutcome}
+          phase={runner.toolchainPhase}
+          message={runner.installMessage}
+          percent={runner.installProgress}
+          compilerLabel={runner.compiler?.available ? compilerDisplayName(runner.compiler) : null}
+          errorDetail={runner.unavailableReason}
+          onRetry={() => void runner.ensureToolchain()}
+          onDismiss={runner.dismissToolchainSetup}
+        />
+        <section
         ref={dockRef}
         style={{ height }}
         className="flex shrink-0 flex-col overflow-hidden border-t border-[var(--border)] bg-[var(--cc-background)]"
@@ -420,6 +433,7 @@ export const CodeBenchExecutionDock = forwardRef<CodeBenchExecutionHandle, Props
           </div>
         </div>
       </section>
+      </>
     )
   },
 )

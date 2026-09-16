@@ -3,14 +3,17 @@ import { pdfSplitLines, sanitizePdfPlainText } from "@/lib/pdf-text-sanitize"
 import type { PlatformActivityRow } from "@/lib/platform-activity-constants"
 import {
   categoryLabel,
+  clientPlatformLabel,
   formatActivityActorPrimary,
   formatActivityActorSecondary,
   portalLabel,
+  resolveActivityClientPlatform,
 } from "@/lib/platform-activity-constants"
 
 export type PlatformActivityPdfFilters = {
   portal?: string
   category?: string
+  clientPlatform?: string
   dateFrom?: string
   dateTo?: string
   search?: string
@@ -57,6 +60,17 @@ export function exportPlatformActivityPdf(
   if (filters.portal && filters.portal !== "all") filterParts.push(`Portal: ${portalLabel(filters.portal)}`)
   if (filters.category && filters.category !== "all")
     filterParts.push(`Category: ${categoryLabel(filters.category)}`)
+  if (filters.clientPlatform && filters.clientPlatform !== "all") {
+    filterParts.push(
+      `Client: ${clientPlatformLabel(
+        filters.clientPlatform === "mobile" ||
+          filters.clientPlatform === "desktop" ||
+          filters.clientPlatform === "web"
+          ? filters.clientPlatform
+          : null,
+      )}`,
+    )
+  }
   if (filters.dateFrom) filterParts.push(`From: ${filters.dateFrom}`)
   if (filters.dateTo) filterParts.push(`To: ${filters.dateTo}`)
   if (filters.search) filterParts.push(`Search: ${filters.search}`)
@@ -69,13 +83,14 @@ export function exportPlatformActivityPdf(
 
   y += 20
   const cols = [
-    { label: "Time", w: 95 },
-    { label: "Portal", w: 55 },
-    { label: "User", w: 90 },
-    { label: "Action", w: 75 },
-    { label: "Category", w: 65 },
-    { label: "Summary", w: 200 },
-    { label: "Path", w: 120 },
+    { label: "Time", w: 90 },
+    { label: "Portal", w: 48 },
+    { label: "Client", w: 58 },
+    { label: "User", w: 85 },
+    { label: "Action", w: 70 },
+    { label: "Category", w: 58 },
+    { label: "Summary", w: 175 },
+    { label: "Path", w: 100 },
     { label: "OK", w: 25 },
   ]
 
@@ -115,6 +130,7 @@ export function exportPlatformActivityPdf(
     const cells = [
       formatTs(row.created_at),
       portalLabel(row.portal),
+      clientPlatformLabel(resolveActivityClientPlatform(row)),
       sanitizePdfPlainText(
         [
           formatActivityActorPrimary(row),

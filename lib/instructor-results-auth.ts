@@ -1,7 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { requireInstructorCourse } from "@/lib/instructor-course-scope"
-import { studentInSelectedCourseSql } from "@/lib/instructor-results-course-scope"
+import { studentInSelectedCourseSqlForCourse } from "@/lib/instructor-results-course-scope"
+import { readInstructorSessionScopeFromRequest } from "@/lib/instructor-session-scope"
 
 export async function requireInstructorResults(request: NextRequest) {
   return requireInstructorCourse(request)
@@ -26,10 +27,12 @@ export async function requireInstructorAttemptAccess(
     return { ok: false, response: NextResponse.json({ error: "Invalid attempt id" }, { status: 400 }) }
   }
 
-  // Match /api/[assessmentType]/results list scope: student in selected catalog course.
-  // Do not narrow by academic term from the course picker — Spring/Fall rosters share
-  // ELEG1301/ECE2202 catalog rows; term headers hid historical attempts in Manage Results.
-  const studentPred = studentInSelectedCourseSql(scope.course.id, scope.course.course_code)
+  // Same offering as Manage Results: selected session/term, never a reused section code.
+  const studentPred = studentInSelectedCourseSqlForCourse(
+    scope.course.id,
+    scope.course.course_code,
+    readInstructorSessionScopeFromRequest(request),
+  )
   const rows = await sql`
     SELECT qa.id, qa.student_id
     FROM quiz_attempts qa

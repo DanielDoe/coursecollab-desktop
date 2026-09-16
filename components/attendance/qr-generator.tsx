@@ -37,12 +37,12 @@ import {
   type AttendanceMeetingOption,
 } from "@/components/attendance/attendance-meeting-picker";
 import { useInstructorDashboardV2 } from "@/components/instructor/dashboard-v2/InstructorDashboardV2Context";
-import { FacultyAttendancePanel, FacultyAttendanceLoading, FacultyAttendanceFactGrid } from "@/components/attendance/faculty-attendance-ui";
+import { FacultyAttendancePanel, FacultyAttendanceLoading } from "@/components/attendance/faculty-attendance-ui";
 import { PORTAL_CTA, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/attendance/attendance-surface-classes";
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome";
+import { portalListStripe } from "@/lib/portal-module-themes";
 import { cn } from "@/lib/utils";
 
-import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 function paintAttendanceQr(
   canvas: HTMLCanvasElement,
   payload: string,
@@ -74,13 +74,11 @@ function paintAttendanceQr(
 const chrome = facultyEmbedChrome("attendance");
 
 interface QRGeneratorProps {
-  instructorId?: string
-  embedInDashboard?: boolean
+  instructorId: string;
 }
 
-export function QRGenerator({ instructorId, embedInDashboard }: QRGeneratorProps) {
+export function QRGenerator({ instructorId }: QRGeneratorProps) {
   const { toast } = useToast();
-  const { confirm } = useAppConfirm();
   const { courseScopeVersion } = useInstructorDashboardV2();
   const instHeaders = (): Record<string, string> => ({
     ...buildInstructorApiHeaders(),
@@ -275,13 +273,9 @@ export function QRGenerator({ instructorId, embedInDashboard }: QRGeneratorProps
 
   const handleDelete = async () => {
     if (!sessionData) return;
-    const confirmDelete = await confirm({
-      title: "Delete this session?",
-      description: "This removes the QR code and attendance records tied to it.",
-      confirmLabel: "Delete",
-      cancelLabel: "Cancel",
-      variant: "destructive",
-    });
+    const confirmDelete = window.confirm(
+      "Delete this session? This removes the QR code and attendance records tied to it."
+    );
     if (!confirmDelete) return;
 
     try {
@@ -502,12 +496,12 @@ export function QRGenerator({ instructorId, embedInDashboard }: QRGeneratorProps
     }
   };
 
-  if (loading) return <FacultyAttendanceLoading fillHeight={embedInDashboard} />;
+  if (loading) return <FacultyAttendanceLoading />;
 
   if (sessions.length === 0) {
     return (
-      <FacultyAttendancePanel title="No active sessions" fillHeight={embedInDashboard}>
-        <div className={cn("text-center", embedInDashboard ? "flex min-h-0 flex-1 flex-col items-center justify-center" : "py-8")}>
+      <FacultyAttendancePanel title="No active sessions">
+        <div className="py-8 text-center">
           <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
             <QrCode className="h-5 w-5 !text-white" />
           </div>
@@ -521,8 +515,8 @@ export function QRGenerator({ instructorId, embedInDashboard }: QRGeneratorProps
   }
 
   return (
-    <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3"}>
-      <div className={cn("flex flex-wrap items-center gap-2", embedInDashboard && "shrink-0")}>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
         <AttendanceMeetingPicker
           meetings={sessions}
           value={selectedSession}
@@ -548,20 +542,18 @@ export function QRGenerator({ instructorId, embedInDashboard }: QRGeneratorProps
         ) : null}
       </div>
 
-      <div className={cn("grid grid-cols-1 items-stretch gap-3 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]", embedInDashboard && "min-h-0 flex-1")}>
-          <FacultyAttendancePanel title="QR code" fillHeight={embedInDashboard}>
-              <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
-                <div className="flex min-h-0 flex-1 items-center justify-center py-2">
-                  <div className="aspect-square w-full max-w-[min(100%,280px)] rounded-xl bg-white p-3 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]">
-                    <canvas
-                      ref={qrCanvasRef}
-                      className="block size-full"
-                      style={{ imageRendering: "pixelated" }}
-                      aria-label="Attendance QR Code"
-                    />
-                  </div>
+      <div className="grid grid-cols-1 items-stretch gap-3 lg:grid-cols-[minmax(220px,240px)_minmax(0,1fr)]">
+          <FacultyAttendancePanel title="QR code">
+              <div className="flex min-h-0 flex-1 flex-col items-center justify-between gap-3">
+                <div className="size-[200px] shrink-0 rounded-xl bg-white p-2">
+                  <canvas
+                    ref={qrCanvasRef}
+                    className="block size-full"
+                    style={{ imageRendering: "pixelated" }}
+                    aria-label="Attendance QR Code"
+                  />
                 </div>
-                <div className="mt-auto shrink-0 space-y-2 border-t border-[var(--border)] pt-3">
+                <div className="flex w-full flex-col gap-2">
                   <Button
                     onClick={() => setShowFullscreen(true)}
                     className={cn("h-9 w-full shrink-0 px-3", PORTAL_CTA)}
@@ -579,7 +571,7 @@ export function QRGenerator({ instructorId, embedInDashboard }: QRGeneratorProps
                   </Button>
                 </div>
                 {sessionData?.fallback_code ? (
-                  <div className="mt-3 flex shrink-0 items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2.5">
+                  <div className="flex w-full items-center justify-between gap-2 rounded-xl border border-[var(--border)] px-3 py-2">
                     <div className="min-w-0">
                       <p className={cn("text-[11px]", PORTAL_TEXT_MUTED)}>Fallback code</p>
                       <p className={cn("font-mono text-lg font-semibold tracking-wider", PORTAL_TEXT)}>
@@ -593,7 +585,7 @@ export function QRGenerator({ instructorId, embedInDashboard }: QRGeneratorProps
                       }}
                       size="sm"
                       variant="outline"
-                      className={cn("h-8 shrink-0", chrome.quiet)}
+                      className={cn("h-8", chrome.quiet)}
                     >
                       <Copy className="h-3.5 w-3.5" />
                     </Button>
@@ -602,10 +594,10 @@ export function QRGenerator({ instructorId, embedInDashboard }: QRGeneratorProps
               </div>
           </FacultyAttendancePanel>
 
-          <FacultyAttendancePanel title={sessionData?.class_title || "Session"} fillHeight={embedInDashboard}>
-            <div className="flex min-h-0 flex-1 flex-col">
-              <FacultyAttendanceFactGrid
-                items={[
+          <FacultyAttendancePanel title={sessionData?.class_title || "Session"}>
+            <div className="-mx-3 -mb-3 flex min-h-0 flex-1 flex-col border-t border-[var(--border)] sm:-mx-4 sm:-mb-4">
+              <div className="divide-y divide-[var(--border)]">
+                {[
                   { label: "Section", value: sessionData?.section || "—", icon: Hash },
                   { label: "Attended", value: String(sessionData?.total_attended || 0), icon: Users },
                   {
@@ -625,9 +617,23 @@ export function QRGenerator({ instructorId, embedInDashboard }: QRGeneratorProps
                         icon: MapPin,
                       }]
                     : []),
-                ]}
-              />
-              <div className="mt-auto flex flex-wrap gap-2 border-t border-[var(--border)] p-3 sm:p-4">
+                ].map((fact, index) => {
+                  const stripe = portalListStripe(index, chrome.theme.family)
+                  const Icon = fact.icon
+                  return (
+                    <div key={fact.label} className="flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--cc-accent-soft)]/45">
+                      <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-xl", stripe.iconBg)}>
+                        <Icon className={cn("h-4 w-4", stripe.iconText)} />
+                      </span>
+                      <div className="min-w-0">
+                        <p className={cn("text-[11px] font-medium", PORTAL_TEXT_MUTED)}>{fact.label}</p>
+                        <p className={cn("truncate text-sm font-semibold", PORTAL_TEXT)}>{fact.value}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="mt-auto flex flex-wrap gap-2 border-t border-[var(--border)] p-3">
                 <Button
                   type="button"
                   className={cn("h-8", chrome.quiet)}

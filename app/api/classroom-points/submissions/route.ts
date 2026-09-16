@@ -257,8 +257,8 @@ export async function GET(request: NextRequest) {
           END as expires_at,
           CASE 
             WHEN cps.due_at IS NOT NULL THEN cps.due_at > NOW()
-            WHEN cps.duration_hours IS NULL THEN false
-            WHEN (cps.created_at + ((cps.duration_hours + 72) * INTERVAL '1 hour')) > NOW() THEN true
+            WHEN cps.duration_hours IS NULL AND cps.due_at IS NULL THEN true
+            WHEN cps.duration_hours IS NOT NULL THEN (cps.created_at + ((cps.duration_hours + 72) * INTERVAL '1 hour')) > NOW()
             ELSE false
           END as is_active
         FROM classroom_point_submissions cps

@@ -11,8 +11,6 @@ import { cn } from "@/lib/utils"
 import { GuestDashboardProvider, useGuestDashboard } from "@/components/guest/dashboard/GuestDashboardContext"
 import { GuestTopbar } from "@/components/guest/dashboard/GuestTopbar"
 import { GuestSidebar } from "@/components/guest/dashboard/GuestSidebar"
-import { DesktopGuestLangSmithChrome } from "@/components/desktop/DesktopLangSmithChrome"
-import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
 import { GuestBreadcrumbs } from "@/components/guest/dashboard/GuestBreadcrumbs"
 import { guestHasCapability } from "@/lib/guest/capabilities"
 
@@ -43,22 +41,6 @@ function GuestShellBody({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isCoraRoute = pathname?.startsWith("/guest/cora-career") || pathname?.startsWith("/guest/career")
   const immersive = coraImmersive && isCoraRoute
-  const desktopChrome = isDesktopAppShell()
-
-  if (desktopChrome) {
-    return (
-      <DesktopGuestLangSmithChrome>
-        <main
-          className={cn(
-            "flex-1 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto",
-            immersive ? "p-0" : "p-2.5",
-          )}
-        >
-          {children}
-        </main>
-      </DesktopGuestLangSmithChrome>
-    )
-  }
 
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden pt-16">
@@ -137,7 +119,7 @@ export default function GuestShellLayout({ children }: { children: React.ReactNo
               }}
             />
             <div className="dashboard-v2-shell relative z-10 flex flex-1 min-h-0 flex-col overflow-hidden">
-              {isDesktopAppShell() ? null : <GuestTopbar />}
+              <GuestTopbar />
               <MobileSidebarCloseOnNavigate />
               <CoraImmersiveSidebarEffect />
               <GuestShellBody>{children}</GuestShellBody>

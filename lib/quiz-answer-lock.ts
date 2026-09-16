@@ -1,6 +1,8 @@
-/** Server-side helpers to prevent changing finalized lockable quiz answers on resume. */
+/** Server-side helpers to prevent changing finalized quiz answers on resume. */
 
+import type { NextRequest } from "next/server"
 import { sql } from "@/lib/db"
+import { getAttemptStrictAnswerLockContext } from "@/lib/assessment-resume-integrity"
 
 const LOCKABLE_QUESTION_TYPES = new Set(["mcq", "true_false", "select_all", "multi_output"])
 
@@ -54,29 +56,35 @@ function storedAnswerMatchesIncoming(
   return normalizeComparableAnswer(stored) === normalizeComparableAnswer(incomingAnswer)
 }
 
-/** Matches LOCKABLE_ANSWER_FINALIZED_SQL in lib/quiz-answer-data-sql.ts */
-export function isLockableAnswerFinalized(
-  answerDataRaw: unknown,
-  selectedAnswer: unknown,
-): boolean {
+/** Matches ANY_ANSWER_FINALIZED_SQL in lib/quiz-answer-data-sql.ts */
+export function isAnswerFinalized(answerDataRaw: unknown, selectedAnswer: unknown): boolean {
   const hasAnswer =
     selectedAnswer != null && String(selectedAnswer).trim() !== ""
-  if (!hasAnswer) return false
+  if (!hasAnswer) {
+    const data = parseAnswerData(answerDataRaw)
+    const fromData = data?.answer ?? data?.code
+    if (fromData == null || String(fromData).trim() === "") return false
+  }
 
   const data = parseAnswerData(answerDataRaw)
-  if (!data) return true
+  if (!data) return hasAnswer
   if (data.evaluatedAt != null && String(data.evaluatedAt).trim() !== "") return true
   if (data.autoSave === false || data.autoSave === "false") return true
   return false
 }
 
+/** @deprecated Use isAnswerFinalized */
+export const isLockableAnswerFinalized = isAnswerFinalized
+
 export async function getLockableAnswerBlockReason(
   attemptId: number,
   questionId: number,
   questionType: string | null | undefined,
-  options?: { incomingAnswer?: unknown },
+  options?: { incomingAnswer?: unknown; strictAllQuestionTypes?: boolean },
 ): Promise<string | null> {
-  if (!isLockableQuizQuestionType(questionType)) return null
+  if (!options?.strictAllQuestionTypes && !isLockableQuizQuestionType(questionType)) {
+    return null
+  }
   const rows = await sql`
     SELECT selected_answer, answer_data
     FROM quiz_answers
@@ -85,15 +93,28 @@ export async function getLockableAnswerBlockReason(
   `
   if (rows.length === 0) return null
   const row = rows[0] as { selected_answer: unknown; answer_data: unknown }
-  if (!isLockableAnswerFinalized(row.answer_data, row.selected_answer)) {
+  if (!isAnswerFinalized(row.answer_data, row.selected_answer)) {
     return null
   }
   if (
     options?.incomingAnswer !== undefined &&
     storedAnswerMatchesIncoming(row.selected_answer, row.answer_data, options.incomingAnswer)
   ) {
-    // Idempotent evaluate/submit for the same answer (submit already graded server-side).
     return null
   }
   return "This answer was already submitted and cannot be changed."
+}
+
+export async function getAnswerChangeBlockReasonForRequest(
+  request: NextRequest | Request,
+  attemptId: number,
+  questionId: number,
+  questionType: string | null | undefined,
+  options?: { incomingAnswer?: unknown },
+): Promise<string | null> {
+  const { strict } = await getAttemptStrictAnswerLockContext(attemptId, request)
+  return getLockableAnswerBlockReason(attemptId, questionId, questionType, {
+    ...options,
+    strictAllQuestionTypes: strict,
+  })
 }

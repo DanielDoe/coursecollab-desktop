@@ -187,7 +187,7 @@ export const STUDENT_CORA_MODULE_REGISTRY: Record<StudentCoraModuleId, StudentCo
       denied: ["access_instructor_solutions", "access_private_instructor_code"],
       confirmationRequired: ["create", "delete"],
       route: "/module/codebench",
-      minTier: "Trailblazer",
+      minTier: "Scholar",
       toolHints: ["code_assistant"],
     },
     "codebench-more": {
@@ -199,7 +199,7 @@ export const STUDENT_CORA_MODULE_REGISTRY: Record<StudentCoraModuleId, StudentCo
       denied: ["access_other_student_analytics"],
       confirmationRequired: [],
       route: "/module/codebench-more",
-      minTier: "Trailblazer",
+      minTier: "Scholar",
       toolHints: ["get_student_summary"],
     },
     quizzes: {

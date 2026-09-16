@@ -216,12 +216,17 @@ export default function PurchaseHistoryPage() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="space-y-4 pb-4"
+      className="space-y-6"
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-[var(--cc-text-muted)]">
-          View billing history and manage purchases
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-dashboard-v2-fg tracking-tight">
+            Purchase History
+          </h1>
+          <p className="text-dashboard-v2-muted mt-1">
+            View your billing history and manage purchases
+          </p>
+        </div>
         <Select value={timeFilter} onValueChange={setTimeFilter}>
           <SelectTrigger className="w-full sm:w-[180px] rounded-lg dark:border-white/10 dark:bg-slate-900/50 dark:text-slate-100">
             <Filter className="h-4 w-4 mr-2" />

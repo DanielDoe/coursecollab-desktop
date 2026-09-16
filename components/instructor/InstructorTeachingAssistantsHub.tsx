@@ -38,10 +38,6 @@ import { useToast } from "@/components/ui/use-toast"
 import { InstructorPolicyLoadingState } from "@/components/instructor/InstructorPolicyLoadingState"
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 import { PORTAL_CARD, PORTAL_OUTLINE_BTN, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
-import {
-  AM_EMPTY_FILL,
-  AM_PANEL_SCROLL,
-} from "@/lib/assessments/assessment-management-surface-classes"
 import { cn } from "@/lib/utils"
 import {
   FacultyAdministrationWorkspace,
@@ -395,9 +391,9 @@ export function InstructorTeachingAssistantsHub() {
       }
     >
       {loading ? (
-        <InstructorPolicyLoadingState moduleId="teaching-assistants" label="Loading teaching assistants…" fillHeight />
+        <InstructorPolicyLoadingState moduleId="teaching-assistants" label="Loading teaching assistants…" />
       ) : filtered.length === 0 ? (
-        <div className={AM_EMPTY_FILL}>
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/25 px-6 py-12 text-center">
           <span className={cn("mx-auto flex size-12 items-center justify-center rounded-2xl", chrome.p.softBg, chrome.p.iconText)}>
             <UserCog className="h-5 w-5" aria-hidden />
           </span>
@@ -409,7 +405,7 @@ export function InstructorTeachingAssistantsHub() {
           </Button>
         </div>
       ) : (
-        <div className={cn(PORTAL_CARD, "overflow-hidden", AM_PANEL_SCROLL)}>
+        <div className={cn(PORTAL_CARD, "overflow-hidden")}>
           <table className="w-full text-sm">
             <thead className={cn("text-left text-xs font-medium uppercase tracking-wide", PORTAL_TEXT_MUTED)}>
               <tr className="border-b border-[var(--border)] bg-[var(--muted)]/40">

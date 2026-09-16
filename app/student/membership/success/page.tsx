@@ -2,6 +2,7 @@
 
 
 import { studentApiFetch } from "@/lib/auth"
+import { clearCodebenchAccessCache } from "@/lib/codebench-entitlement-client"
 import { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
@@ -75,6 +76,7 @@ function SuccessContent() {
                 if (p) setPlanName(p.displayName)
                 sessionStorage.setItem("studentMembershipTier", tier)
                 localStorage.setItem("studentMembershipTier", tier)
+                clearCodebenchAccessCache()
                 return tier
               }
             }
@@ -96,6 +98,7 @@ function SuccessContent() {
               if (data.success && data.tier) {
                 sessionStorage.setItem("studentMembershipTier", data.tier)
                 localStorage.setItem("studentMembershipTier", data.tier)
+                clearCodebenchAccessCache()
                 setPlanId(data.tier)
                 const p = MEMBERSHIP_PLANS.find((x) => x.id === data.tier)
                 if (p) setPlanName(p.displayName)
@@ -117,6 +120,7 @@ function SuccessContent() {
               if (data.tier) {
                 sessionStorage.setItem("studentMembershipTier", data.tier)
                 localStorage.setItem("studentMembershipTier", data.tier)
+                clearCodebenchAccessCache()
                 setPlanId(data.tier)
                 const p = MEMBERSHIP_PLANS.find((x) => x.id === data.tier)
                 if (p) setPlanName(p.displayName)
@@ -155,6 +159,7 @@ function SuccessContent() {
                 // Refresh sessionStorage
                 sessionStorage.setItem("studentMembershipTier", tier)
                 localStorage.setItem("studentMembershipTier", tier)
+                clearCodebenchAccessCache()
                 notifyNativeRefreshStudentData()
                 return true
               }
@@ -223,6 +228,7 @@ function SuccessContent() {
       perks.push(`Cora (${plan.features.aiTutor.toLocaleString()} credits/month)`)
     }
     if (plan.features.codeBench) perks.push("CodeBench IDE")
+    if (plan.features.codeBenchCora) perks.push("Cora in CodeBench")
     if (plan.features.leaderboard) perks.push("Playground leaderboard")
     if (plan.features.lectures) perks.push("All lectures")
     if (plan.features.earlyAccess) {

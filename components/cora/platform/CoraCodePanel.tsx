@@ -22,6 +22,7 @@ import { useCoraContentPalette } from "@/hooks/use-cora-content-palette"
 import { coraContextFromQuestion } from "@/lib/cora/question-context"
 import type { CoraStudentContextPayload } from "@/lib/cora/fetch-student-context"
 import type { MembershipTier } from "@/lib/membership-constants"
+import { studentTierHasCodeBenchAccess } from "@/lib/codebench-entitlement-client"
 import {
   acceptedCodeUpload,
   analyzeCode,
@@ -66,7 +67,7 @@ export function CoraCodePanel({
   const [issueReveal, setIssueReveal] = useState<Record<string, "hint" | "explain" | "fix" | null>>({})
   const [activeChallenge, setActiveChallenge] = useState<string | null>(null)
 
-  const hasCodebench = effectiveTier === "Trailblazer"
+  const hasCodebench = studentTierHasCodeBenchAccess(effectiveTier)
   const cont = useMemo(() => deriveCodeContinue(studentContext), [studentContext])
   const analysis = useMemo(
     () => analyzeCode(code, filename, language),
@@ -194,7 +195,7 @@ export function CoraCodePanel({
               style={{ backgroundColor: cta.fill, color: cta.icon }}
               disabled={!hasCodebench}
               onClick={openCodeBench}
-              title={hasCodebench ? undefined : "CodeBench requires Trailblazer"}
+              title={hasCodebench ? undefined : "Sign in to open CodeBench"}
             >
               Open CodeBench
             </Button>

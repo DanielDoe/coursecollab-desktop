@@ -1,4 +1,10 @@
+import { type NextRequest } from "next/server"
 import { sql } from "@/lib/db"
+import {
+  readInstructorSessionScopeFromRequest,
+  studentInInstructorSessionScopeSql,
+  studentInOfferingSqlFromRequest,
+} from "@/lib/instructor-session-scope"
 
 let officeHourRequestsHasCourseId: boolean | null = null
 let regularOfficeHoursHasCourseId: boolean | null = null
@@ -67,6 +73,58 @@ export function buildOfficeHourStudentInCourseSqlFragment(studentAlias: string, 
   )`)
 }
 
+/**
+ * Student enrollment in the instructor's selected offering (session → term → active term).
+ * Section codes like ELEG1301P01 are reused across terms; course-only scope mixes Spring/Fall.
+ */
+export function buildOfficeHourStudentInOfferingSqlFragment(input: {
+  studentAlias: string
+  courseId: number
+  sessionId?: number | null
+  academicTermId?: number | null
+}) {
+  return sql.unsafe(
+    studentInInstructorSessionScopeSql({
+      courseId: input.courseId,
+      sessionId: input.sessionId,
+      academicTermId: input.sessionId != null ? null : input.academicTermId,
+      studentAlias: input.studentAlias,
+    }),
+  )
+}
+
+export function buildOfficeHourStudentInOfferingSqlFragmentFromRequest(
+  request: NextRequest,
+  courseId: number,
+  studentAlias = "s",
+) {
+  return sql.unsafe(studentInOfferingSqlFromRequest(request, courseId, studentAlias))
+}
+
+export async function studentBelongsToOfficeHourOffering(input: {
+  studentId: number
+  courseId: number
+  sessionId?: number | null
+  academicTermId?: number | null
+}): Promise<boolean> {
+  const studentId = Math.trunc(Number(input.studentId))
+  if (!Number.isFinite(studentId) || studentId < 1) return false
+  const pred = buildOfficeHourStudentInOfferingSqlFragment({
+    studentAlias: "s",
+    courseId: input.courseId,
+    sessionId: input.sessionId,
+    academicTermId: input.academicTermId,
+  })
+  const rows = await sql`
+    SELECT 1
+    FROM students s
+    WHERE s.id = ${studentId}
+      AND (${pred})
+    LIMIT 1
+  `
+  return rows.length > 0
+}
+
 /** Request visible for instructor's selected course. */
 export function buildOfficeHourRequestCourseScopeSqlFragment(
   requestAlias: string,
@@ -117,15 +175,33 @@ export async function resolveStudentCourseIdForOfficeHours(studentInternalId: nu
 export async function officeHourRequestInCourseScope(
   requestId: number,
   courseId: number,
+  offering?: { sessionId?: number | null; academicTermId?: number | null },
 ): Promise<boolean> {
   await ensureOfficeHoursCourseScopeColumns()
   const hasCol = await hasOfficeHourRequestsCourseIdColumn()
   const scopeWhere = buildOfficeHourRequestCourseScopeSqlFragment("ohr", courseId, hasCol)
+  const studentScope = buildOfficeHourStudentInOfferingSqlFragment({
+    studentAlias: "s",
+    courseId,
+    sessionId: offering?.sessionId,
+    academicTermId: offering?.academicTermId,
+  })
   const rows = await sql`
     SELECT 1 FROM office_hour_requests ohr
+    JOIN students s ON s.id = ohr.student_id
     WHERE ohr.id = ${requestId}
       AND (${scopeWhere})
+      AND (${studentScope})
     LIMIT 1
   `
   return rows.length > 0
+}
+
+export async function officeHourRequestInOfferingScopeFromRequest(
+  request: NextRequest,
+  requestId: number,
+  courseId: number,
+): Promise<boolean> {
+  const offering = readInstructorSessionScopeFromRequest(request)
+  return officeHourRequestInCourseScope(requestId, courseId, offering)
 }

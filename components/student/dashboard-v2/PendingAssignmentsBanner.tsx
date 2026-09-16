@@ -234,7 +234,7 @@ export function PendingAssignmentsBanner() {
           className={cn(
             "rounded-2xl border border-slate-200/80 dark:border-white/[0.08]",
             "bg-white dark:bg-slate-900/80",
-            "shadow-md shadow-slate-200/30 dark:shadow-black/10",
+            "shadow-md shadow-slate-200/30 dark:shadow-black/10"
           )}
         >
           <Collapsible open={expanded} onOpenChange={setExpanded}>

@@ -8,9 +8,8 @@ import {
   markStudentExplicitSignOut,
 } from "@/lib/student-session-restore-client"
 import { forceExpiredSessionLogout, logoutOnUnauthorizedResponse } from "@/lib/session-expiry-logout"
+import { applyDesktopRefreshHeader } from "@/lib/desktop-refresh-token"
 import { readFacultySession } from "@/lib/faculty-auth-flow"
-import { applyDesktopRefreshHeader, clearDesktopRefreshToken, readDesktopRefreshToken } from "@/lib/desktop-refresh-token"
-import { desktopSessionDurationMs, effectiveRememberMeForClient, isDesktopAppShell } from "@/lib/desktop-auth-policy"
 
 interface SessionData {
   id: string
@@ -35,7 +34,6 @@ interface SessionData {
     courseTitle: string
     section?: string
     studentRowId?: number
-    sessionId?: number | null
     academicTermId?: number | null
     academicTermLabel?: string | null
   }>
@@ -82,9 +80,6 @@ const EXTENDED_SESSION_DURATION = 7 * 24 * 60 * 60 * 1000 // 7 days without reme
 // Session management now relies on expiry checks and explicit logout functions
 
 function sessionDurationFor(data: { rememberMe?: boolean }): number {
-  if (typeof window !== "undefined" && isDesktopAppShell()) {
-    return desktopSessionDurationMs()
-  }
   return data.rememberMe ? REMEMBER_ME_DURATION : EXTENDED_SESSION_DURATION
 }
 
@@ -171,19 +166,16 @@ function setStudentSession(data: {
     courseTitle: string
     section?: string
     studentRowId?: number
-    sessionId?: number | null
     academicTermId?: number | null
     academicTermLabel?: string | null
   }>
   hasChangedPassword?: boolean
 }) {
   const section = normalizeStudentSectionForStorage(data.section)
-  const rememberMe = effectiveRememberMeForClient(data.rememberMe)
   const sessionData: SessionData = {
     ...data,
     section,
-    rememberMe,
-    expiresAt: Date.now() + sessionDurationFor({ rememberMe }),
+    expiresAt: Date.now() + sessionDurationFor({ rememberMe: data.rememberMe }),
   }
 
   // Write to localStorage (new system with expiry)
@@ -238,6 +230,8 @@ function clearStudentSessionStorage() {
   sessionStorage.removeItem("studentDatabaseId")
   sessionStorage.removeItem("studentMembershipTier")
   sessionStorage.removeItem("studentProgramRole")
+  sessionStorage.removeItem("codebench_access_v2")
+  sessionStorage.removeItem("codebench_trailblazer_access")
 }
 
 /** Check if last logout was due to session expiry (for showing message on login page) */
@@ -253,14 +247,6 @@ export function wasSessionExpired(): boolean {
 
 export async function logoutStudent(sessionExpired?: boolean) {
   console.log("[v0] Logging out student")
-  if (sessionExpired && typeof window !== "undefined" && isDesktopAppShell()) {
-    const { tryKeepAliveServerSession } = await import("@/lib/session-keepalive")
-    const recovered = await tryKeepAliveServerSession({ force: true })
-    if (recovered) {
-      window.dispatchEvent(new Event("cc-session-restored"))
-      return
-    }
-  }
   if (typeof window !== "undefined") {
     if (!sessionExpired) {
       markStudentExplicitSignOut()
@@ -271,7 +257,6 @@ export async function logoutStudent(sessionExpired?: boolean) {
   const { dispatchSessionReset } = await import("@/lib/data/session-events")
   dispatchSessionReset("logout")
   clearStudentSessionStorage()
-  clearDesktopRefreshToken()
   if (!sessionExpired) {
     try {
       await fetch("/api/auth/logout", {
@@ -342,22 +327,15 @@ export function getStudentData() {
 
     const session: SessionData = JSON.parse(sessionStr)
 
-    // Local expiry is a hint — server refresh may still be valid (especially desktop).
+    // Check if session is expired - clear storage and flag for redirect message
     if (!isSessionValid(session.expiresAt)) {
-      const hasDesktopRefresh = isDesktopAppShell() && Boolean(readDesktopRefreshToken())
-      if (hasDesktopRefresh) {
-        session.expiresAt = Date.now() + sessionDurationFor({ rememberMe: session.rememberMe })
-        session.rememberMe = true
-        localStorage.setItem("studentSession", JSON.stringify(session))
-        void import("@/lib/session-keepalive").then(({ tryKeepAliveServerSession }) =>
-          tryKeepAliveServerSession({ force: true }),
-        )
-      } else {
-        void import("@/lib/session-keepalive").then(({ tryKeepAliveServerSession }) =>
-          tryKeepAliveServerSession({ force: true }),
-        )
-        return null
+      console.log("[v0] Student session expired")
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("studentSessionExpired", "1")
       }
+      clearStudentSessionStorage()
+      forceExpiredSessionLogout()
+      return null
     }
 
     hydrateStudentSessionStorage(session)
@@ -535,6 +513,7 @@ export function getStudentAuthHeaders(): HeadersInit {
 /** Same-origin student API calls must include the httpOnly refresh cookie. */
 export function withStudentApiInit(init?: RequestInit): RequestInit {
   const headers = new Headers(init?.headers)
+  applyDesktopRefreshHeader(headers)
   const authHeaders = getStudentAuthHeaders()
   if (authHeaders instanceof Headers) {
     authHeaders.forEach((value, key) => headers.set(key, value))
@@ -545,7 +524,6 @@ export function withStudentApiInit(init?: RequestInit): RequestInit {
       if (value) headers.set(key, value)
     }
   }
-  applyDesktopRefreshHeader(headers)
   return { ...init, credentials: "include", headers }
 }
 

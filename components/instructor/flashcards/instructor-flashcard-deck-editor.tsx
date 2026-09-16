@@ -48,7 +48,6 @@ type Props = {
   navigation?: ContentNavigation
 }
 
-import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 export function InstructorFlashcardDeckEditor({
   deckId,
   topicNames = [],
@@ -60,7 +59,6 @@ export function InstructorFlashcardDeckEditor({
 }: Props) {
   const chrome = facultyEmbedChrome("flashcards")
   const [cards, setCards] = useState<FlashcardCard[]>([])
-  const { confirm } = useAppConfirm()
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [topic, setTopic] = useState("")
@@ -310,15 +308,7 @@ export function InstructorFlashcardDeckEditor({
   }
 
   const deleteDeck = async () => {
-    if (!deckId) return
-    const ok = await confirm({
-      title: "Move this deck to Deleted Items?",
-      description: "You can restore it later from Deleted Items.",
-      confirmLabel: "Move to Deleted",
-      cancelLabel: "Cancel",
-      variant: "destructive",
-    })
-    if (!ok) return
+    if (!deckId || !confirm("Move this deck to Deleted Items?")) return
     try {
       const res = await instructorApiFetch(`/api/instructor/flashcards/decks/${deckId}`, {
         method: "DELETE",

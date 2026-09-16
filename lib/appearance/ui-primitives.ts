@@ -21,7 +21,8 @@ export const CC_OVERLAY_SURFACE =
   "bg-[var(--cc-ui-overlay-surface,var(--popover))] text-[var(--cc-text)] border border-[var(--cc-ui-border,var(--border))] shadow-md"
 
 export const CC_MODAL_TITLE = "text-[var(--cc-text)] font-semibold"
-export const CC_MODAL_DESCRIPTION = "text-[var(--cc-text-muted)] text-sm"
+/** Secondary (not muted) — readable on opaque --cc-modal-surface in dark themes */
+export const CC_MODAL_DESCRIPTION = "text-[var(--cc-text-secondary,var(--cc-text))] text-sm"
 
 export const CC_TABLE = {
   head: "text-[var(--cc-text-secondary)] font-medium h-10 px-2",

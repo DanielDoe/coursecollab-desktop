@@ -63,10 +63,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(payload)
   } catch (error) {
     console.error("[instructor codebench live-session]", error)
-    return NextResponse.json(
-      { error: "Could not load live classroom session." },
-      { status: 500 },
-    )
+    const detail = error instanceof Error ? error.message : String(error)
+    const message =
+      process.env.NODE_ENV === "development"
+        ? `Could not load live classroom session. (${detail})`
+        : "Could not load live classroom session."
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 

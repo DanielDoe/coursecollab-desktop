@@ -42,14 +42,26 @@ import { useCodebenchLiveSnapshot } from "@/hooks/use-codebench-live-snapshot"
 import { useCodebenchLiveInstructorPush } from "@/hooks/use-codebench-live-instructor-push"
 import { useStudentLiveClassroomSessions } from "@/hooks/use-student-live-classroom-sessions"
 import { StudentLiveClassroomBanner } from "@/components/codebench/StudentLiveClassroomBanner"
+import {
+  StudentClassroomQuestionDrawer,
+  type StudentClassroomQuestionView,
+} from "@/components/codebench/StudentClassroomQuestionDrawer"
 import type { StudentLiveClassroomSession } from "@/lib/codebench-live-classroom-types"
+import { extractClassroomQuestionText } from "@/lib/codebench-instructor-classroom"
 import { isFileDirty } from "@/lib/codebench-ide-workspace"
 import { registerCodebenchMonacoThemes, codebenchEditorOptions } from "@/lib/codebench-monaco-themes"
 import { useCora } from "@/components/cora/CoraProvider"
 import { coraContextFromQuestion } from "@/lib/cora/question-context"
 import type { CoraThinkingMode } from "@/lib/cora/thinking-process"
 import { CODEBENCH_CPP_WALKTHROUGH_SAMPLE } from "@/lib/codebench-samples"
-import { parseCodebenchCoraJson, parseOptionalCodebenchCoraJson } from "@/lib/codebench-cora-client"
+import {
+  isCodebenchCoraMembershipError,
+  parseCodebenchCoraJson,
+  parseOptionalCodebenchCoraJson,
+} from "@/lib/codebench-cora-client"
+import { CodebenchCoraUpgradeModal } from "@/components/codebench/CodebenchCoraUpgradeModal"
+import { useCodebenchCoraGate } from "@/hooks/use-codebench-cora-gate"
+import type { MembershipTier } from "@/lib/membership-constants"
 import { enrichReplaySteps, type CodeReplayStep } from "@/lib/codebench-replay"
 import { loadCodebenchAiCache, persistCodebenchAiCacheEntry } from "@/lib/codebench-ai-cache"
 import {
@@ -156,6 +168,8 @@ export default function CodeBenchPage({
     Boolean(initialAssignmentId?.trim()),
   )
   const [liveSharing, setLiveSharing] = useState(() => Boolean(initialAssignmentId?.trim()))
+  const [questionDrawerOpen, setQuestionDrawerOpen] = useState(false)
+  const [classroomQuestion, setClassroomQuestion] = useState<StudentClassroomQuestionView | null>(null)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [submissionSuccessData, setSubmissionSuccessData] = useState<{ score: number; pointsAwarded: number; isAssignment?: boolean } | null>(null)
   const [editorRef, setEditorRef] = useState<any>(null)
@@ -404,12 +418,107 @@ export default function CodeBenchPage({
     void loadClassroomAssignments()
   }, [loadClassroomAssignments])
 
+  useEffect(() => {
+    if (!studentId || !classroomSubmissionId || !liveSharing) {
+      if (!liveSharing) setClassroomQuestion(null)
+      return
+    }
+
+    const liveSession = liveSessions.find((session) => String(session.assignmentId) === classroomSubmissionId)
+    let cancelled = false
+
+    void (async () => {
+      try {
+        const res = await studentApiFetch(`/api/classroom-points/submissions/${classroomSubmissionId}`)
+        if (cancelled) return
+        if (res.ok) {
+          const data = (await res.json()) as {
+            submission?: {
+              title?: string
+              description?: string | null
+              session?: string | null
+              question_config?: unknown
+              submission_kind?: string
+            }
+          }
+          const row = data.submission
+          if (row) {
+            const questionText =
+              extractClassroomQuestionText({
+                id: Number(classroomSubmissionId),
+                title: String(row.title ?? liveSession?.title ?? "Live classroom"),
+                description: row.description ?? null,
+                created_at: "",
+                session: row.session ?? liveSession?.session ?? null,
+                submission_kind: row.submission_kind ?? "code",
+                question_config: row.question_config,
+                due_at: null,
+                expires_at: null,
+                is_active: true,
+              }) || liveSession?.questionText || row.description || row.title || ""
+            setClassroomQuestion({
+              title: String(row.title ?? liveSession?.title ?? "Live classroom"),
+              questionText,
+              description: row.description ?? null,
+              session: row.session ?? liveSession?.session ?? null,
+              isLive: true,
+              questionConfig: row.question_config,
+            })
+            return
+          }
+        }
+      } catch {
+        // fall through to live session text
+      }
+
+      if (liveSession && !cancelled) {
+        setClassroomQuestion({
+          title: liveSession.title,
+          questionText: liveSession.questionText,
+          session: liveSession.session,
+          isLive: true,
+        })
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [classroomSubmissionId, liveSessions, liveSharing, studentId])
+
+  useEffect(() => {
+    if (!liveSharing || !classroomQuestion || !classroomSubmissionId) return
+    const key = `cc-codebench-auto-question:${classroomSubmissionId}`
+    try {
+      if (sessionStorage.getItem(key) === "1") return
+      sessionStorage.setItem(key, "1")
+    } catch {
+      /* ignore */
+    }
+    setQuestionDrawerOpen(true)
+  }, [classroomQuestion, classroomSubmissionId, liveSharing])
+
+  const activeLiveSession = useMemo(
+    () =>
+      liveSharing && classroomSubmissionId
+        ? liveSessions.find((session) => String(session.assignmentId) === classroomSubmissionId) ?? null
+        : null,
+    [classroomSubmissionId, liveSessions, liveSharing],
+  )
+
   const bindLiveAssignment = useCallback((session: StudentLiveClassroomSession) => {
     const id = String(session.assignmentId)
     setPinnedAssignmentId(id)
     setClassroomSubmissionId(id)
     setAssignmentSelectionConfirmed(true)
     setLiveSharing(true)
+    setClassroomQuestion({
+      title: session.title,
+      questionText: session.questionText,
+      session: session.session,
+      isLive: true,
+    })
+    setQuestionDrawerOpen(true)
     setClassroomSubmissions((current) => {
       if (current.some((row: { id: string | number }) => String(row.id) === id)) return current
       return [{ id: session.assignmentId, title: session.title, submission_kind: "code" }, ...current]
@@ -506,6 +615,22 @@ export default function CodeBenchPage({
 
   const [hasAccess, setHasAccess] = useState<boolean | null>(embedded ? true : null)
   const [accessError, setAccessError] = useState<string | null>(null)
+  const [membershipTier, setMembershipTier] = useState<MembershipTier | null>(null)
+  const coraGate = useCodebenchCoraGate(membershipTier)
+  const showCoraUpgrade = (label: string) => {
+    coraGate.requestCoraAction(label, () => {})
+  }
+  const toastUnlessCoraUpgrade = (error: unknown, label: string, fallback: string) => {
+    if (isCodebenchCoraMembershipError(error)) {
+      showCoraUpgrade(label)
+      return
+    }
+    toast({
+      title: "Cora",
+      description: error instanceof Error ? error.message : fallback,
+      variant: "destructive",
+    })
+  }
 
   // AI Response Cache - stores responses by code hash + action type
   const [responseCache, setResponseCache] = useState<Map<string, any>>(new Map())
@@ -737,35 +862,19 @@ export default function CodeBenchPage({
 
         setStudentId(studentDatabaseId)
 
-        if (skipMembershipGate) {
-          setHasAccess(true)
-          return
-        }
-
-        const cachedAccess = sessionStorage.getItem("codebench_trailblazer_access")
-        if (cachedAccess === "1") {
-          setHasAccess(true)
-          return
-        }
-
-        const response = await studentApiFetch(`/api/student/membership?studentId=${studentDatabaseId}`)
-        if (!response.ok) {
-          setHasAccess(false)
-          setAccessError("Failed to verify membership")
-          return
-        }
-
-        const data = await response.json()
-        const tier = data.membership?.tier || "Scholar"
-
-        if (tier !== "Trailblazer") {
-          setHasAccess(false)
-          setAccessError("CodeBench is only available with Trailblazer membership or active trial/donation")
-          return
-        }
-
-        sessionStorage.setItem("codebench_trailblazer_access", "1")
         setHasAccess(true)
+
+        try {
+          const response = await studentApiFetch(`/api/student/membership?studentId=${studentDatabaseId}`)
+          if (response.ok) {
+            const data = await response.json()
+            setMembershipTier((data.membership?.tier || "Scholar") as MembershipTier)
+          } else {
+            setMembershipTier("Scholar")
+          }
+        } catch {
+          setMembershipTier("Scholar")
+        }
 
         if (typeof window !== "undefined") {
           const hasVisited = localStorage.getItem("codebench_welcome_bonus")
@@ -780,10 +889,7 @@ export default function CodeBenchPage({
         }
       } catch (error) {
         console.error("Error checking CodeBench access:", error)
-        if (!skipMembershipGate) {
-          setHasAccess(false)
-          setAccessError("Failed to verify access")
-        }
+        setHasAccess(true)
       }
     }
 
@@ -854,6 +960,10 @@ export default function CodeBenchPage({
 
   // AI Action Handlers
   const handleExplain = async (codeOverride?: string) => {
+    if (!coraGate.coraAccess) {
+      coraGate.requestCoraAction("Explain with Cora", () => {})
+      return
+    }
     const codeToExplain = codeOverride ?? code
     if (!studentId) {
       toast({
@@ -932,11 +1042,7 @@ export default function CodeBenchPage({
       )
 
       if (explainData.accessDenied) {
-        toast({
-          title: "Access Denied",
-          description: explainData.explanation || "Upgrade to Trailblazer to access AI features.",
-          variant: "destructive",
-        })
+        showCoraUpgrade("Explain with Cora")
       } else if (explainData.explanation) {
         setExplanation(explainData.explanation)
         const enriched = enrichReplaySteps(codeToExplain, replayData.steps || [])
@@ -961,11 +1067,7 @@ export default function CodeBenchPage({
       }
     } catch (error) {
       console.error("Explain error:", error)
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to get AI explanation",
-        variant: "destructive",
-      })
+      toastUnlessCoraUpgrade(error, "Explain with Cora", "Failed to get AI explanation")
     } finally {
       setIsLoading((prev) => ({ ...prev, explain: false }))
     }
@@ -991,6 +1093,10 @@ export default function CodeBenchPage({
   }
 
   const handleDebug = async (options?: { compilerOutput?: string; skipCache?: boolean }) => {
+    if (!coraGate.coraAccess) {
+      coraGate.requestCoraAction(options?.compilerOutput ? "Suggest Fix with Cora" : "Debug with Cora", () => {})
+      return
+    }
     if (!studentId) {
       toast({
         title: "Error",
@@ -1072,11 +1178,7 @@ export default function CodeBenchPage({
       )
 
       if (debugData.accessDenied) {
-        toast({
-          title: "Access Denied",
-          description: debugData.error || "Upgrade to Trailblazer to access AI features.",
-          variant: "destructive",
-        })
+        showCoraUpgrade(options?.compilerOutput ? "Suggest Fix with Cora" : "Debug with Cora")
       } else if (debugData.errors || debugData.correctedCode) {
         const debugResult = {
           errors: debugData.errors || [],
@@ -1108,17 +1210,21 @@ export default function CodeBenchPage({
       }
     } catch (error) {
       console.error("Debug error:", error)
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to debug code",
-        variant: "destructive",
-      })
+      toastUnlessCoraUpgrade(
+        error,
+        options?.compilerOutput ? "Suggest Fix with Cora" : "Debug with Cora",
+        "Failed to debug code",
+      )
     } finally {
       setIsLoading((prev) => ({ ...prev, debug: false }))
     }
   }
 
   const handleImprove = async () => {
+    if (!coraGate.coraAccess) {
+      coraGate.requestCoraAction("Improve with Cora", () => {})
+      return
+    }
     if (!studentId) {
       toast({
         title: "Error",
@@ -1194,11 +1300,7 @@ export default function CodeBenchPage({
       )
 
       if (improveData.accessDenied) {
-        toast({
-          title: "Access Denied",
-          description: improveData.error || "Upgrade to Trailblazer to access AI features.",
-          variant: "destructive",
-        })
+        showCoraUpgrade("Improve with Cora")
       } else if (improveData.improvedCode) {
         const improvedCodeData = {
           improvedCode: improveData.improvedCode || code,
@@ -1227,17 +1329,17 @@ export default function CodeBenchPage({
       }
     } catch (error) {
       console.error("Improve error:", error)
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to improve code",
-        variant: "destructive",
-      })
+      toastUnlessCoraUpgrade(error, "Improve with Cora", "Failed to improve code")
     } finally {
       setIsLoading((prev) => ({ ...prev, improve: false }))
     }
   }
 
   const handlePseudocode = async () => {
+    if (!coraGate.coraAccess) {
+      coraGate.requestCoraAction("Pseudocode with Cora", () => {})
+      return
+    }
     if (!studentId) {
       toast({
         title: "Error",
@@ -1293,11 +1395,7 @@ export default function CodeBenchPage({
         }>(response, "Failed to generate pseudocode")
 
         if (data.accessDenied) {
-          toast({
-            title: "Access Denied",
-            description: data.error || "Upgrade to Trailblazer to access AI features.",
-            variant: "destructive",
-          })
+          showCoraUpgrade("Pseudocode with Cora")
         } else if (data.pseudocode) {
           // The API returns a combined formatted response in data.pseudocode
           const pseudocodeData = {
@@ -1327,11 +1425,7 @@ export default function CodeBenchPage({
         }
       } catch (error) {
         console.error("Pseudocode error:", error)
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to generate pseudocode",
-          variant: "destructive",
-        })
+        toastUnlessCoraUpgrade(error, "Pseudocode with Cora", "Failed to generate pseudocode")
       } finally {
         setIsLoading((prev) => ({ ...prev, pseudocode: false }))
       }
@@ -1380,11 +1474,7 @@ export default function CodeBenchPage({
       }>(response, "Failed to generate pseudocode")
 
       if (data.accessDenied) {
-        toast({
-          title: "Access Denied",
-          description: data.error || "Upgrade to Trailblazer to access AI features.",
-          variant: "destructive",
-        })
+        showCoraUpgrade("Pseudocode with Cora")
       } else if (data.pseudocode) {
         const pseudocodeData = {
           pseudocode: data.pseudocode || "",
@@ -1409,11 +1499,7 @@ export default function CodeBenchPage({
       }
     } catch (error) {
       console.error("Pseudocode error:", error)
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to generate pseudocode",
-        variant: "destructive",
-      })
+      toastUnlessCoraUpgrade(error, "Pseudocode with Cora", "Failed to generate pseudocode")
     } finally {
       setIsLoading((prev) => ({ ...prev, pseudocode: false }))
     }
@@ -1532,6 +1618,10 @@ export default function CodeBenchPage({
   }
 
   const handleCoraToolSelect = (tool: string) => {
+    if (!coraGate.coraAccess) {
+      coraGate.requestCoraAction("Cora in CodeBench", () => {})
+      return
+    }
     recordStudioEvent(studentId || "local", {
       type: "cora_tool",
       tool,
@@ -1823,17 +1913,15 @@ export default function CodeBenchPage({
             <div className="p-6 sm:p-8 bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl shadow-xl">
               <Code className="h-12 w-12 sm:h-16 sm:w-16 text-purple-600 dark:text-purple-400 mx-auto mb-3 sm:mb-4" />
               <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4 dark:text-slate-200">
-                <span className="sm:hidden">Access Restricted</span>
-                <span className="hidden sm:inline">CodeBench Access Restricted</span>
+                Couldn&apos;t open CodeBench
               </h2>
               <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 mb-4 sm:mb-6 break-words">
-                CodeBench IDE is only available with <strong>Trailblazer</strong> membership.
+                {accessError || "We couldn't open CodeBench. Sign in again and try once more."}
               </p>
               <div className="space-y-3 sm:space-y-4">
-                <Link href="/student/dashboard-v2/membership">
+                <Link href="/student/login">
                   <button className="w-full px-4 py-2.5 text-sm sm:text-base bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-700 dark:to-purple-700 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 dark:hover:from-indigo-800 dark:hover:to-purple-800 transition-all">
-                    <span className="sm:hidden">Upgrade</span>
-                    <span className="hidden sm:inline">Upgrade to Trailblazer</span>
+                    Sign in
                   </button>
                 </Link>
                 <Link href={homeHref}>
@@ -1855,7 +1943,7 @@ export default function CodeBenchPage({
     return (
       <div className="min-h-[50dvh] flex flex-col items-center justify-center gap-3 bg-slate-50 dark:bg-[#0B1120]">
         <Loader2 className="h-8 w-8 animate-spin text-purple-600 dark:text-purple-400" />
-        <p className="text-sm text-slate-600 dark:text-slate-400">Verifying CodeBench access…</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400">Loading CodeBench…</p>
       </div>
     )
   }
@@ -2038,6 +2126,13 @@ export default function CodeBenchPage({
             }}
             onClassroomSubmit={handleClassroomCodeSubmit}
             classroomSubmitLoading={isLoading.submit}
+            questionOpen={questionDrawerOpen}
+            onToggleQuestion={
+              liveSharing && classroomQuestion
+                ? () => setQuestionDrawerOpen((open) => !open)
+                : undefined
+            }
+            liveClassroomTitle={activeLiveSession?.title ?? null}
           />
 
           <div
@@ -2148,6 +2243,8 @@ export default function CodeBenchPage({
                   getCachedChat={getCachedChat}
                   setCachedChat={setCachedChat}
                   learningMode={learningMode}
+                  coraAccess={coraGate.coraAccess}
+                  onLockedCora={() => showCoraUpgrade("Practice with Cora")}
                 />
               ) : aiTab === "evaluate" ? (
                 <div className="flex flex-col h-full">
@@ -2158,7 +2255,11 @@ export default function CodeBenchPage({
                       mode="evaluate"
                       isEvaluation={true}
                       classroomSubmissionId={classroomSubmissionId || null}
-                      shouldStartEvaluation={assignmentSelectionConfirmed && aiTab === "evaluate"} // Only start after assignment is confirmed and evaluate tab is active
+                      shouldStartEvaluation={
+                        assignmentSelectionConfirmed && aiTab === "evaluate" && coraGate.coraAccess
+                      }
+                      coraAccess={coraGate.coraAccess}
+                      onLockedCora={() => showCoraUpgrade("Evaluate with Cora")}
                       key={`evaluate-${assignmentSelectionConfirmed}-${classroomSubmissionId}`} // Force re-render when assignment changes
                       cachedMessages={getCachedChat("evaluate", code) || undefined}
                       theme={panelTheme}
@@ -2251,16 +2352,14 @@ export default function CodeBenchPage({
                       return data.scenarios || []
                     } catch (error) {
                       console.error("What-if simulation error:", error)
-                      toast({
-                        title: "Cora",
-                        description: error instanceof Error ? error.message : "Failed to simulate scenario",
-                        variant: "destructive",
-                      })
+                      toastUnlessCoraUpgrade(error, "What-if with Cora", "Failed to simulate scenario")
                       return []
                     }
                   }}
                   onWalkWithCora={handleWalkWithCora}
                   onTrySampleWalkthrough={handleTrySampleWalkthrough}
+                  coraAccess={coraGate.coraAccess}
+                  onLockedCora={showCoraUpgrade}
                 />
               )}
               </div>
@@ -2302,6 +2401,18 @@ export default function CodeBenchPage({
         open={showSuccessModal}
         onClose={() => setShowSuccessModal(false)}
         data={submissionSuccessData}
+      />
+
+      <CodebenchCoraUpgradeModal
+        open={coraGate.upgradeOpen}
+        onClose={coraGate.closeUpgrade}
+        actionLabel={coraGate.actionLabel}
+      />
+
+      <StudentClassroomQuestionDrawer
+        open={questionDrawerOpen}
+        onClose={() => setQuestionDrawerOpen(false)}
+        assignment={classroomQuestion}
       />
 
     </div>

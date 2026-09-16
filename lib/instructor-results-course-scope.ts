@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
-import { normalizeCatalogCourseCode } from "@/lib/course-section-model"
 import { isAppStoreReviewSandboxCourseCode } from "@/lib/app-store-review-accounts"
 import { requireInstructorCourse } from "@/lib/instructor-course-scope"
 import {
@@ -20,7 +19,7 @@ type StudentCourseSqlOptions = {
   reviewSandbox?: boolean
 }
 
-/** Students in this course via course_id, catalog session, or section/session code (ECE2202, ELEG1301P01). */
+/** Students in this course via course_id or catalog session — never section-code text. */
 export function studentInSelectedCourseSql(
   courseId: number,
   courseCode?: string | null,
@@ -29,38 +28,26 @@ export function studentInSelectedCourseSql(
   const cid = Math.trunc(Number(courseId))
   if (!Number.isFinite(cid) || cid < 1) return "(FALSE)"
 
-  const enrolledOnCourse = `(
-    s.course_id = ${cid}
-    OR EXISTS (
-      SELECT 1 FROM sessions sess_scoped
-      WHERE sess_scoped.id = s.session_id AND sess_scoped.course_id = ${cid}
-    )
-  )`
-
   if (options?.reviewSandbox) {
     return `(
-      ${enrolledOnCourse}
+      (
+        s.course_id = ${cid}
+        OR EXISTS (
+          SELECT 1 FROM sessions sess_scoped
+          WHERE sess_scoped.id = s.session_id AND sess_scoped.course_id = ${cid}
+        )
+      )
       AND (s.student_id ~ '^910000\\d{3}$' OR s.student_id ~ '^910100\\d{3}$')
     )`
   }
 
-  const prefix = normalizeCatalogCourseCode(courseCode).replace(/[^A-Z0-9]/g, "")
-  const textMatch = prefix
-    ? `OR TRIM(UPPER(REPLACE(COALESCE(s.section, ''), ' ', ''))) LIKE '${prefix}%'
-       OR EXISTS (
-         SELECT 1 FROM sessions sess_code
-         WHERE sess_code.id = s.session_id
-           AND TRIM(UPPER(REPLACE(COALESCE(sess_code.code, ''), ' ', ''))) LIKE '${prefix}%'
-       )`
-    : ""
-  return `(
-    s.course_id = ${cid}
-    OR EXISTS (
-      SELECT 1 FROM sessions sess_scoped
-      WHERE sess_scoped.id = s.session_id AND sess_scoped.course_id = ${cid}
-    )
-    ${textMatch}
-  )`
+  void courseCode
+  return studentInInstructorSessionScopeSql({ courseId: cid })
+}
+
+/** Course roster for the current offering only — never reuse section codes from older terms. */
+export function studentOnCourseActiveTermSql(courseId: number): string {
+  return studentInInstructorSessionScopeSql({ courseId })
 }
 
 export function studentInSelectedCourseSqlForCourse(
@@ -78,7 +65,7 @@ export function studentInSelectedCourseSqlForCourse(
       academicTermId: sessionScope.academicTermId,
     })
   }
-  return studentInSelectedCourseSql(courseId, courseCode)
+  return studentOnCourseActiveTermSql(courseId)
 }
 
 export function resolveStudentScopeSqlFromRequest(

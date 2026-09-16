@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import {
+  ASSESSMENT_GUIDED_LEARNING_GOAL_OVERRIDE,
   buildLearningGoalSystemPrompt,
+  clampLearningGoalForAssessmentPolicy,
   resolveCoraAiRouting,
   learningGoalFromLegacyChatConfig,
   normalizeLearningGoal,
@@ -53,6 +55,8 @@ import { createForFeature, resolveModelForFeature } from "@/lib/resolve-feature-
 import { buildModelOpts } from "@/lib/openai-model-params"
 import OpenAI from "openai"
 import { getEffectiveMembershipTier, deductAITutorCredits } from "@/lib/membership"
+import { getStudentCodeBenchEntitlement } from "@/lib/codebench-entitlement"
+import { codebenchMembershipRequiredResponse } from "@/lib/codebench-cora-usage"
 
 // Check if OpenAI API key is configured
 const isOpenAIConfigured = !!process.env.OPENAI_API_KEY
@@ -249,6 +253,15 @@ export async function POST(request: NextRequest) {
       studentIdNum = auth.studentDbId
     }
 
+    const isCodeBenchCoraRequest =
+      context?.source === "codebench" || context?.module === "codebench"
+    if (isCodeBenchCoraRequest && !Number.isNaN(studentIdNum)) {
+      const entitlement = await getStudentCodeBenchEntitlement(studentIdNum)
+      if (!entitlement.coraAccess) {
+        return codebenchMembershipRequiredResponse()
+      }
+    }
+
     const { getCoraPrivacySettings, DEFAULT_CORA_PRIVACY_SETTINGS } = await import(
       "@/lib/cora/privacy/cora-privacy-settings"
     )
@@ -294,6 +307,7 @@ export async function POST(request: NextRequest) {
       askCoraGate = await enforceAskCoraGate({
         studentId: studentIdNum,
         message: String(message ?? ""),
+        conversationHistory: Array.isArray(conversationHistory) ? conversationHistory : [],
         problem: importedProblem ?? null,
         source: importedProblem?.source ?? context?.importedQuestion?.source ?? null,
         quizId: importedProblem?.quizId ?? context?.quizId ?? null,
@@ -640,8 +654,11 @@ Be encouraging and educational. Help students understand algorithmic thinking, n
       useCoraAgentLoop = agentEligible
     } else {
       useCoraAgentLoop = agentEligible
-      const learningGoal = normalizeLearningGoal(
-        chatConfig?.learningGoal ?? learningGoalFromLegacyChatConfig(chatConfig),
+      const learningGoal = clampLearningGoalForAssessmentPolicy(
+        normalizeLearningGoal(
+          chatConfig?.learningGoal ?? learningGoalFromLegacyChatConfig(chatConfig),
+        ),
+        askCoraGate?.policy.mode,
       )
 
       let memoryPrompt = ""
@@ -719,6 +736,9 @@ Be encouraging and educational. Help students understand algorithmic thinking, n
 
       if (askCoraGate?.promptAppendix) {
         systemPrompt += askCoraGate.promptAppendix
+      }
+      if (askCoraGate?.policy.mode === "GUIDED_ONLY") {
+        systemPrompt += ASSESSMENT_GUIDED_LEARNING_GOAL_OVERRIDE
       } else if (lecturePracticeContext) {
         systemPrompt += `
 
@@ -783,8 +803,11 @@ LECTURE / PRACTICE WORKSPACE — GUIDED LEARNING:
     // Add current message
     messages.push({ role: "user", content: message })
 
-    const tutorLearningGoal = normalizeLearningGoal(
-      chatConfig?.learningGoal ?? learningGoalFromLegacyChatConfig(chatConfig),
+    const tutorLearningGoal = clampLearningGoalForAssessmentPolicy(
+      normalizeLearningGoal(
+        chatConfig?.learningGoal ?? learningGoalFromLegacyChatConfig(chatConfig),
+      ),
+      askCoraGate?.policy.mode,
     )
     let studentCourseId: number | null = null
     if (!Number.isNaN(studentIdNum)) {

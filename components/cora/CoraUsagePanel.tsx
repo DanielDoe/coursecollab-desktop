@@ -1,12 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Activity, Coins, Cpu, Layers, LayoutDashboard } from "lucide-react"
+import { Activity, Coins, Cpu, Layers } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { fetchCoraCreditsBalance, fetchCoraUsageActivity } from "@/lib/cora/credits-client"
 
 type Role = "student" | "instructor"
 
@@ -49,6 +48,13 @@ type ActivityRow = {
 /** Compact membership preview — fixed page size, no growing list. */
 const ACTIVITY_PAGE_SIZE = 5
 
+function authHeaders(role: Role, userId: number | string): HeadersInit {
+  if (role === "instructor") {
+    return { "x-instructor-id": String(userId) }
+  }
+  return { "x-student-id": String(userId) }
+}
+
 function fmt(n: number) {
   return Math.round(n).toLocaleString()
 }
@@ -86,12 +92,11 @@ export function CoraUsagePanel({
   const fetchActivityPage = useCallback(
     async (nextPage: number) => {
       if (!userId) return
-      const params = new URLSearchParams({
-        role,
-        limit: String(ACTIVITY_PAGE_SIZE),
-        page: String(nextPage),
-      })
-      const aRes = await fetchCoraUsageActivity(role, userId, params)
+      const headers = authHeaders(role, userId)
+      const aRes = await fetch(
+        `/api/cora/usage/activity?role=${role}&limit=${ACTIVITY_PAGE_SIZE}&page=${nextPage}`,
+        { headers },
+      )
       if (!aRes.ok) throw new Error((await aRes.json().catch(() => ({}))).error || "Activity failed")
       const a = (await aRes.json()) as {
         activity: ActivityRow[]
@@ -112,7 +117,8 @@ export function CoraUsagePanel({
     setLoading(true)
     setError(null)
     try {
-      const bRes = await fetchCoraCreditsBalance(role, userId)
+      const headers = authHeaders(role, userId)
+      const bRes = await fetch(`/api/cora/credits/balance?role=${role}`, { headers })
       if (!bRes.ok) throw new Error((await bRes.json().catch(() => ({}))).error || "Balance failed")
       const b = (await bRes.json()) as BalancePayload
       setBalance(b)
@@ -171,19 +177,11 @@ export function CoraUsagePanel({
         {error && <p className="text-sm text-destructive">{error}</p>}
         {!loading && balance && (
           <Tabs defaultValue="overview">
-            <TabsList className="mb-5 grid h-auto w-full grid-cols-4 gap-1 rounded-2xl border border-[#E4DFEA] bg-[#EFEAF6] p-1 dark:border-white/[0.08] dark:bg-[#0E0E0E]">
-              <UsageTab value="overview" icon={<LayoutDashboard className="size-3.5" />}>
-                Overview
-              </UsageTab>
-              <UsageTab value="activity" icon={<Activity className="size-3.5" />}>
-                Activity
-              </UsageTab>
-              <UsageTab value="tokens" icon={<Cpu className="size-3.5" />}>
-                Tokens
-              </UsageTab>
-              <UsageTab value="credits" icon={<Coins className="size-3.5" />}>
-                Credits
-              </UsageTab>
+            <TabsList className="mb-4 grid w-full grid-cols-4">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="activity">Activity</TabsTrigger>
+              <TabsTrigger value="tokens">Tokens</TabsTrigger>
+              <TabsTrigger value="credits">Credits</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-3">
@@ -301,31 +299,6 @@ export function CoraUsagePanel({
         )}
       </CardContent>
     </Card>
-  )
-}
-
-function UsageTab({
-  value,
-  icon,
-  children,
-}: {
-  value: string
-  icon: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <TabsTrigger
-      value={value}
-      className={cn(
-        "h-10 gap-1.5 rounded-xl border-0 bg-transparent px-1.5 text-[12px] font-semibold text-[#6B6570] shadow-none",
-        "hover:bg-white/60 hover:text-[#1E1033] dark:text-[#A8A29E] dark:hover:bg-white/[0.06] dark:hover:text-white",
-        "data-[state=active]:border-transparent data-[state=active]:bg-[var(--cc-accent)] data-[state=active]:text-white data-[state=active]:shadow-[0_4px_12px_rgba(79,45,127,0.35)]",
-        "dark:data-[state=active]:bg-[var(--cc-accent)] dark:data-[state=active]:text-white",
-      )}
-    >
-      <span className="opacity-80">{icon}</span>
-      <span className="truncate">{children}</span>
-    </TabsTrigger>
   )
 }
 

@@ -40,10 +40,6 @@ import { useToast } from "@/hooks/use-toast"
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 import { facultyModuleSpinnerClass } from "@/lib/faculty-module-themes"
 import { PORTAL_CARD, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
-import {
-  AM_EMPTY_FILL,
-  AM_PANEL_SECTION,
-} from "@/lib/assessments/assessment-management-surface-classes"
 import { cn } from "@/lib/utils"
 
 type HelpSection = { title: string; content: string }
@@ -190,15 +186,15 @@ export function FacultyHelpCenterHub() {
 
   if (loading) {
     return (
-      <div className={cn(AM_EMPTY_FILL, "py-16")}>
+      <div className="flex justify-center py-16">
         <Loader2 className={cn("h-8 w-8 animate-spin", spinner)} />
       </div>
     )
   }
 
   return (
-    <div className={cn(AM_PANEL_SECTION, "gap-4")}>
-      <div className="flex shrink-0 min-w-0 items-start gap-3">
+    <div className="min-w-0 space-y-4">
+      <div className="flex min-w-0 items-start gap-3">
         <span className={chrome.iconBadge("md")}>
           <HelpCircle className="h-5 w-5" />
         </span>
@@ -211,7 +207,6 @@ export function FacultyHelpCenterHub() {
       </div>
 
       <FacultyIntegratedToolbar
-        className="shrink-0"
         moduleId="help-center"
         search={search}
         onSearchChange={setSearch}
@@ -280,7 +275,7 @@ export function FacultyHelpCenterHub() {
       />
 
       {listCount === 0 ? (
-        <div className={AM_EMPTY_FILL}>
+        <div className={cn(PORTAL_CARD, "px-6 py-14 text-center")}>
           <HelpCircle className={cn("mx-auto mb-3 h-8 w-8 opacity-40", PORTAL_TEXT_MUTED)} />
           <p className={cn("text-sm font-medium", PORTAL_TEXT)}>Nothing matches</p>
           <p className={cn("mt-1 text-sm", PORTAL_TEXT_MUTED)}>
@@ -288,9 +283,9 @@ export function FacultyHelpCenterHub() {
           </p>
         </div>
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)] lg:items-stretch lg:gap-4">
-          <div className={cn(PORTAL_CARD, "flex min-h-0 flex-col overflow-hidden p-1.5")}>
-            <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto">
+        <div className="grid min-h-[26rem] grid-cols-1 gap-3 lg:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)] lg:gap-4">
+          <div className={cn(PORTAL_CARD, "overflow-hidden p-1.5")}>
+            <ul className="max-h-[min(520px,68vh)] space-y-0.5 overflow-y-auto">
               {view === "articles"
                 ? filteredArticles.map((article) => {
                     const active = article.id === selectedArticleId
@@ -338,7 +333,7 @@ export function FacultyHelpCenterHub() {
             </ul>
           </div>
 
-          <div className={cn(PORTAL_CARD, "min-h-0 flex-1 overflow-y-auto p-4 sm:p-5")}>
+          <div className={cn(PORTAL_CARD, "min-h-[26rem] overflow-y-auto p-4 sm:p-5")}>
             {view === "articles" && selectedArticle ? (
               <div className="space-y-4">
                 <div className="space-y-2">

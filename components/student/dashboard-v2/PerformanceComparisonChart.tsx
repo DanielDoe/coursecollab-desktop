@@ -174,13 +174,13 @@ export function PerformanceComparisonChart() {
 
   return (
     <CardWrapper delay={0.15}>
-      <div className="dashboard-v2-chart-card p-4 sm:p-6 [.cc-desktop-native-content_&]:p-3">
-        <h3 className="dashboard-v2-chart-title mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cc-text-muted)] sm:mb-6 [.cc-desktop-native-content_&]:mb-2">
+      <div className="dashboard-v2-chart-card p-4 sm:p-6">
+        <h3 className="dashboard-v2-chart-title mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cc-text-muted)] sm:mb-6">
           Performance vs Class Average
         </h3>
-        <div className="dashboard-v2-chart-bar h-[220px] min-h-0 w-full [.cc-desktop-native-content_&]:h-[128px]">
+        <div className="dashboard-v2-chart-bar h-[220px] min-h-0 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} layout="vertical" margin={{ top: 0, right: 8, left: 8, bottom: 0 }} barCategoryGap="12%">
+            <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 0 }} barCategoryGap="18%">
               <CartesianGrid strokeDasharray="3 3" stroke="rgb(148 163 184 / 0.15)" horizontal={false} />
               <XAxis
                 type="number"
@@ -193,7 +193,7 @@ export function PerformanceComparisonChart() {
               <YAxis
                 dataKey="name"
                 type="category"
-                width={78}
+                width={58}
                 tick={{ fill: tickFill, fontSize: 11, fontWeight: 500 }}
                 tickLine={false}
                 axisLine={false}
@@ -212,7 +212,7 @@ export function PerformanceComparisonChart() {
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-4 sm:mt-4 sm:gap-6 [.cc-desktop-native-content_&]:mt-1.5">
+        <div className="mt-2 sm:mt-4 flex flex-wrap items-center gap-4 sm:gap-6">
           <div className="flex items-center gap-2">
             <div className="h-2.5 w-4 rounded-sm" style={{ backgroundColor: "var(--cc-accent)" }} />
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">You</span>

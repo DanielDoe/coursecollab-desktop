@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { requireAdminId } from "@/lib/admin-api-auth"
+import { isClientPlatformId } from "@/lib/client-platform"
 import { ensurePlatformActivitySchema } from "@/lib/ensure-platform-activity-schema"
 import { sql } from "@/lib/db"
 import type { PlatformActivityRow } from "@/lib/platform-activity-constants"
@@ -15,6 +16,24 @@ function parseDateParam(value: string | null, endOfDay: boolean): Date | null {
   return d
 }
 
+/** Resolved client surface for filtering (metadata first, else UA heuristics). */
+const CLIENT_PLATFORM_SQL = sql.unsafe(`
+  COALESCE(
+    NULLIF(LOWER(TRIM(l.metadata->>'clientPlatform')), ''),
+    CASE
+      WHEN l.user_agent ILIKE '%CourseCollab-Native%'
+        OR l.user_agent ILIKE '%com.coursecollab.app%'
+        OR l.user_agent ILIKE '%ExpoBundle%'
+        OR LOWER(l.user_agent) LIKE '%okhttp%'
+        THEN 'mobile'
+      WHEN LOWER(l.user_agent) LIKE '%electron%'
+        OR LOWER(l.user_agent) LIKE '%coursecollab-desktop%'
+        THEN 'desktop'
+      ELSE 'web'
+    END
+  )
+`)
+
 export async function GET(request: NextRequest) {
   const auth = await requireAdminId(request)
   if (!auth.ok) return auth.response
@@ -26,6 +45,7 @@ export async function GET(request: NextRequest) {
     const portal = searchParams.get("portal")
     const category = searchParams.get("category")
     const action = searchParams.get("action")
+    const clientPlatformParam = searchParams.get("clientPlatform")
     const search = searchParams.get("search")?.trim() ?? ""
     const successParam = searchParams.get("success")
     const dateFrom = parseDateParam(searchParams.get("dateFrom"), false)
@@ -36,6 +56,8 @@ export async function GET(request: NextRequest) {
     const portalFilter = portal && portal !== "all" ? portal : null
     const categoryFilter = category && category !== "all" ? category : null
     const actionFilter = action && action !== "all" ? action : null
+    const clientPlatformFilter =
+      clientPlatformParam && isClientPlatformId(clientPlatformParam) ? clientPlatformParam : null
     const successFilter =
       successParam === "true" ? true : successParam === "false" ? false : null
     const searchPattern = search ? `%${search}%` : null
@@ -53,6 +75,7 @@ export async function GET(request: NextRequest) {
       WHERE (${portalFilter}::text IS NULL OR l.portal = ${portalFilter})
         AND (${categoryFilter}::text IS NULL OR l.category = ${categoryFilter})
         AND (${actionFilter}::text IS NULL OR l.action = ${actionFilter})
+        AND (${clientPlatformFilter}::text IS NULL OR ${CLIENT_PLATFORM_SQL} = ${clientPlatformFilter})
         AND (${successFilter}::boolean IS NULL OR l.success = ${successFilter})
         AND (${dateFrom}::timestamptz IS NULL OR l.created_at >= ${dateFrom})
         AND (${dateTo}::timestamptz IS NULL OR l.created_at <= ${dateTo})
@@ -117,6 +140,7 @@ export async function GET(request: NextRequest) {
       WHERE (${portalFilter}::text IS NULL OR l.portal = ${portalFilter})
         AND (${categoryFilter}::text IS NULL OR l.category = ${categoryFilter})
         AND (${actionFilter}::text IS NULL OR l.action = ${actionFilter})
+        AND (${clientPlatformFilter}::text IS NULL OR ${CLIENT_PLATFORM_SQL} = ${clientPlatformFilter})
         AND (${successFilter}::boolean IS NULL OR l.success = ${successFilter})
         AND (${dateFrom}::timestamptz IS NULL OR l.created_at >= ${dateFrom})
         AND (${dateTo}::timestamptz IS NULL OR l.created_at <= ${dateTo})

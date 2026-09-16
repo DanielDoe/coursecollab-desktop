@@ -4,17 +4,16 @@ import { useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
-  Briefcase,
   Check,
   FileImage,
   FileText,
+  Loader2,
   Lock,
   Mail,
   ShieldCheck,
   UploadCloud,
   X,
 } from "lucide-react"
-import { Spinner } from "@/components/ui/spinner"
 import { CourseCollabLogo } from "@/components/course-collab-logo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,9 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { DeviceDuo } from "@/components/landing/device-frames"
-import { DesktopAuthBackLink, desktopAuth } from "@/components/auth/desktop-auth-primitives"
-import { DesktopWebSignupLink } from "@/components/auth/DesktopWebSignupLink"
-import { DESKTOP_WEB_SIGNUP_PATHS, isDesktopAuthLoginOnly } from "@/lib/desktop-auth-policy"
 import { MfaLoginStep, parseMfaLoginResponse, type MfaLoginState } from "@/components/auth/MfaLoginStep"
 import {
   parseAccessLifecycleFromLoginError,
@@ -38,6 +34,8 @@ import { redirectToAccessStatusPage } from "@/lib/access-governance/access-statu
 import { setStudentSession } from "@/lib/auth"
 import { CAREER_MEMBER_ACCOUNT, CAREER_MEMBER_PORTAL, CAREER_MEMBER_WORKSPACE } from "@/lib/guest/display"
 import { isOtherUniversity, readSessionSelectedUniversity } from "@/lib/universities-shared"
+import { appendNativeAppQuery } from "@/lib/mobile-native-app"
+import { useNativeApp } from "@/hooks/use-native-app"
 import {
   GUEST_OCCUPATION_OPTIONS,
   GUEST_ONBOARDING_OPTIONS,
@@ -99,35 +97,10 @@ function InlineSelect({
   )
 }
 
-export function GuestOnboardingExperience({
-  variant = "default",
-  backHref,
-  backLabel = "Back",
-}: {
-  variant?: "default" | "desktop"
-  backHref?: string
-  backLabel?: string
-}) {
+export function GuestOnboardingExperience() {
   const router = useRouter()
-  const isDesktop = variant === "desktop"
-  const desktopLoginOnly = isDesktopAuthLoginOnly(variant)
-  const guestEyebrow = isDesktop
-    ? "text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--cc-text-secondary)]"
-    : "text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400"
-  const guestTitle = isDesktop
-    ? desktopAuth.title
-    : "text-3xl font-semibold tracking-tight text-[#1c1826] dark:text-white sm:text-[2.15rem]"
-  const guestSubtitle = isDesktop
-    ? desktopAuth.subtitle
-    : "text-sm text-zinc-500 dark:text-zinc-300"
-  const guestFieldInput = isDesktop
-    ? "mt-1.5 h-10 w-full rounded-md border border-[var(--border)] bg-[var(--cc-surface)] px-3 text-[14px] text-[var(--cc-text)] outline-none placeholder:text-[var(--cc-text-muted)] focus:border-[var(--cc-accent)] focus:ring-1 focus:ring-[var(--cc-accent)]/30"
-    : "mt-1.5 w-full border-0 border-b border-[#2b2140] bg-transparent px-1 py-1.5 text-lg font-semibold outline-none placeholder:font-normal placeholder:text-zinc-400 dark:border-[color-mix(in_srgb,var(--cc-accent)_45%,white)]"
-  const guestInlineInput = isDesktop
-    ? "min-w-[8rem] border-0 border-b border-[var(--border)] bg-transparent px-1 py-0.5 text-[15px] font-medium text-[var(--cc-text)] outline-none placeholder:text-[var(--cc-text-muted)] focus:border-[var(--cc-accent)]"
-    : "border-0 border-b border-[#2b2140] bg-transparent px-1 py-0.5 font-semibold text-[#1c1826] outline-none placeholder:font-normal placeholder:text-zinc-400 dark:border-[color-mix(in_srgb,var(--cc-accent)_45%,white)] dark:text-white dark:placeholder:text-zinc-500"
-  const guestFooterBorder = isDesktop ? "border-[var(--border)]" : "border-zinc-100 dark:border-white/10"
-  const [mode, setMode] = useState<Mode>(desktopLoginOnly ? "signin" : "create")
+  const isNative = useNativeApp()
+  const [mode, setMode] = useState<Mode>("create")
   const [step, setStep] = useState<CreateStep>("intro")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -153,25 +126,14 @@ export function GuestOnboardingExperience({
   const stepIndex = Math.max(0, STEPS.indexOf(step))
   const greeting = firstName.trim() || "there"
 
+  const loginHref = isNative ? appendNativeAppQuery("/student/login?portal=student") : "/student/login"
+
   const purposeSentence = useMemo(() => {
     const opt = GUEST_ONBOARDING_OPTIONS.find((o) => o.id === purpose)
     return opt?.label.toLowerCase() ?? "career support"
   }, [purpose])
 
   if (mfaState) {
-    if (isDesktop) {
-      return (
-        <MfaLoginStep
-          state={mfaState}
-          portalLabel={CAREER_MEMBER_PORTAL}
-          onBack={() => setMfaState(null)}
-          onComplete={(data) => {
-            setMfaState(null)
-            applyGuestSession(data as { student: Record<string, unknown>; guestAccessPurpose?: string }, router)
-          }}
-        />
-      )
-    }
     return (
       <div className="cc-brand-surface flex min-h-[100dvh] items-center justify-center bg-[#f4f2ee] p-6">
         <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-sm">
@@ -309,14 +271,7 @@ export function GuestOnboardingExperience({
   }
 
   return (
-    <div
-      className={cn(
-        isDesktop
-          ? "flex w-full flex-col text-[var(--cc-text)]"
-          : "cc-brand-surface flex min-h-[100dvh] flex-col bg-[#f4f2ee] text-[#1c1826] dark:bg-zinc-950 dark:text-white",
-      )}
-    >
-      {!isDesktop ? (
+    <div className="cc-brand-surface flex min-h-[100dvh] flex-col bg-[#f4f2ee] text-[#1c1826] dark:bg-zinc-950 dark:text-white">
       <header className="z-10 h-16 shrink-0 border-b border-black/[0.06] bg-white dark:border-white/10 dark:bg-zinc-900">
         <div className="flex h-full items-center px-4 sm:px-6">
           <Link href="/" className="shrink-0" aria-label="CourseCollab home">
@@ -329,79 +284,21 @@ export function GuestOnboardingExperience({
           </Link>
           <span className="mx-3 hidden h-4 w-px bg-zinc-200 sm:block dark:bg-zinc-700" aria-hidden />
           <span className="hidden text-[15px] text-zinc-500 dark:text-zinc-400 sm:inline">Getting to know you</span>
+          <Link
+            href={loginHref}
+            className="ml-auto text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+          >
+            Student sign in
+          </Link>
         </div>
       </header>
-      ) : null}
 
-      <main
-        className={cn(
-          isDesktop
-            ? "flex flex-col"
-            : "relative flex min-h-0 flex-1 items-start overflow-hidden px-4 py-5 sm:items-center sm:px-6 lg:px-10",
-        )}
-      >
-        <div
-          className={cn(
-            isDesktop ? "w-full" : "mx-auto flex w-full max-w-[84rem] items-center justify-center gap-6 xl:gap-10",
-          )}
-        >
-        <section
-          className={cn(
-            isDesktop
-              ? "flex w-full flex-col"
-              : "relative z-10 flex w-full max-w-[28rem] shrink-0 flex-col rounded-[22px] border border-black/[0.04] bg-white p-5 shadow-[0_14px_36px_rgba(40,20,80,0.06)] sm:p-6 dark:border-white/10 dark:bg-zinc-900",
-          )}
-        >
-          {isDesktop ? (
-            <>
-              <div className="mb-5 flex items-start gap-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[var(--cc-accent-soft)] text-[var(--cc-accent)]">
-                  <Briefcase className="h-4 w-4" aria-hidden />
-                </span>
-                <div className="min-w-0 space-y-1">
-                  <h1 className={guestTitle}>Career Member</h1>
-                  <p className={guestSubtitle}>
-                    Sign in to your career workspace.
-                  </p>
-                </div>
-              </div>
-              {!desktopLoginOnly ? (
-              <div className="mb-6 grid grid-cols-2 gap-1 rounded-[10px] border border-[var(--border)] bg-[var(--cc-surface)] p-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setError("")
-                    setMode("create")
-                    setStep("intro")
-                  }}
-                  className={cn(
-                    "h-9 rounded-[8px] text-[13px] font-medium transition-colors",
-                    mode === "create"
-                      ? "bg-[var(--cc-accent-soft)] text-[var(--cc-text)]"
-                      : "text-[var(--cc-text-secondary)] hover:text-[var(--cc-text)]",
-                  )}
-                >
-                  Create account
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setError("")
-                    setMode("signin")
-                  }}
-                  className={cn(
-                    "h-9 rounded-[8px] text-[13px] font-medium transition-colors",
-                    mode === "signin"
-                      ? "bg-[var(--cc-accent-soft)] text-[var(--cc-text)]"
-                      : "text-[var(--cc-text-secondary)] hover:text-[var(--cc-text)]",
-                  )}
-                >
-                  Sign in
-                </button>
-              </div>
-              ) : null}
-            </>
-          ) : null}
+      <main className="relative flex min-h-0 flex-1 items-start overflow-hidden px-4 py-5 sm:items-center sm:px-6 lg:px-10">
+        {/* Form and artwork are siblings in one centred row. The artwork used to
+            be absolutely positioned against the right edge, which stranded a
+            wide dead gap between it and the form on widescreen displays. */}
+        <div className="mx-auto flex w-full max-w-[84rem] items-center justify-center gap-6 xl:gap-10">
+        <section className="relative z-10 flex w-full max-w-[28rem] shrink-0 flex-col rounded-[22px] border border-black/[0.04] bg-white p-5 shadow-[0_14px_36px_rgba(40,20,80,0.06)] sm:p-6 dark:border-white/10 dark:bg-zinc-900">
           {mode === "signin" ? (
             <form onSubmit={signIn} className="flex flex-col">
               {/* Matches the create-account intro: small uppercase eyebrow, large
@@ -409,58 +306,42 @@ export function GuestOnboardingExperience({
                   different visual language entirely — gradient avatar badge,
                   rounded-2xl boxed inputs with leading icons, and a 3-up chip
                   grid — which read as a separate product beside "Start here". */}
-              {!isDesktop ? (
-              <p className={guestEyebrow}>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
                 Welcome back
               </p>
-              ) : null}
-              {!isDesktop ? (
-              <h1
-                className={cn("mt-2", guestTitle)}
-              >
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#1c1826] dark:text-white sm:text-[2.15rem]">
                 Good to see you again.
               </h1>
-              ) : null}
-              {!isDesktop ? (
-              <p className={cn("mt-2", guestSubtitle)}>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-300">
                 Sign in to your {CAREER_MEMBER_WORKSPACE}.
               </p>
-              ) : null}
 
-              <div className={cn(isDesktop ? "space-y-4" : "mt-9 space-y-6")}>
+              <div className="mt-9 space-y-6">
                 <label className="block">
-                  {!isDesktop ? (
                   <span className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-400">
                     Email
                   </span>
-                  ) : (
-                  <span className="text-[13px] font-medium text-[var(--cc-text)]">Email</span>
-                  )}
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
-                    className={guestFieldInput}
+                    className="mt-1.5 w-full border-0 border-b border-[#2b2140] bg-transparent px-1 py-1.5 text-lg font-semibold outline-none placeholder:font-normal placeholder:text-zinc-400 dark:border-[color-mix(in_srgb,var(--cc-accent)_45%,white)]"
                     autoComplete="email"
                     required
                   />
                 </label>
 
                 <label className="block">
-                  {!isDesktop ? (
                   <span className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-400">
                     Password
                   </span>
-                  ) : (
-                  <span className="text-[13px] font-medium text-[var(--cc-text)]">Password</span>
-                  )}
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className={guestFieldInput}
+                    className="mt-1.5 w-full border-0 border-b border-[#2b2140] bg-transparent px-1 py-1.5 text-lg font-semibold outline-none placeholder:font-normal placeholder:text-zinc-400 dark:border-[color-mix(in_srgb,var(--cc-accent)_45%,white)]"
                     autoComplete="current-password"
                     required
                   />
@@ -469,86 +350,59 @@ export function GuestOnboardingExperience({
 
               <Link
                 href="/student/forgot-password/guest"
-                className={cn(
-                  "mt-3 self-start font-medium underline-offset-4 transition-colors hover:underline",
-                  isDesktop
-                    ? "text-[13px] text-[var(--cc-text-muted)] hover:text-[var(--cc-text-secondary)]"
-                    : "text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white",
-                )}
+                className="mt-3 self-start text-sm font-medium text-zinc-500 underline-offset-4 transition-colors hover:text-zinc-900 hover:underline dark:hover:text-white"
               >
                 Forgot password?
               </Link>
 
               {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
 
-              <div className={cn(isDesktop ? desktopAuth.actionStack : "mt-8 space-y-3")}>
+              <div className="mt-8 flex flex-col-reverse items-stretch gap-3 border-t border-zinc-100 pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-white/10">
+                <button
+                  type="button"
+                  className="text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+                  onClick={() => {
+                    setError("")
+                    setMode("create")
+                    setStep("intro")
+                  }}
+                >
+                  Create an account
+                </button>
                 <Button
                   type="submit"
                   disabled={loading}
-                  className={cn(
-                    "font-semibold text-white",
-                    isDesktop
-                      ? "h-10 w-full rounded-md bg-[var(--cc-accent)] px-4 hover:bg-[var(--cc-accent-hover)]"
-                      : "h-12 w-full rounded-full bg-[#1c1826] px-7 hover:bg-black dark:bg-white dark:text-[#1c1826] dark:hover:bg-zinc-100",
-                  )}
+                  className="h-12 rounded-full bg-[#1c1826] px-7 font-semibold text-white hover:bg-black dark:bg-white dark:text-[#1c1826] dark:hover:bg-zinc-100"
                 >
-                  {loading ? <Spinner size="sm" /> : "Sign in"}
+                  {loading ? <Loader2 className="size-4 animate-spin" /> : "Sign in"}
                 </Button>
-                {backHref ? <DesktopAuthBackLink href={backHref} label={backLabel} className="mt-0" /> : null}
-                {!isDesktop ? (
-                  <p className="mt-3 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                    New here?{" "}
-                    <button
-                      type="button"
-                      className="font-medium text-zinc-700 underline underline-offset-2 transition-colors hover:text-zinc-900 dark:text-zinc-200 dark:hover:text-white"
-                      onClick={() => {
-                        setError("")
-                        setMode("create")
-                        setStep("intro")
-                      }}
-                    >
-                      Create an account
-                    </button>
-                  </p>
-                ) : null}
-                {desktopLoginOnly ? (
-                  <DesktopWebSignupLink
-                    path={DESKTOP_WEB_SIGNUP_PATHS.careerMember}
-                    prompt="New here?"
-                    label="Create account on web"
-                  />
-                ) : null}
               </div>
             </form>
           ) : (
             <div key={step} className="cc-step-enter flex flex-1 flex-col">
               {step === "intro" ? (
                 <>
-                  {!isDesktop ? (
-                  <p className={guestEyebrow}>Start here</p>
-                  ) : null}
-                  {!isDesktop ? (
-                  <h2 className={cn("mt-2", guestTitle)}>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">Start here</p>
+                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#1c1826] dark:text-white sm:text-[2.15rem]">
                     Welcome. Let’s get a quick intro.
-                  </h2>
-                  ) : null}
-                  <p className={cn(isDesktop ? "mt-0" : "mt-2", guestSubtitle)}>
+                  </h1>
+                  <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-300">
                     Anyone can create a {CAREER_MEMBER_ACCOUNT}. Faculty only review recommendation letter requests.
                   </p>
-                  <p className={cn("mt-8 leading-relaxed", isDesktop ? "text-[15px] text-[var(--cc-text)]" : "mt-10 text-lg text-[#2b2140] dark:text-zinc-100")}>
+                  <p className="mt-10 text-lg leading-relaxed text-[#2b2140] dark:text-zinc-100">
                     Hi, I’m{" "}
                     <input
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
                       placeholder="first name"
-                      className={cn(guestInlineInput, isDesktop ? "w-32" : "w-32")}
+                      className="w-32 border-0 border-b border-[#2b2140] bg-transparent px-1 py-0.5 font-semibold text-[#1c1826] outline-none placeholder:font-normal placeholder:text-zinc-400 dark:border-[color-mix(in_srgb,var(--cc-accent)_45%,white)] dark:text-white dark:placeholder:text-zinc-500"
                       autoComplete="given-name"
                     />{" "}
                     <input
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
                       placeholder="last name"
-                      className={cn(guestInlineInput, isDesktop ? "w-36" : "w-36")}
+                      className="w-36 border-0 border-b border-[#2b2140] bg-transparent px-1 py-0.5 font-semibold text-[#1c1826] outline-none placeholder:font-normal placeholder:text-zinc-400 dark:border-[color-mix(in_srgb,var(--cc-accent)_45%,white)] dark:text-white dark:placeholder:text-zinc-500"
                       autoComplete="family-name"
                     />
                     .
@@ -774,8 +628,8 @@ export function GuestOnboardingExperience({
 
               {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
 
-              <div className={cn("mt-5 flex flex-col-reverse items-stretch gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between", guestFooterBorder)}>
-                {step === "intro" && !isDesktop ? (
+              <div className="mt-5 flex flex-col-reverse items-stretch gap-3 border-t border-zinc-100 pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-white/10">
+                {step === "intro" ? (
                   <button
                     type="button"
                     className="text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
@@ -808,12 +662,7 @@ export function GuestOnboardingExperience({
                 <Button
                   type="button"
                   disabled={loading}
-                  className={cn(
-                    "font-semibold text-white",
-                    isDesktop
-                      ? "h-10 rounded-lg bg-[var(--cc-accent)] px-4 hover:bg-[var(--cc-accent-hover)]"
-                      : "h-12 rounded-full bg-[#1c1826] px-7 hover:bg-black dark:bg-white dark:text-[#1c1826] dark:hover:bg-zinc-100",
-                  )}
+                  className="h-12 rounded-full bg-[#1c1826] px-7 font-semibold text-white hover:bg-black dark:bg-white dark:text-[#1c1826] dark:hover:bg-zinc-100"
                   onClick={() => {
                     if (step === "intro") goNextFromIntro()
                     else if (step === "about") goNextFromAbout()
@@ -830,7 +679,9 @@ export function GuestOnboardingExperience({
                     }
                   }}
                 >
-                  {loading ? <Spinner size="sm" /> : step === "intro" ? (
+                  {loading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : step === "intro" ? (
                     "Continue"
                   ) : step === "about" ? (
                     "Continue"
@@ -847,7 +698,7 @@ export function GuestOnboardingExperience({
           )}
         </section>
 
-          <aside className={cn("cc-art-enter pointer-events-none hidden min-w-0 flex-1 lg:block", isDesktop && "!hidden")}>
+          <aside className="cc-art-enter pointer-events-none hidden min-w-0 flex-1 lg:block">
             {/* Same phone + PC pairing the landing page uses for Career AI, via the
                 shared DeviceDuo, so the composition and device proportions match
                 across the site rather than being tuned separately here. */}
@@ -877,10 +728,7 @@ export function GuestOnboardingExperience({
           Padded for the iOS home indicator. */}
       {mode === "create" && step !== "ready" ? (
         <div
-          className={cn(
-            "pointer-events-none z-10 flex shrink-0 justify-center",
-            isDesktop ? "pt-4" : "pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))]",
-          )}
+          className="pointer-events-none z-10 flex shrink-0 justify-center pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
           aria-hidden
         >
           <div className="flex w-[7.5rem] gap-2 sm:w-36">

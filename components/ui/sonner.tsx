@@ -18,7 +18,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       visibleToasts={4}
       gap={12}
       offset={16}
-      style={{ "--width": "400px" } as CSSProperties}
+      style={{ "--width": "380px" } as CSSProperties}
       toastOptions={{
         unstyled: true,
         className: "cc-system-alert-sonner-wrap",

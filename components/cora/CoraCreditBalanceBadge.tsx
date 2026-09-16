@@ -11,13 +11,18 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { fetchCoraCreditsBalance } from "@/lib/cora/credits-client"
 
 type Props = {
   userId: number | string | null
   role: "student" | "instructor" | "admin"
   usageHref?: string
   className?: string
+}
+
+function balanceHeaders(role: Props["role"], userId: number | string): HeadersInit {
+  if (role === "admin") return { "x-admin-id": String(userId) }
+  if (role === "instructor") return { "x-instructor-id": String(userId) }
+  return { "x-student-id": String(userId) }
 }
 
 export function CoraCreditBalanceBadge({
@@ -41,7 +46,9 @@ export function CoraCreditBalanceBadge({
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetchCoraCreditsBalance(role, userId)
+        const res = await fetch(`/api/cora/credits/balance?role=${role === "admin" ? "admin" : role}`, {
+          headers: balanceHeaders(role, userId),
+        })
         if (!res.ok) return
         const data = await res.json()
         if (cancelled) return

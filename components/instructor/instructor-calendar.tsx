@@ -385,12 +385,12 @@ export function InstructorCalendar() {
         </div>
       ) : null}
 
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.85fr)] xl:items-stretch">
-        <section className={cn(chrome.card, "flex min-h-0 flex-col overflow-hidden")}>
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.85fr)] xl:items-start">
+        <section className={cn(chrome.card, "overflow-hidden")}>
           {loading ? (
-            <div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-6">
+            <div className="grid grid-cols-7">
               {Array.from({ length: 42 }).map((_, index) => (
-                <Skeleton key={index} className="h-full min-h-0 rounded-none border-b border-r border-[var(--border)]" />
+                <Skeleton key={index} className="h-20 rounded-none border-b border-r border-[var(--border)]" />
               ))}
             </div>
           ) : viewMode === "week" ? (
@@ -414,7 +414,7 @@ export function InstructorCalendar() {
           )}
         </section>
 
-        <section className={cn(chrome.card, "flex min-h-0 flex-col overflow-hidden")}>
+        <section className={cn(chrome.card, "flex min-h-[360px] flex-col overflow-hidden")}>
           <div className="border-b border-[var(--border)] px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cc-text-muted)]">
               {isTodaySelected ? "Today" : selectedDate.toLocaleDateString(undefined, { weekday: "long" })}
@@ -524,8 +524,8 @@ function MonthBoard({
   onOpen: (event: InstructorCalendarEvent) => void
 }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="grid shrink-0 grid-cols-7 border-b border-[var(--border)]">
+    <>
+      <div className="grid grid-cols-7 border-b border-[var(--border)]">
         {WEEKDAYS.map((day) => (
           <div
             key={day}
@@ -536,7 +536,7 @@ function MonthBoard({
           </div>
         ))}
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-6">
+      <div className="grid grid-cols-7">
         {days.map((day, index) => {
           const dayEvents = eventsForDate(day.date)
           const isTodayDate = sameDay(day.date, today)
@@ -547,7 +547,7 @@ function MonthBoard({
               type="button"
               onClick={() => onSelectDate(day.date)}
               className={cn(
-                "flex h-full min-h-0 flex-col border-b border-r border-[var(--border)] p-1 text-left transition-colors sm:p-1.5",
+                "min-h-[3.75rem] border-b border-r border-[var(--border)] p-1 text-left transition-colors sm:min-h-[5.25rem] sm:p-1.5",
                 "hover:bg-muted/40 [&:nth-child(7n)]:border-r-0",
                 !day.isCurrentMonth && "bg-[var(--muted)]/25",
                 isSelected && "bg-[var(--cc-accent-soft)]",
@@ -565,7 +565,7 @@ function MonthBoard({
                   {day.date.getDate()}
                 </span>
               </div>
-              <div className="min-h-0 flex-1 space-y-0.5 overflow-hidden">
+              <div className="space-y-0.5">
                 {dayEvents.slice(0, 3).map((event) => {
                   const stripe = portalListStripe(typeIndex(event), chrome.theme.family)
                   return (
@@ -595,7 +595,7 @@ function MonthBoard({
           )
         })}
       </div>
-    </div>
+    </>
   )
 }
 
@@ -615,8 +615,8 @@ function WeekBoard({
   onOpen: (event: InstructorCalendarEvent) => void
 }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-x-auto">
-      <div className="grid min-h-0 min-w-[52rem] flex-1 grid-cols-7">
+    <div className="overflow-x-auto">
+      <div className="grid min-w-[52rem] grid-cols-7">
       {weekDays.map((date, index) => {
         const dayEvents = eventsForDate(date)
         const isTodayDate = sameDay(date, today)
@@ -625,7 +625,7 @@ function WeekBoard({
           <div
             key={index}
             className={cn(
-              "flex min-h-0 flex-col border-b border-r border-[var(--border)] [&:nth-child(7n)]:border-r-0",
+              "min-h-[22rem] border-b border-r border-[var(--border)] [&:nth-child(7n)]:border-r-0",
               isSelected && "bg-[var(--cc-accent-soft)]/40",
             )}
           >
@@ -647,7 +647,7 @@ function WeekBoard({
                 {date.getDate()}
               </span>
             </button>
-            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1.5">
+            <div className="space-y-1 p-1.5">
               {dayEvents.map((event) => {
                 const stripe = portalListStripe(typeIndex(event), chrome.theme.family)
                 return (

@@ -47,7 +47,7 @@ export function DesktopAuthShell({
         <div
           className={cn(
             "w-full",
-            wide ? "mx-auto max-w-[420px]" : desktopAuthLayout.contentColumn,
+            wide ? desktopAuthLayout.contentColumnWide : desktopAuthLayout.contentColumn,
           )}
         >
           <div className={cn("flex flex-col items-center text-center", hero ? "mb-3" : "mb-5")}>
@@ -59,7 +59,7 @@ export function DesktopAuthShell({
               wordmarkClassName="text-[24px] font-bold tracking-tight text-[var(--cc-text)]"
             />
             {sidebarTagline ? (
-              <p className="mt-2 max-w-[22rem] text-[15px] leading-snug text-[var(--cc-text-secondary)]">
+              <p className="mt-2 max-w-[26rem] text-[15px] leading-snug text-[var(--cc-text-secondary)]">
                 {sidebarTagline}
               </p>
             ) : null}
@@ -67,13 +67,13 @@ export function DesktopAuthShell({
         </div>
 
         {hero ? (
-          <div className="mb-4 w-full max-w-[min(100vw,42rem)] px-4">{hero}</div>
+          <div className={cn("mb-4 w-full", desktopAuthLayout.contentColumnWide)}>{hero}</div>
         ) : null}
 
         <div
           className={cn(
             "w-full",
-            wide ? "mx-auto max-w-[420px]" : desktopAuthLayout.contentColumn,
+            wide ? desktopAuthLayout.contentColumnWide : desktopAuthLayout.contentColumn,
           )}
         >
           {children}

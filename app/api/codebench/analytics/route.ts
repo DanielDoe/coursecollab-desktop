@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
+import { getStudentCodeBenchEntitlement } from "@/lib/codebench-entitlement"
 import { sql } from "@/lib/db"
-import { buildCodebenchCoraRead } from "@/lib/codebench-analytics-read"
-import { fetchStudioSnapshotForStudent } from "@/lib/codebench-studio-server"
+import { codebenchUsageContext, isInsufficientCoraCredits, jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
+import { createForFeature } from "@/lib/resolve-feature-ai-model"
+import OpenAI from "openai"
 
 type SubmissionRow = {
   id: number
@@ -10,6 +12,7 @@ type SubmissionRow = {
   points_awarded: number | null
   status: string | null
   submitted_at: string | Date
+  code?: string | null
   title?: string | null
   source: "codebench" | "practice" | "challenge"
 }
@@ -99,13 +102,7 @@ function buildPerformance(rows: SubmissionRow[], streakDays: number) {
       status: r.status,
       points: r.points_awarded,
       submittedAt: r.submitted_at,
-      title:
-        r.title ||
-        (r.source === "challenge"
-          ? "Daily challenge"
-          : r.source === "practice"
-            ? "Practice problem"
-            : "CodeBench submit"),
+      title: r.title || (r.source === "challenge" ? "Daily challenge" : r.source === "practice" ? "Practice problem" : "CodeBench submit"),
     }))
 
   return {
@@ -122,6 +119,42 @@ function buildPerformance(rows: SubmissionRow[], streakDays: number) {
   }
 }
 
+const DEFAULT_CORA = {
+  overview:
+    "Cora is still gathering enough CodeBench activity to personalize a deep read. Keep submitting solutions and she will refine this breakdown.",
+  concepts: {
+    loops: 40,
+    pointers: 35,
+    oop: 30,
+    recursion: 25,
+    arrays: 45,
+    stl: 30,
+  },
+  strengths: [] as string[],
+  weaknesses: [] as string[],
+  proficiencyScore: 40,
+  level: "Beginner",
+  detailedBreakdown: [
+    {
+      title: "Getting started",
+      detail: "Submit CodeBench work, practice problems, or daily challenges so Cora can observe score trends and concept patterns.",
+      severity: "info" as const,
+    },
+  ],
+  recommendations: [
+    "Complete today's daily challenge",
+    "Submit at least one evaluated solution this week",
+    "Ask Cora to walk through a concept you find confusing",
+  ],
+  weekly_plan: "Focus on consistent practice: one evaluated submission and one challenge attempt this week.",
+  tasks: [
+    "Open the editor and complete one warm-up problem",
+    "Submit code for evaluation feedback",
+    "Retry a weak concept with Cora tools",
+  ],
+  study_time_minutes: 90,
+}
+
 export async function GET(request: NextRequest) {
   try {
     const studentId = request.nextUrl.searchParams.get("studentId")
@@ -130,29 +163,28 @@ export async function GET(request: NextRequest) {
 
     const id = bound.studentDbId
 
-    const [codeSubs, practiceSubs, challengeSubs, studio] = await Promise.all([
+    const [codeSubs, practiceSubs, challengeSubs] = await Promise.all([
       sql`
-        SELECT id, score, points_awarded, status, submitted_at
+        SELECT id, code, score, points_awarded, status, submitted_at
         FROM codebench_submissions
         WHERE student_id = ${id}
         ORDER BY submitted_at DESC
         LIMIT 40
       `,
       sql`
-        SELECT id, problem as title, score, points_awarded, status, submitted_at
+        SELECT id, problem as title, code, score, points_awarded, status, submitted_at
         FROM practice_submissions
         WHERE student_id = ${id}
         ORDER BY submitted_at DESC
         LIMIT 40
       `,
       sql`
-        SELECT id, challenge_title as title, score, points_awarded, status, submitted_at
+        SELECT id, challenge_title as title, code as solution, score, points_awarded, status, submitted_at
         FROM daily_challenge_submissions
         WHERE student_id = ${id}
         ORDER BY submitted_at DESC
         LIMIT 40
       `,
-      fetchStudioSnapshotForStudent(id),
     ])
 
     const rows: SubmissionRow[] = [
@@ -162,6 +194,7 @@ export async function GET(request: NextRequest) {
         points_awarded: r.points_awarded,
         status: r.status,
         submitted_at: r.submitted_at,
+        code: r.code,
         title: null,
         source: "codebench" as const,
       })),
@@ -171,6 +204,7 @@ export async function GET(request: NextRequest) {
         points_awarded: r.points_awarded,
         status: r.status,
         submitted_at: r.submitted_at,
+        code: r.code,
         title: typeof r.title === "string" ? r.title.slice(0, 80) : null,
         source: "practice" as const,
       })),
@@ -180,6 +214,7 @@ export async function GET(request: NextRequest) {
         points_awarded: r.points_awarded,
         status: r.status,
         submitted_at: r.submitted_at,
+        code: r.solution ?? r.code,
         title: r.title ?? "Daily challenge",
         source: "challenge" as const,
       })),
@@ -187,7 +222,155 @@ export async function GET(request: NextRequest) {
 
     const streakDays = computeStreakDays(rows)
     const performance = buildPerformance(rows, streakDays)
-    const cora = buildCodebenchCoraRead(performance, studio)
+
+    const latestCode = rows
+      .map((r) => (r.code || "").trim())
+      .find((c) => c.length > 40)
+
+    const sampleSnippets = rows
+      .filter((r) => (r.code || "").trim().length > 40)
+      .slice(0, 3)
+      .map((r, i) => `--- Sample ${i + 1} (${r.source}, score=${r.score ?? "n/a"}) ---\n${(r.code || "").slice(0, 1200)}`)
+      .join("\n\n")
+
+    let cora = { ...DEFAULT_CORA }
+
+    const openaiApiKey = process.env.OPENAI_API_KEY
+    const coraEntitlement = await getStudentCodeBenchEntitlement(id)
+    if (coraEntitlement.coraAccess && openaiApiKey && (performance.submissionCount > 0 || latestCode)) {
+      try {
+        const openai = new OpenAI({ apiKey: openaiApiKey })
+        const prompt = `You are Cora, CourseCollab's AI coding coach. Observe this student's CodeBench performance and produce a detailed analytics JSON report.
+
+PERFORMANCE SUMMARY (observed from submissions):
+${JSON.stringify(
+  {
+    submissionCount: performance.submissionCount,
+    avgScore: performance.avgScore,
+    approvedCount: performance.approvedCount,
+    xpEarned: performance.xpEarned,
+    streakDays: performance.streakDays,
+    sourceCounts: performance.sourceCounts,
+    recentScores: performance.scoreTrend,
+    statusMix: performance.statusMix,
+    recentTitles: performance.recent.map((r) => ({
+      title: r.title,
+      score: r.score,
+      status: r.status,
+      source: r.source,
+    })),
+  },
+  null,
+  2,
+)}
+
+RECENT CODE SAMPLES:
+${sampleSnippets || latestCode?.slice(0, 2000) || "(no code yet)"}
+
+Return ONLY JSON:
+{
+  "overview": "2-4 sentence coaching summary of how they are performing",
+  "concepts": {
+    "loops": 0-100,
+    "pointers": 0-100,
+    "oop": 0-100,
+    "recursion": 0-100,
+    "arrays": 0-100,
+    "stl": 0-100
+  },
+  "strengths": ["..."],
+  "weaknesses": ["..."],
+  "proficiencyScore": 0-100,
+  "level": "Beginner" | "Intermediate" | "Advanced",
+  "detailedBreakdown": [
+    { "title": "short label", "detail": "1-2 sentence insight", "severity": "strength" | "focus" | "info" }
+  ],
+  "recommendations": ["actionable next step", "..."],
+  "weekly_plan": "paragraph",
+  "tasks": ["task1", "task2", "task3", "task4"],
+  "study_time_minutes": number
+}
+
+Rules:
+- Ground claims in the observed scores/activity when possible.
+- detailedBreakdown should have 4-6 items covering score trend, consistency, concept gaps, and next focus.
+- Do not invent specific bugs that are not supported by the samples.
+- Be specific and educational; never dump full solutions.`
+
+        const { content } = await createForFeature(openai, "insights", {
+          usageContext: codebenchUsageContext(id, "ANALYTICS", "codebench-analytics"),
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are Cora, an expert programming coach. Analyze student CodeBench performance and return valid JSON only.",
+            },
+            { role: "user", content: prompt },
+          ],
+          temperature: 0.55,
+          response_format: { type: "json_object" },
+        })
+
+        if (content) {
+          const parsed = JSON.parse(content)
+          cora = {
+            overview: parsed.overview || DEFAULT_CORA.overview,
+            concepts: { ...DEFAULT_CORA.concepts, ...(parsed.concepts || {}) },
+            strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
+            weaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses : [],
+            proficiencyScore:
+              typeof parsed.proficiencyScore === "number"
+                ? parsed.proficiencyScore
+                : performance.avgScore || DEFAULT_CORA.proficiencyScore,
+            level: parsed.level || DEFAULT_CORA.level,
+            detailedBreakdown: Array.isArray(parsed.detailedBreakdown)
+              ? parsed.detailedBreakdown
+              : DEFAULT_CORA.detailedBreakdown,
+            recommendations: Array.isArray(parsed.recommendations)
+              ? parsed.recommendations
+              : DEFAULT_CORA.recommendations,
+            weekly_plan: parsed.weekly_plan || DEFAULT_CORA.weekly_plan,
+            tasks: Array.isArray(parsed.tasks) ? parsed.tasks : DEFAULT_CORA.tasks,
+            study_time_minutes:
+              typeof parsed.study_time_minutes === "number"
+                ? parsed.study_time_minutes
+                : DEFAULT_CORA.study_time_minutes,
+          }
+        }
+      } catch (aiError) {
+        if (isInsufficientCoraCredits(aiError)) {
+          return jsonFromCodebenchCoraError(aiError, "Failed to load analytics")
+        }
+        console.error("[codebench/analytics] Cora insight failed:", aiError)
+        if (performance.avgScore > 0) {
+          cora = {
+            ...DEFAULT_CORA,
+            overview: `Across ${performance.submissionCount} submissions, your average score is ${performance.avgScore}. Keep practicing to lift weaker concepts.`,
+            proficiencyScore: performance.avgScore,
+            detailedBreakdown: [
+              {
+                title: "Score average",
+                detail: `Observed average evaluation score is ${performance.avgScore}/100 across recent work.`,
+                severity: "info",
+              },
+              {
+                title: "Activity volume",
+                detail: `${performance.submissionCount} submissions logged (${performance.approvedCount} approved).`,
+                severity: performance.submissionCount >= 5 ? "strength" : "focus",
+              },
+              {
+                title: "Streak",
+                detail:
+                  streakDays > 0
+                    ? `Current coding streak: ${streakDays} day(s).`
+                    : "No active streak yet — a daily challenge can start one.",
+                severity: streakDays > 0 ? "strength" : "focus",
+              },
+            ],
+          }
+        }
+      }
+    }
 
     return NextResponse.json({
       performance,

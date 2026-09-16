@@ -56,9 +56,6 @@ import {
   restoreNotetakerNote,
 } from "@/lib/notetaker-archive-storage"
 import { NotetakerNativeHome } from "@/components/ai-notetaker/notetaker-native-home"
-import { NotetakerDesktopHome } from "@/components/ai-notetaker/notetaker-desktop-home"
-import { NotetakerNewSession } from "@/components/ai-notetaker/notetaker-new-session"
-import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
 import {
   notetakerListThumbAt,
   notetakerStatusThumb,
@@ -125,29 +122,8 @@ function noteListIcon(status: string) {
   return Mic
 }
 
-export function NotetakerHome({
-  sessionMode: sessionModeProp = null,
-}: {
-  sessionMode?: "record" | "upload" | null
-} = {}) {
+export function NotetakerHome() {
   const { studentDbId, isNativeApp, navPath, goTo } = useNotetakerStudent()
-  const [sessionMode, setSessionMode] = useState<"record" | "upload" | null>(() => {
-    if (sessionModeProp) return sessionModeProp
-    if (typeof window === "undefined") return null
-    const raw = new URLSearchParams(window.location.search).get("mode")
-    return raw === "upload" || raw === "record" ? raw : null
-  })
-
-  useEffect(() => {
-    if (sessionModeProp) {
-      setSessionMode(sessionModeProp)
-      return
-    }
-    if (typeof window === "undefined") return
-    const raw = new URLSearchParams(window.location.search).get("mode")
-    if (raw === "upload" || raw === "record") setSessionMode(raw)
-  }, [sessionModeProp])
-  const desktopChrome = isDesktopAppShell()
   const chrome = useNotetakerChrome()
   const { roles: ROLES } = chrome
   const [q, setQ] = useState("")
@@ -225,24 +201,8 @@ export function NotetakerHome({
     void load()
   }, [load])
 
-  const goToList = () => {
-    setCreatingMode(null)
-    setSessionMode(null)
-    if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", navPath("/student/dashboard-v2/ai-notetaker"))
-    }
-  }
-
   const goToNewLecture = (mode: "record" | "upload") => {
-    if (isNativeApp) {
-      goTo(`/student/dashboard-v2/ai-notetaker/new?mode=${mode}`)
-      return
-    }
-    setCreatingMode(null)
-    setSessionMode(mode)
-    if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", `${navPath("/student/dashboard-v2/ai-notetaker")}?mode=${mode}`)
-    }
+    goTo(`/student/dashboard-v2/ai-notetaker/new?mode=${mode}`)
   }
 
   const noteHref = (n: Pick<NoteRow, "id" | "slug">) =>
@@ -357,42 +317,6 @@ export function NotetakerHome({
       ? Math.min(100, (usage.transcriptionMinutesUsed / Math.max(1, limits.transcriptionMinutes)) * 100)
       : 0
 
-  const desktopHome = (
-    <NotetakerDesktopHome
-      chrome={chrome}
-      q={q}
-      onSearchChange={setQ}
-      sort={sort}
-      onSortChange={setSort}
-      browseFilter={browseFilter}
-      onBrowseChange={setBrowseFilter}
-      counts={{
-        all: activeCount,
-        ready: readyCount,
-        processing: processingCount,
-        archived: archivedCount,
-      }}
-      limits={limits}
-      usage={usage}
-      tierBlockedMessage={tierBlockedMessage}
-      notes={visibleNotes}
-      notesLoading={!studentDbId || notesLoading}
-      hasLoadedOnce={Boolean(studentDbId) && hasLoadedOnceRef.current}
-      creatingMode={creatingMode}
-      deletingId={deletingId}
-      navPath={navPath}
-      noteHref={noteHref}
-      onRecord={() => goToNewLecture("record")}
-      onUpload={() => goToNewLecture("upload")}
-      sessionMode={sessionMode}
-      onBackToList={goToList}
-      onDeleteNote={openDeleteConfirm as never}
-      onArchiveNote={archiveNote as never}
-      onRestoreNote={restoreNote as never}
-      onRenameNote={openRename as never}
-    />
-  )
-
   const listDialogs = (
     <>
       <AlertDialog open={!!notePendingDelete} onOpenChange={(open) => !open && setNotePendingDelete(null)}>
@@ -495,15 +419,6 @@ export function NotetakerHome({
       )
     }
 
-    if (desktopChrome) {
-      return (
-        <>
-          {desktopHome}
-          {listDialogs}
-        </>
-      )
-    }
-
     return (
       <div className="flex min-h-[240px] items-center justify-center">
         <Loader2 className={cn("h-8 w-8 animate-spin", facultyModuleSpinnerClass(MODULE_ID))} />
@@ -552,24 +467,6 @@ export function NotetakerHome({
     )
   }
 
-  if (desktopChrome) {
-    return (
-      <>
-        {desktopHome}
-        {listDialogs}
-      </>
-    )
-  }
-
-  if (sessionMode) {
-    return (
-      <>
-        <NotetakerNewSession captureMode={sessionMode} />
-        {listDialogs}
-      </>
-    )
-  }
-
   const browseItems = [
     { id: "all" as const, label: "All lectures", icon: Mic, badge: activeCount },
     { id: "ready" as const, label: "Ready", icon: CheckCircle2, badge: readyCount },
@@ -578,10 +475,7 @@ export function NotetakerHome({
   ]
 
   return (
-    <div
-      data-notetaker-native-root
-      className="min-w-0 space-y-3 border-t border-[color-mix(in_srgb,var(--cc-text)_10%,transparent)] pt-3 sm:space-y-4 sm:pt-4"
-    >
+    <div data-notetaker-native-root className="space-y-3 min-w-0">
       <div className="flex flex-col gap-2 sm:gap-3 min-w-0">
         <FacultyIntegratedToolbar
           embedded
@@ -659,10 +553,10 @@ export function NotetakerHome({
         />
 
         <FacultyModuleSplitLayout
-          className="gap-2 sm:gap-3 lg:min-h-[min(480px,60vh)] lg:gap-4"
+          className="gap-2 border-t border-[var(--border)] pt-2 sm:gap-3 sm:pt-3 lg:gap-4"
           menuWidthClass="lg:w-56"
           menu={
-            <div className="flex h-full min-h-0 flex-col gap-3 lg:border-r lg:border-[var(--border)] lg:pr-4">
+            <div className="space-y-3 lg:border-r lg:border-[var(--border)] lg:pr-4">
               <FacultyModuleSideMenu
                 embedded
                 moduleId={MODULE_ID}
@@ -675,7 +569,7 @@ export function NotetakerHome({
 
               {limits && usage && !tierBlockedMessage ? (
                 <div
-                  className="mt-auto rounded-2xl p-3"
+                  className="rounded-2xl p-3"
                   style={{ backgroundColor: ROLES.browse.soft, color: ROLES.browse.ink }}
                 >
                   <div className="flex items-center gap-2">
@@ -717,10 +611,10 @@ export function NotetakerHome({
             </div>
           }
         >
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="min-w-0 space-y-3">
             {tierBlockedMessage ? (
               <div
-                className="flex min-h-full flex-1 flex-col items-center justify-center rounded-2xl p-6 text-center"
+                className="rounded-2xl p-6 text-center"
                 style={{ backgroundColor: ROLES.empty.fill, color: ROLES.empty.icon }}
               >
                 <h2 className="text-base font-semibold text-[var(--cc-text)]">Membership required</h2>
@@ -739,7 +633,7 @@ export function NotetakerHome({
               </div>
             ) : visibleNotes.length === 0 ? (
               <div
-                className="flex min-h-full flex-1 flex-col items-center justify-center gap-4 rounded-2xl px-4 py-12 text-center"
+                className="flex flex-col items-center gap-4 rounded-2xl px-4 py-12 text-center"
                 style={{ backgroundColor: ROLES.empty.fill }}
               >
                 <span
@@ -755,9 +649,36 @@ export function NotetakerHome({
                   <p className={cn("text-sm leading-relaxed", PORTAL_TEXT_MUTED)}>
                     {showArchived
                       ? "Archived notes stay on this browser until you restore or delete them."
-                      : "Record live or upload audio from the toolbar — we transcribe and summarize into a study-ready note."}
+                      : "Record live or upload audio — we transcribe and summarize into a study-ready note."}
                   </p>
                 </div>
+                {!showArchived ? (
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Button
+                      type="button"
+                      className="gap-2 rounded-full border-0 text-white hover:opacity-90"
+                      style={{ backgroundColor: ROLES.record.fill, color: ROLES.record.icon }}
+                      onClick={() => goToNewLecture("record")}
+                    >
+                      <Mic className="h-4 w-4" />
+                      Record
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="gap-2 rounded-full border"
+                      style={{
+                        backgroundColor: ROLES.upload.fill,
+                        color: ROLES.upload.icon,
+                        borderColor: ROLES.upload.border,
+                      }}
+                      onClick={() => goToNewLecture("upload")}
+                    >
+                      <Upload className="h-4 w-4" />
+                      Upload
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <ul className="flex flex-col gap-2">

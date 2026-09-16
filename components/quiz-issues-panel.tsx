@@ -79,7 +79,7 @@ function IssueEmbedList({
 }) {
   if (issues.length === 0) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center py-10 text-center min-h-0">
+      <div className="flex flex-col items-center justify-center py-10 text-center">
         <div
           className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-[var(--cc-accent-soft)] text-[var(--cc-accent)]"
         >
@@ -134,13 +134,9 @@ function IssueEmbedList({
 export function QuizIssuesPanel({
   assessmentType = "quiz",
   embedInDashboard = false,
-  hubLayout = false,
-  onCountsChange,
 }: {
   assessmentType?: string
   embedInDashboard?: boolean
-  hubLayout?: boolean
-  onCountsChange?: (open: number, closed: number) => void
 }) {
   // Use context for colors and terminology (with fallback)
   let assessmentConfig
@@ -194,10 +190,6 @@ export function QuizIssuesPanel({
   const [openCount, setOpenCount] = useState(0)
 
   useEffect(() => {
-    onCountsChange?.(openCount, closedCount)
-  }, [openCount, closedCount, onCountsChange])
-
-  useEffect(() => {
     const id = sessionStorage.getItem("studentId")
     if (id) {
       setStudentId(id)
@@ -224,14 +216,14 @@ export function QuizIssuesPanel({
   const fetchIssueCounts = async (id: string) => {
     try {
       const [openRes, closedRes] = await Promise.all([
-        studentApiFetch(
+        fetch(
           `/api/student/issues?${buildStudentScopedSearchParams({
             status: "open",
             studentId: id,
             assessmentType,
           })}`,
         ),
-        studentApiFetch(
+        fetch(
           `/api/student/issues?${buildStudentScopedSearchParams({
             status: "closed",
             studentId: id,
@@ -270,120 +262,11 @@ export function QuizIssuesPanel({
   const ContentComp = embedInDashboard ? "div" : CardContent
   const moduleTabActive = studentModuleTabActiveClass(ASSESSMENT_MODULE_ID[assessmentType] ?? "quizzes")
 
-  if (hubLayout) {
-    return (
-      <>
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-[var(--cc-text)]">Issues & Comments</p>
-              <p className="mt-0.5 text-xs text-[var(--cc-text-muted)]">
-                Report problems or follow threads on {assessmentConfig.pluralName.toLowerCase()}
-              </p>
-            </div>
-            <Button
-              size="sm"
-              onClick={() => setShowReportModal(true)}
-              className="h-9 shrink-0 gap-1 rounded-xl border-0 px-3 text-xs shadow-none hover:opacity-90"
-              style={{ backgroundColor: "var(--cc-accent)", color: "#FFFFFF" }}
-            >
-              <Plus className="h-4 w-4 shrink-0" />
-              Report
-            </Button>
-          </div>
-
-          <div
-            className="grid h-auto min-h-[40px] w-full min-w-0 grid-cols-2 gap-1 rounded-xl bg-[var(--muted)]/50 p-1"
-            role="tablist"
-            aria-label="Issue status"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={selectedTab === "open"}
-              onClick={() => setSelectedTab("open")}
-              className={cn(
-                "flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-all min-h-[36px] sm:text-sm sm:px-3",
-                selectedTab === "open"
-                  ? "bg-[var(--cc-accent)] text-white"
-                  : "text-[var(--cc-text-muted)] hover:text-[var(--cc-text)]",
-              )}
-            >
-              <span className="shrink-0">Open</span>
-              {openCount > 0 ? (
-                <span className={closedTabCountClass(selectedTab === "open")} aria-label={`${openCount} open`}>
-                  {openCount}
-                </span>
-              ) : null}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={selectedTab === "closed"}
-              onClick={() => setSelectedTab("closed")}
-              className={cn(
-                "flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-all min-h-[36px] sm:text-sm sm:px-3",
-                selectedTab === "closed"
-                  ? "bg-[var(--cc-accent)] text-white"
-                  : "text-[var(--cc-text-muted)] hover:text-[var(--cc-text)]",
-              )}
-            >
-              <span className="shrink-0">Closed</span>
-              {closedCount > 0 ? (
-                <span className={closedTabCountClass(selectedTab === "closed")} aria-label={`${closedCount} closed`}>
-                  {closedCount}
-                </span>
-              ) : null}
-            </button>
-          </div>
-
-          {selectedTab === "open" ? (
-            <IssueEmbedList
-              issues={issues}
-              emptyIcon={FileWarning}
-              emptyTitle="No open issues"
-              emptySubtitle="All running smoothly!"
-              onSelect={setSelectedIssue}
-              variant="open"
-              chrome={issuesChrome}
-            />
-          ) : (
-            <IssueEmbedList
-              issues={issues}
-              emptyIcon={FolderOpen}
-              emptyTitle="No closed issues"
-              emptySubtitle="No resolved reports yet."
-              onSelect={setSelectedIssue}
-              variant="closed"
-              chrome={issuesChrome}
-            />
-          )}
-        </div>
-
-        {showReportModal ? (
-          <ReportIssueModal
-            onClose={() => setShowReportModal(false)}
-            onSubmitted={handleIssueSubmitted}
-            assessmentType={assessmentType}
-          />
-        ) : null}
-
-        {selectedIssue ? (
-          <IssueDetailModal
-            issue={selectedIssue}
-            onClose={() => setSelectedIssue(null)}
-            onUpdated={handleIssueSubmitted}
-          />
-        ) : null}
-      </>
-    )
-  }
-
   if (embedInDashboard) {
     return (
       <>
-        <div className="flex h-full min-h-0 flex-1 flex-col rounded-xl border border-[var(--border)] bg-[var(--muted)]/25">
-          <div className="shrink-0 border-b border-[var(--border)] px-3 py-3 sm:px-4">
+        <div className="flex h-full flex-col rounded-xl border border-[var(--border)] bg-[var(--muted)]/25">
+          <div className="border-b border-[var(--border)] px-3 py-3 sm:px-4">
             <div className="flex items-start gap-3">
               <div
                 className="flex size-9 shrink-0 items-center justify-center rounded-xl"
@@ -419,7 +302,7 @@ export function QuizIssuesPanel({
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col px-3 pb-3 pt-3 sm:px-4">
+          <div className="px-3 pb-3 pt-3 sm:px-4">
             <div
               className="mb-3 grid h-auto min-h-[40px] w-full min-w-0 grid-cols-2 gap-1 rounded-xl bg-[var(--muted)]/50 p-1 touch-manipulation"
               role="tablist"
@@ -465,29 +348,27 @@ export function QuizIssuesPanel({
               </button>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col">
-              {selectedTab === "open" ? (
-                <IssueEmbedList
-                  issues={issues}
-                  emptyIcon={FileWarning}
-                  emptyTitle="No open issues"
-                  emptySubtitle="All running smoothly!"
-                  onSelect={setSelectedIssue}
-                  variant="open"
-                  chrome={issuesChrome}
-                />
-              ) : (
-                <IssueEmbedList
-                  issues={issues}
-                  emptyIcon={FolderOpen}
-                  emptyTitle="No closed issues"
-                  emptySubtitle="No resolved reports yet."
-                  onSelect={setSelectedIssue}
-                  variant="closed"
-                  chrome={issuesChrome}
-                />
-              )}
-            </div>
+            {selectedTab === "open" ? (
+              <IssueEmbedList
+                issues={issues}
+                emptyIcon={FileWarning}
+                emptyTitle="No open issues"
+                emptySubtitle="All running smoothly!"
+                onSelect={setSelectedIssue}
+                variant="open"
+                chrome={issuesChrome}
+              />
+            ) : (
+              <IssueEmbedList
+                issues={issues}
+                emptyIcon={FolderOpen}
+                emptyTitle="No closed issues"
+                emptySubtitle="No resolved reports yet."
+                onSelect={setSelectedIssue}
+                variant="closed"
+                chrome={issuesChrome}
+              />
+            )}
           </div>
         </div>
 

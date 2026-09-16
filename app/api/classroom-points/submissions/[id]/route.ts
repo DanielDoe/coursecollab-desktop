@@ -8,6 +8,7 @@ import {
   submissionBelongsToCourse,
 } from "@/lib/classroom-submission-scope";
 import { resolveStudentCourseContextByDbId } from "@/lib/student-course-scope";
+import { ensureClassroomSubmissionHiddenColumn } from "@/lib/ensure-classroom-submission-hidden";
 
 const sqlInstance = getSQL();
 
@@ -27,6 +28,12 @@ export async function GET(
     const { requireClassroomPointsRead } = await import("@/lib/classroom-points-request-auth")
     const access = await requireClassroomPointsRead(request)
     if (!access.ok) return access.response
+
+    try {
+      await ensureClassroomSubmissionHiddenColumn(sqlInstance)
+    } catch {
+      /* ignore */
+    }
 
     const { id } = await params
     const submissionId = parseInt(id, 10)
@@ -111,6 +118,7 @@ export async function PUT(
       submissionKind,
       questionConfig,
       dueAt,
+      hiddenFromStudents,
     } = body as {
       title?: string;
       description?: string | null;
@@ -120,6 +128,7 @@ export async function PUT(
       submissionKind?: string;
       questionConfig?: unknown;
       dueAt?: string | null;
+      hiddenFromStudents?: boolean;
     };
 
     const existing = await sqlInstance`
@@ -147,7 +156,12 @@ export async function PUT(
       due_at?: Date | string | null;
       submission_kind?: string | null;
       question_config?: unknown;
+      hidden_from_students?: boolean;
     };
+    const nextHidden =
+      hiddenFromStudents === undefined
+        ? Boolean(row.hidden_from_students)
+        : hiddenFromStudents === true;
 
     const nextTitle =
       typeof title === "string" && title.trim().length > 0 ? title.trim() : row.title;
@@ -219,6 +233,7 @@ export async function PUT(
       await sqlInstance`ALTER TABLE classroom_point_submissions ADD COLUMN IF NOT EXISTS submission_kind TEXT NOT NULL DEFAULT 'code'`
       await sqlInstance`ALTER TABLE classroom_point_submissions ADD COLUMN IF NOT EXISTS question_config JSONB`
       await sqlInstance`ALTER TABLE classroom_point_submissions ADD COLUMN IF NOT EXISTS due_at TIMESTAMP`
+      await ensureClassroomSubmissionHiddenColumn(sqlInstance)
     } catch {
       /* ignore */
     }
@@ -239,6 +254,7 @@ export async function PUT(
           due_at = ${nextDueAt},
           submission_kind = ${nextKind},
           question_config = ${nextQuestionConfig}::jsonb,
+          hidden_from_students = ${nextHidden},
           created_at = NOW()
         WHERE id = ${submissionId}
         RETURNING *
@@ -253,7 +269,8 @@ export async function PUT(
           duration_hours = ${nextDuration},
           due_at = ${nextDueAt},
           submission_kind = ${nextKind},
-          question_config = ${nextQuestionConfig}::jsonb
+          question_config = ${nextQuestionConfig}::jsonb,
+          hidden_from_students = ${nextHidden}
         WHERE id = ${submissionId}
         RETURNING *
       `;

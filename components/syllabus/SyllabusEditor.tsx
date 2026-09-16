@@ -52,7 +52,6 @@ type SyllabusEditorProps = {
   buildHeaders: () => Record<string, string>
   activePanel?: SyllabusEditorPanel
   onStatusChange?: (status: CourseSyllabus["status"] | null) => void
-  embedInDashboard?: boolean
 }
 
 function SortableSection({
@@ -118,7 +117,6 @@ export function SyllabusEditor({
   buildHeaders,
   activePanel: controlledPanel,
   onStatusChange,
-  embedInDashboard = false,
 }: SyllabusEditorProps) {
   const [syllabus, setSyllabus] = useState<CourseSyllabus | null>(null)
   const [title, setTitle] = useState("")
@@ -315,7 +313,7 @@ export function SyllabusEditor({
     setPdfFileName(s.pdfFileName ?? null)
     setLogoUrl(s.logoUrl ?? null)
     setLogoFileName(s.logoFileName ?? null)
-    setInternalPanel((s.contentMode ?? "structured") === "pdf" ? "pdf" : "structured")
+    setActivePanel((s.contentMode ?? "structured") === "pdf" ? "pdf" : "structured")
   }
 
   const uploadSectionImage = async (sectionId: string, file: File, caption?: string) => {
@@ -459,21 +457,14 @@ export function SyllabusEditor({
 
   const chrome = facultyEmbedChrome("syllabus")
 
-  const panelTab = embedInDashboard
-  const rootClass = panelTab ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4"
-  const panelBodyClass = panelTab ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4"
-  const scrollListClass = panelTab ? "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2" : undefined
-  const emptyPanelClass = panelTab
-    ? cn(PORTAL_CARD, "flex min-h-0 flex-1 flex-col items-center justify-center border-dashed px-6 py-14 text-center")
-    : cn(PORTAL_CARD, "flex flex-col items-center px-6 py-14 text-center")
-
   if (loading) {
     return (
-      <div className={panelTab ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3"}>
-        <Skeleton className="h-4 w-64 shrink-0" />
-        <Skeleton className={cn("h-20 rounded-2xl", panelTab && "min-h-0 flex-1")} />
-        <Skeleton className="h-16 rounded-2xl shrink-0" />
-        <Skeleton className="h-16 rounded-2xl shrink-0" />
+      <div className="space-y-3">
+        <Skeleton className="h-4 w-64" />
+        <Skeleton className="h-20 rounded-2xl" />
+        <Skeleton className="h-16 rounded-2xl" />
+        <Skeleton className="h-16 rounded-2xl" />
+        <Skeleton className="h-16 rounded-2xl" />
       </div>
     )
   }
@@ -505,8 +496,7 @@ export function SyllabusEditor({
 
   if (previewMode && previewSyllabus) {
     return (
-      <div className={rootClass}>
-        <div className={panelTab ? "shrink-0" : undefined}>
+      <div className="space-y-4">
         <FacultyIntegratedToolbar
           moduleId="syllabus"
           trailing={
@@ -520,19 +510,15 @@ export function SyllabusEditor({
             </Button>
           }
         />
-        </div>
-        <div className={panelTab ? "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2" : undefined}>
         <SyllabusAccentProvider accent="portal">
           <SyllabusViewer syllabus={previewSyllabus} courseInfo={courseInfo} showStatusBadge />
         </SyllabusAccentProvider>
-        </div>
       </div>
     )
   }
 
   return (
-    <div className={rootClass}>
-      <div className={panelTab ? "shrink-0 space-y-4" : "space-y-4"}>
+    <div className="space-y-4">
       <p className={cn("text-sm leading-relaxed", PORTAL_TEXT_MUTED)}>
         Create and manage your course syllabus using the reusable template. Publish when ready for students.
       </p>
@@ -541,6 +527,7 @@ export function SyllabusEditor({
         <SyllabusProvenanceBanner provenance={syllabus.templateProvenance} />
       ) : null}
 
+      <div className="space-y-4">
         <div className={cn(PORTAL_CARD, "grid gap-3 p-3 sm:grid-cols-2 sm:p-4")}>
           <div className="space-y-1.5">
             <Label htmlFor="syllabus-title" className={cn("text-xs", PORTAL_TEXT)}>
@@ -565,12 +552,9 @@ export function SyllabusEditor({
             />
           </div>
         </div>
-      </div>
 
-      <div className={panelBodyClass}>
         {activePanel === "structured" ? (
           <>
-            <div className={panelTab ? "shrink-0" : undefined}>
             <FacultyIntegratedToolbar
               moduleId="syllabus"
               meta={<span className={PORTAL_TEXT_MUTED}>{sections.length} sections</span>}
@@ -590,13 +574,12 @@ export function SyllabusEditor({
                 </div>
               }
             />
-            </div>
 
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={sections.map((s) => s.sectionId)} strategy={verticalListSortingStrategy}>
-                <div className={cn("space-y-2", scrollListClass)}>
+                <div className="space-y-2">
                   {sections.length === 0 ? (
-                    <div className={emptyPanelClass}>
+                    <div className={cn(PORTAL_CARD, "flex flex-col items-center px-6 py-14 text-center")}>
                       <div className={cn("mb-3", chrome.iconBadge())}>
                         <BookOpen className="h-5 w-5 !text-white" />
                       </div>
@@ -658,7 +641,6 @@ export function SyllabusEditor({
 
         {activePanel === "pdf" ? (
           <>
-            <div className={panelTab ? "shrink-0" : undefined}>
             <FacultyIntegratedToolbar
               moduleId="syllabus"
               meta={<span className={PORTAL_TEXT_MUTED}>{pdfUrl ? "PDF attached" : "No PDF uploaded"}</span>}
@@ -677,8 +659,6 @@ export function SyllabusEditor({
                 </div>
               }
             />
-            </div>
-            <div className={panelTab ? "flex min-h-0 flex-1 flex-col" : undefined}>
             <SyllabusPdfUploadSection
               pdfUrl={pdfUrl}
               pdfFileName={pdfFileName}
@@ -686,18 +666,13 @@ export function SyllabusEditor({
               uploading={pdfUploading}
               onUpload={uploadPdf}
               onRemove={pdfUrl ? removePdf : undefined}
-              fillHeight={panelTab}
             />
-            </div>
           </>
         ) : null}
 
         {activePanel === "branding" ? (
           <>
-            <div className={panelTab ? "shrink-0" : undefined}>
             <FacultyIntegratedToolbar moduleId="syllabus" trailing={saveActions} />
-            </div>
-            <div className={panelTab ? "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2" : undefined}>
             <SyllabusLogoUploadSection
               logoUrl={logoUrl}
               logoFileName={logoFileName}
@@ -709,14 +684,11 @@ export function SyllabusEditor({
               onUpload={uploadLogo}
               onRemove={logoUrl ? removeLogo : undefined}
             />
-            </div>
           </>
         ) : null}
 
         {activePanel === "exchange" ? (
-          <div className={panelTab ? "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2" : undefined}>
           <SyllabusExchangePanel buildHeaders={buildHeaders} onApplied={applySyllabusFromServer} />
-          </div>
         ) : null}
       </div>
     </div>

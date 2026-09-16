@@ -5,13 +5,26 @@ export function codebenchUsageContext(
   studentDbId: number,
   feature: CoraAiFeature,
   module: string,
+  options?: { billable?: boolean },
 ): CoraUsageContext {
   return {
     actor: { userId: studentDbId, userRole: "student" },
     feature,
     module,
-    billable: true,
+    billable: options?.billable !== false,
   }
+}
+
+export function codebenchMembershipRequiredResponse() {
+  return NextResponse.json(
+    {
+      error: "Cora in CodeBench requires Explorer or Trailblazer membership.",
+      membershipRequired: true,
+      upgradeRequired: "Explorer",
+      accessDenied: true,
+    },
+    { status: 403 },
+  )
 }
 
 export function isInsufficientCoraCredits(error: unknown): boolean {

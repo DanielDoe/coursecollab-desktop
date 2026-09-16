@@ -35,6 +35,16 @@ contextBridge.exposeInMainWorld('courseCollabDesktop', {
   setLastRoute: (path: string) =>
     ipcRenderer.invoke('app:set-last-route', path) as Promise<{ ok: boolean; path: string | null }>,
   getLastRoute: () => ipcRenderer.invoke('app:get-last-route') as Promise<string | null>,
+  openExternal: (url: string) =>
+    ipcRenderer.invoke('app:open-external', url) as Promise<{ ok: boolean }>,
+  enterAssessmentLockdown: () =>
+    ipcRenderer.invoke('assessment:enter-lockdown') as Promise<{ ok: boolean; active?: boolean }>,
+  exitAssessmentLockdown: () =>
+    ipcRenderer.invoke('assessment:exit-lockdown') as Promise<{ ok: boolean; active?: boolean }>,
+  reassertAssessmentLockdown: () =>
+    ipcRenderer.invoke('assessment:reassert-lockdown') as Promise<{ ok: boolean }>,
+  isAssessmentLockdownActive: () =>
+    ipcRenderer.invoke('assessment:is-lockdown-active') as Promise<{ active: boolean }>,
   getUpdateStatus: () => ipcRenderer.invoke('update:get-status') as Promise<DesktopUpdateStatus>,
   checkForUpdates: () => ipcRenderer.invoke('update:check') as Promise<DesktopUpdateStatus>,
   downloadUpdate: () => ipcRenderer.invoke('update:download') as Promise<DesktopUpdateStatus>,
@@ -96,6 +106,7 @@ contextBridge.exposeInMainWorld('courseCollabDesktop', {
   },
   codebench: {
     checkCompiler: () => ipcRenderer.invoke('codebench:check-compiler') as Promise<CompilerInfo>,
+    warmupToolchain: () => ipcRenderer.invoke('codebench:warmup-toolchain') as Promise<CompilerInfo>,
     ensureToolchain: () => ipcRenderer.invoke('codebench:ensure-toolchain') as Promise<CompilerInfo>,
     loadWorkspace: (studentId?: string | null) =>
       ipcRenderer.invoke('codebench:load-workspace', studentId) as Promise<{

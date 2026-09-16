@@ -18,6 +18,8 @@ type Props = {
   studentId: string | null
   /** challenge = import daily challenge; general = plain Ask Cora chat */
   mode?: "challenge" | "general"
+  coraAccess?: boolean
+  onLockedCora?: (label: string) => void
 }
 
 export function CodebenchChallengeCoraDrawer({
@@ -26,6 +28,8 @@ export function CodebenchChallengeCoraDrawer({
   challenge,
   studentId,
   mode = "challenge",
+  coraAccess = true,
+  onLockedCora,
 }: Props) {
   const { soft, accent } = useCoraContentPalette()
   const problem = mode === "challenge" ? challengeToCoraProblem(challenge) : null
@@ -100,6 +104,9 @@ export function CodebenchChallengeCoraDrawer({
                 }
                 skipHandoffConsume
                 className="h-full min-h-0 rounded-2xl border border-[var(--border)]"
+                codebenchCora
+                coraAccess={coraAccess}
+                onLockedCora={onLockedCora}
               />
             </div>
           </motion.div>

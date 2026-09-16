@@ -3,19 +3,14 @@
 
 import { instructorApiFetch } from "@/lib/instructor-api-headers"
 import { useState, useEffect, useRef } from "react"
-import { Bell, BellRing, CheckCircle2, Clock, ArrowRight, AlertCircle, TrendingUp, Users, BookOpen, FileText, MessageSquare } from "lucide-react"
+import { Bell, BellRing, CheckCircle2, Clock, ArrowRight, AlertCircle, TrendingUp, Users, BookOpen, FileText, MessageSquare, CalendarClock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { formatDistanceToNow } from "date-fns"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { PORTAL_NOTIFICATION_BADGE } from "@/lib/appearance/portal-nav-classes"
 import { FACULTY_DASHBOARD_BASE } from "@/lib/faculty-portal-nav-config"
-import {
-  deliverNewDesktopNotifications,
-  setDesktopBadgeCount,
-  shouldKeepNotificationPollingWhenHidden,
-} from "@/lib/desktop-notifications"
-import { getNotificationPollIntervalMs } from "@/lib/desktop-notification-poll"
+import { INSTRUCTOR_NOTIFICATIONS_INVALIDATE_EVENT } from "@/lib/instructor-notification-events"
 import { motion, AnimatePresence } from "framer-motion"
 
 interface InstructorNotification {
@@ -44,6 +39,7 @@ const notificationIcons: Record<string, { icon: any; color: string; bgColor: str
   group: { icon: Users, color: "text-teal-600", bgColor: "bg-teal-100 dark:bg-teal-900/30" },
   exam: { icon: AlertCircle, color: "text-red-600", bgColor: "bg-red-100 dark:bg-red-900/30" },
   homework: { icon: FileText, color: "text-violet-600", bgColor: "bg-violet-100 dark:bg-violet-900/30" },
+  schedule_adjustment: { icon: CalendarClock, color: "text-emerald-600", bgColor: "bg-emerald-100 dark:bg-emerald-900/30" },
   default: { icon: Bell, color: "text-gray-600", bgColor: "bg-gray-100 dark:bg-gray-900/30" },
 }
 
@@ -53,34 +49,6 @@ export function InstructorNotificationBell({ variant = "default" }: { variant?: 
   const [isLoading, setIsLoading] = useState(true)
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const knownNotificationIds = useRef<Set<number>>(new Set())
-  const notificationsInitialized = useRef(false)
-
-  const applyNotificationPayload = (data: {
-    notifications?: InstructorNotification[]
-    unread_count?: number
-  }) => {
-    const list = data.notifications || []
-    setNotifications(list)
-    const apiUnread = Number(data.unread_count ?? 0)
-    const derivedUnread = list.filter((n) => !n.is_read).length
-    const nextUnread = Math.max(apiUnread, derivedUnread)
-    setUnreadCount(nextUnread)
-
-    if (notificationsInitialized.current) {
-      void deliverNewDesktopNotifications(knownNotificationIds.current, list, {
-        initialized: true,
-        portal: "faculty",
-      }).then((nextIds) => {
-        knownNotificationIds.current = nextIds
-      })
-    } else {
-      notificationsInitialized.current = true
-      knownNotificationIds.current = new Set(list.map((n) => n.id))
-    }
-
-    void setDesktopBadgeCount(nextUnread)
-  }
 
   // Fetch notifications
   const fetchNotifications = async () => {
@@ -90,7 +58,8 @@ export function InstructorNotificationBell({ variant = "default" }: { variant?: 
       })
       if (response.ok) {
         const data = await response.json()
-        applyNotificationPayload(data)
+        setNotifications(data.notifications || [])
+        setUnreadCount(data.unread_count || 0)
       } else if (response.status === 429) {
         // Rate limited - silently skip this fetch
         console.log("[Instructor Notifications] Rate limited, will retry on next interval")
@@ -114,24 +83,17 @@ export function InstructorNotificationBell({ variant = "default" }: { variant?: 
     }
   }
 
-  // Desktop background-sync registration lives in InstructorNotificationProvider
-  // (lib/instructor-notification-context.tsx). Registering it here tied it to the
-  // lifetime of this bell, so any faculty page without the header or topbar tore
-  // background sync down on unmount.
-
   useEffect(() => {
     fetchNotifications()
     
     // Set up polling with visibility awareness
     let interval: NodeJS.Timeout | null = null
 
-    const pollMs = getNotificationPollIntervalMs()
-
     const startPolling = () => {
       if (interval) clearInterval(interval)
       interval = setInterval(() => {
         fetchNotifications()
-      }, pollMs)
+      }, 30000)
     }
 
     const stopPolling = () => {
@@ -143,35 +105,30 @@ export function InstructorNotificationBell({ variant = "default" }: { variant?: 
 
     // Handle visibility change - pause polling when tab is hidden
     const handleVisibilityChange = () => {
-      if (document.hidden && !shouldKeepNotificationPollingWhenHidden()) {
+      if (document.hidden) {
         stopPolling()
-      } else if (!document.hidden) {
+      } else {
+        // Fetch immediately when tab becomes visible, then resume polling
         fetchNotifications()
         startPolling()
       }
     }
 
+    // Start initial polling
     startPolling()
 
-    const handleWindowFocus = () => {
-      if (shouldKeepNotificationPollingWhenHidden()) {
-        fetchNotifications()
-      }
-    }
+    // Listen for visibility changes
+    document.addEventListener("visibilitychange", handleVisibilityChange)
 
-    if (!shouldKeepNotificationPollingWhenHidden()) {
-      document.addEventListener("visibilitychange", handleVisibilityChange)
-    } else {
-      window.addEventListener("focus", handleWindowFocus)
+    const onInvalidate = () => {
+      fetchNotifications()
     }
+    window.addEventListener(INSTRUCTOR_NOTIFICATIONS_INVALIDATE_EVENT, onInvalidate)
 
     return () => {
       stopPolling()
-      if (!shouldKeepNotificationPollingWhenHidden()) {
-        document.removeEventListener("visibilitychange", handleVisibilityChange)
-      } else {
-        window.removeEventListener("focus", handleWindowFocus)
-      }
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      window.removeEventListener(INSTRUCTOR_NOTIFICATIONS_INVALIDATE_EVENT, onInvalidate)
     }
   }, [])
 

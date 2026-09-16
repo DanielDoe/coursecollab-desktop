@@ -1,10 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
+import { getStudentCodeBenchEntitlement } from "@/lib/codebench-entitlement"
 import { sql } from "@/lib/db"
-import { codebenchUsageContext, jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
+import { codebenchMembershipRequiredResponse, codebenchUsageContext, jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
 import { getBaseUrl } from "@/lib/get-base-url"
+import { CLASSROOM_SUBMISSION_IS_ACTIVE_SQL } from "@/lib/classroom-submission-availability-sql"
+import { classroomAssignmentSessionMatchesStudent } from "@/lib/classroom-submission-scope"
+import { resolveStudentCourseContextByDbId } from "@/lib/student-course-scope"
+import {
+  resolveClassroomSubmissionBooster,
+  timingBoosterLabel,
+} from "@/lib/classroom-point-booster"
 import { resolveClassroomAwardInstructorId } from "@/lib/classroom-points-award-instructor"
 
 const isOpenAIConfigured = !!process.env.OPENAI_API_KEY
@@ -51,6 +59,10 @@ export async function POST(request: NextRequest) {
 
     const student = studentInfo[0]
     const numericStudentId = auth.studentDbId
+    let assignmentOpenedAt: string | Date | null = null
+    let assignmentDeadline: string | Date | null = null
+    let assignmentSession: string | null = null
+    let enrolledSessionForAssignment: string | null = null
 
     // If submissionId is provided (assignment from classroom_point_submissions), ensure one submission per assignment
     // Students can submit from either Classroom Points module OR CodeBench, not both
@@ -71,6 +83,32 @@ export async function POST(request: NextRequest) {
         )
       }
       
+      const assignmentOpen = await sql`
+        SELECT id, session, created_at, due_at, duration_hours FROM classroom_point_submissions
+        WHERE id = ${submissionIdNum}
+          AND COALESCE(hidden_from_students, false) = false
+          AND (${sql.unsafe(CLASSROOM_SUBMISSION_IS_ACTIVE_SQL)})
+        LIMIT 1
+      `
+      if (assignmentOpen.length === 0) {
+        return NextResponse.json(
+          { error: "This assignment is not open for submission." },
+          { status: 403 },
+        )
+      }
+      assignmentOpenedAt = assignmentOpen[0].created_at ?? null
+      assignmentDeadline = assignmentOpen[0].due_at ?? null
+      assignmentSession = assignmentOpen[0].session ?? null
+      const studentCtx = await resolveStudentCourseContextByDbId(numericStudentId)
+      const enrolledSession = studentCtx?.sessionCode || student.section
+      enrolledSessionForAssignment = enrolledSession
+      if (!classroomAssignmentSessionMatchesStudent(assignmentOpen[0].session, enrolledSession)) {
+        return NextResponse.json(
+          { error: "This assignment is not available for your section." },
+          { status: 403 },
+        )
+      }
+
       const existingForAssignment = await sql`
         SELECT id, status, points FROM classroom_points
         WHERE student_id = ${numericStudentId}
@@ -112,16 +150,24 @@ export async function POST(request: NextRequest) {
       const normalizedScore = 0
       
       // Award points:
-      // - Practice-only (no assignment): 2.5 points (code submission only)
-      // - Assignment submission: x2 CodeBench booster (2.5 base → 5–10 max)
+      // - Practice-only (no assignment): 2.5 points
+      // - Assignment: 2.5 × timing booster (x3 same day, x2 next day, x1 later)
       const codeSubmissionPoints = 2.5
       const evaluationPoints = submissionId ? (normalizedScore / 10) * 2.5 : 0
       const awardedPoints = codeSubmissionPoints + evaluationPoints
       let finalPoints = submissionId
         ? Math.max(2.5, parseFloat(awardedPoints.toFixed(2)))
-        : 2.5 // Practice-only: fixed 2.5 points
+        : 2.5
+      const assignmentTimingBooster = submissionId
+        ? resolveClassroomSubmissionBooster({
+            submissionId: parseInt(String(submissionId), 10),
+            openedAt: assignmentOpenedAt,
+            deadline: assignmentDeadline,
+            submittedAt: new Date(),
+          })
+        : 1
       if (submissionId) {
-        finalPoints = parseFloat((finalPoints * 2).toFixed(2)) // x2 booster for submitting on CodeBench
+        finalPoints = parseFloat((finalPoints * assignmentTimingBooster).toFixed(2))
       }
 
       // Idempotency: For practice-only, check for recent duplicate (retry scenario)
@@ -188,7 +234,7 @@ export async function POST(request: NextRequest) {
 
       // Check if submissionId is provided (for classroom point assignments)
       // If submissionId exists, link this to the classroom point submission
-      // CodeBench submissions get x2 booster (submitted_via_codebench)
+      // Classroom assignments use the same timing booster as Classroom Points
       let pointResult
       if (submissionId) {
         // Try inserting with submission_id and point_booster if columns exist
@@ -211,10 +257,10 @@ export async function POST(request: NextRequest) {
               ${truncatedReason},
               'code_submission',
               ${instructorId},
-              ${student.section},
+              ${assignmentSession || enrolledSessionForAssignment},
               'pending',
               ${parseInt(submissionId)},
-              2,
+              ${assignmentTimingBooster},
               true
             )
             RETURNING *
@@ -238,7 +284,7 @@ export async function POST(request: NextRequest) {
                 ${truncatedReason},
                 'code_submission',
                 ${instructorId},
-                ${student.section},
+                ${assignmentSession || enrolledSessionForAssignment},
                 'pending',
                 ${parseInt(submissionId)}
               )
@@ -461,8 +507,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: "Code submitted and evaluated. Points pending instructor approval.",
-        pointBooster: 2,
-        boosterLabel: "x2 (CodeBench booster)",
+        pointBooster: assignmentTimingBooster,
+        boosterLabel: timingBoosterLabel(assignmentTimingBooster),
         evaluation: {
           score: normalizedScore,
           maxScore: 10,
@@ -478,6 +524,10 @@ export async function POST(request: NextRequest) {
 
     // If answers provided, evaluate them and create pending classroom point
     if (answers && Array.isArray(answers)) {
+      const coraEntitlement = await getStudentCodeBenchEntitlement(auth.studentDbId)
+      if (!coraEntitlement.coraAccess) {
+        return codebenchMembershipRequiredResponse()
+      }
       // Evaluate answers using AI
       if (!isOpenAIConfigured || !openai) {
         return NextResponse.json(

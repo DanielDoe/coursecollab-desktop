@@ -47,9 +47,17 @@ export async function sqlAttendanceSessionScope(
     return sql.unsafe(`
       AND EXISTS (
         SELECT 1 FROM sessions sess_att
+        LEFT JOIN academic_terms at ON at.id = sess_att.academic_term_id
         WHERE sess_att.id = ${scope.sessionId}
           AND sess_att.course_id = ${courseId}
           AND TRIM(sess_att.code) = TRIM(${col}.section)
+          AND (
+            sess_att.academic_term_id IS NULL
+            OR (
+              ${col}.start_time::date >= at.start_date
+              AND ${col}.start_time::date <= at.end_date
+            )
+          )
       )
     `)
   }

@@ -63,10 +63,10 @@ export function LeaderboardTab({ embedInDashboard }: LeaderboardTabProps = {}) {
           setEntries((data.leaderboard || []) as LeaderboardEntry[])
         } else {
           const errorData = await response.json()
-          if (errorData.error?.includes("403")) {
+          if (response.status === 403) {
             toast({
-              title: "Access Required",
-              description: "Trailblazer membership or beta access required for global leaderboard",
+              title: "Couldn't load leaderboard",
+              description: errorData.error || "Sign in again and retry.",
               variant: "destructive",
             })
           }

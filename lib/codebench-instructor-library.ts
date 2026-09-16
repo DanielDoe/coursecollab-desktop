@@ -1,4 +1,4 @@
-import type { CodebenchLanguageId } from "@/lib/codebench-languages"
+import { CODEBENCH_LANGUAGES, type CodebenchLanguageId } from "@/lib/codebench-languages"
 import { instructorCodebenchOwnerKey } from "@/lib/codebench-instructor-scope"
 
 export const INSTRUCTOR_LIBRARY_CATEGORIES = [
@@ -203,4 +203,17 @@ export function upsertLibraryItem(
   }
   persistInstructorLibrary(store, ownerKey)
   return index >= 0 ? store.items[index]! : next
+}
+
+export function deleteLibraryItem(id: string, ownerKey?: string): boolean {
+  const store = loadInstructorLibrary(ownerKey)
+  const nextItems = store.items.filter((entry) => entry.id !== id)
+  if (nextItems.length === store.items.length) return false
+  persistInstructorLibrary({ version: 1, items: nextItems }, ownerKey)
+  return true
+}
+
+export function defaultLibraryFileForLanguage(languageId: CodebenchLanguageId): { path: string; content: string } {
+  const lang = CODEBENCH_LANGUAGES.find((entry) => entry.id === languageId) ?? CODEBENCH_LANGUAGES[0]!
+  return { path: lang.fileName, content: lang.defaultCode }
 }

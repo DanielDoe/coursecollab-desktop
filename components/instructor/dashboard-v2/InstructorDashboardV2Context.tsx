@@ -50,8 +50,6 @@ interface InstructorDashboardV2ContextValue {
   refreshPermissions: () => Promise<void>
   coraImmersive: boolean
   setCoraImmersive: (on: boolean) => void
-  searchOpen: boolean
-  setSearchOpen: (open: boolean) => void
   /** Extra breadcrumb segment for in-module sub-views (e.g. New lecture). */
   pageBreadcrumbTail: string | null
   setPageBreadcrumbTail: (label: string | null) => void
@@ -76,7 +74,6 @@ export function InstructorDashboardV2Provider({
   )
   const [courseSwitchSplash, setCourseSwitchSplash] = useState<CourseSwitchSplash | null>(null)
   const [coraImmersive, setCoraImmersive] = useState(false)
-  const [searchOpen, setSearchOpen] = useState(false)
   const [pageBreadcrumbTail, setPageBreadcrumbTail] = useState<string | null>(null)
   const [hasSelectedCourse, setHasSelectedCourse] = useState(() =>
     typeof window !== "undefined" ? facultyHasSelectedCourse() : false,
@@ -188,8 +185,6 @@ export function InstructorDashboardV2Provider({
         refreshPermissions,
         coraImmersive,
         setCoraImmersive,
-        searchOpen,
-        setSearchOpen,
         pageBreadcrumbTail,
         setPageBreadcrumbTail,
       }}
@@ -223,8 +218,6 @@ export function useInstructorDashboardV2() {
       refreshPermissions: async () => {},
       coraImmersive: false,
       setCoraImmersive: () => {},
-      searchOpen: false,
-      setSearchOpen: () => {},
       pageBreadcrumbTail: null,
       setPageBreadcrumbTail: () => {},
     }

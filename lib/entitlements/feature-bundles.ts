@@ -9,6 +9,7 @@ export type StudentLearningFeature =
   | "leaderboard"
   | "aiTutor"
   | "codeBench"
+  | "codeBenchCora"
   | "earlyAccess"
   | "playgroundCredits"
   | "practiceHub"
@@ -76,6 +77,7 @@ export const INSTITUTION_STUDENT_LEARNING_FEATURES: StudentLearningFeature[] = [
   "leaderboard",
   "aiTutor",
   "codeBench",
+  "codeBenchCora",
   "earlyAccess",
   "playgroundCredits",
   "practiceHub",

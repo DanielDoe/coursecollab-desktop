@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import ReactMarkdown from "react-markdown"
 import { AIChatInterface, AIChatInterfaceRef } from "./AIChatInterface"
+import { withCodebenchCoraContext } from "@/lib/codebench-cora-client"
 import { ScoreDisplay } from "./ScoreDisplay"
 import {
   AlertDialog,
@@ -38,6 +39,8 @@ interface PracticeGeneratorProps {
   getCachedChat?: (mode: string, code: string) => any[] | null
   setCachedChat?: (mode: string, code: string, messages: any[]) => void
   learningMode?: "beginner" | "intermediate" | "expert"
+  coraAccess?: boolean
+  onLockedCora?: () => void
 }
 
 export function PracticeGenerator({ 
@@ -49,7 +52,9 @@ export function PracticeGenerator({
   getCacheKey,
   getCachedChat,
   setCachedChat,
-  learningMode = "intermediate"
+  learningMode = "intermediate",
+  coraAccess = true,
+  onLockedCora,
 }: PracticeGeneratorProps) {
   const [problem, setProblem] = useState<PracticeProblem | null>(cachedProblem || null)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -82,6 +87,10 @@ export function PracticeGenerator({
   }, [cachedProblem, problem, code])
 
   const generatePractice = async () => {
+    if (!coraAccess) {
+      onLockedCora?.()
+      return
+    }
     if (isGenerating || !studentId) return
 
     setIsGenerating(true)
@@ -139,12 +148,12 @@ ${code}
         body: JSON.stringify({
           studentId,
           message: practicePrompt,
-          context: { 
+          context: withCodebenchCoraContext({
             topic: "tutor", // Use "tutor" mode for problem generation, NOT "practice" (which is for evaluation)
             codeContext: `Student is learning with this code:\n\n\`\`\`${language}\n${code}\n\`\`\``,
             learningMode: learningMode,
             isProblemGeneration: true // Flag to indicate this is problem generation, not evaluation
-          },
+          }),
         }),
       })
       
@@ -492,6 +501,8 @@ ${code}
                     setCachedChat("practice", code, messages)
                   }
                 }}
+                coraAccess={coraAccess}
+                onLockedCora={() => onLockedCora?.()}
               />
             )
           )}

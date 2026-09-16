@@ -1,19 +1,10 @@
 "use client"
 
-import dynamic from "next/dynamic"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { StudentDashboardModulePage } from "@/components/student/dashboard-v2/StudentDashboardModulePage"
-import { ModulePageSkeleton } from "@/components/student/dashboard-v2/ModulePageSkeleton"
+import { motion } from "@/components/student/dashboard-v2/light-motion"
+import { AnnouncementsFeedRedesign } from "@/components/announcements-feed-redesign"
 import { ModuleListSkeleton } from "@/components/data/module-list-skeleton"
-
-const AnnouncementsDashboardV2 = dynamic(
-  () =>
-    import("@/components/student/dashboard-v2/AnnouncementsDashboardV2").then((m) => ({
-      default: m.AnnouncementsDashboardV2,
-    })),
-  { loading: () => <ModulePageSkeleton className="min-h-[420px]" /> },
-)
 
 function readStudentId() {
   if (typeof window === "undefined") return ""
@@ -46,13 +37,21 @@ export default function DashboardV2AnnouncementsPage() {
     }
   }, [router, studentId])
 
+  if (!studentId) {
+    return <ModuleListSkeleton rows={6} className="min-h-[300px]" />
+  }
+
   return (
-    <StudentDashboardModulePage>
-      {studentId ? (
-        <AnnouncementsDashboardV2 studentId={studentId} initialOpenId={initialOpenId} />
-      ) : (
-        <ModuleListSkeleton rows={6} className="min-h-[300px]" />
-      )}
-    </StudentDashboardModulePage>
+    <motion.div
+      initial={false}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-4 sm:space-y-5 md:space-y-6 w-full min-w-0 pb-8"
+    >
+      <AnnouncementsFeedRedesign
+        studentId={studentId}
+        embedInDashboard
+        initialOpenId={initialOpenId}
+      />
+    </motion.div>
   )
 }

@@ -671,7 +671,7 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
       <div
         className={
           embedInDashboard
-            ? "flex min-h-0 w-full min-w-0 flex-1 items-center justify-center"
+            ? "flex w-full min-w-0 items-center justify-center py-12"
             : "flex items-center justify-center py-12"
         }
       >
@@ -687,7 +687,7 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
     <div
       className={
         embedInDashboard
-          ? "flex min-h-0 w-full min-w-0 flex-1 flex-col"
+          ? "w-full min-w-0"
           : "w-full max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6"
       }
     >
@@ -706,8 +706,6 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
       )}
 
       <FacultyModuleSplitLayout
-        scrollMode={embedInDashboard ? "panel" : "page"}
-        className={embedInDashboard ? "min-h-0 flex-1" : undefined}
         menu={
           <FacultyModuleSideMenu
             moduleId="groups"
@@ -723,9 +721,8 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
           />
         }
       >
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 sm:gap-6">
-          <div className="shrink-0">
-            <FacultyIntegratedToolbar
+        <div className="min-w-0 flex-1 space-y-4 sm:space-y-6">
+          <FacultyIntegratedToolbar
             moduleId="groups"
             search={searchQuery}
             onSearchChange={setSearchQuery}
@@ -808,22 +805,16 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
               </div>
             }
           />
-          </div>
 
           {/* Groups Content */}
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="space-y-4">
             {isPending && (
-              <div className={cn("flex flex-1 items-center justify-center text-sm", PORTAL_TEXT_MUTED)}>
+              <div className={cn("flex items-center justify-center py-8 text-sm", PORTAL_TEXT_MUTED)}>
                 Loading…
               </div>
             )}
             {!isPending && filteredGroups.length === 0 ? (
-              <div
-                className={cn(
-                  cardBase,
-                  "flex min-h-0 flex-1 flex-col items-center justify-center border-dashed px-6 py-12 text-center sm:px-8",
-                )}
-              >
+              <div className={cn(cardBase, "border-dashed py-14 text-center")}>
                 <Users className={cn("mx-auto mb-3 h-10 w-10", PORTAL_TEXT_MUTED)} />
                 <p className={cn("text-sm font-medium", PORTAL_TEXT)}>
                   {activeMenu === "deleted"
@@ -843,13 +834,11 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
                 </p>
               </div>
             ) : !isPending && viewMode === "card" ? (
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-3">
-                  {filteredGroups.map(renderGroupCard)}
-                </div>
+              <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-3">
+                {filteredGroups.map(renderGroupCard)}
               </div>
             ) : !isPending ? (
-              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+              <div className="space-y-2">
                 {filteredGroups.map(renderGroupListItem)}
               </div>
             ) : null}

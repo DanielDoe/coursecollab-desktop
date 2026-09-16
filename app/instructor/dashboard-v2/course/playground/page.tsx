@@ -1,12 +1,18 @@
 "use client"
 
+import { EmbedModuleCard } from "@/components/student/dashboard-v2/embed-module-ui"
+import { PageEnter } from "@/components/student/dashboard-v2/light-motion"
 import { InstructorPlaygroundManagement } from "@/components/instructor-playground-management"
-import { StudentDashboardModulePage } from "@/components/student/dashboard-v2/StudentDashboardModulePage"
+import { dashboardV2PageRootClass } from "@/lib/dashboard-v2-layout"
 
 export default function CoursePlaygroundPage() {
   return (
-    <StudentDashboardModulePage scrollMode="panel">
-      <InstructorPlaygroundManagement embedInDashboard />
-    </StudentDashboardModulePage>
+    <PageEnter className={dashboardV2PageRootClass}>
+      <EmbedModuleCard>
+        <div className="w-full min-w-0 p-3 sm:p-4 md:p-5">
+          <InstructorPlaygroundManagement embedInDashboard />
+        </div>
+      </EmbedModuleCard>
+    </PageEnter>
   )
 }

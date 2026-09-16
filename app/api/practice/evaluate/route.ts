@@ -21,57 +21,6 @@ import {
 } from "@/lib/practice-evaluate-context"
 import type { PracticeHubPolicy } from "@/lib/practice-hub-policy-settings"
 import { requirePracticeAttemptOwnership } from "@/lib/require-student-practice-auth"
-import { recordPracticeAnswerSideEffects } from "@/lib/practice-topic-progress"
-
-type PracticeAnswerSideEffects = Awaited<ReturnType<typeof recordPracticeAnswerSideEffects>>
-
-function attachAttemptProgress(
-  payload: Record<string, unknown>,
-  sideEffects: PracticeAnswerSideEffects | null,
-) {
-  if (!sideEffects) return payload
-  return {
-    ...payload,
-    attemptProgress: sideEffects.progress,
-    attemptFinalized: sideEffects.finalized,
-    ...(sideEffects.finalized
-      ? { finalScore: sideEffects.score, finalCorrectCount: sideEffects.correctCount }
-      : {}),
-  }
-}
-
-async function savePracticeAnswerWithSideEffects(opts: {
-  attemptId: number
-  questionId: number | string
-  answer: unknown
-  isCorrect: boolean
-  responseTimeMs?: number | null
-  xpEarned?: number | null
-  difficulty?: string | null
-  studentDbId: number
-  topic: string
-}): Promise<PracticeAnswerSideEffects | null> {
-  await savePracticeAnswerRecord({
-    attemptId: opts.attemptId,
-    questionId: opts.questionId,
-    answer: opts.answer,
-    isCorrect: opts.isCorrect,
-    responseTimeMs: opts.responseTimeMs ?? null,
-    xpEarned: opts.xpEarned ?? null,
-    difficulty: opts.difficulty ?? null,
-  })
-  try {
-    return await recordPracticeAnswerSideEffects({
-      attemptId: opts.attemptId,
-      studentDbId: opts.studentDbId,
-      topic: opts.topic,
-      isCorrect: opts.isCorrect,
-    })
-  } catch (error) {
-    console.error("[Practice Evaluation] Progress side effects failed:", error)
-    return null
-  }
-}
 
 
 export const dynamic = 'force-dynamic'
@@ -92,9 +41,6 @@ function withPracticeAnswerReview(
     id: question.id ?? questionId,
   })
   const showReview = policy ? shouldShowPracticeAnswerReview(policy, isCorrect) : true
-  const score = typeof payload.score === "number" ? payload.score : undefined
-  const pointsEarned = typeof payload.pointsEarned === "number" ? payload.pointsEarned : undefined
-  const maxPoints = typeof payload.maxPoints === "number" ? payload.maxPoints : undefined
   const answerReview =
     showReview && formatted
       ? practiceAnswerReviewForEvaluateResponse({
@@ -103,9 +49,6 @@ function withPracticeAnswerReview(
           isCorrect,
           correctLetters,
           correctTexts,
-          score,
-          pointsEarned,
-          maxPoints,
         })
       : null
   return { ...payload, answerReview, correctLetters: answerReview?.correctLetters, correctTexts: answerReview?.correctTexts }
@@ -281,10 +224,9 @@ export async function POST(request: NextRequest) {
 
           const serverXp = resolveXp(isCorrect)
 
-          let sideEffects: PracticeAnswerSideEffects | null = null
           if (attemptId) {
             try {
-              sideEffects = await savePracticeAnswerWithSideEffects({
+              await savePracticeAnswerRecord({
                 attemptId,
                 questionId,
                 answer,
@@ -292,8 +234,6 @@ export async function POST(request: NextRequest) {
                 responseTimeMs: responseTimeMs ?? null,
                 xpEarned: serverXp,
                 difficulty: difficulty ?? question.difficulty ?? null,
-                studentDbId: attemptStudentId,
-                topic: String(question.topic ?? ""),
               })
             } catch (saveError) {
               console.error("[Practice Evaluation] Failed to save locally verified answer:", saveError)
@@ -308,27 +248,24 @@ export async function POST(request: NextRequest) {
           })
           
           return NextResponse.json(
-            attachAttemptProgress(
-              withPracticeAnswerReview(
-                question as Record<string, unknown>,
-                answer,
+            withPracticeAnswerReview(
+              question as Record<string, unknown>,
+              answer,
+              isCorrect,
+              {
                 isCorrect,
-                {
-                  isCorrect,
-                  points: pointsEarned,
-                  score: result.score,
-                  feedback: result.feedback,
-                  locallyVerified: true,
-                  maxPoints,
-                  pointsEarned,
-                  xpEarned: serverXp,
-                },
-                evalCtx.policy,
-                undefined,
-                undefined,
-                questionId,
-              ),
-              sideEffects,
+                points: pointsEarned,
+                score: result.score,
+                feedback: result.feedback,
+                locallyVerified: true,
+                maxPoints,
+                pointsEarned,
+                xpEarned: serverXp,
+              },
+              evalCtx.policy,
+              undefined,
+              undefined,
+              questionId,
             ),
           )
         }
@@ -404,10 +341,9 @@ export async function POST(request: NextRequest) {
       const selectAllScore = scored.points
       const selectAllXp = resolveXp(isCorrect)
 
-      let selectAllSideEffects: PracticeAnswerSideEffects | null = null
       if (attemptId) {
         try {
-          selectAllSideEffects = await savePracticeAnswerWithSideEffects({
+          await savePracticeAnswerRecord({
             attemptId,
             questionId,
             answer,
@@ -415,8 +351,6 @@ export async function POST(request: NextRequest) {
             responseTimeMs: responseTimeMs ?? null,
             xpEarned: selectAllXp,
             difficulty: difficulty ?? question.difficulty ?? null,
-            studentDbId: attemptStudentId,
-            topic: String(question.topic ?? ""),
           })
         } catch (saveError) {
           console.error("[Practice Evaluation] Failed to save select-all answer:", saveError)
@@ -424,24 +358,21 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json(
-        attachAttemptProgress(
-          withPracticeAnswerReview(
-            question as Record<string, unknown>,
-            answer,
+        withPracticeAnswerReview(
+          question as Record<string, unknown>,
+          answer,
+          isCorrect,
+          {
             isCorrect,
-            {
-              isCorrect,
-              xpEarned: selectAllXp,
-              score: Math.round(scored.fraction * 10000) / 100,
-              pointsEarned: selectAllScore,
-              points: selectAllScore,
-            },
-            evalCtx.policy,
-            correctLetters.length > 0 ? correctLetters : undefined,
-            correctAnswers,
-            questionId,
-          ),
-          selectAllSideEffects,
+            xpEarned: selectAllXp,
+            score: Math.round(scored.fraction * 10000) / 100,
+            pointsEarned: selectAllScore,
+            points: selectAllScore,
+          },
+          evalCtx.policy,
+          correctLetters.length > 0 ? correctLetters : undefined,
+          correctAnswers,
+          questionId,
         ),
       )
       
@@ -583,11 +514,11 @@ export async function POST(request: NextRequest) {
 
     const finalXp = resolveXp(isCorrect)
 
-    let fallbackSideEffects: PracticeAnswerSideEffects | null = null
+    // Save answer to practice_answers table if attemptId is provided
     if (attemptId) {
       try {
         console.log("[Practice Evaluation] Saving answer to database...")
-        fallbackSideEffects = await savePracticeAnswerWithSideEffects({
+        await savePracticeAnswerRecord({
           attemptId,
           questionId,
           answer,
@@ -595,28 +526,24 @@ export async function POST(request: NextRequest) {
           responseTimeMs: responseTimeMs ?? null,
           xpEarned: finalXp,
           difficulty: difficulty ?? question.difficulty ?? null,
-          studentDbId: attemptStudentId,
-          topic: String(question.topic ?? ""),
         })
         console.log("[Practice Evaluation] Answer saved successfully | XP:", finalXp, "| Response time:", responseTimeMs, "ms")
       } catch (saveError) {
         console.error("[Practice Evaluation] Failed to save answer:", saveError)
+        // Don't fail the request if saving fails
       }
     }
 
     return NextResponse.json(
-      attachAttemptProgress(
-        withPracticeAnswerReview(
-          question as Record<string, unknown>,
-          answer,
-          isCorrect,
-          { isCorrect, xpEarned: finalXp },
-          evalCtx.policy,
-          undefined,
-          undefined,
-          questionId,
-        ),
-        fallbackSideEffects,
+      withPracticeAnswerReview(
+        question as Record<string, unknown>,
+        answer,
+        isCorrect,
+        { isCorrect, xpEarned: finalXp },
+        evalCtx.policy,
+        undefined,
+        undefined,
+        questionId,
       ),
     )
   } catch (error) {

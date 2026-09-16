@@ -97,7 +97,30 @@ export async function recordAiLearningInteraction(input: RecordAiLearningInterac
       },
     })
 
-    return rows[0]?.id ?? null
+    const id = rows[0]?.id ?? null
+    if (id != null) {
+      const { recordCoraInteractionEvent } = await import("@/lib/cora/insights/record")
+      await recordCoraInteractionEvent({
+        userId: input.studentId,
+        courseId: input.courseId ?? null,
+        conversationId: input.sessionId ?? null,
+        assessmentId: input.assessmentId ?? null,
+        concept: input.conceptId ?? null,
+        assistanceLevel: classification.assistanceDepth,
+        interactionCategory: classification.assistanceType === "direct_answer_request" ? "answer_seeking" : undefined,
+        text: input.userMessage,
+        topic: input.conceptId,
+        feature: input.workflowType,
+        assistanceCategory: classification.assistanceType,
+        answerSeekingDetected: classification.assistanceType === "direct_answer_request",
+        assessmentProtected: Boolean(input.activeAssessment),
+        latencyMs: input.latencyMs ?? null,
+        creditsUsed: input.credits ?? null,
+        source: "learning",
+        sourceRef: `learning:${id}`,
+      })
+    }
+    return id
   } catch (err) {
     console.warn("[ai-learning-interactions] record failed", err)
     return null

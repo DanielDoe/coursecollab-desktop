@@ -82,12 +82,17 @@ function topCounts(map: Record<string, number>, limit = 8) {
 
 export async function computeCourseEvaluationAnalytics(
   session?: string,
-  opts?: { courseId?: number | null; courseCode?: string | null },
+  opts?: {
+    courseId?: number | null
+    courseCode?: string | null
+    offeringAnd?: ReturnType<typeof sql.unsafe>
+  },
 ): Promise<CourseEvaluationAnalytics> {
   const sessionTrim = (session ?? "all").trim()
   const courseId = opts?.courseId != null && Number.isFinite(opts.courseId) ? opts.courseId : null
   const courseCode = String(opts?.courseCode ?? "").trim()
   const courseClause = courseEvaluationCourseAndClause(courseId, courseCode)
+  const offeringAnd = opts?.offeringAnd ?? sql.unsafe("")
 
   let rows: AnalyticsRow[]
   if (!sessionTrim || sessionTrim === "all") {
@@ -110,6 +115,7 @@ export async function computeCourseEvaluationAnalytics(
       ) sg ON true
       WHERE TRUE
         ${courseClause}
+        ${offeringAnd}
     `) as AnalyticsRow[]
   } else {
     rows = (await sql`
@@ -131,6 +137,7 @@ export async function computeCourseEvaluationAnalytics(
       ) sg ON true
       WHERE (ce.session = ${sessionTrim} OR s.section = ${sessionTrim})
         ${courseClause}
+        ${offeringAnd}
     `) as AnalyticsRow[]
   }
 

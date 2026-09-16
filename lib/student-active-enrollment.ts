@@ -14,13 +14,6 @@ import {
 export type { StudentEnrollmentRecord, StudentActiveEnrollmentRequest }
 export { matchStudentEnrollment, serializeStudentEnrollment }
 
-/** Attach catalog session id + academic term labels to raw enrollment rows. */
-export async function enrichStudentEnrollmentOptions(
-  enrollments: StudentEnrollmentOption[],
-): Promise<StudentEnrollmentRecord[]> {
-  return enrichStudentEnrollments(enrollments)
-}
-
 export async function findEnrollmentsForStudentDbId(
   studentDbId: number,
 ): Promise<StudentEnrollmentRecord[]> {

@@ -14,7 +14,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Loader2, Bot, User, Sparkles, CheckCircle2, AlertCircle, Lightbulb, Bug, FileCode, MessageSquare, BookOpen, Info } from "lucide-react"
+import { Loader2, User, Sparkles, CheckCircle2, AlertCircle, Lightbulb, Bug, FileCode, MessageSquare, BookOpen, Info } from "lucide-react"
+import { CoraBotMark } from "@/components/cora/CoraBotMark"
 import { CodebenchCoraComposer } from "@/components/codebench/CodebenchCoraComposer"
 import { CodebenchCoraMessage } from "@/components/codebench/CodebenchCoraMessage"
 import { CoraThinkingIndicator } from "@/components/cora/CoraThinkingIndicator"
@@ -25,7 +26,12 @@ import { cn } from "@/lib/utils"
 import { codebenchChatTheme } from "@/lib/codebench-panel-theme"
 import { CORA_NAME } from "@/lib/cora/constants"
 import { awardXP } from "@/lib/codebench-xp"
-import { messageFromCodebenchCoraBody, parseCodebenchCoraJson } from "@/lib/codebench-cora-client"
+import {
+  isCodebenchCoraMembershipError,
+  messageFromCodebenchCoraBody,
+  parseCodebenchCoraJson,
+  withCodebenchCoraContext,
+} from "@/lib/codebench-cora-client"
 import { ScoreDisplay } from "./ScoreDisplay"
 import { PseudocodeRenderer } from "./PseudocodeRenderer"
 
@@ -76,6 +82,9 @@ interface AIChatInterfaceProps {
   awaitingResponse?: boolean
   /** Override animated step copy (e.g. suggest-fix from compiler output). */
   thinkingMode?: CoraThinkingMode
+  /** When false, Cora requests open the parent upgrade experience instead of calling APIs. */
+  coraAccess?: boolean
+  onLockedCora?: (label: string) => void
 }
 
 interface SavedEvaluationData {
@@ -116,12 +125,15 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
   hideHeader = false,
   awaitingResponse = false,
   thinkingMode,
+  coraAccess = true,
+  onLockedCora,
 }, ref) => {
   const isLight = theme === "light"
   const resolvedThinkingMode = thinkingMode ?? mapCodebenchToolToThinkingMode(mode)
-  const showWorkingState = isLoading || awaitingResponse
   const { toast } = useToast()
   const [messages, setMessages] = useState<Message[]>(cachedMessages || [])
+  const [isLoading, setIsLoading] = useState(false)
+  const showWorkingState = isLoading || awaitingResponse
   
   // Debug logging for prop changes (after messages is declared)
   useEffect(() => {
@@ -139,7 +151,6 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
     }
   }, [mode, isEvaluation, shouldStartEvaluation, code, studentId, classroomSubmissionId, messages.length])
   const [input, setInput] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
   const [isInitializing, setIsInitializing] = useState(!cachedMessages || cachedMessages.length === 0)
   const [lastInitialMessage, setLastInitialMessage] = useState<string | undefined>(initialMessage)
   const [evaluationScore, setEvaluationScore] = useState<number | null>(null)
@@ -579,6 +590,12 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
   }, [initialMessage, lastInitialMessage, messages])
 
   const initializeChat = async () => {
+    if (!coraAccess) {
+      onLockedCora?.(mode === "evaluate" ? "Evaluate with Cora" : "Cora in CodeBench")
+      setIsInitializing(false)
+      setIsLoading(false)
+      return
+    }
     console.log("[AIChatInterface] 🚀 initializeChat called", { mode, isEvaluation, shouldStartEvaluation, codeLength: code?.length, studentId })
     setIsInitializing(true)
     setIsLoading(true)
@@ -951,7 +968,7 @@ Be encouraging and educational. Help students understand, not just memorize.`
       const requestBody = {
         studentId: String(studentId), // Ensure it's a string
         message: fullMessage.trim(), // Trim whitespace
-        context: { topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) },
+        context: withCodebenchCoraContext({ topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) }),
       }
 
       console.log("[AIChatInterface] 📤 Sending API request", { 
@@ -1069,6 +1086,10 @@ Be encouraging and educational. Help students understand, not just memorize.`
   }
 
   const sendMessage = async () => {
+    if (!coraAccess) {
+      onLockedCora?.("Cora in CodeBench")
+      return
+    }
     if (!input.trim() || isLoading || !studentId) return
     
     // CRITICAL: Prevent duplicate API calls
@@ -1148,11 +1169,7 @@ Be encouraging and educational. Help students understand, not just memorize.`
           }>(response, "Failed to generate pseudocode")
           
           if (data.accessDenied) {
-            setMessages((prev) => [...prev, {
-              role: "assistant",
-              content: "❌ **Access Denied**\n\n" + (data.error || "Upgrade to Trailblazer to access AI features."),
-              timestamp: new Date(),
-            }])
+            onLockedCora?.("Pseudocode with Cora")
           } else if (data.pseudocode) {
             setMessages((prev) => [...prev, {
               role: "assistant",
@@ -1168,11 +1185,15 @@ Be encouraging and educational. Help students understand, not just memorize.`
           }
         } catch (error) {
           console.error("Pseudocode error:", error)
-          setMessages((prev) => [...prev, {
-            role: "assistant",
-            content: "❌ Error: " + (error instanceof Error ? error.message : "Failed to generate pseudocode"),
-            timestamp: new Date(),
-          }])
+          if (isCodebenchCoraMembershipError(error)) {
+            onLockedCora?.("Pseudocode with Cora")
+          } else {
+            setMessages((prev) => [...prev, {
+              role: "assistant",
+              content: "❌ Error: " + (error instanceof Error ? error.message : "Failed to generate pseudocode"),
+              timestamp: new Date(),
+            }])
+          }
         } finally {
           setIsLoading(false)
           isSendingRef.current = false
@@ -1215,11 +1236,7 @@ Be encouraging and educational. Help students understand, not just memorize.`
           )
           
           if (data.accessDenied) {
-            setMessages((prev) => [...prev, {
-              role: "assistant",
-              content: "❌ **Access Denied**\n\n" + (data.error || "Upgrade to Trailblazer to access AI features."),
-              timestamp: new Date(),
-            }])
+            onLockedCora?.(mode === "debug" ? "Debug with Cora" : mode === "improve" ? "Improve with Cora" : "Explain with Cora")
           } else if (mode === "explain" && data.explanation) {
             setMessages((prev) => [...prev, {
               role: "assistant",
@@ -1253,11 +1270,15 @@ Be encouraging and educational. Help students understand, not just memorize.`
           }
         } catch (error) {
           console.error(`${mode} error:`, error)
-          setMessages((prev) => [...prev, {
-            role: "assistant",
-            content: "❌ Error: " + (error instanceof Error ? error.message : `Failed to ${mode} code`),
-            timestamp: new Date(),
-          }])
+          if (isCodebenchCoraMembershipError(error)) {
+            onLockedCora?.(mode === "debug" ? "Debug with Cora" : mode === "improve" ? "Improve with Cora" : "Explain with Cora")
+          } else {
+            setMessages((prev) => [...prev, {
+              role: "assistant",
+              content: "❌ Error: " + (error instanceof Error ? error.message : `Failed to ${mode} code`),
+              timestamp: new Date(),
+            }])
+          }
         } finally {
           setIsLoading(false)
           isSendingRef.current = false
@@ -1605,7 +1626,7 @@ Continue the conversation naturally. Keep responses concise and visual. If they 
             body: JSON.stringify({
               studentId,
               message: fullMessage,
-              context: { topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) },
+              context: withCodebenchCoraContext({ topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) }),
             }),
             signal: controller.signal,
           })
@@ -1677,7 +1698,7 @@ Continue the conversation naturally. Keep responses concise and visual. If they 
             body: JSON.stringify({
               studentId,
               message: `CRITICAL: The student has answered all 3 questions. You MUST provide FINAL_SCORE immediately. Do NOT ask any more questions. Format: FINAL_SCORE: X (0-10)\nFEEDBACK: [detailed explanation]`,
-              context: { topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) },
+              context: withCodebenchCoraContext({ topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) }),
             }),
           })
           if (forceResponse.ok) {
@@ -1713,7 +1734,7 @@ Continue the conversation naturally. Keep responses concise and visual. If they 
                   body: JSON.stringify({
                     studentId,
                     message: `STOP - You already asked Question ${currentQuestionNum}. The student has answered. You MUST now ask Question ${nextQuestionNum} of 3. Do NOT repeat Question ${currentQuestionNum}. Move forward to the next question.`,
-                    context: { topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) },
+                    context: withCodebenchCoraContext({ topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) }),
                   }),
                 })
                 
@@ -1731,7 +1752,7 @@ Continue the conversation naturally. Keep responses concise and visual. If they 
                   body: JSON.stringify({
                     studentId,
                     message: `STOP - You have already asked 3 questions. You MUST provide FINAL_SCORE immediately. Format: FINAL_SCORE: X\nFEEDBACK: [explanation]`,
-                    context: { topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) },
+                    context: withCodebenchCoraContext({ topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) }),
                   }),
                 })
                 
@@ -1764,7 +1785,7 @@ Continue the conversation naturally. Keep responses concise and visual. If they 
               body: JSON.stringify({
                 studentId,
                 message: `STOP - You are an EVALUATOR, not a tutor. You must ask evaluation questions only. Do NOT provide explanations or tutorials. Ask a question about the student's code comprehension.`,
-                context: { topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) },
+                context: withCodebenchCoraContext({ topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) }),
               }),
             })
             
@@ -1796,7 +1817,7 @@ END_EVALUATION`
                 body: JSON.stringify({
                   studentId,
                   message: forceScoreMessage,
-                  context: { topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) },
+                  context: withCodebenchCoraContext({ topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) }),
                 }),
               })
               
@@ -1863,7 +1884,7 @@ END_EVALUATION`
               body: JSON.stringify({
                 studentId,
                 message: `CRITICAL: The student has answered Question 3 of 3. You MUST provide FINAL_SCORE immediately. Do NOT ask any more questions. Format your response EXACTLY as:\n\nFINAL_SCORE: X\nFEEDBACK: [detailed explanation]`,
-                context: { topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) },
+                context: withCodebenchCoraContext({ topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) }),
               }),
             })
             
@@ -2070,7 +2091,7 @@ FEEDBACK: [detailed explanation]`
                     body: JSON.stringify({
                       studentId,
                       message: forceScoreMessage,
-                      context: { topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) },
+                      context: withCodebenchCoraContext({ topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) }),
                     }),
                   })
                   
@@ -2098,7 +2119,7 @@ FEEDBACK: [detailed explanation]`
                     body: JSON.stringify({
                       studentId,
                       message: `STOP - You already asked Question ${currentQuestionNum}. You must ask Question ${nextQuestionNum} of 3 next. Do NOT repeat questions.`,
-                      context: { topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) },
+                      context: withCodebenchCoraContext({ topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) }),
                     }),
                   })
                   
@@ -2124,7 +2145,7 @@ FEEDBACK: [detailed explanation]`
                     body: JSON.stringify({
                       studentId,
                       message: `STOP - You cannot go backwards. You already asked Question ${maxAsked}. You must ask Question ${nextQuestionNum} of 3 next.`,
-                      context: { topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) },
+                      context: withCodebenchCoraContext({ topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) }),
                     }),
                   })
                   
@@ -2142,7 +2163,7 @@ FEEDBACK: [detailed explanation]`
                     body: JSON.stringify({
                       studentId,
                       message: `STOP - You have already asked 3 questions. You MUST provide FINAL_SCORE immediately. Format: FINAL_SCORE: X\nFEEDBACK: [explanation]`,
-                      context: { topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) },
+                      context: withCodebenchCoraContext({ topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) }),
                     }),
                   })
                   
@@ -2185,7 +2206,7 @@ FEEDBACK: [detailed explanation]`
                     body: JSON.stringify({
                       studentId,
                       message: forceScoreMessage,
-                      context: { topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) },
+                      context: withCodebenchCoraContext({ topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) }),
                     }),
                   })
                   
@@ -2242,7 +2263,7 @@ FEEDBACK: [detailed explanation]`
                       body: JSON.stringify({
                         studentId,
                         message: forceScoreMessage,
-                        context: { topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) },
+                        context: withCodebenchCoraContext({ topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) }),
                       }),
                     })
                     
@@ -2301,7 +2322,7 @@ Do NOT provide FINAL_SCORE yet. Ask question ${nextQuestionNum} of 3.`
                   body: JSON.stringify({
                     studentId,
                     message: forceQuestionMessage,
-                    context: { topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) },
+                    context: withCodebenchCoraContext({ topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) }),
                   }),
                 })
                 
@@ -2348,7 +2369,7 @@ Provide the final score NOW. Do NOT ask any more questions.`
                     body: JSON.stringify({
                       studentId,
                       message: forceScoreMessage,
-                      context: { topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) },
+                      context: withCodebenchCoraContext({ topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) }),
                     }),
                   })
                   
@@ -2441,7 +2462,7 @@ Provide the final score NOW. Do NOT ask any more questions.`
                 body: JSON.stringify({
                   studentId,
                   message: `CRITICAL: The student has answered Question 3 of 3. You MUST provide FINAL_SCORE immediately. Do NOT ask any more questions. Format your response EXACTLY as:\n\nFINAL_SCORE: X\nFEEDBACK: [detailed explanation]`,
-                  context: { topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) },
+                  context: withCodebenchCoraContext({ topic: mode, ...(classroomSubmissionId ? { classroomSubmissionId } : {}) }),
                 }),
               })
               
@@ -2577,6 +2598,10 @@ Provide the final score NOW. Do NOT ask any more questions.`
       }
     } catch (error) {
       console.error("Error sending message:", error)
+      if (isCodebenchCoraMembershipError(error)) {
+        onLockedCora?.("Cora in CodeBench")
+        return
+      }
       const errorMessage = error instanceof Error ? error.message : "Unknown error"
       setMessages((prev) => [
         ...prev,
@@ -2891,8 +2916,8 @@ Provide the final score NOW. Do NOT ask any more questions.`
       {!hideHeader ? (
       <div className={cn("shrink-0 border-b px-3 py-2.5 sm:px-4", ct.header)}>
         <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#582c83] to-[#7a4eba] shadow-md">
-            <Bot className="h-4 w-4 text-[#eaaa00]" />
+          <div className="flex h-10 shrink-0 items-center justify-center">
+            <CoraBotMark size="sm" idle decorative />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -2951,9 +2976,7 @@ Provide the final score NOW. Do NOT ask any more questions.`
           </div>
         ) : messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center px-4 text-center">
-            <div className={cn("mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border", isLight ? "border-violet-200 bg-violet-50" : "border-[#582c83]/30 bg-gradient-to-br from-[#582c83]/30 to-[#7a4eba]/20")}>
-              <Sparkles className="h-7 w-7 text-[#eaaa00]" />
-            </div>
+            <CoraBotMark size="lg" idle className="mb-4" decorative />
             <p className={cn("text-sm font-semibold", ct.emptyTitle)}>Ready when you are</p>
             <p className={cn("mt-1 max-w-xs text-xs leading-relaxed", ct.emptySubtitle)}>
               Tap a tool above or type a question about your code.
@@ -2990,8 +3013,8 @@ Provide the final score NOW. Do NOT ask any more questions.`
         {/* Show engaging ScoreDisplay as an assistant message in the chat */}
         {evaluationScore !== null && showScoreDisplay && (
           <div className="flex gap-3 justify-start">
-            <div className="p-2 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-lg self-start shrink-0">
-              <Bot className="h-5 w-5 text-blue-400" />
+            <div className="self-start shrink-0 pt-0.5">
+              <CoraBotMark size="sm" idle decorative />
             </div>
             <div className="max-w-[85%] rounded-xl p-0 shadow-lg bg-transparent border-0">
               {mode === "evaluate" && (

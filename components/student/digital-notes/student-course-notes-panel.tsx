@@ -9,7 +9,6 @@ import { DigitalNoteEditor } from "@/components/student/digital-notes/digital-no
 import { getStudentAuthHeaders, studentApiFetch } from "@/lib/auth"
 import type { CourseDigitalNote } from "@/lib/course-digital-notes"
 import { createEmptyWorkspace, workspaceHasContent } from "@/lib/circuit-workspace"
-import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
 import { cn } from "@/lib/utils"
 import { toast } from "@/lib/app-toast"
 
@@ -44,39 +43,21 @@ export function CourseNoteReader({ note }: { note: CourseDigitalNote }) {
     }).catch(() => undefined)
   }, [note.id, note.bodyText, hasInk])
 
-  const desktopNative = isDesktopAppShell()
-
   return (
-    <div className={cn("flex h-full min-h-0 flex-col", desktopNative ? "gap-2.5" : "gap-3")}>
+    <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="shrink-0">
-        <h2
-          className={
-            desktopNative
-              ? "text-[15px] font-semibold tracking-tight text-[#111827] dark:text-[#f3f4f6]"
-              : "text-lg font-semibold text-[var(--cc-text)] sm:text-xl"
-          }
-        >
-          {note.title}
-        </h2>
+        <h2 className="text-lg font-semibold text-[var(--cc-text)] sm:text-xl">{note.title}</h2>
         {note.topic ? (
-          desktopNative ? (
-            <p className="mt-0.5 text-[12px] text-[#6b7280]">{note.topic}</p>
-          ) : (
-            <Badge
-              variant="outline"
-              className="mt-2 border-[var(--cc-accent-border)] text-[var(--cc-accent-dark)]"
-            >
-              {note.topic}
-            </Badge>
-          )
+          <Badge
+            variant="outline"
+            className="mt-2 border-[var(--cc-accent-border)] text-[var(--cc-accent-dark)]"
+          >
+            {note.topic}
+          </Badge>
         ) : hasInk ? (
-          desktopNative ? (
-            <p className="mt-0.5 text-[12px] text-[#6b7280]">Has ink</p>
-          ) : (
-            <Badge variant="outline" className="mt-2 border-[var(--border)] text-[var(--cc-text-muted)]">
-              Has ink
-            </Badge>
-          )
+          <Badge variant="outline" className="mt-2 border-[var(--border)] text-[var(--cc-text-muted)]">
+            Has ink
+          </Badge>
         ) : null}
       </div>
 
@@ -85,41 +66,11 @@ export function CourseNoteReader({ note }: { note: CourseDigitalNote }) {
         onValueChange={(value) => setContentTab(value as ContentTab)}
         className="flex min-h-0 w-full flex-1 flex-col"
       >
-        <TabsList
-          className={
-            desktopNative
-              ? "h-8 w-fit shrink-0 rounded-[6px] bg-[#f3f4f6] p-0.5 dark:bg-[#1a1a1a]"
-              : "grid w-full shrink-0 grid-cols-2"
-          }
-        >
-          <TabsTrigger
-            value="typed"
-            className={
-              desktopNative
-                ? "h-7 rounded-[5px] px-2.5 text-[12px] data-[state=active]:bg-white data-[state=active]:shadow-none dark:data-[state=active]:bg-[#171717]"
-                : undefined
-            }
-          >
-            Typed
-          </TabsTrigger>
-          <TabsTrigger
-            value="ink"
-            className={
-              desktopNative
-                ? "h-7 rounded-[5px] px-2.5 text-[12px] data-[state=active]:bg-white data-[state=active]:shadow-none dark:data-[state=active]:bg-[#171717]"
-                : undefined
-            }
-          >
-            Handwritten
-          </TabsTrigger>
+        <TabsList className="grid w-full shrink-0 grid-cols-2">
+          <TabsTrigger value="typed">Typed</TabsTrigger>
+          <TabsTrigger value="ink">Handwritten</TabsTrigger>
         </TabsList>
-        <TabsContent
-          value="typed"
-          className={cn(
-            "min-h-0 flex-1 data-[state=active]:flex data-[state=active]:flex-col",
-            desktopNative ? "mt-1.5" : "mt-3",
-          )}
-        >
+        <TabsContent value="typed" className="mt-3 min-h-0 flex-1 data-[state=active]:flex data-[state=active]:flex-col">
           <DigitalNoteEditor
             noteKey={note.id}
             value={note.bodyText}
@@ -129,20 +80,9 @@ export function CourseNoteReader({ note }: { note: CourseDigitalNote }) {
             onChange={() => undefined}
           />
         </TabsContent>
-        <TabsContent
-          value="ink"
-          className={cn(
-            "min-h-0 flex-1 data-[state=active]:flex data-[state=active]:flex-col",
-            desktopNative ? "mt-1.5" : "mt-3",
-          )}
-        >
+        <TabsContent value="ink" className="mt-3 min-h-0 flex-1 data-[state=active]:flex data-[state=active]:flex-col">
           {hasInk ? (
-            <div
-              className={cn(
-                "min-h-0 flex-1 overflow-hidden",
-                desktopNative ? "rounded-[8px] border border-[#e5e7eb] dark:border-[#262626]" : "rounded-xl border border-[var(--border)]",
-              )}
-            >
+            <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-[var(--border)]">
               <CircuitWorkspaceEditor workspace={inkWorkspace} disabled onChange={() => undefined} />
             </div>
           ) : (
@@ -226,28 +166,16 @@ export function StudentCourseNotesPanel({
   if (layout === "detail") {
     if (loading) {
       return (
-        <div
-          className={cn(
-            "flex items-center justify-center",
-            isDesktopAppShell() ? "h-full min-h-0" : "min-h-[320px]",
-          )}
-        >
+        <div className="flex min-h-[320px] items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-[var(--cc-accent)]" />
         </div>
       )
     }
     if (!active) {
       return (
-        <div
-          className={cn(
-            "flex flex-col items-center justify-center gap-2 px-6 text-center",
-            isDesktopAppShell() ? "h-full min-h-0" : "min-h-[320px]",
-          )}
-        >
-          <BookOpen className={cn(isDesktopAppShell() ? "h-6 w-6 text-[#9ca3af]" : "h-9 w-9 text-[var(--cc-accent)]")} />
-          <p className={cn(isDesktopAppShell() ? "text-[13px] text-[#6b7280]" : "text-sm text-[var(--cc-text-muted)]")}>
-            Select a course note from the list.
-          </p>
+        <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 px-6 text-center">
+          <BookOpen className="h-9 w-9 text-[var(--cc-accent)]" />
+          <p className="text-sm text-[var(--cc-text-muted)]">Select a course note from the list.</p>
         </div>
       )
     }

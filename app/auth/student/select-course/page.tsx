@@ -118,7 +118,7 @@ export default function StudentSelectCoursePage() {
     <DesktopAuthShell wide sidebarTagline="Choose the course you want to work in.">
       <DesktopAuthPanel>
         <DesktopAuthPanelBody>
-          <DesktopAuthPanelCard className="p-5">
+          <DesktopAuthPanelCard>
             {loading ? (
               <DesktopAuthLoading label="Loading your courses" compact />
             ) : (

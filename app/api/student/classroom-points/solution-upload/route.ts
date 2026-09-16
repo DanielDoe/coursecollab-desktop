@@ -6,6 +6,8 @@ import { convertHeicBufferToJpeg } from "@/lib/heic-convert-server"
 import { isClassroomSolutionAssignment } from "@/lib/classroom-solution-submission"
 import { CLASSROOM_SUBMISSION_IS_ACTIVE_SQL } from "@/lib/classroom-submission-availability-sql"
 import { requireBoundStudentCaller } from "@/lib/student-api-auth"
+import { classroomAssignmentSessionMatchesStudent } from "@/lib/classroom-submission-scope"
+import { resolveStudentCourseContextByDbId } from "@/lib/student-course-scope"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -74,13 +76,18 @@ export async function POST(request: NextRequest) {
     }
 
     const rows = await sql`
-      SELECT id, submission_kind, duration_hours, created_at, due_at
+      SELECT id, session, submission_kind, duration_hours, created_at, due_at
       FROM classroom_point_submissions
       WHERE id = ${assignmentId}
+        AND COALESCE(hidden_from_students, false) = false
         AND (${sql.unsafe(CLASSROOM_SUBMISSION_IS_ACTIVE_SQL)})
       LIMIT 1
     `
     if (rows.length === 0) {
+      return NextResponse.json({ error: "Assignment not found or expired" }, { status: 404 })
+    }
+    const ctx = await resolveStudentCourseContextByDbId(studentDbId)
+    if (!classroomAssignmentSessionMatchesStudent(rows[0].session, ctx?.sessionCode)) {
       return NextResponse.json({ error: "Assignment not found or expired" }, { status: 404 })
     }
     if (!isClassroomSolutionAssignment((rows[0] as { submission_kind?: string }).submission_kind)) {

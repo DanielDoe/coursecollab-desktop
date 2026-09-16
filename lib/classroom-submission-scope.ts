@@ -2,11 +2,13 @@ import { getSQL } from "@/lib/db"
 
 export { classroomAssignmentSessionMatchesStudent } from "@/lib/classroom-assignment-session-match"
 
-const sql = getSQL()
+function sql() {
+  return getSQL()
+}
 
 /** SQL fragment: classroom_point_submissions row alias must be `cps`. */
 export function sqlSubmissionCourseScope(courseId: number) {
-  return sql`
+  return sql()`
     AND cps.session IS NOT NULL
     AND EXISTS (
       SELECT 1 FROM sessions sess
@@ -18,14 +20,14 @@ export function sqlSubmissionCourseScope(courseId: number) {
 
 /** SQL fragment for list when filtering by session code (alias `cps`). Exact match only. */
 export function sqlSubmissionSessionFilter(session: string) {
-  return sql` AND TRIM(cps.session) = TRIM(${session}) `
+  return sql()` AND TRIM(cps.session) = TRIM(${session}) `
 }
 
 export async function sessionBelongsToCourse(
   sessionCode: string,
   courseId: number,
 ): Promise<boolean> {
-  const rows = await sql`
+  const rows = await sql()`
     SELECT 1 FROM sessions
     WHERE TRIM(code) = TRIM(${sessionCode})
       AND course_id = ${courseId}
@@ -36,7 +38,7 @@ export async function sessionBelongsToCourse(
 
 /** Prefer the session whose code matches the course, then any non-BETA section. */
 export async function resolveDefaultCourseSession(courseId: number): Promise<string | null> {
-  const rows = await sql`
+  const rows = await sql()`
     SELECT sess.code
     FROM sessions sess
     INNER JOIN courses c ON c.id = sess.course_id
@@ -60,7 +62,7 @@ export async function submissionBelongsToCourse(
   submissionId: number,
   courseId: number,
 ): Promise<boolean> {
-  const rows = await sql`
+  const rows = await sql()`
     SELECT 1 FROM classroom_point_submissions cps
     WHERE cps.id = ${submissionId}
       AND cps.session IS NOT NULL

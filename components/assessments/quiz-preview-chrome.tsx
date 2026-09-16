@@ -472,8 +472,12 @@ export function QuizPreviewFeedbackPanel({
               <XCircle className="size-5 text-amber-600" />
             )}
             <span className="font-semibold text-slate-900 dark:text-white">
-              {feedback.isCorrect ? "Excellent" : "Needs improvement"} · {feedback.earnedPoints}/
-              {feedback.totalPoints} pts
+              {feedback.isCorrect
+                ? "Excellent"
+                : feedback.earnedPoints > 0
+                  ? "Partial credit"
+                  : "Needs improvement"}{" "}
+              · {feedback.earnedPoints}/{feedback.totalPoints} pts
             </span>
           </div>
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-300">

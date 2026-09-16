@@ -122,7 +122,6 @@ export async function POST(request: NextRequest) {
         link: "/instructor/office-hours",
         source_type: "office_hour",
         source_id: String(requestId),
-        courseId: studentCourseId,
       })
     } catch (e) {
       console.warn("[Office Hours] Instructor notification failed:", e)

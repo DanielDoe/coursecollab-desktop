@@ -52,6 +52,13 @@ export function normalizeCorrectAnswerToLetter(
         return letterForOptionText(s, options) ?? s
       })
       .filter(Boolean)
+      .filter((letter) => {
+        if (/^[A-F]$/i.test(String(letter))) {
+          const idx = String(letter).toUpperCase().charCodeAt(0) - 65
+          return idx >= 0 && idx < options.length
+        }
+        return true
+      })
     return JSON.stringify(letters)
   }
 

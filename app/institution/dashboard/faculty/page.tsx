@@ -13,7 +13,6 @@ import {
 } from "@/components/institution/portal/InstitutionPortalUi"
 import { PORTAL_CTA, PORTAL_SOLID_DANGER, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
 import { cn } from "@/lib/utils"
-import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 type FacultyPayload = Awaited<ReturnType<typeof import("@/lib/institutions/portal/roster").getInstitutionFacultyModule>> & {
   canManage?: boolean
@@ -29,7 +28,6 @@ function statusTone(status: string): "success" | "warning" | "muted" | "danger" 
 export default function InstitutionFacultyPage() {
   const { data, loading, error, setData } = useInstitutionJson<FacultyPayload>("/api/institution/faculty")
   const [email, setEmail] = useState("")
-  const { confirm } = useAppConfirm()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [busy, setBusy] = useState(false)
@@ -64,14 +62,7 @@ export default function InstitutionFacultyPage() {
   }
 
   async function remove(memberId: number) {
-    const ok = await confirm({
-      title: "Remove institutional sponsorship?",
-      description: "Personal memberships are not deleted.",
-      confirmLabel: "Remove",
-      cancelLabel: "Cancel",
-      variant: "destructive",
-    })
-    if (!ok) return
+    if (!confirm("Remove institutional sponsorship? Personal memberships are not deleted.")) return
     await fetch(`/api/institution/faculty?memberId=${memberId}`, { method: "DELETE", credentials: "include" })
     await refresh()
   }

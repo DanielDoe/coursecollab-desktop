@@ -20,9 +20,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import type { Project } from "@/lib/types/project";
-import { getProjectModuleSessionsForCourse } from "@/lib/project-module-sessions";
-import { readFacultySelectedCourseCode } from "@/lib/project-presentation-course-scope";
-import { instructorApiFetch } from "@/lib/instructor-api-headers";
+import { PROJECT_MODULE_SESSIONS } from "@/lib/project-module-sessions";
 import { ProjectStarVoting } from "@/components/project-star-voting";
 import { InstructorProjectsManagement } from "@/components/instructor-projects-management";
 import { InstructorPresentationsSchedule } from "@/components/instructor-presentations-schedule";
@@ -85,11 +83,6 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
   const [scoreProjectsPage, setScoreProjectsPage] = useState(1);
   const [scoreProjectsPageSize, setScoreProjectsPageSize] = useState<ProjectListPageSize>(30);
 
-  const courseSessions = useMemo(
-    () => getProjectModuleSessionsForCourse(readFacultySelectedCourseCode()),
-    [courseScopeVersion],
-  );
-
   useEffect(() => {
     const instructorSession = localStorage.getItem("instructorSession");
     if (instructorSession) {
@@ -103,47 +96,27 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
   }, []);
 
   useEffect(() => {
-    setSelectedSession(null);
-    setOverviewSearch("");
-    setOverviewRatingFilter("all");
-    setSelectedProject(null);
-    setProjects([]);
-    setScores([]);
-    void fetchProjects();
+    fetchProjects();
   }, [courseScopeVersion]);
 
   useEffect(() => {
     setScoreProjectsPage(1);
-  }, [selectedSession, scoreProjectsPageSize, overviewSearch, overviewRatingFilter, courseScopeVersion]);
+  }, [selectedSession, scoreProjectsPageSize, overviewSearch, overviewRatingFilter]);
 
   useEffect(() => {
     if (projects.length > 0) {
-      void fetchScores();
-    } else {
-      setScores([]);
+      fetchScores();
     }
-  }, [projects, courseScopeVersion]);
+  }, [projects]);
 
   const fetchProjects = async () => {
     try {
       setLoading(true);
-      const response = await instructorApiFetch("/api/projects/list", {
-        headers: getInstructorScopeHeaders(),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setProjects([]);
-        toast({
-          title: "Failed to load projects",
-          description: typeof data.error === "string" ? data.error : undefined,
-          variant: "destructive",
-        });
-        return;
-      }
+      const response = await fetch("/api/projects/list", { headers: getInstructorScopeHeaders() });
+      const data = await response.json();
       setProjects(data.projects || []);
     } catch (error) {
       console.error("Failed to fetch projects:", error);
-      setProjects([]);
       toast({
         title: "Failed to load projects",
         variant: "destructive",
@@ -155,9 +128,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
 
   const fetchScores = async () => {
     try {
-      const totalsRes = await instructorApiFetch("/api/projects/vote-totals", {
-        headers: getInstructorScopeHeaders(),
-      });
+      const totalsRes = await fetch("/api/projects/vote-totals");
       const totalsJson = (await totalsRes.json().catch(() => ({}))) as {
         byProjectId?: Record<
           string,
@@ -287,22 +258,11 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
     { id: "grades", label: "Student Grades", icon: Users },
   ];
 
-  const panelTab = embedInDashboard;
-  const tabSectionClass = panelTab ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4";
-  const tabBodyClass = panelTab ? "flex min-h-0 flex-1 flex-col" : undefined;
-  const emptyPanelClass = panelTab
-    ? cn(cardBase, "flex min-h-0 flex-1 flex-col items-center justify-center border-dashed px-4 py-10 text-center")
-    : cn(cardBase, "p-8 text-center sm:p-10");
-  const loadingPanelClass = panelTab
-    ? cn(cardBase, "flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-10")
-    : cn(cardBase, "py-12 text-center");
-  const scrollListClass = panelTab ? "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2" : undefined;
-
   return (
     <div
       className={
         embedInDashboard
-          ? "flex min-h-0 w-full min-w-0 flex-1 flex-col"
+          ? "w-full min-w-0"
           : "w-full max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6"
       }
     >
@@ -318,8 +278,6 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
       )}
 
       <FacultyModuleSplitLayout
-        scrollMode={embedInDashboard ? "panel" : "page"}
-        className={embedInDashboard ? "min-h-0 flex-1" : undefined}
         menu={
           selectedProject && activeMenu === "rate" ? null : (
           <FacultyModuleSideMenu
@@ -336,8 +294,9 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
               <div className="hidden lg:block">
                 <p className={cn("mb-2 text-xs font-medium", PORTAL_TEXT)}>Scoring</p>
                 <p className={cn("text-[11px] leading-relaxed", PORTAL_TEXT_MUTED)}>
-                  <span className="block whitespace-nowrap">Students: 30+ votes = 30 pts · Avg × 6</span>
-                  <span className="block whitespace-nowrap">Instructor: 1 score = 20 pts · Stars × 4</span>
+                  Students: 30+ votes = 30 pts · Avg × 6
+                  <br />
+                  Instructor: 1 score = 20 pts · Stars × 4
                 </p>
               </div>
             }
@@ -346,23 +305,15 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
         }
       >
         {/* Main Content */}
-        <div
-          className={
-            embedInDashboard
-              ? "flex min-h-0 min-w-0 flex-1 flex-col gap-4 sm:gap-6"
-              : "min-w-0 flex-1 space-y-6"
-          }
-        >
+        <div className="min-w-0 flex-1 space-y-6">
             {/* Scores Overview */}
             {activeMenu === "overview" && (
-              <div className={tabSectionClass}>
-                <div className={panelTab ? "shrink-0" : undefined}>
+              <div className="space-y-4">
                 <FacultyIntegratedToolbar
                   moduleId="projects"
                   search={overviewSearch}
                   onSearchChange={setOverviewSearch}
                   onSearchClear={() => setOverviewSearch("")}
-                  searchResetToken={courseScopeVersion}
                   searchPlaceholder="Search projects, groups, or leaders…"
                   filters={
                     <>
@@ -380,7 +331,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All sessions</SelectItem>
-                          {courseSessions.map(({ code, label }) => (
+                          {PROJECT_MODULE_SESSIONS.map(({ code, label }) => (
                             <SelectItem key={code} value={code}>
                               {label}
                             </SelectItem>
@@ -425,14 +376,12 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                     </Button>
                   }
                 />
-                </div>
-                <div className={tabBodyClass}>
                 {loading ? (
-                  <div className={loadingPanelClass}>
+                  <div className={cn(cardBase, "py-12 text-center")}>
                     <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>Loading scores…</p>
                   </div>
                 ) : sortedScores.length === 0 ? (
-                  <div className={emptyPanelClass}>
+                  <div className={cn(cardBase, "p-8 text-center sm:p-10")}>
                     <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
                       <Star className="h-5 w-5 !text-white" />
                     </div>
@@ -440,7 +389,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                     <p className={cn("mt-1 text-sm", PORTAL_TEXT_MUTED)}>Scores appear after students vote and you rate projects.</p>
                   </div>
                 ) : overviewScores.length === 0 ? (
-                  <div className={emptyPanelClass}>
+                  <div className={cn(cardBase, "p-8 text-center sm:p-10")}>
                     <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
                       <Star className="h-5 w-5 !text-white" />
                     </div>
@@ -448,7 +397,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                     <p className={cn("mt-1 text-sm", PORTAL_TEXT_MUTED)}>Try a different search or clear the session and rating filters.</p>
                   </div>
                 ) : (
-                  <div className={cn(cardBase, "divide-y divide-[var(--border)] overflow-hidden", scrollListClass)}>
+                  <div className={cn(cardBase, "divide-y divide-[var(--border)] overflow-hidden")}>
                     {overviewScores.map((score, index) => (
                       <ProjectOverviewCard
                         key={score.projectId}
@@ -468,7 +417,6 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                     ))}
                   </div>
                 )}
-                </div>
               </div>
             )}
 
@@ -531,14 +479,12 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                 </section>
               </div>
             ) : activeMenu === "rate" ? (
-              <div className={tabSectionClass}>
-                <div className={panelTab ? "shrink-0" : undefined}>
+              <div className="space-y-4">
                 <FacultyIntegratedToolbar
                   moduleId="projects"
                   search={overviewSearch}
                   onSearchChange={setOverviewSearch}
                   onSearchClear={() => setOverviewSearch("")}
-                  searchResetToken={courseScopeVersion}
                   searchPlaceholder="Search projects, groups, or leaders…"
                   filters={
                     <>
@@ -553,7 +499,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All sessions</SelectItem>
-                          {courseSessions.map(({ code, label }) => (
+                          {PROJECT_MODULE_SESSIONS.map(({ code, label }) => (
                             <SelectItem key={code} value={code}>
                               {label}
                             </SelectItem>
@@ -589,11 +535,9 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                     </p>
                   }
                 />
-                </div>
 
-                <div className={tabBodyClass}>
                 {filteredProjectsForScoring.length === 0 ? (
-                  <div className={emptyPanelClass}>
+                  <div className={cn(cardBase, "p-8 text-center sm:p-10")}>
                     <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
                       <FolderKanban className="h-5 w-5 !text-white" />
                     </div>
@@ -606,12 +550,11 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                 ) : (
                   <>
                     <div
-                      className={cn(
+                      className={
                         viewMode === "grid"
                           ? "grid grid-cols-1 gap-3 md:grid-cols-2"
-                          : cn(cardBase, "divide-y divide-[var(--border)] overflow-hidden"),
-                        scrollListClass,
-                      )}
+                          : cn(cardBase, "divide-y divide-[var(--border)] overflow-hidden")
+                      }
                     >
                       {pagedScoreProjects.map((project, index) => {
                         const projectScore = scores.find((s) => s.projectId === project.id)
@@ -630,7 +573,6 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                         )
                       })}
                     </div>
-                    <div className={panelTab ? "shrink-0" : undefined}>
                     <ProjectListPaginationBar
                       totalItems={filteredProjectsForScoring.length}
                       page={scoreProjectsPage}
@@ -638,23 +580,19 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                       onPageChange={setScoreProjectsPage}
                       onPageSizeChange={setScoreProjectsPageSize}
                     />
-                    </div>
                   </>
                 )}
-                </div>
               </div>
             ) : null}
 
             {/* Leaderboard */}
             {activeMenu === "leaderboard" && (
-              <div className={tabSectionClass}>
-                <div className={panelTab ? "shrink-0 space-y-4" : "space-y-4"}>
+              <div className="space-y-4">
                 <FacultyIntegratedToolbar
                   moduleId="projects"
                   search={overviewSearch}
                   onSearchChange={setOverviewSearch}
                   onSearchClear={() => setOverviewSearch("")}
-                  searchResetToken={courseScopeVersion}
                   searchPlaceholder="Search projects, groups, or leaders…"
                   filters={
                     <>
@@ -672,7 +610,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All sessions</SelectItem>
-                          {courseSessions.map(({ code, label }) => (
+                          {PROJECT_MODULE_SESSIONS.map(({ code, label }) => (
                             <SelectItem key={code} value={code}>
                               {label}
                             </SelectItem>
@@ -727,18 +665,16 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                 <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>
                   Combined student (30 pts) + instructor (20 pts) scores for approved projects.
                 </p>
-                </div>
 
-                <div className={tabBodyClass}>
                 {loading ? (
-                  <div className={loadingPanelClass}>
+                  <div className={cn(cardBase, "flex items-center justify-center py-16")}>
                     <div
                       className="size-8 animate-spin rounded-full border-2 border-[var(--cc-accent)] border-t-transparent"
                       aria-hidden
                     />
                   </div>
                 ) : leaderboardScores.length === 0 ? (
-                  <div className={emptyPanelClass}>
+                  <div className={cn(cardBase, "py-14 text-center")}>
                     <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
                       <Trophy className="h-5 w-5 !text-white" />
                     </div>
@@ -750,7 +686,7 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                     </p>
                   </div>
                 ) : (
-                  <div className={cn("space-y-4", scrollListClass)}>
+                  <div className="space-y-4">
                     {podiumEntries.length > 0 ? (
                       <PortalLeaderboardPodium
                         entries={podiumEntries}
@@ -776,14 +712,13 @@ export default function InstructorProjectsPage({ embedInDashboard }: { embedInDa
                     ) : null}
                   </div>
                 )}
-                </div>
               </div>
             )}
 
-            {activeMenu === "manage" && <InstructorProjectsManagement embedInDashboard={embedInDashboard} />}
-            {activeMenu === "presentations" && <InstructorPresentationsSchedule embedInDashboard={embedInDashboard} />}
-            {activeMenu === "config" && <InstructorPresentationConfig embedInDashboard={embedInDashboard} />}
-            {activeMenu === "grades" && <InstructorProjectStudentGrades embedInDashboard={embedInDashboard} />}
+            {activeMenu === "manage" && <InstructorProjectsManagement />}
+            {activeMenu === "presentations" && <InstructorPresentationsSchedule />}
+            {activeMenu === "config" && <InstructorPresentationConfig />}
+            {activeMenu === "grades" && <InstructorProjectStudentGrades />}
         </div>
       </FacultyModuleSplitLayout>
     </div>

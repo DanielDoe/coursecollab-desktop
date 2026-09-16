@@ -32,11 +32,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { getProjectModuleSessionCodesForCourse, PROJECT_MODULE_SESSIONS } from "@/lib/project-module-sessions";
-import { readFacultySelectedCourseCode } from "@/lib/project-presentation-course-scope";
+import { getProjectModuleSessionCodes, PROJECT_MODULE_SESSIONS } from "@/lib/project-module-sessions";
 import { getInstructorScopeHeaders } from "@/lib/instructor-client-scope-headers";
-import { instructorApiFetch } from "@/lib/instructor-api-headers";
-import { useInstructorDashboardV2 } from "@/components/instructor/dashboard-v2/InstructorDashboardV2Context";
 import {
   FacultyIntegratedToolbar,
   facultyToolbarFilterButtonClass,
@@ -242,12 +239,11 @@ function MemberProjectScoreEditor({
   );
 }
 
-export function InstructorProjectStudentGrades({ embedInDashboard }: { embedInDashboard?: boolean } = {}) {
+export function InstructorProjectStudentGrades() {
   const chrome = facultyEmbedChrome("projects");
   const fp = chrome.p;
   const cardBase = chrome.card;
   const { toast } = useToast();
-  const { courseScopeVersion } = useInstructorDashboardV2();
   const [grades, setGrades] = useState<StudentGrade[]>([]);
   const [loading, setLoading] = useState(true);
   const [sessionFilter, setSessionFilter] = useState("all");
@@ -270,16 +266,7 @@ export function InstructorProjectStudentGrades({ embedInDashboard }: { embedInDa
     "local",
   );
 
-  const sessions = useMemo(
-    () => ["all", ...getProjectModuleSessionCodesForCourse(readFacultySelectedCourseCode())],
-    [courseScopeVersion],
-  );
-
-  useEffect(() => {
-    setSessionFilter("all");
-    setSearchQuery("");
-    setGrades([]);
-  }, [courseScopeVersion]);
+  const sessions = ["all", ...getProjectModuleSessionCodes()];
 
   const fetchStudentGrades = useCallback(async (opts?: { silent?: boolean }) => {
     try {
@@ -290,21 +277,17 @@ export function InstructorProjectStudentGrades({ embedInDashboard }: { embedInDa
       const query =
         sessionFilter === "all" ? `/api/groups` : `/api/groups?session=${encodeURIComponent(sessionFilter)}`;
 
-      const response = await instructorApiFetch(query, { headers: getInstructorScopeHeaders() });
-      const data = await response.json().catch(() => ({}));
+      const response = await fetch(query, { headers: getInstructorScopeHeaders() });
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(typeof data.error === "string" ? data.error : "Failed to fetch groups");
+        throw new Error("Failed to fetch groups");
       }
 
-      const scoresResponse = await instructorApiFetch("/api/projects/list", {
-        headers: getInstructorScopeHeaders(),
-      });
-      const scoresData = await scoresResponse.json().catch(() => ({}));
+      const scoresResponse = await fetch("/api/projects/list", { headers: getInstructorScopeHeaders() });
+      const scoresData = await scoresResponse.json();
 
-      const totalsRes = await instructorApiFetch("/api/projects/vote-totals", {
-        headers: getInstructorScopeHeaders(),
-      });
+      const totalsRes = await fetch("/api/projects/vote-totals");
       const totalsJson = (await totalsRes.json().catch(() => ({}))) as {
         byProjectId?: Record<string, { totalScore?: number }>;
       };
@@ -391,7 +374,7 @@ export function InstructorProjectStudentGrades({ embedInDashboard }: { embedInDa
     } finally {
       setLoading(false);
     }
-  }, [sessionFilter, toast, courseScopeVersion]);
+  }, [sessionFilter, toast]);
 
   useEffect(() => {
     void fetchStudentGrades();
@@ -501,15 +484,8 @@ export function InstructorProjectStudentGrades({ embedInDashboard }: { embedInDa
     return "F";
   };
 
-  const emptyPanelClass = embedInDashboard
-    ? cn(cardBase, "flex min-h-0 flex-1 flex-col items-center justify-center border-dashed px-4 py-10 text-center")
-    : cn(cardBase, "p-8 text-center sm:p-10");
-  const loadingPanelClass = embedInDashboard
-    ? cn(cardBase, "flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-10")
-    : cn(cardBase, "flex items-center justify-center min-h-[280px] p-8");
-
   return (
-    <div className={cn(embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4", "min-w-0 max-w-full")}>
+    <div className="space-y-4 min-w-0 max-w-full">
       <FacultyIntegratedToolbar
         moduleId="projects"
         search={searchQuery}
@@ -584,16 +560,16 @@ export function InstructorProjectStudentGrades({ embedInDashboard }: { embedInDa
       />
 
       {loading ? (
-        <div className={loadingPanelClass}>
+        <div className={cn(cardBase, "flex items-center justify-center min-h-[280px] p-8")}>
           <div className="text-center space-y-4">
             <div className={cn("h-8 w-8 animate-spin rounded-full border-2 border-t-transparent mx-auto", facultyModuleSpinnerClass("projects"))} />
             <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>Loading project grades…</p>
           </div>
         </div>
       ) : (
-        <div className={cn("min-w-0 max-w-full space-y-3", embedInDashboard && "flex min-h-0 flex-1 flex-col")}>
+        <div className="min-w-0 max-w-full space-y-3">
             {sortedGrades.length === 0 ? (
-              <div className={emptyPanelClass}>
+              <div className={cn(cardBase, "p-8 text-center sm:p-10")}>
                 <Users className="mx-auto mb-3 h-12 w-12 text-muted-foreground/50" />
                 <p className={cn("font-semibold", PORTAL_TEXT)}>
                   {searchQuery ? `No students match “${searchQuery}”` : "No project grades to show"}
@@ -603,7 +579,7 @@ export function InstructorProjectStudentGrades({ embedInDashboard }: { embedInDa
                 </p>
               </div>
             ) : (
-              <div className={cn(cardBase, "divide-y divide-[var(--border)] overflow-hidden", embedInDashboard && "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2")}>
+              <div className={cn(cardBase, "divide-y divide-[var(--border)] overflow-hidden")}>
                 {paginatedGrades.map((student, index) => {
                   const pct = Math.min(100, Math.max(0, (student.effectiveScore / 50) * 100));
                   return (

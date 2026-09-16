@@ -195,15 +195,35 @@ export async function resolveGroupProjectTermScope(
         : null
     const useSessionIdColumn = await groupsTableHasSessionId()
 
-    if (sessionParam) {
-      let sessionId = sessionScope.sessionId
-      if (sessionId == null) {
-        sessionId = await resolveSessionIdForTermFilter(
-          sessionParam,
-          courseId,
-          sessionScope.academicTermId,
-        )
+    const headerSessionId = sessionScope.sessionId
+    if (headerSessionId != null) {
+      if (useSessionIdColumn) {
+        return sql.unsafe(`(
+          g.session_id = ${headerSessionId}
+          OR (
+            g.session_id IS NULL
+            AND EXISTS (
+              SELECT 1 FROM group_members gm
+              JOIN students gm_s ON gm_s.id = gm.student_id
+              WHERE gm.group_id = g.id
+                AND gm_s.deleted_at IS NULL
+                AND gm_s.session_id = ${headerSessionId}
+            )
+          )
+        )`)
       }
+      return buildGroupLeaderTermScopeSql("g", courseId, {
+        sessionId: headerSessionId,
+        academicTermId: null,
+      })
+    }
+
+    if (sessionParam) {
+      const sessionId = await resolveSessionIdForTermFilter(
+        sessionParam,
+        courseId,
+        sessionScope.academicTermId,
+      )
       if (sessionId == null) return sql.unsafe(`(FALSE)`)
       if (useSessionIdColumn) {
         return buildGroupSessionIdEqualsSql("g", sessionId)
@@ -218,6 +238,26 @@ export async function resolveGroupProjectTermScope(
       return buildGroupSessionIdTermScopeSql("g", courseId, {
         academicTermId: sessionScope.academicTermId,
       })
+    }
+
+    if (useSessionIdColumn) {
+      const cid = Math.trunc(Number(courseId))
+      return sql.unsafe(`(
+        g.session_id IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM sessions sess
+          WHERE sess.id = g.session_id
+            AND sess.course_id = ${cid}
+            AND (
+              sess.academic_term_id IS NULL
+              OR EXISTS (
+                SELECT 1 FROM academic_terms at
+                WHERE at.id = sess.academic_term_id
+                  AND COALESCE(at.is_active, false) = true
+              )
+            )
+        )
+      )`)
     }
 
     return buildGroupLeaderTermScopeSql("g", courseId, {

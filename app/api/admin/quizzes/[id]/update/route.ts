@@ -9,6 +9,8 @@ import { normalizeAllowedStudentIds } from "@/lib/normalize-allowed-student-ids"
 import { ensureQuizQuestionsTextColumns } from "@/lib/ensure-quiz-questions-text-columns"
 import { isFinalAssessmentDbType, isSingleSittingExamAssessmentDbType } from "@/lib/final-exam-policy"
 import { syncQuizQuestionsOnUpdate } from "@/lib/sync-quiz-questions-on-update"
+import { ensureQuizPlatformAccessColumn } from "@/lib/ensure-quiz-platform-access-column"
+import { quizPlatformAccessSqlValue } from "@/lib/assessment-platform-access"
 
 
 export const dynamic = 'force-dynamic'
@@ -23,6 +25,8 @@ export async function PUT(request: NextRequest,
     const { id: quizId } = await params
     console.log("[quiz-update] admin PUT received", { quizId })
     await ensureQuizQuestionsTextColumns()
+    await ensureQuizPlatformAccessColumn()
+    const body = await request.json()
     const {
       title,
       description,
@@ -66,7 +70,7 @@ export async function PUT(request: NextRequest,
       allowed_student_ids = null,
       access_restriction_session_id = null,
       counts_toward_course_grade = true,
-    } = await request.json()
+    } = body
 
     console.log("[v0] Updating quiz with availability:", {
       available_from_received: available_from,
@@ -75,8 +79,11 @@ export async function PUT(request: NextRequest,
     })
 
     const oldQuizData = await sql`
-      SELECT title, available_until, assessment_type FROM quizzes WHERE id = ${quizId}
+      SELECT title, available_until, assessment_type, platform_access FROM quizzes WHERE id = ${quizId}
     `
+    const platformAccessSql = Object.prototype.hasOwnProperty.call(body, "platform_access")
+      ? quizPlatformAccessSqlValue(body.platform_access)
+      : quizPlatformAccessSqlValue(oldQuizData[0]?.platform_access)
 
     const assessmentTypeDb = oldQuizData[0]?.assessment_type as string | undefined
     const isFinal = isFinalAssessmentDbType(assessmentTypeDb)
@@ -171,6 +178,7 @@ export async function PUT(request: NextRequest,
           allowed_student_ids = ${allowedStudentIdsJson},
           access_restriction_session_id = ${access_restriction_session_id ?? null},
           counts_toward_course_grade = ${countsTowardGradeEff},
+          platform_access = ${platformAccessSql}::jsonb,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ${quizId}
     `
@@ -181,20 +189,33 @@ export async function PUT(request: NextRequest,
     const studentsToNotify = await sql`
       SELECT DISTINCT s.id
       FROM students s
+      INNER JOIN quiz_session_access qsa
+        ON qsa.session_id = s.session_id
+       AND qsa.quiz_id = ${quizId}
+       AND qsa.is_active = true
       WHERE NOT EXISTS (
         SELECT 1 FROM quiz_attempts qa
-        WHERE qa.quiz_id = ${quizId} AND qa.student_id = s.id
+        WHERE qa.quiz_id = ${quizId}
+          AND qa.student_id = s.id
+          AND qa.deleted_at IS NULL
+          AND qa.completed_at IS NOT NULL
       )
     `
 
     if (sendNotifications && studentsToNotify.length > 0) {
       const oldTitle = oldQuizData[0]?.title || title
+      const assessmentType = String(
+        (oldQuizData[0] as { assessment_type?: string } | undefined)?.assessment_type ??
+          "quiz",
+      )
+      const { notificationTypeForAssessment } = await import("@/lib/notify-course-students")
+      const notifType = notificationTypeForAssessment(assessmentType)
       createBulkNotifications(
         studentsToNotify.map((s) => s.id),
         {
-          type: "quiz",
-          title: "Quiz Updated 📝",
-          message: `The quiz "${oldTitle}" has been updated. Check out the changes!`,
+          type: notifType,
+          title: "Assessment updated",
+          message: `"${oldTitle}" has been updated. Check out the changes!`,
           link: "/student/quizzes",
         },
       )

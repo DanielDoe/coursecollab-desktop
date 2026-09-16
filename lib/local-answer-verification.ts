@@ -36,6 +36,34 @@ function normalizeAnswer(answer: string): string {
     .replace(/[.,;:!?]/g, '')
 }
 
+function isOptionLetterToken(value: string): boolean {
+  const normalized = normalizeAnswer(value)
+  return normalized.length <= 2 && /^[a-f]$/.test(normalized)
+}
+
+function availableOptionLetters(options: Record<string, string | null | undefined>): Set<string> {
+  const letters = new Set<string>()
+  for (const letter of ["A", "B", "C", "D", "E"]) {
+    const text = options[letter as keyof typeof options]
+    if (text != null && String(text).trim() !== "") {
+      letters.add(letter.toLowerCase())
+    }
+  }
+  return letters
+}
+
+function filterCorrectLettersToAvailableOptions(
+  answers: string[],
+  options: Record<string, string | null | undefined>,
+): string[] {
+  const available = availableOptionLetters(options)
+  return answers.filter((ans) => {
+    const normalized = normalizeAnswer(String(ans))
+    if (isOptionLetterToken(normalized)) return available.has(normalized)
+    return true
+  })
+}
+
 /**
  * Parse correct_answer from DB - handles JSONB, array, number (0-based index), object, null
  */
@@ -431,16 +459,14 @@ function verifySelectAll(studentAnswers: string[], questionData: any): Verificat
   }).filter(Boolean)
   
   // Determine if correct answers are letters (e.g., ["A","C"]) or values (e.g., ["myVariable", "class_name"])
-  const correctAnswersAreLetter = correctAnswers.every(ans => {
-    const normalized = normalizeAnswer(String(ans))
-    return normalized.length <= 2 && ['a', 'b', 'c', 'd', 'e'].includes(normalized)
-  })
-  
+  const correctAnswersAreLetter = correctAnswers.every((ans) => isOptionLetterToken(String(ans)))
+
   // Determine if student answers are letters
-  const studentAnswersAreLetter = studentAnswers.every(ans => {
-    const normalized = normalizeAnswer(String(ans))
-    return normalized.length <= 2 && ['a', 'b', 'c', 'd', 'e'].includes(normalized)
-  })
+  const studentAnswersAreLetter = studentAnswers.every((ans) => isOptionLetterToken(String(ans)))
+
+  if (correctAnswersAreLetter) {
+    correctAnswers = filterCorrectLettersToAvailableOptions(correctAnswers, options)
+  }
   
   // Convert student answers to the same format as correct answers
   let studentNormalized: string[]
@@ -453,7 +479,7 @@ function verifySelectAll(studentAnswers: string[], questionData: any): Verificat
       const normalized = normalizeAnswer(String(studentAns))
       
       // Check if already a letter
-      if (normalized.length <= 2 && ['a', 'b', 'c', 'd', 'e'].includes(normalized)) {
+      if (isOptionLetterToken(normalized)) {
         return normalized.toLowerCase()
       }
       
@@ -470,14 +496,14 @@ function verifySelectAll(studentAnswers: string[], questionData: any): Verificat
       return normalized.toLowerCase() // Return as-is if no match, but lowercase
     }).filter(Boolean).sort()
     
-    correctNormalized = correctAnswers.map(a => {
-      const normalized = normalizeAnswer(String(a))
-      // Ensure it's lowercase letter
-      if (normalized.length <= 2 && ['a', 'b', 'c', 'd', 'e'].includes(normalized)) {
+    correctNormalized = correctAnswers
+      .map((a) => {
+        const normalized = normalizeAnswer(String(a))
+        if (isOptionLetterToken(normalized)) return normalized.toLowerCase()
         return normalized.toLowerCase()
-      }
-      return normalized.toLowerCase()
-    }).filter(Boolean).sort()
+      })
+      .filter(Boolean)
+      .sort()
   } else {
     // Question bank format: correct answers are values ["myVariable", "class_name"]
     // CRITICAL: If student answers are letters, convert them to option text first
@@ -486,7 +512,7 @@ function verifySelectAll(studentAnswers: string[], questionData: any): Verificat
         const normalized = normalizeAnswer(String(studentAns))
         
         // Convert letter to option text
-        if (normalized.length <= 2 && ['a', 'b', 'c', 'd', 'e'].includes(normalized)) {
+        if (isOptionLetterToken(normalized)) {
           const letter = normalized.toUpperCase()
           const optionText = options[letter as keyof typeof options]
           if (optionText) {

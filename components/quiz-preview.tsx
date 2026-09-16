@@ -29,7 +29,7 @@ import {
 } from "@/components/assessments/quiz-preview-chrome"
 import { PORTAL_CARD, PORTAL_TEXT_MUTED } from "@/lib/assessments/assessment-management-surface-classes"
 import { cn } from "@/lib/utils"
-import { useAppConfirm } from "@/components/providers/app-confirm-provider"
+import { scoreSelectAllQuestion } from "@/lib/select-all-scoring"
 
 function isFacultyQuizPreviewPath(pathname: string): boolean {
   return pathname.includes("/instructor") || pathname.includes("/faculty")
@@ -125,7 +125,6 @@ export function QuizPreview({
   const pathname = usePathname()
   // Removed usePreventBack to allow natural back navigation
   const { toast } = useToast()
-  const { alert } = useAppConfirm()
   const [loading, setLoading] = useState(true)
   const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
@@ -416,7 +415,7 @@ int main() {
     }
   }
 
-  const handleSubmitAnswer = async () => {
+  const handleSubmitAnswer = () => {
     console.log("[Preview] handleSubmitAnswer CALLED")
     console.log("[Preview] isSubmittingAnswer state:", isSubmittingAnswer)
     
@@ -465,10 +464,7 @@ int main() {
           description: "For code_write_plot questions, you must upload a plot image before submitting. Please use the 'Upload Plot' section above.",
           variant: "destructive",
         })
-        await alert({
-          title: "Plot image required",
-          description: "Please upload a plot image before submitting this code_write_plot question.",
-        })
+        alert("Please upload a plot image before submitting this code_write_plot question!")
         return
       }
 
@@ -519,15 +515,77 @@ int main() {
     setIsTimerActive(false)
     setShowFeedback(true)
     markQuestionAsAnswered(currentQuestionIndex)
-    const maxPts = currentQuestion.max_points ?? currentQuestion.points ?? 1
-    const computedCorrect = computeIsCorrect(currentQuestion, selectedAnswer, selectedMultiAnswers, isMultiSelect, isTextInput)
+    const maxPts = Number(currentQuestion.max_points ?? currentQuestion.points ?? 1) || 1
+
+    if (isMultiSelect) {
+      let correctAnswers: string[] = []
+      try {
+        const parsed = JSON.parse(currentQuestion.correct_answer)
+        correctAnswers = Array.isArray(parsed) ? parsed.map(String) : [String(parsed)]
+      } catch {
+        correctAnswers = [String(currentQuestion.correct_answer ?? "")]
+      }
+      const allLetters = correctAnswers.every(
+        (a) => typeof a === "string" && a.trim().length === 1 && /^[A-E]$/i.test(a.trim()),
+      )
+      const correctTexts = (
+        allLetters
+          ? correctAnswers.map((letter) => {
+              const key = `option_${letter.trim().toLowerCase()}` as keyof Question
+              return currentQuestion[key] as string
+            })
+          : correctAnswers
+      ).filter(Boolean)
+      const selectedTexts = selectedMultiAnswers
+        .map((letter) => {
+          const key = `option_${letter.toLowerCase()}` as keyof Question
+          return currentQuestion[key] as string
+        })
+        .filter(Boolean)
+
+      const scored = scoreSelectAllQuestion(selectedTexts, correctTexts, maxPts)
+      const explanation = scored.isFullyCorrect
+        ? "Correct! You selected all the right answers and no incorrect ones."
+        : scored.points > 0
+          ? `Partial credit: ${scored.correctSelected} of ${scored.correctCount} correct selected` +
+            (scored.incorrectSelected > 0 ? `, ${scored.incorrectSelected} incorrect` : "") +
+            `. Score = max(0, (C−I)/T) × points.`
+          : scored.incorrectSelected > 0 && scored.correctSelected === 0
+            ? "Incorrect — only wrong options were selected."
+            : "Incorrect — check the highlighted answers."
+
+      setFeedback({
+        isCorrect: scored.isFullyCorrect,
+        explanation,
+        earnedPoints: scored.points,
+        totalPoints: maxPts,
+      })
+      setPreviewAnswers((prev) => ({
+        ...prev,
+        [currentQuestion.id]: {
+          pointsEarned: scored.points,
+          isCorrect: scored.isFullyCorrect,
+          selected_answer: JSON.stringify(selectedMultiAnswers),
+        },
+      }))
+      return
+    }
+
+    const computedCorrect = computeIsCorrect(
+      currentQuestion,
+      selectedAnswer,
+      selectedMultiAnswers,
+      isMultiSelect,
+      isTextInput,
+    )
     const earned = computedCorrect ? maxPts : 0
+    setFeedback(null)
     setPreviewAnswers((prev) => ({
       ...prev,
       [currentQuestion.id]: {
         pointsEarned: earned,
         isCorrect: computedCorrect,
-        selected_answer: isMultiSelect ? JSON.stringify(selectedMultiAnswers) : selectedAnswer,
+        selected_answer: selectedAnswer ?? "",
       },
     }))
   }
@@ -996,7 +1054,11 @@ int main() {
                   showFeedback={showFeedback}
                   isSubmittingAnswer={isSubmittingAnswer}
                   isCorrect={isCorrect}
-                  partialCreditPoints={null}
+                  partialCreditPoints={
+                    showFeedback && feedback && !feedback.isCorrect && feedback.earnedPoints > 0
+                      ? feedback.earnedPoints / Math.max(feedback.totalPoints, 1)
+                      : null
+                  }
                   onAnswerChange={handleAnswerSelect}
                   onMultiAnswerToggle={toggleMultiAnswer}
                   onCodeChange={handleCodeChange}

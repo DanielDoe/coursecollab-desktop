@@ -30,13 +30,21 @@ import { PORTAL_CTA } from "@/lib/appearance/portal-nav-classes"
 import { portalProgressFillClass } from "@/lib/portal-module-themes"
 import { getMessagesPortalTheme } from "@/lib/messages-portal-theme"
 import { MessagesThemeProvider } from "@/components/messages/messages-theme-context"
-import { getMessageAuthHeaders } from "@/lib/direct-messages/client"
-import { looksLikeHtml, sanitizeMessageHtml } from "@/lib/direct-messages/html"
+import { getMessageAuthHeaders, messageApiFetch } from "@/lib/direct-messages/client"
+import { looksLikeHtml, sanitizeMessageHtml, stripHtmlToPlain } from "@/lib/direct-messages/html"
 import {
   MessageComposer,
   isComposerEmpty,
   type MessageAttachmentDraft,
 } from "@/components/messages/MessageComposer"
+import { attachmentsReadyForSend } from "@/lib/direct-messages/upload-message-attachment-client"
+import {
+  clearMessageSendOutbox,
+  listMessageSendOutbox,
+  saveMessageSendOutbox,
+  type MessageSendOutboxEntry,
+} from "@/lib/direct-messages/message-send-outbox"
+import { MessageAttachmentView } from "@/components/messages/MessageAttachmentView"
 import { MessageReactionBar } from "@/components/messages/MessageReactionBar"
 import { MessageParticipantDrawer } from "@/components/messages/MessageParticipantDrawer"
 import { PresenceAvatar } from "@/components/presence/PresenceAvatar"
@@ -60,12 +68,6 @@ type MessagesInboxProps = {
   title?: string
   /** @deprecated Breadcrumbs carry context; kept for API compatibility */
   description?: string
-  /** When true, outer chrome is provided by StudentModuleHubLayout */
-  hubLayout?: boolean
-  searchQuery?: string
-  startCompose?: boolean
-  /** Hub layout: sync compose panel open state with parent header actions */
-  onComposeOpenChange?: (open: boolean) => void
 }
 
 function formatWhen(iso: string): string {
@@ -106,36 +108,42 @@ function lastActiveFromThread(thread: ThreadDetail, kind: ParticipantKind, id: n
   return latest
 }
 
-function MessageBody({ message }: { message: ThreadMessage }) {
-  const html = looksLikeHtml(message.body) ? sanitizeMessageHtml(message.body) : null
+function messagePlainText(body: string): string {
+  return looksLikeHtml(body) ? stripHtmlToPlain(body) : body.trim()
+}
+
+function MessageBody({ message, isMine }: { message: ThreadMessage; isMine: boolean }) {
+  const plain = messagePlainText(message.body)
+  const html = plain && looksLikeHtml(message.body) ? sanitizeMessageHtml(message.body) : null
+  const hasAttachments = message.attachments.length > 0
+  const emptyShell = !plain && !hasAttachments
 
   return (
     <div className="space-y-2">
+      {emptyShell ? (
+        <p
+          className={cn(
+            "text-xs italic leading-snug",
+            isMine ? "text-white/90" : "text-slate-600 dark:text-slate-300",
+          )}
+        >
+          {isMine
+            ? "Attachment missing — the photo or file may not have finished uploading. Open the + menu → Photo and send again."
+            : "Attachment missing — ask them to resend using the + button → Photo."}
+        </p>
+      ) : null}
       {html ? (
         <div
           className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-0.5 [&_a]:underline break-words"
           dangerouslySetInnerHTML={{ __html: html }}
         />
-      ) : message.body.trim() ? (
-        <p className="whitespace-pre-wrap break-words">{message.body}</p>
+      ) : plain ? (
+        <p className="whitespace-pre-wrap break-words">{plain}</p>
       ) : null}
-      {message.attachments.length > 0 && (
-        <div className="flex flex-col gap-1.5 pt-1">
+      {hasAttachments && (
+        <div className="flex flex-col gap-2 pt-0.5">
           {message.attachments.map((a) => (
-            <a
-              key={a.id}
-              href={a.fileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(
-                "inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium w-fit max-w-full",
-                message.isMine
-                  ? "bg-white/15 text-white hover:bg-white/20"
-                  : "bg-slate-200/80 dark:bg-slate-700/80 text-slate-800 dark:text-slate-100 hover:opacity-90",
-              )}
-            >
-              <span className="truncate">{a.fileName}</span>
-            </a>
+            <MessageAttachmentView key={a.id} attachment={a} isMine={message.isMine} />
           ))}
         </div>
       )}
@@ -145,10 +153,6 @@ function MessageBody({ message }: { message: ThreadMessage }) {
 
 export function MessagesInbox({
   portal,
-  hubLayout = false,
-  searchQuery,
-  startCompose = false,
-  onComposeOpenChange,
 }: MessagesInboxProps) {
   const uiTheme = getMessagesPortalTheme(portal)
   const isStudentDash = portal === "student" || portal === "guest"
@@ -178,6 +182,7 @@ export function MessagesInbox({
   const [threadSearch, setThreadSearch] = useState("")
   const [unreadOnly, setUnreadOnly] = useState(false)
   const [threadSort, setThreadSort] = useState<"newest" | "oldest" | "unread">("newest")
+  const [sendOutbox, setSendOutbox] = useState<MessageSendOutboxEntry[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const basePath = useMemo(() => {
@@ -232,11 +237,57 @@ export function MessagesInbox({
     setDraftAttachments([])
   }
 
+  useEffect(() => {
+    setSendOutbox(listMessageSendOutbox())
+  }, [])
+
+  function rememberFailedSend(entry: Omit<MessageSendOutboxEntry, "id" | "createdAt">) {
+    saveMessageSendOutbox(entry)
+    setSendOutbox(listMessageSendOutbox())
+  }
+
+  async function retryOutboxEntry(entry: MessageSendOutboxEntry) {
+    setSending(true)
+    setError(null)
+    try {
+      const url =
+        entry.sendUrl ||
+        (entry.threadId != null ? `/api/messages/threads/${entry.threadId}` : "/api/messages/threads")
+      const payload =
+        entry.threadId != null
+          ? { body: entry.bodyHtml, attachments: entry.attachments }
+          : {
+              recipientKind: entry.recipientKind,
+              recipientId: entry.recipientId,
+              subject: entry.subject ?? null,
+              body: entry.bodyHtml,
+              attachments: entry.attachments,
+            }
+      const res = await messageApiFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const data = (await res.json()) as { thread?: ThreadDetail; threadId?: number; error?: string }
+      if (!res.ok) throw new Error(data.error || "Send failed")
+      clearMessageSendOutbox(entry.id)
+      setSendOutbox(listMessageSendOutbox())
+      resetDraft()
+      await loadThreads()
+      if (data.thread) setThread(data.thread)
+      else if (data.threadId) openThread(data.threadId)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Retry failed")
+    } finally {
+      setSending(false)
+    }
+  }
+
   const loadThreads = useCallback(async () => {
     setLoadingThreads(true)
     setError(null)
     try {
-      const res = await fetch("/api/messages/threads", { headers: authHeaders })
+      const res = await messageApiFetch("/api/messages/threads")
       if (!res.ok) throw new Error("Could not load inbox")
       const data = (await res.json()) as { threads: ThreadSummary[] }
       setThreads(data.threads ?? [])
@@ -252,7 +303,7 @@ export function MessagesInbox({
       setLoadingThread(true)
       setError(null)
       try {
-        const res = await fetch(`/api/messages/threads/${id}`, { headers: authHeaders })
+        const res = await messageApiFetch(`/api/messages/threads/${id}`)
         if (!res.ok) throw new Error("Could not load conversation")
         const data = (await res.json()) as { thread: ThreadDetail }
         setThread(data.thread)
@@ -298,9 +349,7 @@ export function MessagesInbox({
     const timer = setTimeout(async () => {
       setSearchingRecipients(true)
       try {
-        const res = await fetch(`/api/messages/recipients?q=${encodeURIComponent(q)}`, {
-          headers: authHeaders,
-        })
+        const res = await messageApiFetch(`/api/messages/recipients?q=${encodeURIComponent(q)}`)
         if (res.ok) {
           const data = (await res.json()) as { recipients: MessageRecipient[] }
           setRecipientResults(data.recipients ?? [])
@@ -318,18 +367,23 @@ export function MessagesInbox({
 
   async function handleSendNew() {
     if (!selectedRecipient || isComposerEmpty(draftHtml, draftAttachments)) return
+    const ready = attachmentsReadyForSend(draftAttachments)
+    if (draftAttachments.length > 0 && ready.length === 0) {
+      setError("Attachments are still uploading or failed — wait for the checkmark or remove them before sending.")
+      return
+    }
     setSending(true)
     setError(null)
     try {
-      const res = await fetch("/api/messages/threads", {
+      const res = await messageApiFetch("/api/messages/threads", {
         method: "POST",
-        headers: { ...authHeaders, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipientKind: selectedRecipient.kind,
           recipientId: selectedRecipient.id,
           subject: newSubject.trim() || null,
           body: draftHtml,
-          attachments: draftAttachments,
+          attachments: attachmentsReadyForSend(draftAttachments),
         }),
       })
       const data = (await res.json()) as { threadId?: number; error?: string }
@@ -342,7 +396,19 @@ export function MessagesInbox({
       await loadThreads()
       if (data.threadId) openThread(data.threadId)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Send failed")
+      rememberFailedSend({
+        threadId: null,
+        recipientKind: selectedRecipient.kind,
+        recipientId: selectedRecipient.id,
+        subject: newSubject.trim() || null,
+        bodyHtml: draftHtml,
+        attachments: attachmentsReadyForSend(draftAttachments),
+        sendUrl: "/api/messages/threads",
+      })
+      setError(
+        (e instanceof Error ? e.message : "Send failed") +
+          " Your draft was saved on this device — use Retry below when you're back online.",
+      )
     } finally {
       setSending(false)
     }
@@ -353,11 +419,11 @@ export function MessagesInbox({
     setReactingId(messageId)
     setError(null)
     try {
-      const res = await fetch(
+      const res = await messageApiFetch(
         `/api/messages/threads/${thread.id}/messages/${messageId}/reactions`,
         {
           method: "POST",
-          headers: { ...authHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ emoji }),
         },
       )
@@ -384,13 +450,21 @@ export function MessagesInbox({
 
   async function handleReply() {
     if (!thread || isComposerEmpty(draftHtml, draftAttachments)) return
+    const ready = attachmentsReadyForSend(draftAttachments)
+    if (draftAttachments.length > 0 && ready.length === 0) {
+      setError("Attachments are still uploading or failed — wait for the checkmark or remove them before sending.")
+      return
+    }
     setSending(true)
     setError(null)
     try {
-      const res = await fetch(`/api/messages/threads/${thread.id}`, {
+      const res = await messageApiFetch(`/api/messages/threads/${thread.id}`, {
         method: "POST",
-        headers: { ...authHeaders, "Content-Type": "application/json" },
-        body: JSON.stringify({ body: draftHtml, attachments: draftAttachments }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          body: draftHtml,
+          attachments: attachmentsReadyForSend(draftAttachments),
+        }),
       })
       const data = (await res.json()) as { thread?: ThreadDetail; error?: string }
       if (!res.ok) throw new Error(data.error || "Send failed")
@@ -398,7 +472,16 @@ export function MessagesInbox({
       if (data.thread) setThread(data.thread)
       await loadThreads()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Send failed")
+      rememberFailedSend({
+        threadId: thread.id,
+        bodyHtml: draftHtml,
+        attachments: attachmentsReadyForSend(draftAttachments),
+        sendUrl: `/api/messages/threads/${thread.id}`,
+      })
+      setError(
+        (e instanceof Error ? e.message : "Send failed") +
+          " Your draft was saved on this device — use Retry below when you're back online.",
+      )
     } finally {
       setSending(false)
     }
@@ -407,14 +490,12 @@ export function MessagesInbox({
   const showListPanel = !mobileShowChat || composeOpen
   const showChatPanel = mobileShowChat || composeOpen
 
-  const effectiveThreadSearch = hubLayout && searchQuery !== undefined ? searchQuery : threadSearch
-
   const filteredThreads = useMemo(() => {
     let list = [...threads]
     if (unreadOnly) {
       list = list.filter((t) => t.unreadCount > 0)
     }
-    const q = effectiveThreadSearch.trim().toLowerCase()
+    const q = threadSearch.trim().toLowerCase()
     if (q) {
       list = list.filter(
         (t) =>
@@ -432,9 +513,9 @@ export function MessagesInbox({
       return threadSort === "oldest" ? aTime - bTime : bTime - aTime
     })
     return list
-  }, [threads, effectiveThreadSearch, unreadOnly, threadSort])
+  }, [threads, threadSearch, unreadOnly, threadSort])
 
-  const openCompose = useCallback(() => {
+  const openCompose = () => {
     setComposeOpen(true)
     setSelectedRecipient(null)
     setRecipientQuery("")
@@ -442,28 +523,7 @@ export function MessagesInbox({
     resetDraft()
     setMobileShowChat(true)
     router.push(basePath)
-  }, [basePath, router])
-
-  useEffect(() => {
-    if (hubLayout && searchQuery !== undefined) {
-      setThreadSearch(searchQuery)
-    }
-  }, [hubLayout, searchQuery])
-
-  useEffect(() => {
-    if (!hubLayout) return
-    if (startCompose) {
-      openCompose()
-      return
-    }
-    setComposeOpen(false)
-    setMobileShowChat(false)
-  }, [hubLayout, startCompose, openCompose])
-
-  useEffect(() => {
-    if (!hubLayout) return
-    onComposeOpenChange?.(composeOpen)
-  }, [hubLayout, composeOpen, onComposeOpenChange])
+  }
 
   const inboxToolbar = (
     <div className="flex flex-wrap items-center gap-2">
@@ -485,7 +545,7 @@ export function MessagesInbox({
               : "border-0 bg-slate-100 dark:bg-slate-900",
           )}
         />
-        {threadSearch ? (
+        {threadSearch && (
           <Button
             variant="ghost"
             size="sm"
@@ -495,7 +555,7 @@ export function MessagesInbox({
           >
             <X className="h-3.5 w-3.5" />
           </Button>
-        ) : null}
+        )}
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5">
@@ -538,7 +598,7 @@ export function MessagesInbox({
           <CheckCircle2 className="h-4 w-4" />
         </Button>
 
-        {(effectiveThreadSearch || unreadOnly) && (
+        {(threadSearch || unreadOnly) && (
           <Button
             variant="ghost"
             size="icon"
@@ -556,19 +616,17 @@ export function MessagesInbox({
           </Button>
         )}
 
-        {!hubLayout ? (
-          <Button
-            type="button"
-            onClick={openCompose}
-            className={cn(
-              "h-10 rounded-full px-4",
-              isStudentDash ? PORTAL_CTA : cn(uiTheme.page.cta, "shadow-md"),
-            )}
-          >
-            <Plus className="h-4 w-4 mr-1.5" aria-hidden />
-            New message
-          </Button>
-        ) : null}
+        <Button
+          type="button"
+          onClick={openCompose}
+          className={cn(
+            "h-10 rounded-full px-4",
+            isStudentDash ? PORTAL_CTA : cn(uiTheme.page.cta, "shadow-md"),
+          )}
+        >
+          <Plus className="h-4 w-4 mr-1.5" aria-hidden />
+          New message
+        </Button>
       </div>
     </div>
   )
@@ -750,29 +808,47 @@ export function MessagesInbox({
                   )}
                   {recipientResults.length > 0 && !selectedRecipient && (
                     <ul className="border border-slate-200 dark:border-white/10 rounded-xl overflow-hidden max-h-44 overflow-y-auto bg-white dark:bg-slate-900">
-                      {recipientResults.map((r) => (
-                        <li key={`${r.kind}-${r.id}`}>
-                          <button
-                            type="button"
-                            className="w-full text-left px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-white/[0.04] text-sm flex gap-3 items-center"
-                            onClick={() => {
-                              setSelectedRecipient(r)
-                              setRecipientQuery(r.displayName)
-                              setRecipientResults([])
-                            }}
-                          >
+                      {recipientResults.map((r) => {
+                        const blocked = r.messageable === false
+                        const row = (
+                          <>
                             <PresenceAvatar
                               name={r.displayName}
-                              status={getStatus(r.kind, r.id)}
+                              status={blocked ? "offline" : getStatus(r.kind, r.id)}
                               size="sm"
                             />
                             <span>
                               <span className="font-medium text-slate-900 dark:text-slate-100">{r.displayName}</span>
                               <span className="block text-xs text-slate-500">{r.subtitle}</span>
                             </span>
-                          </button>
-                        </li>
-                      ))}
+                          </>
+                        )
+                        return (
+                          <li key={`${r.kind}-${r.id}`}>
+                            {blocked ? (
+                              <div
+                                className="w-full text-left px-3 py-2.5 text-sm flex gap-3 items-center opacity-45 cursor-not-allowed bg-slate-50/80 dark:bg-white/[0.02]"
+                                aria-disabled
+                                title="Demo account — message your instructor instead"
+                              >
+                                {row}
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="w-full text-left px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-white/[0.04] text-sm flex gap-3 items-center"
+                                onClick={() => {
+                                  setSelectedRecipient(r)
+                                  setRecipientQuery(r.displayName)
+                                  setRecipientResults([])
+                                }}
+                              >
+                                {row}
+                              </button>
+                            )}
+                          </li>
+                        )
+                      })}
                     </ul>
                   )}
                 </div>
@@ -929,7 +1005,7 @@ export function MessagesInbox({
                               : "bg-slate-100 dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 border border-slate-200/70 dark:border-white/10",
                           )}
                         >
-                          <MessageBody message={m} />
+                          <MessageBody message={m} isMine={m.isMine} />
                         </div>
                       </MessageReactionBar>
                     </div>
@@ -970,6 +1046,48 @@ export function MessagesInbox({
   return (
     <MessagesThemeProvider theme={uiTheme}>
     <div className="flex flex-col h-[min(78vh,780px)] min-h-[520px] w-full min-w-0">
+      {sendOutbox.length > 0 && (
+        <div className="shrink-0 mb-4 space-y-2">
+          {sendOutbox.map((entry) => (
+            <div
+              key={entry.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100"
+            >
+              <span className="min-w-0">
+                Unsent message saved on this device
+                {entry.attachments.length > 0
+                  ? ` (${entry.attachments.length} attachment${entry.attachments.length === 1 ? "" : "s"})`
+                  : ""}
+                .
+              </span>
+              <div className="flex gap-2 shrink-0">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  disabled={sending}
+                  onClick={() => void retryOutboxEntry(entry)}
+                >
+                  Retry send
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-8"
+                  onClick={() => {
+                    clearMessageSendOutbox(entry.id)
+                    setSendOutbox(listMessageSendOutbox())
+                  }}
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {error && (
         <p className="text-sm text-red-600 dark:text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 shrink-0 mb-4">
           {error}
@@ -977,17 +1095,10 @@ export function MessagesInbox({
       )}
 
       {isStudentDash ? (
-        hubLayout ? (
-          <section className="flex min-h-[520px] flex-1 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)]">
-            <div className="shrink-0 border-b border-[var(--border)] px-3 py-2 sm:px-4">{inboxToolbar}</div>
-            {inboxGrid}
-          </section>
-        ) : (
-          <section className="flex flex-col flex-1 min-h-0 rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
-            <div className="shrink-0 p-4 sm:p-5">{inboxToolbar}</div>
-            {inboxGrid}
-          </section>
-        )
+        <section className="flex flex-col flex-1 min-h-0 rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
+          <div className="shrink-0 p-4 sm:p-5">{inboxToolbar}</div>
+          {inboxGrid}
+        </section>
       ) : (
         <div className="flex flex-col gap-4 flex-1 min-h-0">
           <div className="shrink-0">{inboxToolbar}</div>

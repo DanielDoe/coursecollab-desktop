@@ -430,8 +430,12 @@ export async function canRetakeAssessment(
         resolvedCalendar,
       )
     } else {
-      // Calculate remaining attempts for THIS assessment
-      const attemptsRemaining = Math.max(0, (totalAttemptsAllowed as number) - completedAttempts)
+      // Retakes remaining (not including the initial attempt). UI labels this as "N retakes left".
+      // Example: Trailblazer effectiveLimit=2, completed=0 → 2 retakes left (first attempt still unused).
+      const retakesAllowed = Math.max(0, effectiveLimit)
+      const retakesUsed = Math.max(0, completedAttempts - 1)
+      const attemptsRemaining = Math.max(0, retakesAllowed - retakesUsed)
+      // canRetake here means "may start/continue an attempt" (first attempt or a retake).
       const canRetake = completedAttempts < (totalAttemptsAllowed as number)
 
       return applyRetakeCalendarGate(

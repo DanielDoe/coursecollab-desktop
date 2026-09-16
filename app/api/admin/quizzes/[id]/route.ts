@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { requireAdminId } from "@/lib/admin-api-auth"
 import { sql } from "@/lib/db"
+import { ensureQuizPlatformAccessColumn } from "@/lib/ensure-quiz-platform-access-column"
 
 
 
@@ -88,6 +89,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id } = await params
     const quizId = id
+
+    await ensureQuizPlatformAccessColumn()
 
     // Get quiz details
     const quizResult = await sql`

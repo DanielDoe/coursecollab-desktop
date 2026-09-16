@@ -66,7 +66,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "flashcards", label: "Flashcards", icon: Layers },
       { id: "ai-notetaker", label: "AI Notetaker", icon: Mic, locked: true },
       { id: "practice", label: "Practice Hub", icon: Lightbulb, locked: true },
-      { id: "codebench", label: "CodeBench", icon: Code2, locked: true },
+      { id: "codebench", label: "CodeBench", icon: Code2 },
     ],
   },
   {

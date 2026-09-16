@@ -30,6 +30,7 @@ import {
 } from "@/lib/multi-part-grading-policy"
 import { resolveReferenceAnswerForAiGrading } from "@/lib/resolve-reference-answer-for-ai"
 import { normalizeAssessmentAiFeedbackForStorage } from "@/lib/assessment-ai-consistency-audit"
+import { resolveSelectAllCorrectLetters } from "@/lib/practice-answer-review"
 
 function enrichQuestionForCircuitAi(question: any): any {
   const spec = parseCircuitSpec(question?.circuit_spec)
@@ -459,6 +460,28 @@ export async function evaluateAssessmentAnswer(
         ? studentAnswer
         : JSON.stringify(studentAnswer)
 
+  let storedAiFeedback = aiFeedback
+  if (normalizedType === "select_all" || normalizedType === "multi_output") {
+    const correctLetters = resolveSelectAllCorrectLetters({
+      option_a: question.option_a,
+      option_b: question.option_b,
+      option_c: question.option_c,
+      option_d: question.option_d,
+      option_e: question.option_e,
+      correct_answer: question.correct_answer,
+    })
+    if (correctLetters.length > 0) {
+      storedAiFeedback = {
+        ...(storedAiFeedback && typeof storedAiFeedback === "object" ? storedAiFeedback : {}),
+        correctLetters,
+        locallyVerified: true,
+        isCorrect: result.isCorrect ?? false,
+        pointsEarned,
+        score: result.points ?? 0,
+      }
+    }
+  }
+
   // Save answer to database
   await saveAnswer(assessmentType, {
     attemptId,
@@ -469,7 +492,7 @@ export async function evaluateAssessmentAnswer(
     answerData,
     feedback: result.feedback || null,
     requiresReview,
-    aiFeedback,
+    aiFeedback: storedAiFeedback,
     timeSpentSeconds: timeSpentSeconds ?? null,
   })
 

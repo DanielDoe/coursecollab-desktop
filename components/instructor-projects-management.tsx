@@ -115,7 +115,7 @@ interface ProjectReport {
   student_number: string;
 }
 
-export function InstructorProjectsManagement({ embedInDashboard }: { embedInDashboard?: boolean } = {}) {
+export function InstructorProjectsManagement() {
   const chrome = facultyEmbedChrome("projects")
   const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -178,40 +178,21 @@ export function InstructorProjectsManagement({ embedInDashboard }: { embedInDash
   }, []);
 
   useEffect(() => {
-    setSelectedSession("all");
-    setListPage(1);
-  }, [courseScopeVersion]);
-
-  useEffect(() => {
     setListPage(1);
   }, [selectedSession, statusFilter, searchQuery, listPageSize]);
 
   useEffect(() => {
-    void fetchProjects();
+    fetchProjects();
   }, [selectedSession, statusFilter, courseScopeVersion]);
 
   const fetchProjects = async () => {
     try {
-      setLoading(true);
       const url = buildProjectsListUrl(selectedSession, statusFilter);
-      const response = await instructorApiFetch(url, { headers: getInstructorScopeHeaders() });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setProjects([]);
-        toast({
-          title: "❌ Failed to Load Projects",
-          description:
-            typeof data.error === "string"
-              ? data.error
-              : "Could not retrieve project data from the database. Please refresh the page or check your connection.",
-          variant: "destructive",
-        });
-        return;
-      }
+      const response = await fetch(url, { headers: getInstructorScopeHeaders() });
+      const data = await response.json();
       setProjects(data.projects || []);
     } catch (error) {
       console.error("[v0] Failed to fetch projects:", error);
-      setProjects([]);
       toast({
         title: "❌ Failed to Load Projects",
         description:
@@ -789,7 +770,7 @@ export function InstructorProjectsManagement({ embedInDashboard }: { embedInDash
 
   if (loading) {
     return (
-      <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-10" : "flex items-center justify-center py-16"}>
+      <div className="flex items-center justify-center py-16">
         <div className={cn("flex items-center gap-3 text-sm", PORTAL_TEXT_MUTED)}>
           <div className="size-5 animate-spin rounded-full border-2 border-[var(--cc-accent)] border-t-transparent" aria-hidden />
           Loading projects…
@@ -798,12 +779,8 @@ export function InstructorProjectsManagement({ embedInDashboard }: { embedInDash
     );
   }
 
-  const emptyPanelClass = embedInDashboard
-    ? cn(chrome.card, "flex min-h-0 flex-1 flex-col items-center justify-center border-dashed px-4 py-10 text-center")
-    : cn(chrome.card, "border-dashed py-14 text-center");
-
   return (
-    <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4"}>
+    <div className="space-y-4">
       <FacultyIntegratedToolbar
         moduleId="projects"
         search={searchQuery}
@@ -882,9 +859,9 @@ export function InstructorProjectsManagement({ embedInDashboard }: { embedInDash
       />
 
       {/* Projects Content */}
-      <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col" : undefined}>
+      <div>
         {filteredProjects.length === 0 ? (
-          <div className={emptyPanelClass}>
+          <div className={cn(chrome.card, "border-dashed py-14 text-center")}>
             <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
               <FolderKanban className="h-5 w-5 !text-white" />
             </div>
@@ -896,12 +873,12 @@ export function InstructorProjectsManagement({ embedInDashboard }: { embedInDash
             </p>
           </div>
         ) : viewMode === "card" ? (
-          <div className={cn("grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-3", embedInDashboard && "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2")}>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-3">
             {paginatedProjects.map(renderProjectCard)}
           </div>
         ) : (
           // List View - Compact table-like layout
-          <div className={cn(chrome.card, "divide-y divide-[var(--border)] overflow-hidden", embedInDashboard && "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2")}>
+          <div className={cn(chrome.card, "divide-y divide-[var(--border)] overflow-hidden")}>
             {paginatedProjects.map(renderProjectListItem)}
           </div>
         )}

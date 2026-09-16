@@ -3,11 +3,6 @@
 import { isStudentAuthenticated, setStudentSession } from "@/lib/auth"
 import { persistRememberedStudentAuth } from "@/lib/remembered-auth"
 import type { UniversityRecord } from "@/lib/universities-shared"
-import {
-  captureRefreshTokenFromResponse,
-  readDesktopRefreshToken,
-  withDesktopRefreshInit,
-} from "@/lib/desktop-refresh-token"
 
 export type StudentSessionRefreshResponse = {
   refreshed?: boolean
@@ -116,17 +111,13 @@ export async function tryRestoreStudentSessionFromRefresh(): Promise<boolean> {
     }
 
     try {
-      const res = await fetch(
-        "/api/auth/refresh",
-        withDesktopRefreshInit({
-          method: "POST",
-          credentials: "include",
-        }),
-      )
-      captureRefreshTokenFromResponse(res)
+      const res = await fetch("/api/auth/refresh", {
+        method: "POST",
+        credentials: "include",
+      })
 
       if (!res.ok) {
-        if (res.status === 401 && isStudentAuthenticated() && !readDesktopRefreshToken()) {
+        if (res.status === 401 && isStudentAuthenticated()) {
           sessionStorage.setItem("studentSessionExpired", "1")
           localStorage.removeItem("studentSession")
           sessionStorage.removeItem("studentId")

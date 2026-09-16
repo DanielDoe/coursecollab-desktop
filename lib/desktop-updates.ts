@@ -26,8 +26,38 @@ const WEB_STATUS: DesktopUpdateStatus = {
   message: "The browser app updates automatically.",
 }
 
+const DISMISSED_UPDATE_VERSION_KEY = "cc-desktop-update-dismissed-version"
+
 export function canUseDesktopUpdates(): boolean {
   return Boolean(isDesktopElectronShell() && window.courseCollabDesktop?.getUpdateStatus)
+}
+
+export function getDismissedDesktopUpdateVersion(): string | null {
+  if (typeof window === "undefined") return null
+  try {
+    return window.localStorage.getItem(DISMISSED_UPDATE_VERSION_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function dismissDesktopUpdatePrompt(version: string): void {
+  if (typeof window === "undefined" || !version.trim()) return
+  try {
+    window.localStorage.setItem(DISMISSED_UPDATE_VERSION_KEY, version.trim())
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
+export function shouldPromptDesktopUpdate(
+  status: DesktopUpdateStatus,
+  dismissedVersion: string | null = getDismissedDesktopUpdateVersion(),
+): boolean {
+  if (!status.supported) return false
+  if (status.state !== "available" && status.state !== "ready") return false
+  if (!status.version) return true
+  return status.version !== dismissedVersion
 }
 
 export async function getDesktopUpdateStatus(): Promise<DesktopUpdateStatus> {
@@ -61,7 +91,9 @@ export async function installDesktopUpdate(): Promise<DesktopUpdateStatus> {
 export async function openDesktopUpdateDownloadPage(): Promise<boolean> {
   if (!canUseDesktopUpdates() || !window.courseCollabDesktop?.openUpdateDownloadPage) {
     if (typeof window !== "undefined") {
-      window.open("https://github.com/DanielDoe/coursecollab-desktop/releases/latest", "_blank", "noopener,noreferrer")
+      void window.courseCollabDesktop?.openExternal?.(
+        "https://github.com/DanielDoe/coursecollab-desktop/releases/latest",
+      )
       return true
     }
     return false

@@ -6,8 +6,6 @@ import { cn } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { fetchCoraUsageActivity } from "@/lib/cora/credits-client"
-import { CoraAssessmentAssistanceCard } from "@/components/cora/CoraAssessmentAssistanceCard"
 
 type Role = "student" | "instructor"
 
@@ -26,6 +24,13 @@ type ActivityRow = {
 }
 
 const PAGE_SIZE = 15
+
+function authHeaders(role: Role, userId: number | string): HeadersInit {
+  if (role === "instructor") {
+    return { "x-instructor-id": String(userId) }
+  }
+  return { "x-student-id": String(userId) }
+}
 
 function fmt(n: number) {
   return Math.round(n).toLocaleString()
@@ -73,7 +78,9 @@ export function CoraUsageHistory({
           page: String(nextPage),
         })
         if (q.trim()) params.set("q", q.trim())
-        const res = await fetchCoraUsageActivity(role, userId, params)
+        const res = await fetch(`/api/cora/usage/activity?${params}`, {
+          headers: authHeaders(role, userId),
+        })
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to load")
         const data = (await res.json()) as {
           activity: ActivityRow[]
@@ -106,9 +113,7 @@ export function CoraUsageHistory({
   const canNext = page < totalPages
 
   return (
-    <div className={cn("space-y-4", className)}>
-      {role === "student" ? <CoraAssessmentAssistanceCard /> : null}
-    <Card className="border-border/60">
+    <Card className={cn("border-border/60", className)}>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">Cora usage history</CardTitle>
         <CardDescription>
@@ -207,6 +212,5 @@ export function CoraUsageHistory({
         ) : null}
       </CardContent>
     </Card>
-    </div>
   )
 }

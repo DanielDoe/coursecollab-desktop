@@ -2,9 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import type { AuthUserType } from "@/lib/auth-refresh-tokens"
 import {
   persistRefreshToken,
-  REFRESH_TOKEN_HEADER,
   setRefreshTokenCookie,
-  isDesktopClientRequest,
 } from "@/lib/auth-refresh-tokens"
 import { createMfaDeviceTrust, setMfaTrustCookieOnResponse } from "@/lib/mfa/trust"
 
@@ -102,18 +100,15 @@ export async function completeLoginAfterMfa(
     refreshTarget &&
     (refreshTarget.userType === "student" || refreshTarget.userType === "instructor")
   ) {
-    const desktopClient = isDesktopClientRequest(request)
     const { rawToken, expiresAt } = await persistRefreshToken({
       userType: refreshTarget.userType,
       userId: refreshTarget.userId,
       universityId: refreshTarget.universityId ?? null,
-      rememberMe: Boolean(refreshTarget.rememberMe) || desktopClient,
-      desktopClient,
+      rememberMe: Boolean(refreshTarget.rememberMe),
       userAgent: request.headers.get("user-agent"),
       ipAddress: clientIp(request),
     })
     setRefreshTokenCookie(response, rawToken, expiresAt)
-    response.headers.set(REFRESH_TOKEN_HEADER, rawToken)
   }
 
   if (deviceTrust) {

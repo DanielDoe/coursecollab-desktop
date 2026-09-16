@@ -30,44 +30,6 @@ function dedupeKey(rec: CoraTodayRecommendation): string {
   return rec.id || rec.title.trim().toLowerCase()
 }
 
-function normalizeCourseToken(value: string): string {
-  return value.replace(/\s+/g, "").replace(/-/g, "").toUpperCase()
-}
-
-/** Pull course-like tokens from titles (e.g. ELEG 130X, ELEG1301P01). */
-function extractCourseCodesFromText(text: string): string[] {
-  const matches = text.match(/\b[A-Za-z]{2,6}\s*\d{3,4}[A-Za-z0-9]*\b/g) ?? []
-  return matches.map(normalizeCourseToken)
-}
-
-/** Drop recommendations that clearly reference a different offering than the enrolled course. */
-export function isCourseScopedRecommendationText(
-  text: string,
-  courseCode: string | null | undefined,
-  courseTitle?: string | null,
-): boolean {
-  if (!courseCode?.trim()) return true
-  const enrolled = normalizeCourseToken(courseCode)
-  const enrolledRoot = enrolled.match(/^([A-Z]+\d{4})/)?.[1] ?? null
-
-  const mentions = extractCourseCodesFromText(text)
-  if (mentions.length === 0) return true
-
-  return mentions.some((mention) => {
-    if (mention === enrolled || enrolled.startsWith(mention)) return true
-    const mentionRoot = mention.match(/^([A-Z]+\d{4})/)?.[1] ?? null
-    if (enrolledRoot && mentionRoot) return enrolledRoot === mentionRoot
-    if (courseTitle && text.toUpperCase().includes(courseTitle.toUpperCase())) return true
-    return false
-  })
-}
-
-const GENERIC_API_RECOMMENDATION_TITLES = new Set([
-  "code practice session",
-  "general practice quiz",
-  "review recent lectures",
-])
-
 function fallbackRecommendations(courseCode?: string | null): CoraTodayRecommendation[] {
   const course = courseCode?.trim() || "your course"
   return [
@@ -132,17 +94,10 @@ export function buildStudentCoraTodayRecommendations(
   }
 
   const courseCode = payload.account?.courseCode ?? null
-  const courseTitle = payload.account?.courseTitle ?? null
   const now = Date.now()
 
-  const scopedPush = (rec: CoraTodayRecommendation) => {
-    const blob = `${rec.title} ${rec.description}`
-    if (!isCourseScopedRecommendationText(blob, courseCode, courseTitle)) return
-    push(rec)
-  }
-
   for (const assessment of (payload.missedDeadlines ?? []).slice(0, 2)) {
-    scopedPush(
+    push(
       item(
         `missed-${assessment.id}`,
         `Catch up on ${assessment.title}`,
@@ -156,7 +111,7 @@ export function buildStudentCoraTodayRecommendations(
     const dueMs = assessment.dueDate ? new Date(assessment.dueDate).getTime() : NaN
     if (!Number.isFinite(dueMs) || dueMs < now || dueMs - now > UPCOMING_WINDOW_MS) continue
     const days = Math.max(1, Math.ceil((dueMs - now) / (24 * 60 * 60 * 1000)))
-    scopedPush(
+    push(
       item(
         `upcoming-${assessment.id}`,
         `Prepare for ${assessment.title}`,
@@ -167,7 +122,7 @@ export function buildStudentCoraTodayRecommendations(
   }
 
   for (const topic of collectWeakTopics(payload).slice(0, 2)) {
-    scopedPush(
+    push(
       item(
         `weak-${topic.toLowerCase().replace(/\s+/g, "-")}`,
         `Strengthen ${topic}`,
@@ -178,14 +133,12 @@ export function buildStudentCoraTodayRecommendations(
   }
 
   const lecture =
-    payload.knowledgeGraph?.lectures?.find((row) =>
-      isCourseScopedRecommendationText(row.title, courseCode, courseTitle),
-    ) ??
+    payload.knowledgeGraph?.lectures?.[0] ??
     (payload.digitalNotes?.[0]
       ? { id: payload.digitalNotes[0].id, title: payload.digitalNotes[0].title }
       : null)
-  if (lecture?.title && isCourseScopedRecommendationText(lecture.title, courseCode, courseTitle)) {
-    scopedPush(
+  if (lecture?.title) {
+    push(
       item(
         `lecture-${lecture.id}`,
         `Summarize ${lecture.title}`,
@@ -199,23 +152,22 @@ export function buildStudentCoraTodayRecommendations(
   if (deck) {
     const countLabel =
       typeof deck.cardCount === "number" ? `${deck.cardCount} cards` : "Your deck"
-    scopedPush(
+    push(
       item(
         `deck-${deck.id}`,
         `Study ${deck.title}`,
         `${countLabel} ready — review or ask Cora to explain tricky cards.`,
-        "/student/dashboard-v2/practice/flashcards",
+        "/student/dashboard-v2/practice",
       ),
     )
   }
 
   const nextStudyEvent = (payload.calendarEvents ?? []).find((event) => {
     const startMs = event.start ? new Date(event.start).getTime() : NaN
-    if (!Number.isFinite(startMs) || startMs < now || startMs - now > UPCOMING_WINDOW_MS) return false
-    return isCourseScopedRecommendationText(event.title, courseCode, courseTitle)
+    return Number.isFinite(startMs) && startMs >= now && startMs - now <= UPCOMING_WINDOW_MS
   })
   if (nextStudyEvent?.title) {
-    scopedPush(
+    push(
       item(
         `calendar-${nextStudyEvent.id}`,
         `Plan around ${nextStudyEvent.title}`,
@@ -225,11 +177,7 @@ export function buildStudentCoraTodayRecommendations(
     )
   }
 
-  for (const rec of apiRecommendations) {
-    const titleKey = rec.title.trim().toLowerCase()
-    if (GENERIC_API_RECOMMENDATION_TITLES.has(titleKey)) continue
-    scopedPush(rec)
-  }
+  for (const rec of apiRecommendations) push(rec)
   if (merged.length < 3) {
     for (const rec of fallbackRecommendations(courseCode)) push(rec)
   }

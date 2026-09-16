@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { assertQuizAccessibleInCourse } from "@/lib/quiz-course-access"
+import { ensureQuizPlatformAccessColumn } from "@/lib/ensure-quiz-platform-access-column"
 
 
 
@@ -18,6 +19,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const access = await assertQuizAccessibleInCourse(request, Number(quizId))
     if (!access.ok) return access.response
+
+    await ensureQuizPlatformAccessColumn()
 
     // Fetch the original quiz
     const [quiz] = await sql`
@@ -62,7 +65,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         beta_only,
         max_concurrent_students,
         section_config,
-        counts_toward_course_grade
+        counts_toward_course_grade,
+        platform_access
       )
       VALUES (
         ${quiz.title + " (Copy)"},
@@ -94,7 +98,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         ${quiz.beta_only ?? false},
         ${quiz.max_concurrent_students ?? null},
         ${quiz.section_config == null ? null : toJsonb(quiz.section_config)}::jsonb,
-        ${quiz.counts_toward_course_grade ?? true}
+        ${quiz.counts_toward_course_grade ?? true},
+        ${quiz.platform_access == null ? null : toJsonb(quiz.platform_access)}::jsonb
       )
       RETURNING id
     `

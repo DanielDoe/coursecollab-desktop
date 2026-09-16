@@ -26,7 +26,6 @@ import {
   type SemesterTimelineItem,
 } from "@/lib/student-semester-timeline"
 import { TIMELINE_STATUS_COLORS } from "@/lib/student-color-hunt-theme"
-import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
 
 const TYPE_ICONS = {
   quiz: ClipboardList,
@@ -165,7 +164,6 @@ function ScheduleRow({
   compact?: boolean
   isLast?: boolean
 }) {
-  const desktopNative = isDesktopAppShell()
   const Icon: LucideIcon = TYPE_ICONS[item.type]
   const accent = TYPE_ACCENT[item.type]
   const locked = item.status === "coming_soon" || item.status === "syllabus"
@@ -188,7 +186,7 @@ function ScheduleRow({
     <div
       className={cn(
         "group relative flex min-w-0 gap-3 sm:gap-4",
-        desktopNative ? "py-1.5" : compact ? "py-2" : "py-3",
+        compact ? "py-2" : "py-3",
         href && "cursor-pointer",
       )}
     >
@@ -220,25 +218,20 @@ function ScheduleRow({
 
       <div
         className={cn(
-          desktopNative
-            ? "min-w-0 flex-1 rounded-[6px] px-2 py-1.5 transition-colors"
-            : cn(
-                "min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--card)] transition-colors",
-                compact ? "px-3 py-2.5" : "px-3.5 py-3 sm:px-4",
-                href && "group-hover:border-[var(--cc-accent)]/35 group-hover:bg-[var(--cc-accent-soft)]/20",
-              ),
-          desktopNative && href && "group-hover:bg-[#f3f4f6] dark:group-hover:bg-[#1a1a1a]",
+          "min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--card)] transition-colors",
+          compact ? "px-3 py-2.5" : "px-3.5 py-3 sm:px-4",
+          href && "group-hover:border-[var(--cc-accent)]/35 group-hover:bg-[var(--cc-accent-soft)]/20",
         )}
       >
         <div className="flex items-start gap-2.5">
           <div
             className={cn(
-              "flex shrink-0 items-center justify-center text-white",
-              desktopNative ? "size-6 rounded-[4px] shadow-none" : cn("rounded-lg shadow-sm", compact ? "size-8" : "size-9"),
+              "flex shrink-0 items-center justify-center rounded-lg text-white shadow-sm",
+              compact ? "size-8" : "size-9",
             )}
             style={{ backgroundColor: accent }}
           >
-            <Icon className={desktopNative ? "size-3" : compact ? "size-3.5" : "size-4"} strokeWidth={2} aria-hidden />
+            <Icon className={compact ? "size-3.5" : "size-4"} strokeWidth={2} aria-hidden />
           </div>
 
           <div className="min-w-0 flex-1">

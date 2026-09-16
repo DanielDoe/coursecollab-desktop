@@ -511,7 +511,7 @@ export function ProjectsManager({
   }
 
   return (
-    <div className={cn(embedInDashboard ? "flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4" : "max-w-5xl mx-auto space-y-6 sm:space-y-8 md:space-y-10 p-2")}>
+    <div className={cn(embedInDashboard ? "space-y-3 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4" : "max-w-5xl mx-auto space-y-6 sm:space-y-8 md:space-y-10 p-2")}>
       {!embedInDashboard ? (
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">

@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Progress } from "@/components/ui/progress"
 import {
   Pagination,
   PaginationContent,
@@ -12,7 +12,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import { Zap, AlertCircle, Search, Lock, LayoutGrid, List } from "lucide-react"
+import { Target, Zap, AlertCircle, Search, Lock, Award, Grid3X3, List } from "lucide-react"
 import { usePreventBack } from "@/hooks/use-prevent-back"
 import { usePersistedState } from "@/hooks/use-persisted-state"
 import { useToast } from "@/hooks/use-toast"
@@ -29,15 +29,8 @@ import {
 } from "@/lib/practice-session-count"
 import { usePracticeChrome } from "@/hooks/use-practice-chrome"
 import { practiceChromeKpi } from "@/lib/practice-chrome-theme"
+import { SolidListThumbTile } from "@/components/student/dashboard-v2/SignatureListCard"
 import { PracticeHubBrowseShell } from "@/components/student/dashboard-v2/PracticeHubBrowseShell"
-import { PracticeTopicCard } from "@/components/student/dashboard-v2/PracticeTopicCard"
-import { getStudentModuleTheme } from "@/lib/student-module-themes"
-import {
-  portalViewOrganizerActiveClass,
-  portalViewOrganizerContainerClass,
-  portalViewOrganizerInactiveClass,
-  portalSelectedOutlineClass,
-} from "@/lib/portal-module-themes"
 
 interface TopicProgress {
   name: string
@@ -81,7 +74,6 @@ export function PracticeHubDashboardV2() {
   const router = useRouter()
   const { toast } = useToast()
   const { roles, accent } = usePracticeChrome()
-  const practiceTheme = getStudentModuleTheme("practice")
   usePreventBack("/student/login")
 
   const [studentId, setStudentId] = useState<number | null>(null)
@@ -146,21 +138,6 @@ export function PracticeHubDashboardV2() {
     fetchLeaderboard(studentDbId, studentData.section, courseId)
     fetchRecentSessions(studentDbId)
   }, [router])
-
-  useEffect(() => {
-    const studentData = getStudentData()
-    if (!studentData?.databaseId) return
-    const studentDbId = Number.parseInt(studentData.databaseId)
-    const courseId = getStudentCourseIdFromSession()
-
-    const refresh = () => {
-      fetchTopicsWithProgress(studentDbId, studentData.section, courseId)
-      fetchRecentSessions(studentDbId)
-    }
-
-    window.addEventListener("focus", refresh)
-    return () => window.removeEventListener("focus", refresh)
-  }, [])
 
   const fetchTopicsWithProgress = async (
     studentDbId: number,
@@ -332,7 +309,6 @@ export function PracticeHubDashboardV2() {
         }
         sessionStorage.setItem("practiceAttemptId", data.attemptId.toString())
         sessionStorage.setItem("practiceQuestions", JSON.stringify(data.questions))
-        sessionStorage.setItem(`practiceQuestions:${data.attemptId}`, JSON.stringify(data.questions))
         router.push("/student/dashboard-v2/practice/quiz")
       } else {
         toast({
@@ -350,7 +326,7 @@ export function PracticeHubDashboardV2() {
 
   if (loading) {
     return (
-      <div className="flex min-h-[280px] items-center justify-center rounded-xl bg-[var(--muted)]/20">
+      <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--muted)]/20">
         <div className="animate-pulse text-[var(--cc-text-muted)]">Loading Practice Hub…</div>
       </div>
     )
@@ -378,126 +354,68 @@ export function PracticeHubDashboardV2() {
         badges: badges.length,
       }}
     >
-      <div className="@container/practice flex min-w-0 flex-col gap-4">
-        {/* Session controls — single compact row when space allows */}
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2.5 rounded-lg bg-[var(--muted)]/20 px-3 py-2.5 sm:px-4 sm:py-3">
-          <div className="flex min-w-0 max-w-full items-baseline gap-2 @min-[420px]/practice:max-w-[min(100%,11rem)] @min-[560px]/practice:max-w-[min(100%,13rem)]">
-            <p className="truncate text-base font-semibold leading-tight text-[var(--cc-text)]">
-              {selectedTopic ?? "Select a topic"}
-            </p>
-            {selectedTopicData ? (
-              <span className="shrink-0 text-xs leading-tight text-[var(--cc-text-muted)]">
-                {selectedSessionCount}q
-                {selectedLocked > 0 ? ` · ${selectedUnlocked} unlocked` : ""}
-              </span>
-            ) : (
-              <span className="hidden text-xs leading-tight text-[var(--cc-text-muted)] @min-[420px]/practice:inline">
-                Pick difficulty
-              </span>
-            )}
-          </div>
-
-          <span
-            className="hidden h-5 w-px shrink-0 bg-[color-mix(in_srgb,var(--cc-text)_10%,transparent)] @min-[420px]/practice:block"
-            aria-hidden
-          />
-
-          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Difficulty">
-              {DIFFICULTIES.map((level) => (
-                <button
-                  key={level}
-                  type="button"
-                  onClick={() => setDifficulty(level)}
-                  className={cn(
-                    "rounded-full px-3 py-1.5 text-xs font-medium capitalize whitespace-nowrap transition-colors sm:px-3.5 sm:py-2 sm:text-sm",
-                    difficulty === level
-                      ? portalSelectedOutlineClass(practiceTheme)
-                      : "bg-[var(--muted)] text-[var(--cc-text-muted)] hover:text-[var(--cc-text)]",
-                  )}
-                >
-                  {level}
-                </button>
-              ))}
+      <div className="flex min-w-0 flex-col gap-3">
+        <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4">
+          <div className="flex min-w-0 items-end justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cc-text-muted)]">
+                Topics
+              </p>
+              <p className="mt-0.5 truncate text-sm text-[var(--cc-text)]">
+                {filteredTopics.length} topic{filteredTopics.length === 1 ? "" : "s"}
+                {totalTopicPages > 1 ? (
+                  <span className="text-[var(--cc-text-muted)]">
+                    {" "}
+                    · page {safeTopicPage} of {totalTopicPages}
+                  </span>
+                ) : null}
+                <span className="text-[var(--cc-text-muted)]">
+                  {selectedTopic ? ` · ${selectedTopic}` : " · pick a topic"}
+                  {selectedTopicData ? ` · ${selectedSessionCount} questions` : ""}
+                </span>
+              </p>
             </div>
-            {selectedTopicLocked ? (
-              <Button
-                onClick={() => router.push(membershipHref)}
-                className="h-9 shrink-0 rounded-lg border-0 px-3.5 text-sm shadow-none hover:opacity-90"
-                style={{ backgroundColor: roles.cta.fill, color: roles.cta.icon }}
-              >
-                <Lock className="mr-1.5 h-4 w-4" />
-                Upgrade
-              </Button>
-            ) : (
-              <Button
-                onClick={() => void handleStartPractice()}
-                disabled={generating || !selectedTopic}
-                className="h-9 shrink-0 rounded-lg border-0 px-3.5 text-sm shadow-none hover:opacity-90 disabled:opacity-50"
-                style={{ backgroundColor: roles.cta.fill, color: roles.cta.icon }}
-              >
-                {generating ? (
-                  <Zap className="mr-1.5 h-4 w-4 animate-pulse" />
-                ) : (
-                  <Zap className="mr-1.5 h-4 w-4" />
+            <div className="inline-flex h-9 shrink-0 items-stretch rounded-xl border border-[var(--border)] bg-[var(--muted)]/40 p-0.5">
+              <button
+                type="button"
+                aria-label="Card view"
+                onClick={() => setViewMode("card")}
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-lg",
+                  viewMode === "card"
+                    ? "bg-[var(--cc-accent)] text-white"
+                    : "text-[var(--cc-text-muted)]",
                 )}
-                {generating ? "Generating…" : "Start"}
-              </Button>
-            )}
+              >
+                <Grid3X3 className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="List view"
+                onClick={() => setViewMode("list")}
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-lg",
+                  viewMode === "list"
+                    ? "bg-[var(--cc-accent)] text-white"
+                    : "text-[var(--cc-text-muted)]",
+                )}
+              >
+                <List className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="relative h-10 min-w-0 flex-1">
+          <div className="relative h-10 min-w-0">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--cc-text-muted)]" />
-            <Input
+            <input
               type="search"
               value={topicSearch}
               onChange={(event) => setTopicSearch(event.target.value)}
               placeholder="Search topics…"
-              className="h-10 w-full rounded-full border-0 bg-[var(--sidebar-accent)]/50 pl-10 text-[var(--cc-text)] placeholder:text-[var(--cc-text-muted)] shadow-none focus-visible:bg-[var(--sidebar-accent)]/70 focus-visible:ring-1 focus-visible:ring-[var(--cc-accent)]/30"
+              className="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--muted)]/40 pl-10 pr-3 text-sm text-[var(--cc-text)] placeholder:text-[var(--cc-text-muted)] outline-none focus:border-[var(--cc-accent)]/40"
             />
           </div>
-          <div className={portalViewOrganizerContainerClass()} role="group" aria-label="View organizer">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => setViewMode("card")}
-              className={cn(
-                "shadow-none",
-                viewMode === "card"
-                  ? portalViewOrganizerActiveClass(practiceTheme)
-                  : portalViewOrganizerInactiveClass(),
-              )}
-              aria-label="Card view"
-              aria-pressed={viewMode === "card"}
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => setViewMode("list")}
-              className={cn(
-                "shadow-none",
-                viewMode === "list"
-                  ? portalViewOrganizerActiveClass(practiceTheme)
-                  : portalViewOrganizerInactiveClass(),
-              )}
-              aria-label="List view"
-              aria-pressed={viewMode === "list"}
-            >
-              <List className="h-4 w-4" />
-            </Button>
-          </div>
         </div>
-
-        <p className="text-xs text-[var(--cc-text-muted)]">
-          {filteredTopics.length} topic{filteredTopics.length === 1 ? "" : "s"}
-          {totalTopicPages > 1 ? ` · page ${safeTopicPage} of ${totalTopicPages}` : ""}
-        </p>
 
         {!canStartPractice ? (
           <Alert className="border-0 bg-[var(--muted)]/30">
@@ -535,8 +453,8 @@ export function PracticeHubDashboardV2() {
               className={cn(
                 "min-h-0",
                 viewMode === "card"
-                  ? "grid grid-cols-1 gap-4 @min-[560px]/practice:grid-cols-2"
-                  : "flex flex-col gap-3",
+                  ? "grid grid-cols-1 gap-2 sm:grid-cols-2"
+                  : "flex flex-col gap-2",
               )}
             >
               {paginatedTopics.map((topic, index) => {
@@ -544,6 +462,7 @@ export function PracticeHubDashboardV2() {
               const unlocked = practiceTopicUnlockedCount(topic)
               const topicLocked = isPracticeTopicLocked(topic, canStartPractice)
               const poolComplete = unlocked > 0 && topic.completed >= unlocked
+              const progressDenom = Math.max(1, unlocked)
               const isSelected = selectedTopic === topic.name && !topicLocked
               const thumb = topicLocked
                 ? roles.topicLocked
@@ -552,19 +471,12 @@ export function PracticeHubDashboardV2() {
                   : poolComplete
                     ? roles.topicDone
                     : practiceChromeKpi(globalIndex, roles)
+              const TopicIcon = topicLocked ? Lock : poolComplete ? Award : Target
 
               return (
-                <PracticeTopicCard
+                <button
                   key={topic.name}
-                  name={topic.name}
-                  progressLabel={practiceTopicProgressLabel(topic)}
-                  accuracy={topic.accuracy}
-                  completed={topic.completed}
-                  unlocked={unlocked}
-                  thumb={thumb}
-                  viewMode={viewMode}
-                  isSelected={isSelected}
-                  locked={topicLocked}
+                  type="button"
                   onClick={() => {
                     if (topicLocked) {
                       toast({
@@ -576,19 +488,43 @@ export function PracticeHubDashboardV2() {
                     }
                     setSelectedTopic(topic.name)
                   }}
-                />
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] text-left transition-colors",
+                    topicLocked ? "cursor-not-allowed opacity-70" : "hover:bg-[var(--muted)]/30",
+                    isSelected &&
+                      "border-[color-mix(in_srgb,var(--cc-accent)_35%,var(--border))] bg-[var(--cc-accent-soft)]",
+                    viewMode === "card" ? "min-h-[108px] p-3.5" : "h-[88px] px-3 py-2.5",
+                  )}
+                >
+                  <SolidListThumbTile thumb={thumb} icon={TopicIcon} size="compact" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-[var(--cc-text)]">{topic.name}</p>
+                    <p className="mt-0.5 truncate text-xs text-[var(--cc-text-muted)]">
+                      {practiceTopicProgressLabel(topic)} · {topic.accuracy.toFixed(0)}% accuracy
+                    </p>
+                    {viewMode === "card" ? (
+                      <Progress
+                        value={(topic.completed / progressDenom) * 100}
+                        className="mt-2 h-1.5"
+                      />
+                    ) : null}
+                  </div>
+                  <span className="shrink-0 text-[11px] tabular-nums text-[var(--cc-text-muted)]">
+                    {topic.completed}/{unlocked}
+                  </span>
+                </button>
               )
             })}
             </div>
 
             {filteredTopics.length > topicsPerPage ? (
-              <div className="flex flex-col gap-2 pt-1 @min-[480px]/practice:flex-row @min-[480px]/practice:items-center @min-[480px]/practice:justify-between">
-                <p className="text-center text-xs text-[var(--cc-text-muted)] @min-[480px]/practice:text-left">
+              <div className="flex flex-col gap-2 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+                <p className="text-center text-xs text-[var(--cc-text-muted)] sm:text-left">
                   Showing {(safeTopicPage - 1) * topicsPerPage + 1}–
                   {Math.min(safeTopicPage * topicsPerPage, filteredTopics.length)} of{" "}
                   {filteredTopics.length}
                 </p>
-                <Pagination className="mx-0 w-auto justify-center @min-[480px]/practice:justify-end">
+                <Pagination className="mx-0 w-auto justify-center sm:justify-end">
                   <PaginationContent>
                     <PaginationItem>
                       <PaginationPrevious
@@ -639,6 +575,60 @@ export function PracticeHubDashboardV2() {
             ) : null}
           </>
         )}
+
+        <div className="sticky bottom-0 z-10 flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:flex-row sm:items-center sm:p-4">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-[var(--cc-text)]">
+              {selectedTopic ?? "Select a topic"}
+            </p>
+            <p className="text-xs text-[var(--cc-text-muted)]">
+              {selectedTopicData
+                ? `${selectedSessionCount} questions${selectedLocked > 0 ? ` · ${selectedUnlocked} unlocked` : ""}`
+                : "Difficulty applies to the next session"}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {DIFFICULTIES.map((level) => (
+              <button
+                key={level}
+                type="button"
+                onClick={() => setDifficulty(level)}
+                className="rounded-full px-3 py-1 text-xs font-medium capitalize"
+                style={
+                  difficulty === level
+                    ? { backgroundColor: "var(--cc-accent-soft)", color: "var(--cc-text)" }
+                    : { backgroundColor: "var(--muted)", color: "var(--cc-text-muted)" }
+                }
+              >
+                {level}
+              </button>
+            ))}
+          </div>
+          {selectedTopicLocked ? (
+            <Button
+              onClick={() => router.push(membershipHref)}
+              className="h-10 shrink-0 rounded-xl border-0 shadow-none hover:opacity-90"
+              style={{ backgroundColor: roles.cta.fill, color: roles.cta.icon }}
+            >
+              <Lock className="mr-1.5 h-4 w-4" />
+              Upgrade
+            </Button>
+          ) : (
+            <Button
+              onClick={() => void handleStartPractice()}
+              disabled={generating || !selectedTopic}
+              className="h-10 shrink-0 rounded-xl border-0 shadow-none hover:opacity-90 disabled:opacity-50"
+              style={{ backgroundColor: roles.cta.fill, color: roles.cta.icon }}
+            >
+              {generating ? (
+                <Zap className="mr-1.5 h-4 w-4 animate-pulse" />
+              ) : (
+                <Zap className="mr-1.5 h-4 w-4" />
+              )}
+              {generating ? "Generating…" : "Start"}
+            </Button>
+          )}
+        </div>
       </div>
     </PracticeHubBrowseShell>
   )

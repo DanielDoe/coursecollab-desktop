@@ -18,6 +18,7 @@ import { SessionExpiryGuard } from "@/components/auth/SessionExpiryGuard"
 import { SystemErrorCapture } from "@/components/system-error-capture"
 import { SystemErrorBoundary } from "@/components/system-error-boundary"
 import { NativeWebBridgeListener } from "@/components/native-web-bridge-listener"
+import { DesktopRefreshFetchBridge } from "@/components/desktop/DesktopRefreshFetchBridge"
 import { UserTimezoneProvider } from "@/components/providers/user-timezone-provider"
 import { AppConfirmProvider } from "@/components/providers/app-confirm-provider"
 import { AppQueryProvider } from "@/components/providers/app-query-provider"
@@ -186,6 +187,7 @@ export default async function RootLayout({
             <UserTimezoneProvider initialTimezone={initialTimezone}>
             <NotificationProvider>
               <NativeWebBridgeListener />
+              <DesktopRefreshFetchBridge />
               <SessionCatalogProvider>
                 <SystemErrorBoundary moduleName="Platform Module">
                   <Suspense fallback={null}>{children}</Suspense>

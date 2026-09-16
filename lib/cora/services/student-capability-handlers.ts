@@ -246,7 +246,6 @@ async function handleOfficeHoursBook(ctx: CapabilityExecutionContext): Promise<C
       link: "/instructor/office-hours",
       source_type: "office_hour",
       source_id: String(requestId),
-      courseId: ctx.courseId ?? null,
     })
   } catch {
     /* non-critical */

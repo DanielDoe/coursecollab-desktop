@@ -4,8 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { z } from "zod"
 import { CourseCollabLogo } from "@/components/course-collab-logo"
-import { Eye, EyeOff, AlertCircle, Lock, Shield, User } from "lucide-react"
-import { Spinner } from "@/components/ui/spinner"
+import { Eye, EyeOff, ArrowRight, Lock, User, AlertCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,7 +14,6 @@ import { MfaLoginStep, parseMfaLoginResponse, type MfaLoginState } from "@/compo
 import { appendNativeAppQuery } from "@/lib/mobile-native-app"
 import { useNativeApp } from "@/hooks/use-native-app"
 import { cn } from "@/lib/utils"
-import { DesktopAuthBackLink, DesktopAuthPageHeader, desktopAuth } from "@/components/auth/desktop-auth-primitives"
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -29,19 +27,9 @@ interface AdminLoginFormProps {
   idPrefix?: string
   className?: string
   nativeApp?: boolean
-  variant?: "default" | "desktop"
-  backHref?: string
-  backLabel?: string
 }
 
-export function AdminLoginForm({
-  idPrefix = "",
-  className,
-  nativeApp = false,
-  variant = "default",
-  backHref,
-  backLabel = "Back",
-}: AdminLoginFormProps) {
+export function AdminLoginForm({ idPrefix = "", className, nativeApp = false }: AdminLoginFormProps) {
   const router = useRouter()
   const detectedNative = useNativeApp()
   const isNative = nativeApp || detectedNative
@@ -145,15 +133,13 @@ export function AdminLoginForm({
     if (submitError) setSubmitError("")
   }
 
-  const isDesktop = variant === "desktop"
-  const inputClass = isDesktop
-    ? desktopAuth.input
-    : "rounded-xl border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 dark:focus:border-violet-500 transition-colors pl-10"
-  const labelClass = isDesktop ? desktopAuth.label : "text-sm font-medium text-slate-700 dark:text-slate-300"
+  const inputClass =
+    "rounded-xl border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800/50 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 dark:focus:border-violet-500 transition-colors"
+  const labelClass = "text-sm font-medium text-slate-700 dark:text-slate-300"
 
   if (mfaState) {
     return (
-      <div className={cn(isDesktop ? "w-full" : "w-full rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/90 dark:bg-slate-900/60 backdrop-blur-xl p-6 sm:p-8", className)}>
+      <div className={cn("w-full rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/90 dark:bg-slate-900/60 backdrop-blur-xl p-6 sm:p-8", className)}>
         <MfaLoginStep
           state={mfaState}
           portalLabel="CourseCollab Admin"
@@ -174,31 +160,26 @@ export function AdminLoginForm({
   }
 
   return (
-    <div className={cn(isDesktop ? "w-full space-y-5" : "w-full rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/90 dark:bg-slate-900/60 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.08)] dark:shadow-none overflow-hidden", className)}>
-      {isDesktop ? (
-        <DesktopAuthPageHeader
-          icon={Shield}
-          title="Admin sign in"
-          subtitle="Secure access to CourseCollab administration"
-        />
-      ) : (
+    <div
+      className={cn(
+        "w-full rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/90 dark:bg-slate-900/60 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.08)] dark:shadow-none overflow-hidden",
+        className,
+      )}
+    >
       <div className="px-6 sm:px-8 pt-8 pb-6 border-b border-slate-200/80 dark:border-white/10 bg-slate-50/50 dark:bg-white/5">
         <div className="flex justify-center mb-4">
           <CourseCollabLogo size="sm" />
         </div>
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white text-center font-semibold">
-          Admin sign in
-        </h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white text-center">Admin sign in</h1>
         <p className="text-slate-600 dark:text-slate-400 text-center text-sm mt-1">
           Secure access to CourseCollab administration
         </p>
       </div>
-      )}
 
-      <div className={cn(!isDesktop && "p-6 sm:p-8")}>
-        <form onSubmit={handleSubmit} className={cn(isDesktop ? "space-y-4" : "space-y-5")}>
+      <div className="p-6 sm:p-8">
+        <form onSubmit={handleSubmit} className="space-y-5">
           {submitError && (
-            <div className={cn("bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-3 flex items-start gap-2", isDesktop ? "rounded-[10px]" : "rounded-xl")}>
+            <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-3 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <span>{submitError}</span>
             </div>
@@ -216,9 +197,7 @@ export function AdminLoginForm({
               Username
             </Label>
             <div className="relative">
-              {!isDesktop ? (
-                <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              ) : null}
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
               <Input
                 id={`${idPrefix}username`}
                 name="username"
@@ -227,7 +206,7 @@ export function AdminLoginForm({
                 value={formData.username}
                 onChange={handleInputChange}
                 disabled={loading || isLocked}
-                className={cn(inputClass, !isDesktop && "pl-10", errors.username && "border-red-500")}
+                className={cn(inputClass, "pl-10", errors.username && "border-red-500")}
                 required
               />
             </div>
@@ -244,9 +223,7 @@ export function AdminLoginForm({
               Password
             </Label>
             <div className="relative">
-              {!isDesktop ? (
-                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              ) : null}
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
               <Input
                 id={`${idPrefix}password`}
                 name="password"
@@ -255,7 +232,7 @@ export function AdminLoginForm({
                 value={formData.password}
                 onChange={handleInputChange}
                 disabled={loading || isLocked}
-                className={cn(inputClass, !isDesktop && "pl-10", "pr-10", errors.password && "border-red-500")}
+                className={cn(inputClass, "pl-10 pr-10", errors.password && "border-red-500")}
                 required
               />
               <button
@@ -276,27 +253,23 @@ export function AdminLoginForm({
             )}
           </div>
 
-          <div className={cn(isDesktop ? desktopAuth.actionStack : "space-y-2 pt-1")}>
-            <Button
-              type="submit"
-              disabled={loading || isLocked}
-              className={cn(
-                isDesktop
-                  ? cn(desktopAuth.button, "rounded-md")
-                  : "w-full rounded-xl bg-violet-600 hover:bg-violet-700 dark:bg-violet-500 dark:hover:bg-violet-600 text-white font-semibold shadow-lg shadow-violet-900/20 py-4 text-base hover:shadow-violet-900/30",
-              )}
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <Spinner size="sm" />
-                  Signing in…
-                </span>
-              ) : (
-                isDesktop ? "Sign in" : "Continue to Dashboard"
-              )}
-            </Button>
-            {backHref ? <DesktopAuthBackLink href={backHref} label={backLabel} className="mt-0" /> : null}
-          </div>
+          <Button
+            type="submit"
+            disabled={loading || isLocked}
+            className="w-full rounded-xl bg-violet-600 hover:bg-violet-700 dark:bg-violet-500 dark:hover:bg-violet-600 text-white shadow-lg shadow-violet-900/20 py-4 text-base font-semibold transition-all hover:shadow-violet-900/30"
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Signing in…
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                Continue to Dashboard
+                <ArrowRight className="h-4 w-4" />
+              </span>
+            )}
+          </Button>
         </form>
       </div>
     </div>

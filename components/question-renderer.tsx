@@ -12,7 +12,6 @@ import { AiFeedbackMarkdown } from "@/components/ai-feedback-markdown"
 import { isQuizMcqOptionCorrect } from "@/lib/question-bank-preview"
 import { formatEngineeringQuestionText } from "@/lib/engineering-question-text"
 import { PlotUpload } from "@/components/plot-upload"
-import dynamic from "next/dynamic"
 import { motion } from "framer-motion"
 import { queueEvent } from "@/lib/observability"
 import { useGeminiDetector } from "@/hooks/use-gemini-detector"
@@ -39,8 +38,7 @@ import type { PracticeAnswerReview } from "@/lib/practice-answer-review"
 import { resolveSelectAllCorrectLetters } from "@/lib/practice-answer-review"
 import { PracticeAnswerReviewBanner } from "@/components/practice-answer-review-banner"
 
-const MonacoBase = dynamic(() => import("@monaco-editor/react"), { ssr: false })
-const MonacoEditor = memo(MonacoBase)
+import { QuizAssessmentMonacoEditor } from "@/components/quiz-assessment-monaco-editor"
 
 function FeedbackMarkdown({ text, className = "text-sm" }: { text: string; className?: string }) {
   if (!text?.trim()) return null
@@ -1430,10 +1428,9 @@ export const QuestionRenderer = memo(function QuestionRenderer({
             className="border border-slate-200 dark:border-slate-500 rounded-lg overflow-hidden"
             onContextMenu={!isPreviewMode ? (e) => e.preventDefault() : undefined}
           >
-            <MonacoEditor
+            <QuizAssessmentMonacoEditor
               height={monacoHeight}
               language="cpp"
-              theme="vs-dark"
               value={code || ""}
               onMount={(editor) => {
                 editorRef.current = editor
@@ -1508,47 +1505,38 @@ export const QuestionRenderer = memo(function QuestionRenderer({
                   console.log("[QuestionRenderer] Could not set up keyboard blocking:", error)
                 }
               }}
-              onChange={(value) => {
-                const v = value || ""
-                // Log code edit
+              onChange={(v) => {
                 queueEvent("quiz", "codeWrite", "CODE_EDIT", {
                   questionId: question.id,
                   questionType: questionType,
                   codeLength: v.length,
-                  lineCount: v.split('\n').length
+                  lineCount: v.split("\n").length,
                 }, "info")
-                
-                // CRITICAL FIX: Always update code immediately (no debounce for state)
-                // This ensures we never lose code if student submits quickly
                 onCodeChange(v)
-                
-                // Debounce only for cursor position saving (performance optimization)
                 if (debounceRef.current) clearTimeout(debounceRef.current)
                 debounceRef.current = setTimeout(() => {
                   const pos = editorRef.current?.getPosition()
                   if (pos) {
                     editorRef.current?.setPosition(pos)
-                    try { sessionStorage.setItem(`qpos_${question.id}`, JSON.stringify(pos)) } catch {}
+                    try {
+                      sessionStorage.setItem(`qpos_${question.id}`, JSON.stringify(pos))
+                    } catch {}
                   }
                 }, 100)
               }}
               options={{
-                minimap: { enabled: false },
                 fontSize: 14,
-                lineNumbers: "on",
-                scrollBeyondLastLine: false,
                 automaticLayout: true,
                 formatOnType: false,
                 formatOnPaste: false,
-                autoClosingBrackets: 'never',
-                autoClosingQuotes: 'never',
-                autoIndent: 'none',
+                autoClosingBrackets: "never",
+                autoClosingQuotes: "never",
+                autoIndent: "none",
                 tabSize: 4,
                 insertSpaces: true,
-                wordWrap: 'on',
                 readOnly: isLocked || (showFeedback && !aiFeedback?.aiGraded),
                 contextmenu: isPreviewMode,
-                acceptSuggestionOnEnter: 'off',
+                acceptSuggestionOnEnter: "off",
                 acceptSuggestionOnCommitCharacter: false,
               }}
             />
@@ -1601,10 +1589,9 @@ export const QuestionRenderer = memo(function QuestionRenderer({
               className="border rounded-lg overflow-hidden"
               onContextMenu={!isPreviewMode ? (e) => e.preventDefault() : undefined}
             >
-              <MonacoEditor
+              <QuizAssessmentMonacoEditor
                 height={monacoHeight}
                 language="matlab"
-                theme="vs-dark"
                 value={matlabCode}
                 onMount={(editor) => {
                   editorRef.current = editor
@@ -1685,19 +1672,15 @@ export const QuestionRenderer = memo(function QuestionRenderer({
                   }, 100)
                 }}
                 options={{
-                  minimap: { enabled: false },
                   fontSize: 14,
-                  lineNumbers: "on",
-                  scrollBeyondLastLine: false,
                   automaticLayout: true,
                   formatOnType: false,
                   formatOnPaste: false,
                   tabSize: 2,
                   insertSpaces: true,
-                  wordWrap: 'on',
                   readOnly: isLocked || (showFeedback && !aiFeedback?.aiGraded),
                   contextmenu: isPreviewMode,
-                  acceptSuggestionOnEnter: 'off',
+                  acceptSuggestionOnEnter: "off",
                   acceptSuggestionOnCommitCharacter: false,
                 }}
               />

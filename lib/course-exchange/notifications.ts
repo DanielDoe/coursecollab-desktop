@@ -23,7 +23,6 @@ export async function notifyCourseExchangeRequestReceived(input: {
     link: `${EXCHANGE_HREF}?tab=received&request=${input.requestId}`,
     source_type: "course_exchange_request",
     source_id: String(input.requestId),
-    instructorId: input.sourceInstructorId,
   })
 
   try {
@@ -61,7 +60,6 @@ export async function notifyCourseExchangeApproved(input: {
     link: `${EXCHANGE_HREF}?tab=${imported ? "shared-with-me" : "sent"}&request=${input.requestId}`,
     source_type: "course_exchange_request",
     source_id: String(input.requestId),
-    instructorId: input.requesterInstructorId,
   })
 
   try {
@@ -100,7 +98,6 @@ export async function notifyCourseExchangeRejected(input: {
     link: `${EXCHANGE_HREF}?tab=sent&request=${input.requestId}`,
     source_type: "course_exchange_request",
     source_id: String(input.requestId),
-    instructorId: input.requesterInstructorId,
   })
 
   try {
@@ -121,8 +118,6 @@ export async function notifyCourseExchangeRejected(input: {
 export async function notifyCourseExchangeCopyCompleted(input: {
   destinationCourseCode: string
   requestId: number
-  requesterInstructorId: number
-  destinationCourseId?: number | null
 }): Promise<void> {
   await createInstructorNotification({
     type: "course_exchange_completed",
@@ -131,8 +126,6 @@ export async function notifyCourseExchangeCopyCompleted(input: {
     link: `${EXCHANGE_HREF}?tab=shared-with-me&request=${input.requestId}`,
     source_type: "course_exchange_request",
     source_id: String(input.requestId),
-    instructorId: input.requesterInstructorId,
-    courseId: input.destinationCourseId ?? null,
   })
 }
 
@@ -151,7 +144,6 @@ export async function notifyCourseExchangeSupplementRequested(input: {
     link: `${EXCHANGE_HREF}?tab=received&request=${input.requestId}`,
     source_type: "course_exchange_request",
     source_id: String(input.requestId),
-    instructorId: input.sourceInstructorId,
   })
 
   try {
@@ -177,7 +169,6 @@ export async function notifyCourseExchangeCopyFailed(input: {
   sourceCourseCode: string
   requestId: number
   error: string
-  requesterInstructorId: number
 }): Promise<void> {
   await createInstructorNotification({
     type: "course_exchange_failed",
@@ -186,6 +177,5 @@ export async function notifyCourseExchangeCopyFailed(input: {
     link: `${EXCHANGE_HREF}?tab=sent&request=${input.requestId}`,
     source_type: "course_exchange_request",
     source_id: String(input.requestId),
-    instructorId: input.requesterInstructorId,
   })
 }

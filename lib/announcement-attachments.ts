@@ -1,3 +1,5 @@
+import { openDesktopUrl } from "@/lib/desktop-open-url"
+
 export type AnnouncementAttachment = {
   name: string
   url: string
@@ -69,7 +71,7 @@ export function openAnnouncementAttachmentPreview(attachment: AnnouncementAttach
     )
   }
 
-  window.open(attachment.url, "_blank", "noopener,noreferrer")
+  void openDesktopUrl(attachment.url)
 }
 
 /** Parse attachments from JSON/JSONB (including double-encoded strings). */

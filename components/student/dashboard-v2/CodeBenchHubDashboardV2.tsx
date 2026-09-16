@@ -1,5 +1,6 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -13,7 +14,6 @@ import {
   Trophy,
   Zap,
   ChevronRight,
-  Crown,
   LayoutDashboard,
   type LucideIcon,
 } from "lucide-react"
@@ -21,7 +21,6 @@ import { Button } from "@/components/ui/button"
 import { SolidListThumbTile } from "@/components/student/dashboard-v2/SignatureListCard"
 import { ThemeKpiCard } from "@/components/student/dashboard-v2/ThemeKpiCard"
 import { CODEBENCH_PANEL } from "@/lib/codebench/codebench-surface-classes"
-import { EMBED_MATERIAL_PANEL } from "@/components/student/dashboard-v2/embed-module-ui"
 import { FacultyModuleSideMenu } from "@/components/instructor/dashboard-v2/FacultyModuleSideMenu"
 import { FacultyModuleSplitLayout } from "@/components/instructor/dashboard-v2/FacultyModuleSplitLayout"
 import { useCodebenchChrome } from "@/hooks/use-codebench-chrome"
@@ -32,13 +31,11 @@ import { getCurrentXP } from "@/lib/codebench-xp"
 import { cn } from "@/lib/utils"
 import { resolveCodebenchEditorCode, readStoredCodebenchLanguageId } from "@/lib/codebench-languages"
 import type { MembershipTier } from "@/lib/membership-constants"
-import { BadgesTab } from "@/components/codebench/MoreMenu/BadgesTab"
-import { LeaderboardTab } from "@/components/codebench/MoreMenu/LeaderboardTab"
-import { StreakTab } from "@/components/codebench/MoreMenu/StreakTab"
-import { AnalyticsTab } from "@/components/codebench/MoreMenu/AnalyticsTab"
+import { studentTierHasCodeBenchCoraAccess } from "@/lib/codebench-entitlement-client"
+import { CodebenchCoraUpgradeModal } from "@/components/codebench/CodebenchCoraUpgradeModal"
+import { useCodebenchCoraGate } from "@/hooks/use-codebench-cora-gate"
 import { CodebenchStudioCoach } from "@/components/codebench/CodebenchStudioCoach"
 import { DailyChallengeCard } from "@/components/codebench/DailyChallengeCard"
-import { CodebenchInlineEditor } from "@/components/codebench/CodebenchInlineEditor"
 import { StudentLiveClassroomBanner } from "@/components/codebench/StudentLiveClassroomBanner"
 import { useStudentLiveClassroomSessions } from "@/hooks/use-student-live-classroom-sessions"
 import type { StudentLiveClassroomSession } from "@/lib/codebench-live-classroom-types"
@@ -53,9 +50,33 @@ import {
 } from "@/lib/codebench-challenge-handoff"
 import {
   CodebenchAnalyticsSkeleton,
+  CodebenchBadgesSkeleton,
   CodebenchChallengeSkeleton,
-  CodebenchOverviewSkeleton,
+  CodebenchEditorSkeleton,
+  CodebenchLeaderboardSkeleton,
+  CodebenchStreakSkeleton,
 } from "@/components/codebench/CodebenchSkeletons"
+
+const BadgesTab = dynamic(
+  () => import("@/components/codebench/MoreMenu/BadgesTab").then((m) => ({ default: m.BadgesTab })),
+  { loading: () => <CodebenchBadgesSkeleton /> },
+)
+const LeaderboardTab = dynamic(
+  () => import("@/components/codebench/MoreMenu/LeaderboardTab").then((m) => ({ default: m.LeaderboardTab })),
+  { loading: () => <CodebenchLeaderboardSkeleton /> },
+)
+const StreakTab = dynamic(
+  () => import("@/components/codebench/MoreMenu/StreakTab").then((m) => ({ default: m.StreakTab })),
+  { loading: () => <CodebenchStreakSkeleton /> },
+)
+const AnalyticsTab = dynamic(
+  () => import("@/components/codebench/MoreMenu/AnalyticsTab").then((m) => ({ default: m.AnalyticsTab })),
+  { loading: () => <CodebenchAnalyticsSkeleton /> },
+)
+const CodebenchInlineEditor = dynamic(
+  () => import("@/components/codebench/CodebenchInlineEditor").then((m) => ({ default: m.CodebenchInlineEditor })),
+  { ssr: false, loading: () => <CodebenchEditorSkeleton className="min-h-[320px] flex-1" /> },
+)
 
 const MODULE_ID = "codebench"
 
@@ -79,6 +100,8 @@ type BrowseView =
   | "streak"
   | "analytics"
 
+const HUB_STATS_CACHE_KEY = "codebench_hub_stats_cache_v1"
+
 const EMPTY_STATS: HubStats = {
   streakDays: 0,
   badgeCount: 0,
@@ -87,6 +110,25 @@ const EMPTY_STATS: HubStats = {
   challenge: null,
   topBadges: [],
   leaderboardPreview: [],
+}
+
+function readCachedHubStats(): HubStats | null {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = sessionStorage.getItem(HUB_STATS_CACHE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as HubStats
+  } catch {
+    return null
+  }
+}
+
+function writeCachedHubStats(stats: HubStats) {
+  try {
+    sessionStorage.setItem(HUB_STATS_CACHE_KEY, JSON.stringify(stats))
+  } catch {
+    // ignore
+  }
 }
 
 function CodebenchStatCell({
@@ -118,11 +160,16 @@ export function CodeBenchHubDashboardV2() {
   const router = useRouter()
   const { isDark } = useAppearance()
   const { soft, accent, roles } = useCodebenchChrome()
-  const [studentId, setStudentId] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [studentId, setStudentId] = useState<string | null>(() =>
+    typeof window !== "undefined" ? resolveStudentDatabaseId() : null,
+  )
+  const [statsLoading, setStatsLoading] = useState(() => !readCachedHubStats())
+  const [challengeLoading, setChallengeLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [stats, setStats] = useState<HubStats>(EMPTY_STATS)
+  const [stats, setStats] = useState<HubStats>(() => readCachedHubStats() ?? EMPTY_STATS)
   const [tier, setTier] = useState<MembershipTier | null>(null)
+  const coraGate = useCodebenchCoraGate(tier)
+  const hasCora = studentTierHasCodeBenchCoraAccess(tier)
   const [browseView, setBrowseView] = useState<BrowseView>("overview")
   const [editorTool, setEditorTool] = useState<string | null>(null)
   const [liveJoin, setLiveJoin] = useState<{ assignmentId: string; nonce: number } | null>(null)
@@ -178,8 +225,8 @@ export function CodeBenchHubDashboardV2() {
     }
   }, [])
 
-  const loadHub = useCallback(async (studentIdValue: string) => {
-    const xp = getCurrentXP()
+  const loadDailyChallenge = useCallback(async (studentIdValue: string) => {
+    setChallengeLoading(true)
     const today = new Date().toISOString().split("T")[0]
     const savedChallenge = localStorage.getItem(`codebench_challenge_${today}`)
     let challengeCompleted = false
@@ -191,11 +238,8 @@ export function CodeBenchHubDashboardV2() {
       }
     }
 
-    const [streakRes, badgesRes, leaderboardRes, challengeRes] = await Promise.all([
-      fetch(`/api/codebench/streak?studentId=${studentIdValue}`),
-      fetch(`/api/codebench/badges?studentId=${studentIdValue}`),
-      fetch(`/api/codebench/leaderboard?studentId=${studentIdValue}`),
-      fetch("/api/codebench/daily-challenge", {
+    try {
+      const challengeRes = await fetch("/api/codebench/daily-challenge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -203,7 +247,54 @@ export function CodeBenchHubDashboardV2() {
           code: resolveCodebenchEditorCode(readStoredCodebenchLanguageId()),
           learningMode: localStorage.getItem("codebench_learning_mode") || "intermediate",
         }),
-      }).catch(() => null),
+      })
+      if (!challengeRes.ok) return
+
+      const data = await challengeRes.json()
+      const title = String(data.title || data.challenge?.title || "").trim()
+      const description = String(data.description || data.challenge?.description || "").trim()
+      let challenge: CodebenchChallengeHandoff | null = null
+      if (title && description) {
+        challenge = {
+          id: String(data.id || data.challenge?.id || `challenge_${today}`),
+          title,
+          description,
+          difficulty: String(data.difficulty || "Medium"),
+          xpReward: Number(data.xpReward ?? 10) || 10,
+          completed: challengeCompleted,
+          date: String(data.date || today),
+        }
+      } else if (title) {
+        challenge = {
+          id: String(data.id || `challenge_${today}`),
+          title,
+          description: `## Problem\n\n${title}\n\nOpen the workspace to load the full prompt from Cora.`,
+          difficulty: String(data.difficulty || "Medium"),
+          xpReward: Number(data.xpReward ?? 10) || 10,
+          completed: challengeCompleted,
+          date: String(data.date || today),
+        }
+      }
+      if (challenge) {
+        setStats((prev) => {
+          const next = { ...prev, challenge }
+          writeCachedHubStats(next)
+          return next
+        })
+      }
+    } catch {
+      // optional enrichment
+    } finally {
+      setChallengeLoading(false)
+    }
+  }, [])
+
+  const loadHub = useCallback(async (studentIdValue: string) => {
+    const xp = getCurrentXP()
+    const [streakRes, badgesRes, leaderboardRes] = await Promise.all([
+      fetch(`/api/codebench/streak?studentId=${studentIdValue}`),
+      fetch(`/api/codebench/badges?studentId=${studentIdValue}`),
+      fetch(`/api/codebench/leaderboard?studentId=${studentIdValue}`),
     ])
 
     let streakDays = 0
@@ -249,69 +340,43 @@ export function CodeBenchHubDashboardV2() {
       rank = selfRow?.rank ?? data.currentRank ?? null
     }
 
-    let challenge: CodebenchChallengeHandoff | null = null
-    if (challengeRes && "ok" in challengeRes && challengeRes.ok) {
-      const data = await challengeRes.json()
-      const title = String(data.title || data.challenge?.title || "").trim()
-      const description = String(data.description || data.challenge?.description || "").trim()
-      if (title && description) {
-        challenge = {
-          id: String(data.id || data.challenge?.id || `challenge_${today}`),
-          title,
-          description,
-          difficulty: String(data.difficulty || "Medium"),
-          xpReward: Number(data.xpReward ?? 10) || 10,
-          completed: challengeCompleted,
-          date: String(data.date || today),
-        }
-      } else if (title) {
-        challenge = {
-          id: String(data.id || `challenge_${today}`),
-          title,
-          description: `## Problem\n\n${title}\n\nOpen the workspace to load the full prompt from Cora.`,
-          difficulty: String(data.difficulty || "Medium"),
-          xpReward: Number(data.xpReward ?? 10) || 10,
-          completed: challengeCompleted,
-          date: String(data.date || today),
-        }
-      }
-    }
-
-    setStats({
+    const nextStats: HubStats = {
       streakDays,
       badgeCount,
       xp,
       rank,
-      challenge,
+      challenge: null,
       topBadges,
       leaderboardPreview,
+    }
+    setStats((prev) => {
+      const merged = { ...nextStats, challenge: prev.challenge }
+      writeCachedHubStats(merged)
+      return merged
     })
-  }, [])
+    setStatsLoading(false)
+    void loadDailyChallenge(studentIdValue)
+  }, [loadDailyChallenge])
 
   useEffect(() => {
-    const id = resolveStudentDatabaseId()
+    const id = studentId ?? resolveStudentDatabaseId()
     if (!id) {
       router.push("/student/login")
       return
     }
-    setStudentId(id)
+    if (!studentId) setStudentId(id)
+
     void (async () => {
       try {
         const membershipRes = await studentApiFetch(`/api/student/membership?studentId=${id}`)
         if (membershipRes.ok) {
           const data = await membershipRes.json()
-          const nextTier = (data.membership?.tier || "Scholar") as MembershipTier
-          setTier(nextTier)
-          if (nextTier !== "Trailblazer") {
-            setLoading(false)
-            return
-          }
+          setTier((data.membership?.tier || "Scholar") as MembershipTier)
         }
       } catch {
-        // fall through
+        // non-blocking
       }
       await loadHub(id)
-      setLoading(false)
     })()
 
     const onXp = (event: Event) => {
@@ -322,11 +387,13 @@ export function CodeBenchHubDashboardV2() {
     }
     window.addEventListener("codebench-xp-updated", onXp)
     return () => window.removeEventListener("codebench-xp-updated", onXp)
-  }, [loadHub, router])
+  }, [loadHub, router, studentId])
 
   const handleRefresh = async () => {
-    if (!studentId || tier !== "Trailblazer") return
+    if (!studentId) return
     setRefreshing(true)
+    setStatsLoading(true)
+    setChallengeLoading(true)
     try {
       await loadHub(studentId)
     } finally {
@@ -376,85 +443,6 @@ export function CodeBenchHubDashboardV2() {
     isEditorView ? "flex min-h-0 flex-1 flex-col" : "lg:min-h-[min(560px,65vh)]",
   )
   const splitContentClass = cn("min-w-0", isEditorView && "flex min-h-0 flex-1 flex-col")
-
-  if (loading) {
-    const loadingSplit = (
-      <FacultyModuleSplitLayout
-        className={splitLayoutClass}
-        scrollMode={isEditorView ? "panel" : "page"}
-        menuWidthClass="lg:w-52"
-        menu={browseMenu}
-      >
-        <div className={splitContentClass}>
-          {browseView === "editor" ? (
-            <CodebenchInlineEditor
-              key={editorTool || "editor"}
-              initialTool={editorTool}
-              className="h-full min-h-[min(520px,calc(100dvh-14rem))] flex-1 lg:min-h-0"
-            />
-          ) : browseView === "tools" ? (
-            <CodebenchCoraToolsStudio studentId={studentId} />
-          ) : browseView === "badges" ? (
-            <BadgesTab embedInDashboard />
-          ) : browseView === "leaderboard" ? (
-            <LeaderboardTab embedInDashboard />
-          ) : browseView === "streak" ? (
-            <StreakTab embedInDashboard />
-          ) : browseView === "analytics" ? (
-            studentId ? (
-              <AnalyticsTab
-                studentId={studentId}
-                embedInDashboard
-                onOpenEditor={() => {
-                  setEditorTool(null)
-                  setBrowseView("editor")
-                }}
-              />
-            ) : (
-              <CodebenchAnalyticsSkeleton />
-            )
-          ) : browseView === "challenge" ? (
-            <CodebenchChallengeSkeleton />
-          ) : (
-            <CodebenchOverviewSkeleton />
-          )}
-        </div>
-      </FacultyModuleSplitLayout>
-    )
-
-    return (
-      <div className={hubOuterClass}>
-        {isEditorView ? (
-          loadingSplit
-        ) : (
-          <div className={hubScrollClass}>
-            <div className={hubContentClass}>{loadingSplit}</div>
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  if (tier && tier !== "Trailblazer") {
-    return (
-      <div className={cn("flex flex-col gap-4 rounded-xl p-4 sm:flex-row sm:items-center sm:p-5", EMBED_MATERIAL_PANEL)}>
-        <SolidListThumbTile thumb={roles.hero} icon={Crown} />
-        <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-[var(--cc-text)]">Trailblazer required</h3>
-          <p className="mt-0.5 text-sm text-[var(--cc-text-muted)]">
-            CodeBench hub, IDE, and Cora coding tools unlock with Trailblazer membership.
-          </p>
-        </div>
-        <Button
-          className="shrink-0 rounded-xl border-0 shadow-sm hover:opacity-90"
-          style={{ backgroundColor: roles.cta.fill, color: roles.cta.icon }}
-          asChild
-        >
-          <Link href="/student/dashboard-v2/membership">View plans</Link>
-        </Button>
-      </div>
-    )
-  }
 
   const kpiStats = [
     {
@@ -546,7 +534,7 @@ export function CodeBenchHubDashboardV2() {
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 text-xs font-semibold" style={{ color: accent }}>
             <SolidListThumbTile thumb={roles.hero} icon={Sparkles} size="compact" />
-            Trailblazer workspace
+            Student workspace
           </div>
           <h2 className="text-xl font-semibold tracking-tight text-[var(--cc-text)]">Editor</h2>
           <p className="max-w-lg text-sm text-[var(--cc-text-muted)]">
@@ -575,19 +563,24 @@ export function CodeBenchHubDashboardV2() {
   }
 
   const openChallengeCora = () => {
+    if (!hasCora) {
+      coraGate.requestCoraAction("Ask Cora", () => {})
+      return
+    }
     setCoraDrawerOpen(true)
   }
 
   const challengePanel = (
     <DailyChallengeCard
       challenge={stats.challenge}
+      loading={challengeLoading && !stats.challenge}
       onSolve={openChallengeSolve}
       onAskCora={openChallengeCora}
     />
   )
 
   const toolsPanel = (
-    <CodebenchCoraToolsStudio studentId={studentId} />
+    <CodebenchCoraToolsStudio studentId={studentId} coraAccess={hasCora} onLockedCora={coraGate.requestCoraAction} />
   )
 
   const badgesPanel = <BadgesTab embedInDashboard />
@@ -637,16 +630,24 @@ export function CodeBenchHubDashboardV2() {
             onLeave={leaveLiveSession}
           />
           <div className="grid grid-cols-2 gap-x-2.5 gap-y-5 pt-3 sm:grid-cols-4 sm:gap-x-3 sm:gap-y-5">
-            {kpiStats.map((stat) => (
-              <CodebenchStatCell
-                key={stat.label}
-                label={stat.label}
-                value={stat.value}
-                icon={stat.icon}
-                thumbIndex={stat.thumbIndex}
-                footer={stat.footer}
-              />
-            ))}
+            {statsLoading
+              ? Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex flex-col items-center gap-2 opacity-70" aria-hidden>
+                    <div className="h-9 w-9 animate-pulse rounded-lg bg-[var(--muted)]" />
+                    <div className="h-6 w-10 animate-pulse rounded bg-[var(--muted)]" />
+                    <div className="h-2.5 w-14 animate-pulse rounded bg-[var(--muted)]" />
+                  </div>
+                ))
+              : kpiStats.map((stat) => (
+                  <CodebenchStatCell
+                    key={stat.label}
+                    label={stat.label}
+                    value={stat.value}
+                    icon={stat.icon}
+                    thumbIndex={stat.thumbIndex}
+                    footer={stat.footer}
+                  />
+                ))}
           </div>
           {studentId ? (
             <CodebenchStudioCoach
@@ -728,8 +729,16 @@ export function CodeBenchHubDashboardV2() {
           challenge={stats.challenge}
           studentId={studentId}
           mode="challenge"
+          coraAccess={hasCora}
+          onLockedCora={(label) => coraGate.requestCoraAction(label, () => {})}
         />
       ) : null}
+
+      <CodebenchCoraUpgradeModal
+        open={coraGate.upgradeOpen}
+        onClose={coraGate.closeUpgrade}
+        actionLabel={coraGate.actionLabel}
+      />
     </div>
   )
 }

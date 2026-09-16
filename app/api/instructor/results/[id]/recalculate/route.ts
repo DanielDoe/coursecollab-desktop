@@ -32,6 +32,26 @@ export async function POST(
     }
 
     const recalc = await recalculateAttemptScore(access.attemptId, resolvedQuizId)
+
+    const attemptMeta = await sql`
+      SELECT qa.student_id, q.title
+      FROM quiz_attempts qa
+      JOIN quizzes q ON q.id = qa.quiz_id
+      WHERE qa.id = ${access.attemptId}
+      LIMIT 1
+    `
+    const meta = attemptMeta[0] as { student_id?: number; title?: string } | undefined
+    if (meta?.student_id) {
+      const { createNotification } = await import("@/lib/create-notification")
+      void createNotification({
+        studentId: meta.student_id,
+        type: "grade",
+        title: "Grade recalculated",
+        message: `Your score for "${meta.title ?? "assessment"}" was recalculated.`,
+        link: "/student/dashboard-v2/grades",
+      }).catch((err) => console.warn("[recalculate] notify failed:", err))
+    }
+
     return NextResponse.json({
       success: true,
       attemptId: recalc.attemptId,

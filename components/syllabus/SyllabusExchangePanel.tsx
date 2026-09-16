@@ -16,7 +16,6 @@ import { PORTAL_CARD, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/po
 import { cn } from "@/lib/utils"
 import type { DiscoverableSyllabusRow } from "@/lib/syllabus-exchange/types"
 import type { CourseSyllabus } from "@/lib/syllabus/types"
-import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 type SyllabusExchangePanelProps = {
   buildHeaders: () => Record<string, string>
@@ -28,7 +27,6 @@ export function SyllabusExchangePanel({
   onApplied,
 }: SyllabusExchangePanelProps) {
   const chrome = facultyEmbedChrome("syllabus")
-  const { confirm } = useAppConfirm()
   const [query, setQuery] = useState("")
   const [searchInput, setSearchInput] = useState("")
   const [rows, setRows] = useState<DiscoverableSyllabusRow[]>([])
@@ -59,14 +57,13 @@ export function SyllabusExchangePanel({
   }, [load])
 
   const applyTemplate = async (row: DiscoverableSyllabusRow) => {
-    const sessionBit = row.sessionCode ? ` ${row.sessionCode}` : ""
-    const ok = await confirm({
-      title: "Apply syllabus template?",
-      description: `From ${row.instructorName} · ${row.courseCode}${sessionBit}. Your current draft will be replaced.`,
-      confirmLabel: "Apply template",
-      cancelLabel: "Cancel",
-    })
-    if (!ok) return
+    if (
+      !confirm(
+        `Apply syllabus template from ${row.instructorName} · ${row.courseCode}${row.sessionCode ? ` ${row.sessionCode}` : ""}? Your current draft will be replaced.`,
+      )
+    ) {
+      return
+    }
 
     setApplyingId(row.syllabusId)
     try {

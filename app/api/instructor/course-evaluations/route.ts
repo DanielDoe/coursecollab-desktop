@@ -4,8 +4,8 @@ import { computeCourseEvaluationAnalytics } from "@/lib/course-evaluation-analyt
 import {
   COURSE_EVALUATION_SESSION_JOIN,
   courseEvaluationCourseAndClause,
-  evaluationTextBelongsToCourse,
 } from "@/lib/course-evaluation-course-scope"
+import { studentOfferingAndSql } from "@/lib/instructor-session-scope"
 import { ensureCourseEvaluationSchema } from "@/lib/ensure-course-evaluation-schema"
 import { recalculateAndSaveGrade } from "@/lib/grades"
 import { requireInstructorCourse } from "@/lib/instructor-course-scope"
@@ -59,11 +59,13 @@ export async function GET(request: NextRequest) {
     const courseScope = await resolveCourseScope(request)
     if (!courseScope.ok) return courseScope.response
     const courseClause = courseEvaluationCourseAndClause(courseScope.courseId, courseScope.courseCode)
+    const offeringAnd = studentOfferingAndSql(request, courseScope.courseId, "s")
 
     if (view === "analytics") {
       const analytics = await computeCourseEvaluationAnalytics(sessionCode, {
         courseId: courseScope.courseId,
         courseCode: courseScope.courseCode,
+        offeringAnd,
       })
       return NextResponse.json({ success: true, analytics })
     }
@@ -77,6 +79,7 @@ export async function GET(request: NextRequest) {
         ${COURSE_EVALUATION_SESSION_JOIN}
         WHERE ce.id = ${evalId}
           ${courseClause}
+          ${offeringAnd}
         LIMIT 1
       `
       if (rows.length === 0) {
@@ -130,6 +133,7 @@ export async function GET(request: NextRequest) {
         ${GRADE_JOIN}
         WHERE ${statusClause}
           ${courseClause}
+          ${offeringAnd}
         ${listOrderClause}
         LIMIT 200
       `
@@ -144,6 +148,7 @@ export async function GET(request: NextRequest) {
         ${GRADE_JOIN}
         WHERE (ce.session = ${sessionCode} OR s.section = ${sessionCode})
           ${courseClause}
+          ${offeringAnd}
         ORDER BY ce.submitted_at ASC NULLS LAST
         LIMIT 200
       `
@@ -159,6 +164,7 @@ export async function GET(request: NextRequest) {
         WHERE ce.status = ${status}
           AND (ce.session = ${sessionCode} OR s.section = ${sessionCode})
           ${courseClause}
+          ${offeringAnd}
         ORDER BY ce.submitted_at ASC NULLS LAST
         LIMIT 200
       `
@@ -189,31 +195,18 @@ export async function POST(request: NextRequest) {
     const courseScope = await resolveCourseScope(request)
     if (!courseScope.ok) return courseScope.response
 
+    const offeringAnd = studentOfferingAndSql(request, courseScope.courseId, "s")
     const rows = await sql`
       SELECT ce.*, s.section, s.course_id AS student_course_id, sess.course_id AS session_course_id
       FROM course_evaluations ce
       JOIN students s ON s.id = ce.student_id
       ${COURSE_EVALUATION_SESSION_JOIN}
       WHERE ce.id = ${id}
+        ${offeringAnd}
       LIMIT 1
     `
     if (rows.length === 0) {
       return NextResponse.json({ error: "Evaluation not found" }, { status: 404 })
-    }
-    const scopedRow = rows[0] as {
-      student_course_id?: number | null
-      session_course_id?: number | null
-      session?: string | null
-      section?: string | null
-    }
-    if (courseScope.courseId != null) {
-      const inCourse =
-        Number(scopedRow.student_course_id) === courseScope.courseId ||
-        Number(scopedRow.session_course_id) === courseScope.courseId ||
-        evaluationTextBelongsToCourse(scopedRow.section, scopedRow.session, courseScope.courseCode)
-      if (!inCourse) {
-        return NextResponse.json({ error: "Evaluation not found" }, { status: 404 })
-      }
     }
     const evaluation = rows[0] as {
       id: number

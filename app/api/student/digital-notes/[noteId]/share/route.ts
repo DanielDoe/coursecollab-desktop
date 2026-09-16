@@ -102,6 +102,20 @@ export async function PUT(
     await sql`DELETE FROM student_digital_note_shares WHERE note_id = ${noteId}`
 
     if (validIds.length > 0) {
+      const ownerNameRows = await sql`
+        SELECT full_name FROM students WHERE id = ${auth.studentDbId} LIMIT 1
+      `
+      const noteTitleRows = await sql`
+        SELECT title FROM student_digital_notes WHERE id = ${noteId} LIMIT 1
+      `
+      const ownerName = String(
+        (ownerNameRows[0] as { full_name?: string } | undefined)?.full_name ?? "A classmate",
+      )
+      const noteTitle = String(
+        (noteTitleRows[0] as { title?: string } | undefined)?.title ?? "a note",
+      )
+
+      const { createNotification } = await import("@/lib/create-notification")
       for (const sharedWithId of validIds) {
         await sql`
           INSERT INTO student_digital_note_shares (
@@ -116,6 +130,13 @@ export async function PUT(
           )
           ON CONFLICT (note_id, shared_with_student_id) DO NOTHING
         `
+        void createNotification({
+          studentId: sharedWithId,
+          type: "notes",
+          title: "Note shared with you",
+          message: `${ownerName} shared "${noteTitle}" with you.`,
+          link: "/student/dashboard-v2/digital-notes",
+        }).catch((err) => console.warn("[digital-notes share] notify failed:", err))
       }
     }
 

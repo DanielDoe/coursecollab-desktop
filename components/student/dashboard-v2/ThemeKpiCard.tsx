@@ -47,7 +47,7 @@ export function ThemeKpiCard({
           </p>
         </div>
         <div
-          className="flex size-10 shrink-0 items-center justify-center rounded-2xl dark:ring-1 dark:ring-white/10 dark:saturate-[0.78]"
+          className="flex size-10 shrink-0 items-center justify-center rounded-2xl"
           style={{ backgroundColor: thumb.fill, color: thumb.icon }}
           aria-hidden
         >

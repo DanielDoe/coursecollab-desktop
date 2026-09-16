@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
-import { studioPromptBlock } from "@/lib/codebench-studio-analytics"
+import { requireCodebenchCoraStudent } from "@/lib/codebench-request-auth"
 import { jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
@@ -15,9 +14,9 @@ export const maxDuration = 30
 
 export async function POST(request: NextRequest) {
   try {
-    const { code, language = "cpp", studentId, studioContext } = await request.json()
+    const { code, language = "cpp", studentId } = await request.json()
 
-    const auth = await requireCodebenchStudent(request, studentId != null ? String(studentId) : null)
+    const auth = await requireCodebenchCoraStudent(request, studentId != null ? String(studentId) : null)
     if (!auth.ok) return auth.response
 
     if (!code) {
@@ -61,7 +60,7 @@ Format your response as JSON:
   "principles": ["principle1 with explanation", "principle2 with explanation", ...]
 }
 
-Focus on teaching code improvement principles, not writing improved code for them.${studioPromptBlock(studioContext)}`,
+Focus on teaching code improvement principles, not writing improved code for them.`,
         },
         {
           role: "user",

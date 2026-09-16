@@ -5,8 +5,6 @@ import { sql } from "@/lib/db"
 export type StudentAnnouncementsScope = {
   studentDbId: number
   courseId: number | null
-  /** Enrolled `sessions.id` — used when duplicate course rows share a section code. */
-  sessionId: number | null
   sectionRows: string[]
 }
 
@@ -38,37 +36,19 @@ export async function resolveStudentAnnouncementsScope(
     return {
       studentDbId,
       courseId: ctx.courseId,
-      sessionId: ctx.sessionId,
       sectionRows: sectionFilterCodesForSql(sectionHint),
     }
   }
 
   const rows = await sql`
-    SELECT section, session_id, course_id
-    FROM students
-    WHERE id = ${studentDbId}
-    LIMIT 1
+    SELECT section FROM students WHERE id = ${studentDbId} LIMIT 1
   `
   if (!rows.length) return null
 
-  const row = rows[0] as {
-    section: string | null
-    session_id: number | null
-    course_id: number | null
-  }
-  const section = row.section != null ? String(row.section) : ""
-  const sessionId =
-    row.session_id != null && Number.isFinite(Number(row.session_id))
-      ? Math.trunc(Number(row.session_id))
-      : null
-  const courseId =
-    row.course_id != null && Number.isFinite(Number(row.course_id))
-      ? Math.trunc(Number(row.course_id))
-      : null
+  const section = rows[0].section != null ? String(rows[0].section) : ""
   return {
     studentDbId,
-    courseId,
-    sessionId,
+    courseId: null,
     sectionRows: sectionFilterCodesForSql(section),
   }
 }
@@ -77,29 +57,6 @@ function sectionArraySqlLiteral(sectionRows: string[]): string | null {
   if (sectionRows.length === 0) return null
   const esc = (s: string) => s.replace(/'/g, "''")
   return `ARRAY[${sectionRows.map((s) => `'${esc(s)}'`).join(", ")}]::text[]`
-}
-
-/**
- * Fall terms sometimes have duplicate `sessions` rows for the same section code on different
- * `courses.id` values. Faculty posts may land on the catalog course while roster rows still
- * point at the legacy course — match by enrolled session code when section targeting is set.
- */
-function enrolledSessionSectionMatchClause(
-  sessionId: number | null,
-  sectionArray: string,
-): string {
-  if (sessionId == null || !Number.isFinite(sessionId) || sessionId < 1) return "FALSE"
-  const sid = Math.trunc(sessionId)
-  return `(
-    a.target_session IS NOT NULL
-    AND TRIM(a.target_session) = ANY(${sectionArray})
-    AND EXISTS (
-      SELECT 1
-      FROM sessions enrolled_sess
-      WHERE enrolled_sess.id = ${sid}
-        AND TRIM(enrolled_sess.code) = TRIM(a.target_session)
-    )
-  )`
 }
 
 function lifecycleClauses(cols: AnnouncementColumnSet): string {
@@ -121,12 +78,10 @@ export async function studentAnnouncementsWhereClause(
   scope: StudentAnnouncementsScope,
 ): Promise<ReturnType<typeof sql.unsafe>> {
   const cols = await getAnnouncementColumns()
-  const { courseId, sectionRows, sessionId } = scope
+  const { courseId, sectionRows } = scope
   const sectionArray = sectionArraySqlLiteral(sectionRows)
   const cid =
     courseId != null && Number.isFinite(courseId) ? Math.trunc(Number(courseId)) : null
-  const enrolledSessionMatch =
-    sectionArray != null ? enrolledSessionSectionMatchClause(sessionId, sectionArray) : "FALSE"
   const lifecycle = lifecycleClauses(cols)
   const hasCourseId = cols.has("course_id")
   const hasTargetSession = cols.has("target_session")
@@ -148,7 +103,6 @@ export async function studentAnnouncementsWhereClause(
           )
         )
         OR (a.course_id IS NULL AND a.target_session = ANY(${sectionArray}))
-        OR ${enrolledSessionMatch}
       ) AND ${targetStudentClause} AND ${lifecycle}`)
     }
 
@@ -165,7 +119,6 @@ export async function studentAnnouncementsWhereClause(
     if (sectionArray) {
       return sql.unsafe(`(
         a.target_session = ANY(${sectionArray})
-        OR ${enrolledSessionMatch}
       ) AND ${targetStudentClause} AND ${lifecycle}`)
     }
 
@@ -179,7 +132,6 @@ export async function studentAnnouncementsWhereClause(
   if (hasTargetSession && sectionArray) {
     return sql.unsafe(`(
       a.target_session = ANY(${sectionArray})
-      OR ${enrolledSessionMatch}
     ) AND ${targetStudentClause} AND ${lifecycle}`)
   }
 

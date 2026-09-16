@@ -93,6 +93,7 @@ export function InstructorMembershipsPage() {
       description: "Perfect for getting started with the basics",
       price: 0,
       features: [
+        "CodeBench IDE, run/compile, Daily Challenge",
         "1 quiz attempt per assessment",
         "Access to all lecture materials",
         "Forum participation",
@@ -102,7 +103,7 @@ export function InstructorMembershipsPage() {
       limitations: [
         "No leaderboard access",
         "Limited Cora",
-        "No CodeBench access",
+        "Cora in CodeBench requires Explorer or Trailblazer",
         "No early access features",
       ],
       color: "from-slate-400 to-slate-600",
@@ -119,12 +120,12 @@ export function InstructorMembershipsPage() {
         "Access to all lecture materials",
         "Leaderboard participation",
         "3,000 Cora Credits / month",
+        "Cora in CodeBench",
         "Priority support",
       ],
       limitations: [
-        "No CodeBench access",
         "No early access features",
-        "Limited Cora usage",
+        "Lower Cora credit allowance than Trailblazer",
       ],
       color: "from-blue-500 to-cyan-600",
       icon: <Star className="h-6 w-6" />,
@@ -133,14 +134,14 @@ export function InstructorMembershipsPage() {
     {
       id: "Trailblazer",
       name: "Trailblazer",
-      description: "The ultimate learning experience with all features unlocked",
+      description: "Highest existing Cora allowance — same Cora CodeBench tools",
       price: 9.99,
       features: [
         "3 quiz attempts per assessment",
         "Access to all lecture materials",
         "Leaderboard participation",
         "7,500 Cora Credits / month + Cora Lite",
-        "CodeBench IDE access",
+        "Cora in CodeBench",
         "Early access to new features",
         "Priority support",
       ],

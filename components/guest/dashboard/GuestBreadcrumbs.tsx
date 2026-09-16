@@ -199,7 +199,9 @@ export function GuestBreadcrumbs() {
       <div
         className={cn(
           "relative overflow-hidden rounded-xl sm:rounded-2xl",
+          "border border-[var(--border)]",
           "bg-[var(--card)]/95 backdrop-blur-xl",
+          "shadow-[0_2px_12px_rgba(15,23,42,0.06)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.25)]",
           "px-2.5 py-2 sm:px-3 sm:py-2.5",
         )}
       >

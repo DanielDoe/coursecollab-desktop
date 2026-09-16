@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { createNotification } from "@/lib/create-notification"
 import { requireInstructorCourse } from "@/lib/instructor-course-scope"
-import { officeHourRequestInCourseScope } from "@/lib/office-hours-course-scope"
+import { officeHourRequestInOfferingScopeFromRequest } from "@/lib/office-hours-course-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -21,7 +21,11 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid request id" }, { status: 400 })
     }
 
-    const inScope = await officeHourRequestInCourseScope(requestId, scope.course.id)
+    const inScope = await officeHourRequestInOfferingScopeFromRequest(
+      request,
+      requestId,
+      scope.course.id,
+    )
     if (!inScope) {
       return NextResponse.json({ error: "Request not found" }, { status: 404 })
     }
@@ -71,9 +75,17 @@ export async function PATCH(
         : `Your office hours request (${updated.topic}) has been ${status}.`
       await createNotification({
         studentId,
-        type: "forum",
+        type: "office_hours",
         title: "Office Hours Approved",
         message,
+        link: "/student/dashboard-v2/office-hours",
+      })
+    } else if (status && ["rejected", "cancelled", "declined"].includes(String(status).toLowerCase())) {
+      await createNotification({
+        studentId: updated.student_id,
+        type: "office_hours",
+        title: "Office Hours Update",
+        message: `Your office hours request (${updated.topic}) was ${status}.`,
         link: "/student/dashboard-v2/office-hours",
       })
     }

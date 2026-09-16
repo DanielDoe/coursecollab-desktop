@@ -7,7 +7,6 @@ import { CoraCreditPacksPanel } from "@/components/cora/CoraCreditPacksPanel"
 import { CoraUsageHistory } from "@/components/cora/CoraUsageHistory"
 import { EmbedModuleCard } from "@/components/student/dashboard-v2/embed-module-ui"
 import { resolveStudentDatabaseId } from "@/lib/auth"
-import { fetchCoraCreditsBalance } from "@/lib/cora/credits-client"
 import { Button } from "@/components/ui/button"
 
 type Balance = {
@@ -48,7 +47,9 @@ export default function StudentCoraCreditsPage() {
     const id = resolveStudentDatabaseId()
     setStudentId(id)
     if (!id) return
-    void fetchCoraCreditsBalance("student", id)
+    void fetch("/api/cora/credits/balance?role=student", {
+      headers: { "x-student-id": id },
+    })
       .then((r) => r.json())
       .then((data) => setBalance(data))
       .catch(() => setBalance(null))

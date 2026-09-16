@@ -61,6 +61,29 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Notify parent-reply author on nested replies
+    if (parentReplyId) {
+      const parentRows = await sql`
+        SELECT student_id FROM forum_replies WHERE id = ${parentReplyId} LIMIT 1
+      `
+      const parentAuthorId = Number((parentRows[0] as { student_id?: number } | undefined)?.student_id)
+      if (
+        Number.isFinite(parentAuthorId) &&
+        parentAuthorId > 0 &&
+        parentAuthorId !== internalStudentId &&
+        parentAuthorId !== Number(thread.student_id)
+      ) {
+        const authorName = isAnonymous ? "Someone" : studentName
+        await createNotification({
+          studentId: parentAuthorId,
+          type: "forum",
+          title: "Reply to your comment",
+          message: `${authorName} responded to your reply on "${thread.title}"`,
+          link: `/student/forum?thread=${threadId}`,
+        })
+      }
+    }
+
     return NextResponse.json({ success: true, replyId: replyResult[0].id })
   } catch (error) {
     console.error("[v0] Failed to create reply:", error)

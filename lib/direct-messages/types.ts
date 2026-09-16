@@ -15,6 +15,8 @@ export type MessageRecipient = {
   displayName: string
   email: string | null
   subtitle: string
+  /** False for instructor demo accounts when the searcher is another student. */
+  messageable?: boolean
 }
 
 export type ThreadSummary = {

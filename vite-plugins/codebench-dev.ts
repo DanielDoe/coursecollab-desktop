@@ -1,12 +1,12 @@
 import { spawn } from "node:child_process"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { dirname, join } from "node:path"
+import { join } from "node:path"
 import type { IncomingMessage, ServerResponse } from "node:http"
 import type { Plugin } from "vite"
 import { detectCppCompiler } from "../electron/codebench/compilerDetector"
 import { ensureCppToolchain } from "../electron/codebench/toolchain-ensure"
-import { prependPath } from "../electron/codebench/toolchain-paths"
+import { buildCompilerChildEnv } from "../electron/codebench/process-env"
 import type { CompilerInfo } from "../electron/codebench/types"
 
 function isLocalRequest(req: IncomingMessage): boolean {
@@ -93,7 +93,7 @@ async function compileAndRun(sourceCode: string, stdin = "") {
   const workspace = await mkdtemp(join(tmpdir(), "codebench-vite-"))
   const sourcePath = join(workspace, "main.cpp")
   const outputName = process.platform === "win32" ? "program.exe" : "program"
-  const env = prependPath({ ...process.env }, dirname(compiler.path))
+  const env = buildCompilerChildEnv(compiler.path, compiler.compiler)
   try {
     await writeFile(sourcePath, sourceCode, "utf8")
     const compile = await runCommand(
@@ -143,8 +143,12 @@ export function codebenchDevPlugin(): Plugin {
             sendJson(res, 200, await detectCppCompiler())
             return
           }
+          if (req.method === "POST" && url === "/__codebench/warmup") {
+            sendJson(res, 200, await ensureCppToolchain({ installIfMissing: true, mode: "startup" }))
+            return
+          }
           if (req.method === "POST" && url === "/__codebench/ensure") {
-            sendJson(res, 200, await ensureCppToolchain({ installIfMissing: true }))
+            sendJson(res, 200, await ensureCppToolchain({ installIfMissing: true, mode: "full" }))
             return
           }
           if (req.method === "POST" && url === "/__codebench/run") {

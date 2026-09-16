@@ -45,6 +45,7 @@ describe("Classroom Points auth / redact contract", () => {
     assert.match(studentFn, /sqlSubmissionCourseScope/)
     assert.match(studentFn, /redactClassroomPointsStudentSubmission/)
     assert.doesNotMatch(studentFn, /OR session IS NULL/)
+    assert.match(studentFn, /ctx\.sessionCode/)
     assert.match(studentFn, /opts\.studentDbId/)
     assert.doesNotMatch(studentFn, /resolveStudentDatabaseIdFromParam/)
   })
@@ -65,5 +66,13 @@ describe("Classroom Points auth / redact contract", () => {
     assert.match(getOnly, /resolveStudentCourseContextByDbId/)
     assert.match(getOnly, /submissionBelongsToCourse/)
     assert.match(getOnly, /access\.role === "student"|access\.studentDbId/)
+    assert.match(getOnly, /classroomAssignmentSessionMatchesStudent/)
+  })
+
+  it("classroom submission scope never treats NULL session as all ELEG courses", () => {
+    const src = readRel("lib/classroom-submission-scope.ts")
+    assert.doesNotMatch(src, /sqlLegacyElegNullSession/)
+    assert.doesNotMatch(src, /cps\.session IS NULL/)
+    assert.match(src, /classroomAssignmentSessionMatchesStudent/)
   })
 })

@@ -52,20 +52,34 @@ export async function GET(request: NextRequest) {
           q.available_from,
           q.available_until,
           COUNT(DISTINCT qq.id) as question_count,
-          COUNT(DISTINCT qa.id) as total_attempts,
-          COUNT(DISTINCT CASE 
-            WHEN qa.student_id IS NOT NULL 
+          COUNT(DISTINCT CASE WHEN q.course_id = ${courseId} THEN qa.id END) as total_attempts,
+          COUNT(DISTINCT CASE
+            WHEN q.course_id = ${courseId} AND qa.is_final_grade = true THEN qa.student_id
+          END) as finalized_count,
+          COUNT(DISTINCT CASE
+            WHEN q.course_id = ${courseId}
+            AND qa.student_id IS NOT NULL
             AND NOT EXISTS (
-              SELECT 1 FROM quiz_attempts qa2 
-              WHERE qa2.quiz_id = q.id 
-              AND qa2.student_id = qa.student_id 
+              SELECT 1 FROM quiz_attempts qa2
+              WHERE qa2.quiz_id = q.id
+              AND qa2.student_id = qa.student_id
               AND qa2.is_final_grade = true
             )
-            THEN qa.student_id 
+            THEN qa.student_id
           END) as unfinalized_count
         FROM quizzes q
         LEFT JOIN quiz_questions qq ON q.id = qq.quiz_id
-        LEFT JOIN quiz_attempts qa ON q.id = qa.quiz_id AND qa.completed_at IS NOT NULL
+        LEFT JOIN quiz_attempts qa ON q.id = qa.quiz_id
+          AND qa.completed_at IS NOT NULL
+          AND q.course_id = ${courseId}
+          AND EXISTS (
+            SELECT 1
+            FROM students st
+            JOIN sessions sess ON sess.id = st.session_id
+            WHERE st.id = qa.student_id
+              AND st.deleted_at IS NULL
+              AND sess.course_id = ${courseId}
+          )
         WHERE q.deleted_at IS NULL
         AND q.is_saved = true
         AND ${sqlQuizVisibleInCourse("q", actor, instructorId, courseOwnerId, courseId)}
@@ -87,20 +101,34 @@ export async function GET(request: NextRequest) {
           q.available_from,
           q.available_until,
           COUNT(DISTINCT qq.id) as question_count,
-          COUNT(DISTINCT qa.id) as total_attempts,
-          COUNT(DISTINCT CASE 
-            WHEN qa.student_id IS NOT NULL 
+          COUNT(DISTINCT CASE WHEN q.course_id = ${courseId} THEN qa.id END) as total_attempts,
+          COUNT(DISTINCT CASE
+            WHEN q.course_id = ${courseId} AND qa.is_final_grade = true THEN qa.student_id
+          END) as finalized_count,
+          COUNT(DISTINCT CASE
+            WHEN q.course_id = ${courseId}
+            AND qa.student_id IS NOT NULL
             AND NOT EXISTS (
-              SELECT 1 FROM quiz_attempts qa2 
-              WHERE qa2.quiz_id = q.id 
-              AND qa2.student_id = qa.student_id 
+              SELECT 1 FROM quiz_attempts qa2
+              WHERE qa2.quiz_id = q.id
+              AND qa2.student_id = qa.student_id
               AND qa2.is_final_grade = true
             )
-            THEN qa.student_id 
+            THEN qa.student_id
           END) as unfinalized_count
         FROM quizzes q
         LEFT JOIN quiz_questions qq ON q.id = qq.quiz_id
-        LEFT JOIN quiz_attempts qa ON q.id = qa.quiz_id AND qa.completed_at IS NOT NULL
+        LEFT JOIN quiz_attempts qa ON q.id = qa.quiz_id
+          AND qa.completed_at IS NOT NULL
+          AND q.course_id = ${courseId}
+          AND EXISTS (
+            SELECT 1
+            FROM students st
+            JOIN sessions sess ON sess.id = st.session_id
+            WHERE st.id = qa.student_id
+              AND st.deleted_at IS NULL
+              AND sess.course_id = ${courseId}
+          )
         WHERE q.deleted_at IS NULL
         AND ${sqlQuizVisibleInCourse("q", actor, instructorId, courseOwnerId, courseId)}
         ${sql.unsafe(assessmentTypeFilter)}

@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import {
-  ArrowLeft,
   Calendar,
   ExternalLink,
   FileText,
@@ -15,13 +13,17 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { EmbedModuleCard } from "@/components/student/dashboard-v2/embed-module-ui"
+import { PageEnter } from "@/components/student/dashboard-v2/light-motion"
 import { cn } from "@/lib/utils"
+import { dashboardV2PageRootClass } from "@/lib/dashboard-v2-layout"
+import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 import { getFacultyModuleTheme, facultyModuleSpinnerClass } from "@/lib/faculty-module-themes"
 import { FACULTY_DASHBOARD_BASE } from "@/lib/faculty-portal-nav-config"
 import { buildInstructorApiHeaders } from "@/lib/instructor-api-headers"
 import { getAdminData } from "@/lib/auth"
 import { adminApiRequestInit, withAdminIdQuery } from "@/lib/admin-portal-api"
-import { PORTAL_CARD, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
+import { PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
 import type { StudentPlatformRecord } from "@/lib/student-platform-record"
 
 type Props = {
@@ -65,21 +67,16 @@ function assessmentLabel(type: string) {
 }
 
 export function StudentRecordView({ studentDbId, userType = "instructor", embedInDashboard = true }: Props) {
-  const router = useRouter()
+  const chrome = facultyEmbedChrome("student-mgmt")
   const fp = userType === "instructor" ? getFacultyModuleTheme("student-mgmt").page : null
-  const iconBg = fp?.iconBg ?? "bg-blue-100 dark:bg-blue-950/40"
-  const iconText = fp?.iconText ?? "text-blue-600 dark:text-blue-400"
-  const portalCta = fp?.cta ?? "bg-teal-600 hover:bg-teal-700 text-white"
+  const iconBg = fp?.iconBg ?? chrome.p.iconBg
+  const iconText = fp?.iconText ?? chrome.p.iconText
+  const portalCta = fp?.cta ?? chrome.solid
 
   const [record, setRecord] = useState<StudentPlatformRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [typeFilter, setTypeFilter] = useState<string>("all")
-
-  const backHref =
-    userType === "admin"
-      ? "/admin/dashboard-v2/management/students"
-      : `${FACULTY_DASHBOARD_BASE}/management/students`
 
   const resultsBase = embedInDashboard ? `${FACULTY_DASHBOARD_BASE}/results` : "/instructor/results"
 
@@ -139,26 +136,27 @@ export function StudentRecordView({ studentDbId, userType = "instructor", embedI
 
   if (error || !record) {
     return (
-      <div className={cn(PORTAL_CARD, "space-y-4 p-6")}>
+      <div className={cn(chrome.card, "space-y-4 p-6")}>
         <p className="text-sm text-red-600 dark:text-red-400">{error || "Student not found"}</p>
-        <Button variant="outline" size="sm" onClick={() => router.push(backHref)}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to roster
+        <Button variant="outline" size="sm" onClick={fetchRecord}>
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Retry
         </Button>
       </div>
     )
   }
 
   const { student, summary } = record
+  const pointsTotal = (record.classroomPoints ?? []).reduce((s, p) => s + (p.points || 0), 0)
+  const gradeLabel = record.gradebook?.letter_grade
+    || (record.gradebook?.total_score != null ? String(Math.round(record.gradebook.total_score * 10) / 10) : "—")
 
   return (
-    <div className="space-y-6">
+    <PageEnter className={dashboardV2PageRootClass}>
+      <EmbedModuleCard>
+        <div className="w-full min-w-0 space-y-6 p-3 sm:p-4 md:p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-4">
-          <Button variant="ghost" size="sm" className="shrink-0" onClick={() => router.push(backHref)}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Roster
-          </Button>
           <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-xl", iconBg)}>
             <User className={cn("h-6 w-6", iconText)} />
           </div>
@@ -189,15 +187,16 @@ export function StudentRecordView({ studentDbId, userType = "instructor", embedI
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
         {[
+          { label: "Grade", value: gradeLabel },
           { label: "Attempts", value: summary.total_attempts },
-          { label: "Completed", value: summary.completed_attempts },
-          { label: "Finalized", value: summary.finalized_attempts },
-          { label: "Deleted", value: summary.deleted_attempts },
           { label: "Practice", value: summary.practice_attempts },
+          { label: "Lectures", value: (record.lectures ?? []).length },
+          { label: "Flashcards", value: (record.flashcards ?? []).length },
+          { label: "Points", value: pointsTotal },
         ].map((stat) => (
-          <div key={stat.label} className={cn(PORTAL_CARD, "px-4 py-3")}>
+          <div key={stat.label} className={cn(chrome.card, "px-4 py-3")}>
             <p className={cn("text-[11px] font-medium uppercase tracking-wide", PORTAL_TEXT_MUTED)}>{stat.label}</p>
             <p className={cn("text-lg font-semibold", PORTAL_TEXT)}>{stat.value}</p>
           </div>
@@ -208,6 +207,12 @@ export function StudentRecordView({ studentDbId, userType = "instructor", embedI
         <TabsList className="flex h-auto flex-wrap gap-1">
           <TabsTrigger value="assessments">Assessments ({record.attempts.length})</TabsTrigger>
           <TabsTrigger value="practice">Practice ({record.practice.length})</TabsTrigger>
+          <TabsTrigger value="grades">Grades</TabsTrigger>
+          <TabsTrigger value="lectures">Lectures ({(record.lectures ?? []).length})</TabsTrigger>
+          <TabsTrigger value="flashcards">Flashcards ({(record.flashcards ?? []).length})</TabsTrigger>
+          <TabsTrigger value="notes">Notes ({(record.notes ?? []).length})</TabsTrigger>
+          <TabsTrigger value="points">Points ({(record.classroomPoints ?? []).length})</TabsTrigger>
+          <TabsTrigger value="activity">Activity ({(record.activity ?? []).length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="assessments" className="mt-4 space-y-4">
@@ -234,11 +239,11 @@ export function StudentRecordView({ studentDbId, userType = "instructor", embedI
           </div>
 
           {filteredAttempts.length === 0 ? (
-            <div className={cn(PORTAL_CARD, "p-8 text-center text-sm", PORTAL_TEXT_MUTED)}>
+            <div className={cn(chrome.card, "p-8 text-center text-sm", PORTAL_TEXT_MUTED)}>
               No assessment attempts recorded for this filter.
             </div>
           ) : (
-            <div className={cn(PORTAL_CARD, "overflow-x-auto")}>
+            <div className={cn(chrome.card, "overflow-x-auto")}>
               <table className="w-full min-w-[720px] text-sm">
                 <thead>
                   <tr className={cn("border-b text-left text-xs uppercase tracking-wide", PORTAL_TEXT_MUTED)}>
@@ -298,11 +303,11 @@ export function StudentRecordView({ studentDbId, userType = "instructor", embedI
 
         <TabsContent value="practice" className="mt-4">
           {record.practice.length === 0 ? (
-            <div className={cn(PORTAL_CARD, "p-8 text-center text-sm", PORTAL_TEXT_MUTED)}>
+            <div className={cn(chrome.card, "p-8 text-center text-sm", PORTAL_TEXT_MUTED)}>
               No practice sessions recorded.
             </div>
           ) : (
-            <div className={cn(PORTAL_CARD, "overflow-x-auto")}>
+            <div className={cn(chrome.card, "overflow-x-auto")}>
               <table className="w-full min-w-[560px] text-sm">
                 <thead>
                   <tr className={cn("border-b text-left text-xs uppercase tracking-wide", PORTAL_TEXT_MUTED)}>
@@ -338,12 +343,155 @@ export function StudentRecordView({ studentDbId, userType = "instructor", embedI
             </div>
           )}
         </TabsContent>
+
+        <TabsContent value="grades" className="mt-4 space-y-4">
+          {record.gradebook ? (
+            <div className={cn(chrome.card, "divide-y divide-[var(--border)]")}>
+              {[
+                ["Letter / total", `${record.gradebook.letter_grade ?? "—"} · ${record.gradebook.total_score ?? "—"}`],
+                ["Quizzes", record.gradebook.quiz_score],
+                ["Homework", record.gradebook.homework_score],
+                ["Midterm", record.gradebook.midterm_score],
+                ["Final", record.gradebook.final_score],
+                ["Attendance", record.gradebook.attendance_score],
+                ["Classroom", record.gradebook.classroom_score],
+                ["Project", record.gradebook.project_score],
+                ["Engagement", record.gradebook.engagement_credits],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="flex items-center justify-between px-4 py-3 text-sm">
+                  <span className={PORTAL_TEXT}>{label}</span>
+                  <span className={PORTAL_TEXT_MUTED}>{value ?? "—"}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className={cn(chrome.card, "p-8 text-center text-sm", PORTAL_TEXT_MUTED)}>No gradebook row yet.</p>
+          )}
+          <div className={cn(chrome.card, "px-4 py-3 text-sm")}>
+            <p className={PORTAL_TEXT}>
+              Attendance {record.attendance?.rate ?? "—"}%
+              {record.attendance?.recorded ? ` · ${record.attendance.present}/${record.attendance.recorded} recorded` : ""}
+            </p>
+            {(record.attendance?.recent_missed ?? []).length ? (
+              <p className={cn("mt-1", PORTAL_TEXT_MUTED)}>Missed: {record.attendance.recent_missed.join(", ")}</p>
+            ) : null}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="lectures" className="mt-4 space-y-4">
+          {(record.lectures ?? []).length ? (
+            <div className={cn(chrome.card, "overflow-x-auto")}>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className={cn("border-b text-left text-xs uppercase tracking-wide", PORTAL_TEXT_MUTED)}>
+                    <th className="px-4 py-3 font-medium">Lecture</th>
+                    <th className="px-4 py-3 font-medium">Week</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Last opened</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {record.lectures.map((row) => (
+                    <tr key={`${row.title}-${row.last_accessed}`}>
+                      <td className="px-4 py-3 font-medium">{row.title}</td>
+                      <td className="px-4 py-3">{row.week ?? "—"}</td>
+                      <td className="px-4 py-3 capitalize">{row.status ?? "—"}</td>
+                      <td className={cn("px-4 py-3 text-xs", PORTAL_TEXT_MUTED)}>{formatWhen(row.last_accessed)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className={cn(chrome.card, "p-8 text-center text-sm", PORTAL_TEXT_MUTED)}>No lecture progress yet.</p>
+          )}
+          {(record.lecturePractice ?? []).length ? (
+            <div className={cn(chrome.card, "divide-y divide-[var(--border)]")}>
+              {record.lecturePractice.map((row, i) => (
+                <div key={`${row.lecture_title}-${i}`} className="flex items-center justify-between px-4 py-3 text-sm">
+                  <span className={PORTAL_TEXT}>{row.lecture_title}</span>
+                  <span className={PORTAL_TEXT_MUTED}>
+                    {row.is_correct ? "Correct" : "Missed"} · {formatWhen(row.completed_at)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </TabsContent>
+
+        <TabsContent value="flashcards" className="mt-4">
+          {(record.flashcards ?? []).length ? (
+            <div className={cn(chrome.card, "divide-y divide-[var(--border)]")}>
+              {record.flashcards.map((row) => (
+                <div key={row.title} className="flex items-center justify-between px-4 py-3 text-sm">
+                  <span className={PORTAL_TEXT}>{row.title}</span>
+                  <span className={PORTAL_TEXT_MUTED}>{row.card_count} cards · {formatWhen(row.updated_at)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className={cn(chrome.card, "p-8 text-center text-sm", PORTAL_TEXT_MUTED)}>No flashcard decks yet.</p>
+          )}
+        </TabsContent>
+
+        <TabsContent value="notes" className="mt-4">
+          {(record.notes ?? []).length ? (
+            <div className={cn(chrome.card, "divide-y divide-[var(--border)]")}>
+              {record.notes.map((row) => (
+                <div key={row.title} className="flex items-center justify-between px-4 py-3 text-sm">
+                  <span className={PORTAL_TEXT}>{row.title}</span>
+                  <span className={PORTAL_TEXT_MUTED}>{formatWhen(row.updated_at)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className={cn(chrome.card, "p-8 text-center text-sm", PORTAL_TEXT_MUTED)}>No notes yet.</p>
+          )}
+        </TabsContent>
+
+        <TabsContent value="points" className="mt-4">
+          {(record.classroomPoints ?? []).length ? (
+            <div className={cn(chrome.card, "divide-y divide-[var(--border)]")}>
+              {record.classroomPoints.map((row, i) => (
+                <div key={`${row.awarded_at}-${i}`} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                  <div>
+                    <p className={PORTAL_TEXT}>{row.reason || row.category || "Classroom points"}</p>
+                    <p className={PORTAL_TEXT_MUTED}>{row.category} · {formatWhen(row.awarded_at)}</p>
+                  </div>
+                  <span className={cn("font-semibold", PORTAL_TEXT)}>{row.points > 0 ? `+${row.points}` : row.points}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className={cn(chrome.card, "p-8 text-center text-sm", PORTAL_TEXT_MUTED)}>No classroom points yet.</p>
+          )}
+        </TabsContent>
+
+        <TabsContent value="activity" className="mt-4">
+          {(record.activity ?? []).length ? (
+            <div className={cn(chrome.card, "divide-y divide-[var(--border)]")}>
+              {record.activity.map((row, i) => (
+                <div key={`${row.kind}-${row.at}-${i}`} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                  <div>
+                    <p className={PORTAL_TEXT}>{row.label}</p>
+                    <p className={cn("capitalize", PORTAL_TEXT_MUTED)}>{row.kind}</p>
+                  </div>
+                  <span className={PORTAL_TEXT_MUTED}>{formatWhen(row.at)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className={cn(chrome.card, "p-8 text-center text-sm", PORTAL_TEXT_MUTED)}>No recent platform activity.</p>
+          )}
+        </TabsContent>
       </Tabs>
 
       <p className={cn("flex items-start gap-2 text-xs", PORTAL_TEXT_MUTED)}>
         <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         Open any attempt for full question-by-question review, instructor overrides, and violation logs.
       </p>
-    </div>
+        </div>
+      </EmbedModuleCard>
+    </PageEnter>
   )
 }

@@ -37,11 +37,6 @@ import {
 } from "@/lib/lecture-list-utils"
 import { useNotificationModuleRefresh } from "@/lib/notification-module-refresh"
 import { useLectureChrome } from "@/hooks/use-lecture-chrome"
-import {
-  DesktopChromeTitle,
-  DesktopChromeTitleActions,
-} from "@/components/desktop/DesktopLangSmithChrome"
-import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
 import { useStudentLecturesQuery } from "@/hooks/data/use-student-lectures-query"
 import { ModuleListSkeleton, StaleRefreshHint } from "@/components/data/module-list-skeleton"
 import { formatLectureIndexLabel } from "@/lib/lecture-index-label"
@@ -195,103 +190,47 @@ export function LecturesDashboardV2() {
   const completedCount = lectures.filter((l) => resolveLectureCardKind(l) === "completed").length
   const inProgressCount = lectures.filter((l) => resolveLectureCardKind(l) === "in_progress").length
   const progressPct = lectures.length ? Math.round((completedCount / lectures.length) * 100) : 0
-  const desktopChrome = isDesktopAppShell()
-  const progressMeta = [
-    `${progressPct}% complete`,
-    `${completedCount} of ${lectures.length}`,
-    inProgressCount > 0 ? `${inProgressCount} in progress` : null,
-    sessionBadge || null,
-  ]
-    .filter(Boolean)
-    .join(" · ")
-  const openAiNotes = useCallback(() => setShowAiNotes(true), [])
-
-  const desktopChromeSlots = desktopChrome ? (
-    <>
-      <DesktopChromeTitle>
-        <div className="flex min-w-0 items-center gap-1.5">
-          <h1 className="shrink-0 truncate text-[16px] font-semibold tracking-tight">Lectures</h1>
-          <span className="shrink-0 text-[12px] text-[#6b7280] dark:text-[#9ca3af]" aria-hidden>
-            ·
-          </span>
-          <p className="min-w-0 truncate text-[12px] leading-4 text-[#6b7280] dark:text-[#9ca3af]">
-            {progressMeta}
-          </p>
-        </div>
-      </DesktopChromeTitle>
-      <DesktopChromeTitleActions>
-        <Button
-          className="h-9 shrink-0 rounded-xl border-0 px-3 shadow-none hover:opacity-90"
-          style={{ backgroundColor: roles.aiNotes.fill, color: roles.aiNotes.icon }}
-          onClick={openAiNotes}
-        >
-          <Sparkles className="h-4 w-4 sm:mr-1.5" />
-          <span className="hidden sm:inline">AI Notes</span>
-        </Button>
-      </DesktopChromeTitleActions>
-    </>
-  ) : null
 
   if (loading) {
-    return (
-      <>
-        {desktopChromeSlots}
-        <div className="border-t border-[color-mix(in_srgb,var(--cc-text)_10%,transparent)] pt-3 sm:pt-4">
-          <ModuleListSkeleton rows={6} className="min-h-[280px]" />
-        </div>
-      </>
-    )
+    return <ModuleListSkeleton rows={6} className="min-h-[280px]" />
   }
 
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-3 border-t border-[color-mix(in_srgb,var(--cc-text)_10%,transparent)] pt-3 sm:pt-4">
+    <div className="flex w-full min-w-0 flex-col gap-3">
       <StaleRefreshHint visible={lecturesQuery.refreshFailed} onRetry={() => lecturesQuery.refetch()} />
-      <div
-        className={cn(
-          "flex min-w-0 flex-col gap-3",
-          desktopChrome
-            ? "border-0 bg-transparent p-0"
-            : "rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4",
-        )}
-      >
-        {desktopChrome ? (
-          desktopChromeSlots
-        ) : (
-          <div className="flex min-w-0 items-end justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cc-text-muted)]">
-                Lectures
-              </p>
-              <p className="mt-0.5 truncate text-sm text-[var(--cc-text)]">
-                {progressPct}% complete
-                <span className="text-[var(--cc-text-muted)]">
-                  {" "}
-                  · {completedCount} of {lectures.length}
-                  {inProgressCount > 0 ? ` · ${inProgressCount} in progress` : ""}
-                  {sessionBadge ? ` · ${sessionBadge}` : ""}
-                </span>
-              </p>
-            </div>
-            <Button
-              className="h-9 shrink-0 rounded-xl border-0 px-3 shadow-none hover:opacity-90"
-              style={{ backgroundColor: roles.aiNotes.fill, color: roles.aiNotes.icon }}
-              onClick={openAiNotes}
-            >
-              <Sparkles className="h-4 w-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">AI Notes</span>
-            </Button>
+      <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4">
+        <div className="flex min-w-0 items-end justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cc-text-muted)]">
+              Lectures
+            </p>
+            <p className="mt-0.5 truncate text-sm text-[var(--cc-text)]">
+              {progressPct}% complete
+              <span className="text-[var(--cc-text-muted)]">
+                {" "}
+                · {completedCount} of {lectures.length}
+                {inProgressCount > 0 ? ` · ${inProgressCount} in progress` : ""}
+                {sessionBadge ? ` · ${sessionBadge}` : ""}
+              </span>
+            </p>
           </div>
-        )}
+          <Button
+            className="h-9 shrink-0 rounded-xl border-0 px-3 shadow-none hover:opacity-90"
+            style={{ backgroundColor: roles.aiNotes.fill, color: roles.aiNotes.icon }}
+            onClick={() => setShowAiNotes(true)}
+          >
+            <Sparkles className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">AI Notes</span>
+          </Button>
+        </div>
 
-        {desktopChrome ? null : (
-          <div className="h-1.5 overflow-hidden rounded-full bg-[var(--muted)]">
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${progressPct}%`, backgroundColor: roles.progress.fill }}
-            />
-          </div>
-        )}
+        <div className="h-1.5 overflow-hidden rounded-full bg-[var(--muted)]">
+          <div
+            className="h-full rounded-full"
+            style={{ width: `${progressPct}%`, backgroundColor: roles.progress.fill }}
+          />
+        </div>
 
         <div className="flex min-w-0 items-center gap-2">
           <div className="relative h-10 min-w-0 flex-1">
@@ -300,13 +239,13 @@ export function LecturesDashboardV2() {
               placeholder="Search lectures..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-10 w-full rounded-full border-0 bg-[var(--sidebar-accent)]/50 pl-10 text-[var(--cc-text)] placeholder:text-[var(--cc-text-muted)] shadow-none focus-visible:bg-[var(--sidebar-accent)]/70 focus-visible:ring-1 focus-visible:ring-[var(--cc-accent)]/30"
+              className="h-10 w-full rounded-xl border-[var(--border)] bg-[var(--muted)]/40 pl-10 text-[var(--cc-text)] placeholder:text-[var(--cc-text-muted)]"
             />
           </div>
           <Button
             type="button"
             variant="ghost"
-            className="h-10 w-10 shrink-0 rounded-full p-0"
+            className="h-10 w-10 shrink-0 rounded-xl p-0"
             style={{
               backgroundColor: statusFilter !== "all" ? roles.filter.fill : "transparent",
               color: statusFilter !== "all" ? roles.filter.icon : undefined,

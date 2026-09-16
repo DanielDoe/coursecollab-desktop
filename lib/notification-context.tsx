@@ -6,14 +6,6 @@ import type React from "react"
 import { createContext, useContext, useEffect, useRef, useState } from "react"
 import { toast } from "@/hooks/use-toast"
 import { emitModuleRefresh, notificationTypeToModules } from "@/lib/notification-module-refresh"
-import {
-  buildDesktopNotificationSyncContext,
-  deliverNewDesktopNotifications,
-  registerDesktopNotificationSync,
-  setDesktopBadgeCount,
-  shouldKeepNotificationPollingWhenHidden,
-} from "@/lib/desktop-notifications"
-import { getNotificationPollIntervalMs } from "@/lib/desktop-notification-poll"
 
 interface Notification {
   id: number
@@ -73,18 +65,10 @@ export function NotificationProvider({
           emitModuleRefresh(notificationTypeToModules(n.type, n.link))
         }
       }
-      void deliverNewDesktopNotifications(knownNotificationIds.current, list, {
-        initialized: true,
-        portal: "student",
-      }).then((nextIds) => {
-        knownNotificationIds.current = nextIds
-      })
     } else {
       notificationsInitialized.current = true
-      knownNotificationIds.current = new Set(list.map((n) => n.id))
     }
-
-    void setDesktopBadgeCount(Math.max(apiUnread, derivedUnread))
+    knownNotificationIds.current = new Set(list.map((n) => n.id))
   }
 
   const fetchNotifications = async (retryCount = 0) => {
@@ -222,23 +206,6 @@ export function NotificationProvider({
   }
 
   useEffect(() => {
-    if (!studentId) {
-      void registerDesktopNotificationSync(null)
-      return
-    }
-
-    void registerDesktopNotificationSync(
-      buildDesktopNotificationSyncContext("student", "/api/student/notifications?limit=50", {
-        "x-student-id": studentId,
-      }),
-    )
-
-    return () => {
-      void registerDesktopNotificationSync(null)
-    }
-  }, [studentId])
-
-  useEffect(() => {
     fetchNotifications()
 
     if (!studentId) return
@@ -246,13 +213,11 @@ export function NotificationProvider({
     // Set up polling with visibility awareness
     let interval: NodeJS.Timeout | null = null
 
-    const pollMs = getNotificationPollIntervalMs()
-
     const startPolling = () => {
       if (interval) clearInterval(interval)
       interval = setInterval(() => {
         fetchNotifications()
-      }, pollMs)
+      }, 90_000)
     }
 
     const stopPolling = () => {
@@ -264,9 +229,9 @@ export function NotificationProvider({
 
     // Handle visibility change - pause polling when tab is hidden
     const handleVisibilityChange = () => {
-      if (document.hidden && !shouldKeepNotificationPollingWhenHidden()) {
+      if (document.hidden) {
         stopPolling()
-      } else if (!document.hidden) {
+      } else {
         // Fetch immediately when tab becomes visible, then resume polling
         fetchNotifications()
         startPolling()
@@ -276,26 +241,12 @@ export function NotificationProvider({
     // Start initial polling
     startPolling()
 
-    const handleWindowFocus = () => {
-      if (shouldKeepNotificationPollingWhenHidden()) {
-        fetchNotifications()
-      }
-    }
-
-    // Pause polling when backgrounded in browser; keep polling in desktop shell for OS alerts.
-    if (!shouldKeepNotificationPollingWhenHidden()) {
-      document.addEventListener("visibilitychange", handleVisibilityChange)
-    } else {
-      window.addEventListener("focus", handleWindowFocus)
-    }
+    // Listen for visibility changes
+    document.addEventListener("visibilitychange", handleVisibilityChange)
 
     return () => {
       stopPolling()
-      if (!shouldKeepNotificationPollingWhenHidden()) {
-        document.removeEventListener("visibilitychange", handleVisibilityChange)
-      } else {
-        window.removeEventListener("focus", handleWindowFocus)
-      }
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
     }
   }, [studentId])
 

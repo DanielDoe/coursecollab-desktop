@@ -16,13 +16,12 @@ import {
   Target,
   Coins,
   Zap,
-  BarChart3,
 } from "lucide-react"
 import { ThemeKpiCard } from "@/components/student/dashboard-v2/ThemeKpiCard"
-import { StudentModuleHubLayout } from "@/components/student/dashboard-v2/StudentModuleHubLayout"
 import { solidListThumb } from "@/lib/student-color-hunt-theme"
 import { useToast } from "@/hooks/use-toast"
 import { getStudentData, studentApiFetch } from "@/lib/auth"
+import { motion } from "@/components/student/dashboard-v2/light-motion"
 import { PlaygroundAccessModal } from "@/components/playground-access-modal"
 import { resolvePlaygroundJoinError } from "@/lib/playground-join-client"
 import { PLAYGROUND_WEEKLY_CREDITS } from "@/lib/membership-constants"
@@ -33,10 +32,9 @@ import {
   upsertPlaygroundSessionLock,
 } from "@/lib/playground-session-lock"
 import { cn } from "@/lib/utils"
+import { studentModuleSpinnerClass } from "@/lib/student-module-themes"
 
 const DASHBOARD_V2_PLAYGROUND = "/student/dashboard-v2/playground"
-
-type MenuView = "join" | "stats"
 
 export function PlaygroundLobbyDashboardV2() {
   const router = useRouter()
@@ -65,7 +63,6 @@ export function PlaygroundLobbyDashboardV2() {
     daysUntilReset?: number
   }>({})
   const [mounted, setMounted] = useState(false)
-  const [menuView, setMenuView] = useState<MenuView>("join")
 
   useEffect(() => {
     const data = getStudentData()
@@ -320,20 +317,9 @@ export function PlaygroundLobbyDashboardV2() {
 
   if (!mounted || !studentData) {
     return (
-      <StudentModuleHubLayout
-        moduleId="playground"
-        title="Playground"
-        metaLine="Loading…"
-        menuView={menuView}
-        onMenuSelect={(id) => setMenuView(id as MenuView)}
-        menuItems={[
-          { id: "join", label: "Join game", icon: Gamepad2 },
-          { id: "stats", label: "My stats", icon: BarChart3 },
-        ]}
-        loading
-      >
-        {null}
-      </StudentModuleHubLayout>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className={cn("animate-spin rounded-full h-10 w-10 border-2 border-slate-200 dark:border-slate-700", studentModuleSpinnerClass("playground"))} />
+      </div>
     )
   }
 
@@ -384,12 +370,68 @@ export function PlaygroundLobbyDashboardV2() {
     averageScore !== null ||
     playgroundCredits !== null
 
-  const metaLine = creditsLabel
-    ? `Join a live classroom battle or practice solo · ${creditsLabel}`
-    : "Join a live classroom battle or practice solo at your own pace"
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-4 w-full min-w-0 overflow-x-hidden"
+    >
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cc-text-muted)]">
+          Playground
+        </p>
+        <p className="mt-0.5 text-sm text-[var(--cc-text)]">
+          Join a live classroom battle or practice solo at your own pace.
+        </p>
+      </div>
 
-  const joinPanel = (
-    <>
+      {showStats ? (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {accumulatedPoints !== null ? (
+            <ThemeKpiCard
+              label="Playground pts"
+              value={accumulatedPoints.toLocaleString()}
+              icon={Trophy}
+              thumb={solidListThumb(0)}
+              footer="Trade Center balance"
+            />
+          ) : null}
+          {bestScore !== null ? (
+            <ThemeKpiCard
+              label="Best score"
+              value={bestScore.toLocaleString()}
+              icon={Star}
+              thumb={solidListThumb(1)}
+              footer="Personal peak"
+            />
+          ) : null}
+          {averageScore !== null ? (
+            <ThemeKpiCard
+              label="Average"
+              value={averageScore.toLocaleString()}
+              icon={Target}
+              thumb={solidListThumb(2)}
+              footer={totalGames != null ? `${totalGames} games played` : "Across sessions"}
+            />
+          ) : null}
+          {playgroundCredits !== null ? (
+            <ThemeKpiCard
+              label="Credits"
+              value={isUnlimited ? "∞" : playgroundCredits}
+              icon={isUnlimited ? Zap : Coins}
+              thumb={solidListThumb(3)}
+              footer={
+                isUnlimited
+                  ? "Unlimited this week"
+                  : creditsLimit
+                    ? `${creditsLimit} per week`
+                    : "Weekly allowance"
+              }
+            />
+          ) : null}
+        </div>
+      ) : null}
+
       <p className="text-xs text-[var(--cc-text-muted)]">
         10s per question · +100 correct · +10 speed bonus
         {creditsLabel ? ` · ${creditsLabel}` : ""}
@@ -483,7 +525,7 @@ export function PlaygroundLobbyDashboardV2() {
               value={studentName}
               disabled
               readOnly
-              className="h-11 cursor-not-allowed rounded-xl border-[var(--border)] bg-[var(--muted)]/50 text-[var(--cc-text)] opacity-90"
+              className="h-11 rounded-xl border-[var(--border)] bg-[var(--muted)]/50 text-[var(--cc-text)] cursor-not-allowed opacity-90"
             />
           </div>
           <div className="space-y-1.5">
@@ -495,7 +537,7 @@ export function PlaygroundLobbyDashboardV2() {
               value={studentId}
               disabled
               readOnly
-              className="h-11 cursor-not-allowed rounded-xl border-[var(--border)] bg-[var(--muted)]/50 text-[var(--cc-text)] opacity-90"
+              className="h-11 rounded-xl border-[var(--border)] bg-[var(--muted)]/50 text-[var(--cc-text)] cursor-not-allowed opacity-90"
             />
           </div>
         </div>
@@ -552,65 +594,6 @@ export function PlaygroundLobbyDashboardV2() {
           </p>
         ) : null}
       </section>
-    </>
-  )
-
-  const statsPanel = (
-    <div className="space-y-4">
-      {showStats ? (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {accumulatedPoints !== null ? (
-            <ThemeKpiCard
-              label="Playground pts"
-              value={accumulatedPoints.toLocaleString()}
-              icon={Trophy}
-              thumb={solidListThumb(0)}
-              footer="Trade Center balance"
-            />
-          ) : null}
-          {bestScore !== null ? (
-            <ThemeKpiCard
-              label="Best score"
-              value={bestScore.toLocaleString()}
-              icon={Star}
-              thumb={solidListThumb(1)}
-              footer="Personal peak"
-            />
-          ) : null}
-          {averageScore !== null ? (
-            <ThemeKpiCard
-              label="Average"
-              value={averageScore.toLocaleString()}
-              icon={Target}
-              thumb={solidListThumb(2)}
-              footer={totalGames != null ? `${totalGames} games played` : "Across sessions"}
-            />
-          ) : null}
-          {playgroundCredits !== null ? (
-            <ThemeKpiCard
-              label="Credits"
-              value={isUnlimited ? "∞" : playgroundCredits}
-              icon={isUnlimited ? Zap : Coins}
-              thumb={solidListThumb(3)}
-              footer={
-                isUnlimited
-                  ? "Unlimited this week"
-                  : creditsLimit
-                    ? `${creditsLimit} per week`
-                    : "Weekly allowance"
-              }
-            />
-          ) : null}
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--muted)]/30 px-4 py-10 text-center">
-          <BarChart3 className="mx-auto h-8 w-8 text-[var(--cc-accent)]" />
-          <p className="mt-2 text-sm font-medium text-[var(--cc-text)]">No stats yet</p>
-          <p className="mt-1 text-xs text-[var(--cc-text-muted)]">
-            Join a game to start tracking scores and credits.
-          </p>
-        </div>
-      )}
 
       <div className="flex flex-wrap gap-2">
         {lastClassroomSessionId ? (
@@ -632,32 +615,6 @@ export function PlaygroundLobbyDashboardV2() {
           </Button>
         ) : null}
       </div>
-    </div>
-  )
-
-  return (
-    <>
-      <StudentModuleHubLayout
-        moduleId="playground"
-        title="Playground"
-        metaLine={metaLine}
-        metaSuffix="live battles and solo practice"
-        menuView={menuView}
-        onMenuSelect={(id) => setMenuView(id as MenuView)}
-        menuItems={[
-          { id: "join", label: "Join game", icon: Gamepad2 },
-          {
-            id: "stats",
-            label: "My stats",
-            icon: BarChart3,
-            badge: totalGames && totalGames > 0 ? totalGames : undefined,
-          },
-        ]}
-      >
-        <div className="w-full min-w-0 space-y-4 overflow-x-hidden">
-          {menuView === "join" ? joinPanel : statsPanel}
-        </div>
-      </StudentModuleHubLayout>
 
       <PlaygroundAccessModal
         open={showAccessModal}
@@ -669,6 +626,6 @@ export function PlaygroundLobbyDashboardV2() {
         tier={accessModalData.tier}
         daysUntilReset={accessModalData.daysUntilReset}
       />
-    </>
+    </motion.div>
   )
 }

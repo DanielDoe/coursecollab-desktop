@@ -58,18 +58,26 @@ export async function loadAttendanceGradebookRowsRaw(args: {
           OR TRIM(sg.session) = 'ALL'
         )
         AND (
+          ${
+            sessionId != null
+              ? sql.unsafe(`s.session_id = ${Math.trunc(sessionId)}`)
+              : sql.unsafe(`(
           TRIM(s.section) = ANY(${variants}::text[])
           OR EXISTS (
             SELECT 1 FROM sessions sess
             WHERE sess.id = s.session_id
               AND TRIM(sess.code) = ANY(${variants}::text[])
+              AND (
+                sess.academic_term_id IS NULL
+                OR EXISTS (
+                  SELECT 1 FROM academic_terms at
+                  WHERE at.id = sess.academic_term_id
+                    AND COALESCE(at.is_active, false) = true
+                )
+              )
           )
-          OR EXISTS (
-            SELECT 1 FROM unnest(${variants}::text[]) AS v(val)
-            WHERE val IS NOT NULL
-              AND trim(val) <> ''
-              AND strpos(upper(trim(coalesce(s.section::text, ''))), upper(trim(val))) > 0
-          )
+        )`)
+          }
         )
         ${sessionScopeFrag}
       ORDER BY

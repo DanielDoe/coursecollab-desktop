@@ -22,6 +22,7 @@ import {
   type ResolvedAskCoraPolicy,
 } from "@/lib/cora/assessment-policy-resolve"
 import type { CoraProblemContext } from "@/lib/cora/types"
+import { mergeMessagesForAnswerSeekingCheck } from "@/lib/cora/security/assessment-integrity"
 
 export type AskCoraGate = {
   resolved: ResolvedAskCoraPolicy
@@ -43,12 +44,18 @@ export async function enforceAskCoraGate(input: {
   attemptId?: number | null
   questionType?: string | null
   subquestionTypes?: Array<string | null | undefined>
+  conversationHistory?: Array<{ role?: string; content?: string }> | null
 }): Promise<AskCoraGate> {
-  const fromProblem = resolveInputFromProblem(input.studentId, input.message, input.problem, {
+  const integrityMessage = mergeMessagesForAnswerSeekingCheck(
+    input.message,
+    input.conversationHistory,
+  )
+  const fromProblem = resolveInputFromProblem(input.studentId, integrityMessage, input.problem, {
     attemptId: input.attemptId,
   })
   const resolved = await resolveAskCoraPolicy({
     ...fromProblem,
+    message: integrityMessage,
     source: input.source ?? fromProblem.source,
     quizId: input.quizId ?? fromProblem.quizId,
     questionId: input.questionId ?? fromProblem.questionId,

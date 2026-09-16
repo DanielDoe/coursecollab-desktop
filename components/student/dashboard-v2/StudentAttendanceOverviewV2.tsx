@@ -10,6 +10,7 @@ import {
   Hash,
   MapPin,
   QrCode,
+  Sparkles,
   Target,
   Trophy,
 } from "lucide-react"
@@ -27,9 +28,7 @@ import {
   nextStreakMilestone,
   rankClimbHint,
 } from "@/lib/attendance/student-attendance-insights"
-import { ThemeKpiCard } from "@/components/student/dashboard-v2/ThemeKpiCard"
 import { formatKpiCount, formatKpiPercent } from "@/lib/dashboard-v2/format-kpi-value"
-import { solidListThumb, STUDENT_DASHBOARD_KPI_THUMBS } from "@/lib/student-color-hunt-theme"
 import { formatCentralDate } from "@/lib/timezone"
 import { isAttendedAttendanceStatus } from "@/lib/attendance-status"
 import {
@@ -343,150 +342,146 @@ export function StudentAttendanceOverviewV2() {
       <div className="space-y-3">
         <StructuredSessionCheckIn onRecorded={() => void load()} />
 
-        {/* Check-in */}
+        {/* Check-in hero */}
         <div
           className={cn(
             PORTAL_CARD,
-            "flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5",
+            "overflow-hidden border-[color-mix(in_srgb,var(--cc-accent)_22%,var(--border))]",
           )}
         >
-          <div className="flex min-w-0 items-center gap-3">
-            <div className={cn("shrink-0 rounded-xl p-2.5", theme.page.iconBg, theme.page.iconText)}>
-              <CalendarCheck className="h-4 w-4" strokeWidth={2.25} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-[var(--cc-text)]">Check in</p>
-              <p className={cn("truncate text-xs", PORTAL_TEXT_MUTED)}>
-                {stats && stats.totalClasses > 0
-                  ? goalInsight?.message
-                  : "Ready when your instructor opens a session"}
-              </p>
+          <div className="border-b border-[var(--border)] bg-[var(--cc-accent-soft)]/35 px-4 py-4 sm:px-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cc-text-muted)]">
+                  Check in
+                </p>
+                <p className="mt-1 text-base font-semibold text-[var(--cc-text)]">
+                  {stats && stats.totalClasses > 0
+                    ? `${formatKpiPercent(stats.attendancePercentage)} this term`
+                    : "Ready when your instructor opens attendance"}
+                </p>
+                <p className={cn("mt-0.5 text-xs", PORTAL_TEXT_MUTED)}>
+                  {goalInsight?.message}
+                </p>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 rounded-xl border-[var(--border)] bg-[var(--card)]"
+                  onClick={() => openFirstOpenSession("code")}
+                >
+                  <Hash className="mr-1.5 h-4 w-4" />
+                  Code
+                </Button>
+                <Button
+                  type="button"
+                  className="h-10 rounded-xl border-0 shadow-none hover:opacity-90"
+                  style={{ backgroundColor: "var(--cc-accent)", color: "#fff" }}
+                  onClick={() => openFirstOpenSession("qr")}
+                >
+                  <QrCode className="mr-1.5 h-4 w-4" />
+                  Scan QR
+                </Button>
+              </div>
             </div>
           </div>
-          <div className="flex shrink-0 gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-9 flex-1 rounded-xl border-[var(--border)] bg-[var(--card)] sm:flex-none"
-              onClick={() => openFirstOpenSession("code")}
-            >
-              <Hash className="mr-1.5 h-4 w-4" />
-              Code
-            </Button>
-            <Button
-              type="button"
-              className="h-9 flex-1 rounded-xl border-0 shadow-none hover:opacity-90 sm:flex-none"
-              style={{ backgroundColor: "var(--cc-accent)", color: "#fff" }}
-              onClick={() => openFirstOpenSession("qr")}
-            >
-              <QrCode className="mr-1.5 h-4 w-4" />
-              Scan QR
-            </Button>
+
+          {stats ? (
+            <div className="grid grid-cols-2 divide-x divide-[var(--border)] border-b border-[var(--border)] sm:grid-cols-4">
+              {[
+                { label: "Present", value: formatKpiCount(stats.classesAttended), icon: CalendarCheck },
+                { label: "Scored", value: formatKpiCount(stats.totalClasses), icon: Target },
+                { label: "Streak", value: `${formatKpiCount(stats.currentStreak)}d`, icon: Flame },
+                {
+                  label: "Rank",
+                  value: currentRank != null && currentRank > 0 ? `#${currentRank}` : "—",
+                  icon: Trophy,
+                },
+              ].map((item) => {
+                const Icon = item.icon
+                return (
+                  <div key={item.label} className="px-3 py-3 text-center sm:px-4">
+                    <Icon className={cn("mx-auto h-4 w-4", theme.page.iconText)} />
+                    <p className="mt-1 text-lg font-semibold tabular-nums text-[var(--cc-text)]">
+                      {item.value}
+                    </p>
+                    <p className={cn("text-[10px] uppercase tracking-wide", PORTAL_TEXT_MUTED)}>
+                      {item.label}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          ) : null}
+
+          <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+            <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>Last 5 school days</p>
+            <div className="flex gap-1.5">
+              {weekStrip.map((day) => (
+                <div key={day.label} className="flex flex-col items-center gap-1">
+                  <span className={cn("text-[10px]", PORTAL_TEXT_MUTED)}>{day.label}</span>
+                  <span
+                    className={cn(
+                      "size-2.5 rounded-full",
+                      day.status === "present" && "bg-emerald-500",
+                      day.status === "absent" && "bg-rose-400",
+                      day.status === "none" && "bg-[var(--muted)]",
+                    )}
+                    title={day.status}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
+        {/* Goal + streak nudge — show even before first check-in */}
         {stats ? (
-          <>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <ThemeKpiCard
-                label="Rate"
-                value={
-                  stats.totalClasses > 0
-                    ? formatKpiPercent(stats.attendancePercentage)
-                    : "—"
-                }
-                icon={Target}
-                thumb={STUDENT_DASHBOARD_KPI_THUMBS.attendance}
-                footer={
-                  goalInsight?.met
-                    ? `${goalInsight.goalPct}% goal met`
-                    : goalInsight && goalInsight.sessionsNeeded > 0
-                      ? `${goalInsight.sessionsNeeded} session${goalInsight.sessionsNeeded === 1 ? "" : "s"} to ${goalInsight.goalPct}%`
-                      : "No scored sessions yet"
-                }
-              />
-              <ThemeKpiCard
-                label="Present"
-                value={formatKpiCount(stats.classesAttended)}
-                icon={CalendarCheck}
-                thumb={solidListThumb(1)}
-                footer={
-                  stats.totalClasses > 0
-                    ? `of ${formatKpiCount(stats.totalClasses)} scored`
-                    : "Awaiting first session"
-                }
-              />
-              <ThemeKpiCard
-                label="Streak"
-                value={`${formatKpiCount(stats.currentStreak)}d`}
-                icon={Flame}
-                thumb={STUDENT_DASHBOARD_KPI_THUMBS.streak}
-                footer={
-                  streakMilestone
-                    ? `${streakMilestone.remaining}d to ${streakMilestone.target}-day badge`
-                    : stats.currentStreak > 0
-                      ? "Keep it going"
-                      : "Start today"
-                }
-              />
-              <ThemeKpiCard
-                label="Rank"
-                value={currentRank != null && currentRank > 0 ? `#${currentRank}` : "—"}
-                icon={Trophy}
-                thumb={solidListThumb(3)}
-                footer={
-                  climbHint
-                    ? climbHint.length > 36
-                      ? `${climbHint.slice(0, 33)}…`
-                      : climbHint
-                    : "Section board"
-                }
-              />
-            </div>
-
-            {goalInsight && !goalInsight.met && stats.totalClasses > 0 ? (
-              <div className={cn(PORTAL_CARD, "px-4 py-3 sm:px-5")}>
-                <div className="flex items-center justify-between gap-3 text-xs">
-                  <span className="font-medium text-[var(--cc-text)]">
-                    Path to {goalInsight.goalPct}%
-                  </span>
-                  <span className={cn("tabular-nums", PORTAL_TEXT_MUTED)}>
-                    {formatKpiPercent(goalInsight.currentPct)}
-                  </span>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className={cn(PORTAL_CARD, "px-4 py-3.5 sm:px-5")}>
+              <div className="flex items-start gap-3">
+                <div className={cn("rounded-xl p-2", theme.page.iconBg, theme.page.iconText)}>
+                  <Target className="h-4 w-4" />
                 </div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--muted)]">
-                  <div
-                    className="h-full rounded-full bg-[var(--cc-accent)] transition-[width] duration-500"
-                    style={{ width: `${Math.min(100, goalInsight.currentPct)}%` }}
-                  />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[var(--cc-text)]">
+                    {goalInsight?.met ? "Goal met" : `Path to ${goalInsight?.goalPct ?? 90}%`}
+                  </p>
+                  <p className={cn("mt-0.5 text-xs leading-relaxed", PORTAL_TEXT_MUTED)}>
+                    {goalInsight?.message}
+                  </p>
+                  {goalInsight && !goalInsight.met && stats.totalClasses > 0 ? (
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--muted)]">
+                      <div
+                        className="h-full rounded-full bg-[var(--cc-accent)]"
+                        style={{
+                          width: `${Math.min(100, goalInsight.currentPct)}%`,
+                        }}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+            {streakMilestone ? (
+              <div className={cn(PORTAL_CARD, "px-4 py-3.5 sm:px-5")}>
+                <div className="flex items-start gap-3">
+                  <div className={cn("rounded-xl p-2", theme.page.iconBg, theme.page.iconText)}>
+                    <Sparkles className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--cc-text)]">Streak milestone</p>
+                    <p className={cn("mt-0.5 text-xs", PORTAL_TEXT_MUTED)}>
+                      {streakMilestone.remaining} more day
+                      {streakMilestone.remaining === 1 ? "" : "s"} to hit a {streakMilestone.target}
+                      -day streak badge.
+                    </p>
+                  </div>
                 </div>
               </div>
             ) : null}
-
-            <div className={cn(PORTAL_CARD, "px-4 py-3 sm:px-5")}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className={cn("text-xs font-medium", PORTAL_TEXT_MUTED)}>Last 5 school days</p>
-                <div className="flex items-center justify-between gap-2 sm:justify-end sm:gap-3">
-                  {weekStrip.map((day) => (
-                    <div key={day.label} className="flex flex-col items-center gap-1.5">
-                      <span
-                        className={cn(
-                          "size-3 rounded-full ring-2 ring-offset-2 ring-offset-[var(--card)]",
-                          day.status === "present" && "bg-emerald-500 ring-emerald-500/25",
-                          day.status === "absent" && "bg-rose-400 ring-rose-400/25",
-                          day.status === "none" && "bg-[var(--muted)] ring-[var(--border)]",
-                        )}
-                        title={day.status}
-                      />
-                      <span className={cn("text-[10px] font-medium tabular-nums", PORTAL_TEXT_MUTED)}>
-                        {day.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </>
+          </div>
         ) : null}
 
         <StudentAttendanceSessionList

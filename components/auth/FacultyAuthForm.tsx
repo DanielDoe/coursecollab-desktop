@@ -53,9 +53,8 @@ import {
   tryAutoProceedAfterFacultyLogin,
 } from "@/lib/faculty-auth-flow"
 import { clearFacultyExplicitSignOutFlag } from "@/lib/faculty-session-restore-client"
-import { effectiveRememberMeForClient, isDesktopAuthLoginOnly } from "@/lib/desktop-auth-policy"
+import { effectiveRememberMeForClient, isDesktopAppShell } from "@/lib/desktop-auth-policy"
 import {
-  DesktopAuthBackLink,
   DesktopAuthPanelBody,
   DesktopAuthPanelCard,
   DesktopAuthStepProgress,
@@ -76,6 +75,11 @@ type Props = {
   variant?: "default" | "desktop"
   backHref?: string
   backLabel?: string
+}
+
+/** Keep trailing Roman numerals (e.g. "Engineering I") on the same line in narrow cards. */
+function facultyCourseTitleDisplay(title: string): string {
+  return title.replace(/\s+([IVXLCDM]+)$/i, "\u00A0$1")
 }
 
 const stepMotion = {
@@ -146,6 +150,32 @@ function StepIndicator({ step, accent }: { step: WizardStep; accent: string }) {
   )
 }
 
+function FacultyOtherSignInNav({ backHref }: { backHref: string }) {
+  const portalHub = isDesktopAppShell() ? "/auth/welcome?change=1" : "/auth/university?change=1"
+
+  return (
+    <div className="border-t border-[var(--border)] pt-4">
+      <p className="text-center text-[12px] leading-relaxed text-[var(--cc-text-secondary)]">
+        <Link href="/auth/student" className="font-semibold text-[var(--cc-accent)] hover:underline">
+          Student sign in
+        </Link>
+        <span aria-hidden className="mx-1.5 text-[var(--cc-text-muted)]">
+          ·
+        </span>
+        <Link href={backHref} className="font-medium text-[var(--cc-accent)] hover:underline">
+          Change university
+        </Link>
+        <span aria-hidden className="mx-1.5 text-[var(--cc-text-muted)]">
+          ·
+        </span>
+        <Link href={portalHub} className="font-medium text-[var(--cc-accent)] hover:underline">
+          More options
+        </Link>
+      </p>
+    </div>
+  )
+}
+
 export function FacultyAuthForm({
   university,
   initialStep = "login",
@@ -174,6 +204,7 @@ export function FacultyAuthForm({
   const accent = university.primary_color || "#582c83"
   const accentInk = ctaInkOnFill(accent)
   const isDesktop = variant === "desktop"
+  const resolvedBackHref = backHref ?? "/auth/university?change=1&next=faculty"
   const loginRememberMe = effectiveRememberMeForClient(rememberMe)
   const inputClass = isDesktop
     ? desktopAuth.input
@@ -386,7 +417,7 @@ export function FacultyAuthForm({
         step === "course" && nativeApp && "flex min-h-0 flex-1 flex-col",
         isDesktop && step === "course"
           ? "flex min-h-0 flex-1 flex-col gap-5 overflow-hidden"
-          : cn("space-y-6", isDesktop && "space-y-5"),
+          : cn("space-y-5", isDesktop && "space-y-5"),
       )}
     >
       {!isDesktop ? (
@@ -574,11 +605,10 @@ export function FacultyAuthForm({
                   {loading ? <Spinner size="sm" /> : "Continue"}
                   {!loading && !isDesktop ? <ArrowRight className="h-4 w-4" aria-hidden /> : null}
                 </Button>
-                {step === "login" && backHref ? (
-                  <DesktopAuthBackLink href={backHref} label={backLabel} className="mt-0" />
-                ) : null}
               </div>
             </form>
+
+            <FacultyOtherSignInNav backHref={resolvedBackHref} />
           </motion.div>
         ) : (
           <motion.div
@@ -604,11 +634,11 @@ export function FacultyAuthForm({
               className={cn(
                 "min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]",
                 isDesktop
-                  ? "max-h-[min(15rem,34dvh)] rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--cc-background)_50%,var(--cc-surface))] p-1.5"
+                  ? "max-h-[min(15rem,34dvh)] rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--cc-background)_50%,var(--cc-surface))] p-3 [scrollbar-gutter:stable]"
                   : "flex-1",
               )}
             >
-              <div className="space-y-2 py-1">
+              <div className="space-y-2.5">
                 {coursesLoading ? (
                   <div className="flex justify-center py-8">
                     <CcBookLoader size="md" label="Loading courses" />
@@ -651,19 +681,17 @@ export function FacultyAuthForm({
                         )}
                       >
                         <span className="relative block">
-                          <span className="flex items-start justify-between gap-3">
-                            <span className="font-semibold text-[var(--cc-text)] transition-colors duration-200 group-hover:text-[var(--cc-accent)]">
-                              {offering.course_title}
-                            </span>
-                            <ChevronRight
-                              aria-hidden
-                              className={cn(
-                                "mt-0.5 h-4 w-4 shrink-0 text-[var(--cc-accent)] transition-all duration-200 ease-out",
-                                active
-                                  ? "translate-x-0 opacity-100"
-                                  : "-translate-x-1 opacity-0 group-hover:translate-x-0 group-hover:opacity-70",
-                              )}
-                            />
+                          <ChevronRight
+                            aria-hidden
+                            className={cn(
+                              "pointer-events-none absolute right-0 top-0.5 h-4 w-4 text-[var(--cc-accent)] transition-all duration-200 ease-out",
+                              active
+                                ? "translate-x-0 opacity-100"
+                                : "-translate-x-1 opacity-0 group-hover:translate-x-0 group-hover:opacity-70",
+                            )}
+                          />
+                          <span className="block pr-5 font-semibold text-pretty leading-snug text-[var(--cc-text)] transition-colors duration-200 group-hover:text-[var(--cc-accent)]">
+                            {facultyCourseTitleDisplay(offering.course_title)}
                           </span>
                           <span className="mt-1 block text-xs text-[var(--cc-text-secondary)]">
                             {formatFacultyOfferingLabel(offering)}

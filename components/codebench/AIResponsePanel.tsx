@@ -59,6 +59,8 @@ interface AIResponsePanelProps {
   isPseudocodeLoading?: boolean
   debugThinkingMode?: CoraThinkingMode
   replayProgressKey?: string
+  coraAccess?: boolean
+  onLockedCora?: (label: string) => void
 }
 
 export function AIResponsePanel({
@@ -92,6 +94,8 @@ export function AIResponsePanel({
   isPseudocodeLoading = false,
   debugThinkingMode = "debug",
   replayProgressKey,
+  coraAccess = true,
+  onLockedCora,
 }: AIResponsePanelProps) {
   const isLight = theme === "light"
   const { roles } = useCodebenchChrome()
@@ -200,6 +204,8 @@ export function AIResponsePanel({
                 hideHeader
                 awaitingResponse={isExplainLoading && !explanation}
                 thinkingMode="explain"
+                coraAccess={coraAccess}
+                onLockedCora={onLockedCora}
               />
             )}
           </div>
@@ -279,6 +285,8 @@ export function AIResponsePanel({
                 hideHeader
                 awaitingResponse={isDebugLoading && !debugResult?.explanation}
                 thinkingMode={debugThinkingMode}
+                coraAccess={coraAccess}
+                onLockedCora={onLockedCora}
               />
             </div>
           )
@@ -302,6 +310,8 @@ export function AIResponsePanel({
                 hideHeader
                 awaitingResponse={isImproveLoading && !improvedCode?.diffSummary}
                 thinkingMode="improve"
+                coraAccess={coraAccess}
+                onLockedCora={onLockedCora}
               />
             )}
             {styleIssues.length > 0 ? (
@@ -334,6 +344,8 @@ export function AIResponsePanel({
             hideHeader
             awaitingResponse={isPseudocodeLoading && !pseudocode?.pseudocode}
             thinkingMode="pseudocode"
+            coraAccess={coraAccess}
+            onLockedCora={onLockedCora}
           />
         ) : null}
 
@@ -347,6 +359,9 @@ export function AIResponsePanel({
             onMessagesChange={(messages) => onChatUpdate?.("tutor", messages)}
             theme={theme}
             hideChrome
+            codebenchCora
+            coraAccess={coraAccess}
+            onLockedCora={onLockedCora}
           />
         ) : null}
       </div>

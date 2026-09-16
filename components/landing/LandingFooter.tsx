@@ -12,6 +12,7 @@ import { usePathname } from "next/navigation"
 const PRODUCT_LINKS = [
   { label: "Features", href: "#features" },
   { label: "Solutions", href: "#solutions" },
+  { label: "Download apps", href: "#downloads" },
   { label: "Institutions", href: "/institutions" },
   { label: "Pricing", href: "#pricing" },
   { label: "About", href: "#about", desktopOnly: true },
@@ -175,6 +176,12 @@ export function LandingFooter() {
               © {year} CourseCollab. All rights reserved.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs sm:text-sm">
+              <a
+                href="#downloads"
+                className="inline-flex min-h-[36px] items-center px-2 text-violet-100/75 transition-colors hover:text-white"
+              >
+                Download apps
+              </a>
               <Link
                 href="/privacy"
                 className="inline-flex min-h-[36px] items-center px-2 text-violet-100/75 transition-colors hover:text-white"

@@ -18,7 +18,6 @@ export interface CreateNotificationParams {
     | "forum"
     | "donation"
     | "code_submission"
-    | "classroom_points"
     | "membership"
     | "announcement"
     | "grade"
@@ -30,6 +29,10 @@ export interface CreateNotificationParams {
     | "recommendation_revision"
     | "recommendation_instructor_update"
     | "upgrade_reminder"
+    | "progress_review"
+    | "office_hours"
+    | "notes"
+    | "flashcards"
     | (string & {})
   title: string
   message: string
@@ -168,46 +171,29 @@ export async function createBulkNotifications(
       type: notification.type,
     })
 
-    const values = allInternalIds.map((id) => ({
-      student_id: id,
-      type: notification.type,
-      title: notification.title,
-      message: notification.message,
-      link: notification.link || null,
-      ai_summary: aiSummary,
-      is_read: false,
-    }))
-
-    const placeholders = values
-      .map((_, i) => {
-        const offset = i * 7
-        return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, CURRENT_TIMESTAMP)`
-      })
-      .join(", ")
-
-    const flatValues = values.flatMap((v) => [
-      v.student_id,
-      v.type,
-      v.title,
-      v.message,
-      v.link,
-      v.ai_summary,
-      v.is_read,
-    ])
-
-    const result = await sql.unsafe(
-      `
+    // NOTE: This project's sql.unsafe() only returns a fragment marker for tagged
+    // templates — it does NOT execute parameterized raw SQL. Use unnest + tagged sql.
+    const result = await sql`
       INSERT INTO notifications (student_id, type, title, message, link, ai_summary, is_read, created_at)
-      VALUES ${placeholders}
+      SELECT
+        sid,
+        ${notification.type},
+        ${notification.title},
+        ${notification.message},
+        ${notification.link || null},
+        ${aiSummary},
+        false,
+        CURRENT_TIMESTAMP
+      FROM unnest(${allInternalIds}::int[]) AS sid
       RETURNING id, student_id, created_at
-    `,
-      flatValues,
-    )
+    `
+
+    const inserted = Array.isArray(result) ? result : []
 
     console.log("[v0] ✅ Bulk insert complete:", {
       total: studentIds.length,
-      inserted: result.length,
-      queryCount: stringIds.length > 0 ? 2 : 1, // 1 lookup + 1 insert, or just 1 insert
+      inserted: inserted.length,
+      queryCount: stringIds.length > 0 ? 2 : 1,
     })
 
     if (!notification.skipPush && allInternalIds.length > 0) {
@@ -220,7 +206,7 @@ export async function createBulkNotifications(
       }).catch((err) => console.warn("[Push] bulk student notification failed:", err))
     }
 
-    return result
+    return inserted
   } catch (error) {
     console.error("[v0] ❌ Failed to create bulk notifications:", error)
     console.error("[v0] Error details:", {

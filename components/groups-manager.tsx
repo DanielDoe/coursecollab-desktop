@@ -451,13 +451,13 @@ export function GroupsManager({
     : "bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 text-white rounded-lg sm:rounded-xl shadow-[0_8px_32px_rgba(59,130,246,0.3)] dark:shadow-[0_8px_32px_rgba(59,130,246,0.5)] hover:shadow-[0_12px_40px_rgba(59,130,246,0.4)] dark:hover:shadow-[0_12px_40px_rgba(59,130,246,0.6)] transition-all duration-300 px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 font-semibold gap-1.5 sm:gap-2 text-xs sm:text-sm md:text-base w-full sm:w-auto shrink-0"
 
   return (
-    <div className={cn("flex flex-col", embedInDashboard ? "min-h-0 flex-1" : "h-[600px] sm:h-[650px] md:h-[700px]")}>
+    <div className={cn("flex flex-col", embedInDashboard ? "min-h-0" : "h-[600px] sm:h-[650px] md:h-[700px]")}>
       <div className={cn(
         embedInDashboard
-          ? "flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4"
+          ? "overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4"
           : "rounded-2xl border border-slate-200/60 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.04] shadow-sm p-4 sm:p-5 md:p-6",
       )}>
-      <div className={cn("flex shrink-0 items-end justify-between gap-3", embedInDashboard ? "mb-3" : "mb-6")}>
+      <div className={cn("flex items-end justify-between gap-3", embedInDashboard ? "mb-3" : "mb-6")}>
         {!embedInDashboard ? (
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           <div className={cn(headerIconClass)}>
@@ -489,7 +489,7 @@ export function GroupsManager({
       </div>
 
       {/* Search and Filter */}
-      <div className="mb-4 sm:mb-6 flex shrink-0 flex-col sm:flex-row gap-2 sm:gap-3">
+      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row gap-2 sm:gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-400 dark:text-slate-500" />
           <Input
@@ -524,59 +524,22 @@ export function GroupsManager({
         </Select>
       </div>
 
-      <div
-        className={cn(
-          "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2",
-          embedInDashboard
-            ? "flex flex-col"
-            : "space-y-4 sm:space-y-5 md:space-y-6 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent",
-        )}
-      >
+      <div className="space-y-4 sm:space-y-5 md:space-y-6 overflow-y-auto flex-1 pr-1 sm:pr-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent">
         {getFilteredGroups().length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className={cn(embedInDashboard && "flex min-h-0 flex-1 flex-col")}
           >
-            <Card
-              className={cn(
-                "text-center",
-                embedInDashboard
-                  ? "flex min-h-0 flex-1 flex-col items-center justify-center gap-2 border border-[var(--border)] bg-[var(--muted)]/15 py-10 px-4 shadow-none rounded-xl"
-                  : cn("py-12 sm:py-16 px-4 sm:px-6", cardClass),
-              )}
-            >
-              <CardContent className={cn(embedInDashboard && "flex flex-col items-center justify-center px-0")}>
+            <Card className={cn("text-center py-12 sm:py-16 px-4 sm:px-6", cardClass)}>
+              <CardContent>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-4 sm:mb-6">
-                  <div
-                    className={cn(
-                      "p-3 sm:p-4 rounded-xl sm:rounded-2xl",
-                      embedInDashboard ? "bg-[var(--cc-accent-soft)]" : "bg-slate-100 dark:bg-slate-700",
-                    )}
-                  >
-                    <Users
-                      className={cn(
-                        "h-6 w-6 sm:h-8 sm:w-8",
-                        embedInDashboard ? "text-[var(--cc-accent-dark)]" : "text-slate-600 dark:text-slate-400",
-                      )}
-                    />
+                  <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-slate-700">
+                    <Users className="h-6 w-6 sm:h-8 sm:w-8 text-slate-600 dark:text-slate-400" />
                   </div>
-                  <h3
-                    className={cn(
-                      "text-xl sm:text-2xl font-bold",
-                      embedInDashboard ? "text-[var(--cc-text)]" : "text-slate-800 dark:text-slate-200",
-                    )}
-                  >
-                    No Groups Yet
-                  </h3>
+                  <h3 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-200">No Groups Yet</h3>
                 </div>
-                <p
-                  className={cn(
-                    "text-sm sm:text-base md:text-lg mb-6 sm:mb-8 max-w-md mx-auto",
-                    embedInDashboard ? "text-[var(--cc-text-muted)]" : "text-slate-600 dark:text-slate-400",
-                  )}
-                >
+                <p className="text-sm sm:text-base md:text-lg text-slate-600 dark:text-slate-400 mb-6 sm:mb-8 max-w-md mx-auto">
                   <span className="sm:hidden">Propose the first group!</span>
                   <span className="hidden sm:inline">No groups in your section yet. Propose the first group to get started!</span>
                 </p>
@@ -593,8 +556,7 @@ export function GroupsManager({
             </Card>
           </motion.div>
         ) : (
-          <div className="space-y-4 sm:space-y-5 md:space-y-6">
-          {getFilteredGroups().map((g, index) => (
+          getFilteredGroups().map((g, index) => (
             <motion.div
               key={g.id}
               initial={{ opacity: 0, y: 20 }}
@@ -737,8 +699,7 @@ export function GroupsManager({
                 </CardFooter>
               </Card>
             </motion.div>
-          ))}
-          </div>
+          ))
         )}
       </div>
       </div>

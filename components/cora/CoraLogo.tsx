@@ -1,6 +1,5 @@
 "use client"
 
-import { Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CORA_NAME } from "@/lib/cora/constants"
 import { CORA_BRAND_FONT_CLASS } from "@/lib/cora/brand-font"
@@ -24,11 +23,6 @@ type CoraLogoProps = {
 /** Compact gradient wordmark for dashboard sidebar / quick modules. */
 export function CoraSidebarMark({ className }: { className?: string }) {
   return <CoraLogo size="xs" className={cn("leading-none", className)} />
-}
-
-/** 16px Lucide-sized mark for LangSmith-style nav rows. */
-export function CoraNavIcon({ className }: { className?: string }) {
-  return <Sparkles className={cn("size-4 shrink-0", className)} aria-hidden />
 }
 
 /** @deprecated Use CoraSidebarMark — PNG mark replaced by text wordmark. */

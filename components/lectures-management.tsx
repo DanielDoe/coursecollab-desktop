@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
+import { openDesktopUrl } from "@/lib/desktop-open-url"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -384,8 +385,8 @@ export function LecturesManagement({ embedInDashboard }: { embedInDashboard?: bo
         ? `/faculty/dashboard/content/lectures/${lecture.id}`
         : instructorLecturePreviewPath(lecture.id)
       : `/student/dashboard-v2/lectures/${lecture.week}?lectureId=${lecture.id}`
-    const popup = window.open(path, "_blank", "noopener,noreferrer")
-    if (!popup) router.push(path)
+    // Stay in the same desktop window — never spawn a popup BrowserWindow.
+    router.push(path)
   }
 
   const getApiBasePath = () => {
@@ -1760,7 +1761,7 @@ export function LecturesManagement({ embedInDashboard }: { embedInDashboard?: bo
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => window.open(material.file_url, "_blank")}
+                                onClick={() => void openDesktopUrl(material.file_url)}
                               >
                                 <ExternalLink className="h-4 w-4" />
                               </Button>

@@ -209,7 +209,9 @@ Make it educational and achievable in 15-30 minutes. Do NOT provide the solution
     try {
       const openai = new OpenAI({ apiKey: openaiApiKey })
       const { content } = await createForFeature(openai, "codebench", {
-        usageContext: codebenchUsageContext(studentIdNum, "QUESTION_GENERATION", "codebench-daily-challenge"),
+        usageContext: codebenchUsageContext(studentIdNum, "QUESTION_GENERATION", "codebench-daily-challenge", {
+          billable: false,
+        }),
         messages: [
           {
             role: "system",

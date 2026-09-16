@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
+import { requireCodebenchCoraStudent } from "@/lib/codebench-request-auth"
 import { codebenchUsageContext, jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
   try {
     const { code, language = "cpp", studentId } = await request.json()
 
-    const auth = await requireCodebenchStudent(request, studentId != null ? String(studentId) : null)
+    const auth = await requireCodebenchCoraStudent(request, studentId != null ? String(studentId) : null)
     if (!auth.ok) return auth.response
 
     if (!code) {

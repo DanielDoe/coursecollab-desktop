@@ -107,15 +107,9 @@ export function ProjectsList({
     );
   }
 
-  const embedRootClass = embedInDashboard
-    ? "flex min-h-0 flex-1 flex-col gap-4 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 sm:gap-5 sm:p-6"
-    : "space-y-3 sm:space-y-4 pt-3 sm:pt-5"
-
   return (
-    <div className={cn(embedRootClass)}>
-      <div className={cn(embedInDashboard && "shrink-0 space-y-4")}>
+    <div className={cn(embedInDashboard ? "space-y-3 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4" : "space-y-3 sm:space-y-4 pt-3 sm:pt-5")}>
       <h3 className={cn(
-        "shrink-0",
         embedInDashboard
           ? "text-sm font-semibold text-[var(--cc-text)]"
           : "text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-200",
@@ -131,26 +125,20 @@ export function ProjectsList({
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="relative shrink-0"
+        className="relative"
       >
-        <Search className={cn(
-          "absolute top-1/2 -translate-y-1/2 text-muted-foreground h-3.5 w-3.5 sm:h-4 sm:w-4 dark:text-slate-500",
-          embedInDashboard ? "left-3.5" : "left-2.5 sm:left-3",
-        )} />
+        <Search className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-3.5 w-3.5 sm:h-4 sm:w-4 dark:text-slate-500" />
         <Input
           placeholder="Search..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className={cn(
-            "h-9 sm:h-10 rounded-lg sm:rounded-xl border-2 transition-colors text-sm sm:text-base dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-200 dark:placeholder:text-slate-500",
-            embedInDashboard
-              ? "border-[var(--border)] bg-[var(--muted)]/40 pl-10 text-[var(--cc-text)] sm:pl-11"
-              : "pl-8 sm:pl-10 focus:border-indigo-500 dark:focus:border-indigo-400"
+            "pl-8 sm:pl-10 h-9 sm:h-10 rounded-lg sm:rounded-xl border-2 transition-colors text-sm sm:text-base dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-200 dark:placeholder:text-slate-500",
+            embedInDashboard ? "border-[var(--border)] bg-[var(--muted)]/40 text-[var(--cc-text)]" : "focus:border-indigo-500 dark:focus:border-indigo-400"
           )}
           title="Search projects..."
         />
       </motion.div>
-      </div>
 
       {/* Projects Grid */}
       {filteredProjects.length === 0 ? (
@@ -158,11 +146,7 @@ export function ProjectsList({
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className={cn(
-            embedInDashboard
-              ? "flex min-h-[280px] flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border)] bg-[color-mix(in_srgb,var(--cc-ui-skeleton,var(--muted))_12%,transparent)] px-4 py-12 text-center"
-              : "py-12 text-center",
-          )}
+          className="text-center py-12"
         >
           <div className={cn(
             "p-4 rounded-2xl inline-block mb-4",
@@ -187,7 +171,7 @@ export function ProjectsList({
       ) : (
         <div className={cn(
           "flex flex-col overflow-y-auto pr-1",
-          embedInDashboard ? "min-h-0 flex-1 gap-2" : "gap-5 max-h-[70vh] pr-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent",
+          embedInDashboard ? "max-h-[70vh] gap-2" : "gap-5 max-h-[70vh] pr-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent",
         )}>
           {filteredProjects.map((project, index) => (
             <motion.div

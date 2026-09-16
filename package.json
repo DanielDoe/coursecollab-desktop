@@ -1,6 +1,6 @@
 {
   "name": "coursecollab-desktop",
-  "version": "0.1.9",
+  "version": "0.1.17",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
@@ -256,10 +256,10 @@
     "test:e2e": "playwright test",
     "test:e2e:save-later": "playwright test tests/save-and-finish-later.spec.ts",
     "start": "next start",
-    "sync:web": "node scripts/sync-from-web-app.mjs",
+    "restore:desktop-ui": "node scripts/restore-desktop-ui-from-release.mjs",
     "predev:electron": "node scripts/kill-desktop-electron.mjs && node scripts/rebuild-electron-native.mjs && node scripts/brand-electron-dev.mjs",
     "dev:electron": "npm run sync:notification-groups && tsc -p tsconfig.electron.json && node scripts/copy-electron-setup.mjs && electron .",
-    "dev:vite": "vite --host 127.0.0.1",
+    "dev:vite": "npm run restore:desktop-ui && vite --host 127.0.0.1",
     "dev:api": "node --max-old-space-size=4096 node_modules/next/dist/bin/next dev -p 3000",
     "dev:desktop": "concurrently -k \"npm run dev:vite\" \"wait-on http://127.0.0.1:5173 && npm run dev:electron\"",
     "build:renderer": "vite build",
@@ -272,6 +272,13 @@
     "build:desktop:linux": "npm run sync:notification-groups && python3 scripts/prepare-desktop-icons.py && vite build && tsc -p tsconfig.electron.json && node scripts/copy-electron-setup.mjs && node scripts/rebuild-electron-native.mjs && electron-builder --linux --publish never",
     "build:desktop:all": "npm run sync:notification-groups && python3 scripts/prepare-desktop-icons.py && vite build && tsc -p tsconfig.electron.json && node scripts/copy-electron-setup.mjs && node scripts/rebuild-electron-native.mjs && electron-builder --mac --x64 --arm64 --win --linux --publish never",
     "release:desktop": "npm run sync:notification-groups && python3 scripts/prepare-desktop-icons.py && vite build && tsc -p tsconfig.electron.json && node scripts/copy-electron-setup.mjs && node scripts/rebuild-electron-native.mjs && electron-builder --publish always",
+    "merge:desktop-ota-mac-manifest": "node scripts/merge-mac-ota-manifest.mjs",
+    "merge:desktop-ota-win-manifest": "node scripts/merge-win-ota-manifest.mjs",
+    "publish:desktop-ota": "node scripts/publish-desktop-ota.mjs",
+    "publish:desktop-downloads": "node scripts/upload-desktop-downloads.mjs",
+    "release:desktop:ota:mac": "npm run build:desktop:mac && npm run build:desktop:mac:x64 && npm run merge:desktop-ota-mac-manifest",
+    "release:desktop:ota:win": "npm run build:desktop:win && npm run merge:desktop-ota-win-manifest",
+    "release:desktop:artifacts": "npm run release:desktop:ota:mac && npm run release:desktop:ota:win",
     "test:codebench": "npm run sync:notification-groups && tsc -p tsconfig.electron.json && electron dist-electron/codebench-selftest.js",
     "typecheck:renderer": "tsc -p tsconfig.app.json --noEmit",
     "sync:notification-groups": "node scripts/sync-notification-groups.mjs"
@@ -381,7 +388,7 @@
     "react-is": "^19.2.0",
     "react-markdown": "latest",
     "react-qr-code": "^2.0.18",
-    "react-resizable-panels": "latest",
+    "react-resizable-panels": "4.12.3",
     "react-syntax-highlighter": "^15.6.6",
     "recharts": "^3.3.0",
     "rehype-katex": "^7.0.1",
@@ -450,6 +457,14 @@
         "to": "tray-icon.png"
       },
       {
+        "from": "build/tray-icon-win.png",
+        "to": "tray-icon-win.png"
+      },
+      {
+        "from": "build/tray-icon-win-tile.png",
+        "to": "tray-icon-win-tile.png"
+      },
+      {
         "from": "build/badges",
         "to": "badges",
         "filter": [
@@ -493,7 +508,7 @@
         "dmg",
         "zip"
       ],
-      "notarize": true
+      "notarize": false
     },
     "dmg": {
       "icon": "build/icon.icns"

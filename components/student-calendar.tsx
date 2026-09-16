@@ -87,7 +87,6 @@ interface StudyGoal {
 interface StudentCalendarProps {
   studentId: string
   embedInDashboard?: boolean
-  hubLayout?: boolean
 }
 
 const EVENT_CONFIG = {
@@ -143,13 +142,11 @@ const THEMED_EVENT_TYPE_BADGE =
   "text-xs font-medium border-[var(--cc-accent-border)] text-[var(--cc-accent-dark)] bg-[var(--cc-accent-soft)]"
 const THEMED_PANEL_SUBTEXT = "text-sm text-white/85"
 
-const AGENDA_UPCOMING_PAGE_SIZE = 5
-
 function isClassMeetingEvent(event: CalendarEvent): boolean {
   return event.isClassMeeting === true || event.event_type === "class_meeting"
 }
 
-export function StudentCalendar({ studentId, embedInDashboard = false, hubLayout = false }: StudentCalendarProps) {
+export function StudentCalendar({ studentId, embedInDashboard = false }: StudentCalendarProps) {
   const router = useRouter()
   const { toast } = useToast()
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -178,7 +175,6 @@ export function StudentCalendar({ studentId, embedInDashboard = false, hubLayout
   })
   const [showClassMeetingDialog, setShowClassMeetingDialog] = useState(false)
   const [viewingClassMeeting, setViewingClassMeeting] = useState<CalendarEvent | null>(null)
-  const [agendaUpcomingPage, setAgendaUpcomingPage] = useState(0)
 
   const [formData, setFormData] = useState({
     title: '',
@@ -220,10 +216,6 @@ export function StudentCalendar({ studentId, embedInDashboard = false, hubLayout
       document.removeEventListener("visibilitychange", onVisibility)
     }
   }, [studentId])
-
-  useEffect(() => {
-    setAgendaUpcomingPage(0)
-  }, [events.length, classMeetings.length])
 
   const fetchEventsAndClassSchedule = async () => {
     setLoading(true)
@@ -551,19 +543,6 @@ export function StudentCalendar({ studentId, embedInDashboard = false, hubLayout
     return eventDate > now && !e.is_completed
   }).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
 
-  const agendaUpcomingTotalPages = Math.max(1, Math.ceil(upcomingEvents.length / AGENDA_UPCOMING_PAGE_SIZE))
-  const agendaUpcomingSafePage = Math.min(agendaUpcomingPage, agendaUpcomingTotalPages - 1)
-  const paginatedUpcomingEvents = upcomingEvents.slice(
-    agendaUpcomingSafePage * AGENDA_UPCOMING_PAGE_SIZE,
-    (agendaUpcomingSafePage + 1) * AGENDA_UPCOMING_PAGE_SIZE,
-  )
-  const agendaUpcomingRangeStart =
-    upcomingEvents.length === 0 ? 0 : agendaUpcomingSafePage * AGENDA_UPCOMING_PAGE_SIZE + 1
-  const agendaUpcomingRangeEnd = Math.min(
-    (agendaUpcomingSafePage + 1) * AGENDA_UPCOMING_PAGE_SIZE,
-    upcomingEvents.length,
-  )
-
   const activeGoals = studyGoals.filter(g => !g.is_completed)
   const completedToday = allEvents.filter(e => isToday(new Date(e.start_time)) && e.is_completed).length
   const totalEvents = allEvents.filter(e => !e.is_completed).length
@@ -712,7 +691,6 @@ export function StudentCalendar({ studentId, embedInDashboard = false, hubLayout
     <div className={cn(embedInDashboard ? "space-y-3" : "space-y-6 sm:space-y-8")}>
       {embedInDashboard ? (
         <>
-          {!hubLayout ? (
           <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4">
             <div className="flex min-w-0 items-end justify-between gap-3">
               <div className="min-w-0">
@@ -777,51 +755,8 @@ export function StudentCalendar({ studentId, embedInDashboard = false, hubLayout
               </button>
             </div>
           </div>
-          ) : (
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-9 rounded-xl px-2.5 text-[var(--cc-text)]"
-                onClick={generateStudyPlan}
-                disabled={generatingPlan}
-              >
-                {generatingPlan ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
-                <span className="ml-1.5 hidden sm:inline">Study plan</span>
-              </Button>
-              <Button
-                type="button"
-                className="h-9 rounded-xl border-0 px-3 shadow-none hover:opacity-90"
-                style={{ backgroundColor: "var(--cc-accent)", color: "#FFFFFF" }}
-                onClick={() => {
-                  setFormData({ ...formData, start_time: new Date().toISOString().slice(0, 16) })
-                  setShowEventDialog(true)
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                <span className="ml-1.5 hidden sm:inline">Add event</span>
-              </Button>
-              <button
-                type="button"
-                onClick={() => setShowGoalDialog(true)}
-                className="rounded-full px-3 py-1 text-xs font-medium"
-                style={{ backgroundColor: "var(--muted)", color: "var(--cc-text-muted)" }}
-              >
-                New goal
-              </button>
-              <button
-                type="button"
-                disabled={importingSyllabusDeadlines}
-                onClick={() => void importSyllabusDeadlines()}
-                className="rounded-full px-3 py-1 text-xs font-medium disabled:opacity-50"
-                style={{ backgroundColor: "var(--muted)", color: "var(--cc-text-muted)" }}
-              >
-                {importingSyllabusDeadlines ? "Importing…" : "Import syllabus dates"}
-              </button>
-            </div>
-          )}
 
-          <div className="grid min-h-0 w-full grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)] lg:items-stretch">
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)] xl:items-start">
             <section className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
                 <h3 className="text-sm font-semibold text-[var(--cc-text)]">{monthLabel}</h3>
@@ -855,12 +790,12 @@ export function StudentCalendar({ studentId, embedInDashboard = false, hubLayout
               <div className="p-3 sm:p-4">{renderCalendarGrid(true)}</div>
             </section>
 
-            <section className="flex h-full min-h-[380px] flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
-              <div className="shrink-0 border-b border-[var(--border)] px-4 py-3">
+            <section className="flex min-h-[360px] flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+              <div className="border-b border-[var(--border)] px-4 py-3">
                 <h3 className="text-sm font-semibold text-[var(--cc-text)]">Agenda</h3>
                 <p className="text-xs text-[var(--cc-text-muted)]">Today, then what’s next</p>
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <ScrollArea className="flex-1">
                 <p className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cc-text-muted)]">
                   Today
                 </p>
@@ -869,52 +804,13 @@ export function StudentCalendar({ studentId, embedInDashboard = false, hubLayout
                 ) : (
                   todayEvents.map(renderAgendaItem)
                 )}
-                <div className="flex items-center justify-between gap-2 px-4 pb-1 pt-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cc-text-muted)]">
-                    Coming up
-                  </p>
-                  {upcomingEvents.length > AGENDA_UPCOMING_PAGE_SIZE ? (
-                    <div className="flex items-center gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 shrink-0"
-                        disabled={agendaUpcomingSafePage <= 0}
-                        aria-label="Previous upcoming events"
-                        onClick={() => setAgendaUpcomingPage((page) => Math.max(0, page - 1))}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <span className="min-w-[4.5rem] text-center text-[10px] tabular-nums text-[var(--cc-text-muted)]">
-                        {agendaUpcomingRangeStart}–{agendaUpcomingRangeEnd} of {upcomingEvents.length}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 shrink-0"
-                        disabled={agendaUpcomingSafePage >= agendaUpcomingTotalPages - 1}
-                        aria-label="Next upcoming events"
-                        onClick={() =>
-                          setAgendaUpcomingPage((page) =>
-                            Math.min(agendaUpcomingTotalPages - 1, page + 1),
-                          )
-                        }
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : upcomingEvents.length > 0 ? (
-                    <span className="text-[10px] tabular-nums text-[var(--cc-text-muted)]">
-                      {upcomingEvents.length} total
-                    </span>
-                  ) : null}
-                </div>
+                <p className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cc-text-muted)]">
+                  Coming up
+                </p>
                 {upcomingEvents.length === 0 ? (
                   <p className="px-4 py-3 text-sm text-[var(--cc-text-muted)]">No upcoming events.</p>
                 ) : (
-                  paginatedUpcomingEvents.map(renderAgendaItem)
+                  upcomingEvents.slice(0, 10).map(renderAgendaItem)
                 )}
                 <div className="border-t border-[var(--border)] px-4 py-3">
                   <div className="mb-2 flex items-center justify-between">
@@ -948,7 +844,7 @@ export function StudentCalendar({ studentId, embedInDashboard = false, hubLayout
                     </ul>
                   )}
                 </div>
-              </div>
+              </ScrollArea>
             </section>
           </div>
         </>

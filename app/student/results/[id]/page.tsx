@@ -1,23 +1,16 @@
-"use client"
-
-import { use } from "react"
-import { useSearchParams } from "next/navigation"
 import { QuizResults } from "@/components/quiz-results"
 import { StudentHeader } from "@/components/student-header"
 
-export default function ResultsPage({
+export default async function ResultsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ type?: string }>
 }) {
-  const { id } = use(params)
-  const searchParams = useSearchParams()
-  const type = searchParams.get("type") ?? undefined
-  const assessmentType =
-    type === "mid_semester" || type === "final" || type === "homework" || type === "quiz"
-      ? type
-      : "quiz"
-
+  const { id } = await params
+  const { type } = await searchParams
+  const assessmentType = (type === "mid_semester" || type === "final" || type === "homework" || type === "quiz") ? type : "quiz"
   return (
     <div className="min-h-screen bg-[var(--cc-background)]">
       <StudentHeader />

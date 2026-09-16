@@ -35,7 +35,6 @@ import {
 import { useDebouncedCallback } from "@/lib/use-debounced-callback"
 import { getStudentAuthHeaders, resolveStudentSection, studentApiFetch } from "@/lib/auth"
 import { buildStudentScopedSearchParams, getStudentDatabaseId } from "@/lib/student-session-ids"
-import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
 import { cn } from "@/lib/utils"
 import {
   buildDigitalNoteExportPayload,
@@ -491,7 +490,6 @@ export const StudentDigitalNotesPanel = forwardRef<StudentDigitalNotesPanelHandl
   }
   const activeToolbarFilters =
     (sort !== "recent" ? 1 : 0) + (contentFilter !== "all" ? 1 : 0)
-  const desktopNative = isDesktopAppShell()
 
   if (loading) {
     return (
@@ -502,26 +500,17 @@ export const StudentDigitalNotesPanel = forwardRef<StudentDigitalNotesPanelHandl
   }
 
   const editorSection = !activeNote ? (
-    <div
-      className={cn(
-        "flex flex-col items-center justify-center gap-3 text-center",
-        desktopNative ? "h-full min-h-0 px-6" : "min-h-[40vh]",
-      )}
-    >
-      <NotebookPen className={cn(desktopNative ? "h-6 w-6 text-[#9ca3af]" : "h-10 w-10 text-[var(--cc-accent)]")} />
-      <p className={cn(desktopNative ? "text-[13px] text-[#6b7280]" : "text-sm text-[var(--cc-text-muted)]")}>
+    <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-center">
+      <NotebookPen className="h-10 w-10 text-[var(--cc-accent)]" />
+      <p className="text-sm text-[var(--cc-text-muted)]">
         Create a note to type ideas or sketch with stylus, pencil, or finger.
       </p>
-      <Button
-        onClick={() => setCreateOpen(true)}
-        disabled={creating}
-        className={desktopNative ? "h-8 rounded-[6px] px-3 text-[12px]" : "rounded-full"}
-      >
+      <Button onClick={() => setCreateOpen(true)} disabled={creating} className="rounded-full">
         New note
       </Button>
     </div>
   ) : (
-    <div className={cn("flex h-full min-h-0 flex-col", desktopNative ? "gap-2.5" : "gap-3")}>
+    <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="min-w-0 shrink-0 space-y-1">
           <Input
             value={title}
@@ -531,10 +520,7 @@ export const StudentDigitalNotesPanel = forwardRef<StudentDigitalNotesPanelHandl
               debouncedSave({ title: e.target.value })
             }}
             readOnly={isReadOnly}
-            className={cn(
-              "max-w-xl border-0 bg-transparent px-0 font-semibold shadow-none focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent",
-              desktopNative ? "h-8 text-[15px] tracking-tight" : "h-9 text-lg",
-            )}
+            className="h-9 max-w-xl border-0 bg-transparent px-0 text-lg font-semibold shadow-none focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
             placeholder="Note title"
           />
           {isReadOnly && activeNote.ownerName ? (
@@ -557,32 +543,17 @@ export const StudentDigitalNotesPanel = forwardRef<StudentDigitalNotesPanelHandl
       >
         <div className="flex min-w-0 shrink-0 items-center gap-2">
           <TabsList
-            className={cn(
-              "w-auto shrink-0 border-0 shadow-none text-[var(--cc-text-muted)]",
-              desktopNative
-                ? "h-8 rounded-[6px] bg-[#f3f4f6] p-0.5 dark:bg-[#1a1a1a]"
-                : "h-9 rounded-full bg-[var(--notes-tab-track)] p-1",
-            )}
+            className="h-9 w-auto shrink-0 rounded-full border-0 bg-[var(--notes-tab-track)] p-1 shadow-none text-[var(--cc-text-muted)]"
           >
             <TabsTrigger
               value="typed"
-              className={cn(
-                "border-0 shadow-none data-[state=active]:border-transparent data-[state=active]:shadow-none",
-                desktopNative
-                  ? "h-7 rounded-[5px] px-2.5 text-[12px] data-[state=active]:bg-white dark:data-[state=active]:bg-[#171717]"
-                  : "rounded-full px-3 data-[state=active]:bg-[var(--notes-tab-active-bg)] data-[state=active]:text-[var(--notes-tab-active-fg)] sm:px-4",
-              )}
+              className="rounded-full border-0 px-3 shadow-none data-[state=active]:border-transparent data-[state=active]:bg-[var(--notes-tab-active-bg)] data-[state=active]:text-[var(--notes-tab-active-fg)] data-[state=active]:shadow-none sm:px-4"
             >
               Typed
             </TabsTrigger>
             <TabsTrigger
               value="ink"
-              className={cn(
-                "border-0 shadow-none data-[state=active]:border-transparent data-[state=active]:shadow-none",
-                desktopNative
-                  ? "h-7 rounded-[5px] px-2.5 text-[12px] data-[state=active]:bg-white dark:data-[state=active]:bg-[#171717]"
-                  : "rounded-full px-3 data-[state=active]:bg-[var(--notes-tab-active-bg)] data-[state=active]:text-[var(--notes-tab-active-fg)] sm:px-4",
-              )}
+              className="rounded-full border-0 px-3 shadow-none data-[state=active]:border-transparent data-[state=active]:bg-[var(--notes-tab-active-bg)] data-[state=active]:text-[var(--notes-tab-active-fg)] data-[state=active]:shadow-none sm:px-4"
             >
               Ink
             </TabsTrigger>
@@ -596,10 +567,7 @@ export const StudentDigitalNotesPanel = forwardRef<StudentDigitalNotesPanelHandl
                 type="button"
                 size="sm"
                 variant="ghost"
-                className={cn(
-                  "text-[var(--cc-text)]",
-                  desktopNative ? "h-8 rounded-[6px] px-2 text-[12px]" : "h-9 rounded-xl px-2.5",
-                )}
+                className="h-9 rounded-xl px-2.5 text-[var(--cc-text)]"
                 onClick={() => setShareOpen(true)}
               >
                 <Share2 className="h-4 w-4" />
@@ -612,10 +580,7 @@ export const StudentDigitalNotesPanel = forwardRef<StudentDigitalNotesPanelHandl
                   type="button"
                   size="sm"
                   variant="ghost"
-                  className={cn(
-                    "text-[var(--cc-text)]",
-                    desktopNative ? "h-8 rounded-[6px] px-2 text-[12px]" : "h-9 rounded-xl px-2.5",
-                  )}
+                  className="h-9 rounded-xl px-2.5 text-[var(--cc-text)]"
                 >
                   Export
                   <ChevronDown className="ml-1 h-3.5 w-3.5" />
@@ -641,10 +606,7 @@ export const StudentDigitalNotesPanel = forwardRef<StudentDigitalNotesPanelHandl
                 type="button"
                 size="sm"
                 variant="ghost"
-                className={cn(
-                  "text-[var(--cc-danger)]",
-                  desktopNative ? "h-8 rounded-[6px] px-2" : "h-9 rounded-xl px-2.5",
-                )}
+                className="h-9 rounded-xl px-2.5 text-[var(--cc-danger)]"
                 onClick={() => setDeleteOpen(true)}
               >
                 <Trash2 className="h-4 w-4" />
@@ -652,13 +614,7 @@ export const StudentDigitalNotesPanel = forwardRef<StudentDigitalNotesPanelHandl
             ) : null}
           </div>
         </div>
-        <TabsContent
-          value="typed"
-          className={cn(
-            "min-h-0 flex-1 data-[state=active]:flex data-[state=active]:flex-col",
-            desktopNative ? "mt-1.5" : "mt-3",
-          )}
-        >
+        <TabsContent value="typed" className="mt-3 min-h-0 flex-1 data-[state=active]:flex data-[state=active]:flex-col">
           <DigitalNoteEditor
             noteKey={activeNoteId}
             value={bodyText}
@@ -672,13 +628,7 @@ export const StudentDigitalNotesPanel = forwardRef<StudentDigitalNotesPanelHandl
             }}
           />
         </TabsContent>
-        <TabsContent
-          value="ink"
-          className={cn(
-            "min-h-0 flex-1 space-y-3 data-[state=active]:flex data-[state=active]:flex-col",
-            desktopNative ? "mt-1.5" : "mt-3",
-          )}
-        >
+        <TabsContent value="ink" className="mt-3 min-h-0 flex-1 space-y-3 data-[state=active]:flex data-[state=active]:flex-col">
           {!isReadOnly ? (
             <CircuitWorkspaceBackupActions
               workspace={inkWorkspace}
@@ -776,12 +726,7 @@ export const StudentDigitalNotesPanel = forwardRef<StudentDigitalNotesPanelHandl
   if (layout === "detail") {
     if (loading) {
       return (
-        <div
-          className={cn(
-            "flex items-center justify-center",
-            desktopNative ? "h-full min-h-0" : "min-h-[320px]",
-          )}
-        >
+        <div className="flex min-h-[320px] items-center justify-center">
           <Loader2 className={cn("h-8 w-8 animate-spin", facultyModuleSpinnerClass(MODULE_ID))} />
         </div>
       )

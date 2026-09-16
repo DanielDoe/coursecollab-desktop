@@ -46,6 +46,7 @@ type Props = {
     due_at?: string | null
     duration_hours?: number | null
     expires_at?: string | null
+    hidden_from_students?: boolean
   } | null
   sessions?: string[]
   onSaved?: () => void

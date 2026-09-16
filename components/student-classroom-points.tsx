@@ -364,7 +364,8 @@ export function StudentClassroomPoints({ studentId, studentSession }: { studentI
     }
   };
 
-  const formatTimeRemaining = (expiresAt: string) => {
+  const formatTimeRemaining = (expiresAt: string | null | undefined) => {
+    if (!expiresAt) return "Open — no deadline set";
     const now = new Date();
     const expires = new Date(expiresAt);
     const diff = expires.getTime() - now.getTime();
@@ -985,7 +986,7 @@ export function StudentClassroomPoints({ studentId, studentSession }: { studentI
                           ) : (
                             availableSubmissions
                               .filter(submission => {
-                                const isExpired = new Date(submission.expires_at) < new Date();
+                                const isExpired = isAssignmentPastDue(submission);
                                 const isAttempted = submission.attempted;
                                 return !isExpired && !isAttempted;
                               })
@@ -1056,9 +1057,9 @@ export function StudentClassroomPoints({ studentId, studentSession }: { studentI
                                   <div className="flex flex-col items-start justify-center w-full">
                                     <span className="font-semibold text-slate-900 dark:text-slate-100">{submission.title}</span>
                                     <span className="text-xs text-slate-600 dark:text-slate-300 mt-1">
-                                      {submission.is_active === false || new Date(submission.expires_at) <= new Date()
+                                      {isAssignmentPastDue(submission)
                                         ? "Closed — awaiting review"
-                                        : `Expires: ${formatTimeRemaining(submission.expires_at)}`}
+                                        : formatTimeRemaining(submission.expires_at)}
                                     </span>
                                   </div>
                                 </SelectItem>

@@ -100,6 +100,23 @@ export function normalizeLearningGoal(raw: unknown): CoraLearningGoal {
 }
 
 /** Map legacy chatConfig fields to a learning goal (backward compat). */
+/** Assessment GUIDED_ONLY must not use workflows that walk toward a full solution. */
+export function clampLearningGoalForAssessmentPolicy(
+  goal: CoraLearningGoal,
+  mode: CoraAssessmentMode | null | undefined,
+): CoraLearningGoal {
+  if (mode !== "GUIDED_ONLY" && mode !== "DISABLED") return goal
+  if (goal === "solve_together" || goal === "create" || goal === "prepare") return "understand"
+  return goal
+}
+
+export const ASSESSMENT_GUIDED_LEARNING_GOAL_OVERRIDE = `
+ASSESSMENT GUARDRAIL (overrides any learning-goal workflow above):
+- You are coaching during a protected quiz, homework, or practice attempt.
+- Do NOT produce numbered steps that complete the task, final code, plots, circuits, or letter/numeric answers.
+- Do NOT confirm or deny the student's proposed answer — redirect to reasoning checks instead.
+- Use hints, concepts, guiding questions, and one small next step only.`
+
 export function learningGoalFromLegacyChatConfig(chatConfig?: {
   tutorMode?: string
   examPrepMode?: boolean
@@ -162,6 +179,7 @@ CORE BEHAVIOR (always):
 - Continuously adapt based on student progress, misconceptions, assessment history, and instructor content.
 - Keep responses focused (roughly 120–250 words unless depth is requested); use markdown, bullets, and code blocks when relevant.`
 
+import type { CoraAssessmentMode } from "@/lib/cora/assessment-policy"
 import type { AiFeature } from "@/lib/resolve-feature-ai-model"
 import type { AiModelPreset } from "@/lib/ai-model-catalog"
 import {

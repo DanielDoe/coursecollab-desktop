@@ -86,7 +86,7 @@ export function formatMembershipAccessForPrompt(tier: MembershipTier, credits?: 
     typeof ai === "number" && ai > 0
       ? `${credits ?? "?"} Cora Credits remaining (${ai}/month included; Cora Lite after exhaustion)`
       : "No Cora Credits on this tier"
-  return `- Membership: **${plan.displayName}**\n- Cora access: ${aiLine}\n- Quiz retakes: ${plan.features.quizAttempts}\n- CodeBench: ${plan.features.codeBench ? "yes" : "no"}\n- Playground weekly credits: ${plan.features.playgroundCredits}`
+  return `- Membership: **${plan.displayName}**\n- Cora access: ${aiLine}\n- Quiz retakes: ${plan.features.quizAttempts}\n- CodeBench: ${plan.features.codeBench ? "yes" : "no"}\n- Cora in CodeBench: ${plan.features.codeBenchCora ? "yes" : "no"}\n- Playground weekly credits: ${plan.features.playgroundCredits}`
 }
 
 export function formatReadOnlyCapabilitiesForPrompt(): string {

@@ -23,12 +23,6 @@ export {
   migrateOpeningBalanceFromLegacy,
   type CoraCreditAccountSnapshot,
 } from "@/lib/cora/ai/credit-accounts"
-export {
-  combinePeriodUsage,
-  pickCanonicalIncluded,
-  pickCanonicalLifetime,
-  pickCanonicalPurchased,
-} from "@/lib/cora/ai/credit-reconcile"
 export { getBudgetLimits, assertAgentRunBudget, isExpensiveModel } from "@/lib/cora/ai/budget"
 export {
   coraGatewayChat,

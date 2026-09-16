@@ -171,10 +171,6 @@
   margin-bottom: 0.5em;
 }
 
-.digital-note-markdown-preview .digital-note-markdown-body > :first-child {
-  margin-top: 0;
-}
-
 .digital-note-markdown-preview .digital-note-markdown-body p {
   line-height: 1.65;
 }

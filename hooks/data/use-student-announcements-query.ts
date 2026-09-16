@@ -19,7 +19,7 @@ export function useStudentAnnouncementsQuery(studentId: string) {
     queryFn: () => fetchStudentAnnouncements(studentId),
     staleTime: staleMsFor("dynamic"),
     refetchOnWindowFocus: refetchOnFocusFor("dynamic"),
-    enabled: Boolean(studentId),
+    enabled: Boolean(studentId && (scope.role === "student" || scope.role === "guest")),
     retry: 2,
   })
 

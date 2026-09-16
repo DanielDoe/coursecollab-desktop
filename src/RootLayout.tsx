@@ -6,7 +6,9 @@ import { AppConfirmProvider } from '@/components/providers/app-confirm-provider'
 import { AppQueryProvider } from '@/components/providers/app-query-provider'
 import { UserTimezoneProvider } from '@/components/providers/user-timezone-provider'
 import { SessionCatalogProvider } from '@/components/session-catalog-provider'
+import { DesktopNavigationGuard } from '@/components/desktop/DesktopNavigationGuard'
 import { DesktopNotificationBridge } from '@/components/desktop/DesktopNotificationBridge'
+import { DesktopUpdatePrompt } from '@/components/desktop/DesktopUpdatePrompt'
 import { NativeWebBridgeListener } from '@/components/native-web-bridge-listener'
 import { SystemErrorBoundary } from '@/components/system-error-boundary'
 import { SessionExpiryGuard } from '@/components/auth/SessionExpiryGuard'
@@ -52,12 +54,14 @@ export function RootLayout({ children }: { children: ReactNode }) {
   return (
     <div className="font-sans antialiased min-h-[100dvh]">
       <SessionExpiryGuard />
+      <DesktopNavigationGuard />
       <ThemeProvider>
         <AppConfirmProvider>
           <AppQueryProvider>
             <UserTimezoneProvider initialTimezone={initialTimezone}>
               <NotificationProvider>
                 <DesktopNotificationBridge />
+                <DesktopUpdatePrompt />
                 <NativeWebBridgeListener />
                 <SessionCatalogProvider>
                   <SystemErrorBoundary

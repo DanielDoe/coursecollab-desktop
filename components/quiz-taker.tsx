@@ -33,6 +33,7 @@ import { QuestionRenderer } from "@/components/question-renderer"
 import { QuizInstructions } from "@/components/quiz-instructions"
 import { useSmartHomeLink } from "@/hooks/useSmartHomeLink"
 import { QuizTakerChrome } from "@/components/quiz-taker-chrome"
+import { StudentQuizQuestionNavigator } from "@/components/student-quiz-question-navigator"
 import { useNativeApp } from "@/hooks/use-native-app"
 import { cn } from "@/lib/utils"
 import { useAssessment } from "@/context/assessment-context" // Import useAssessment
@@ -63,6 +64,9 @@ import { useBrowserAIBlocker } from "@/hooks/use-browser-ai-blocker"
 import { useAIProtection } from "@/hooks/use-ai-protection"
 import { useGeminiDetector } from "@/hooks/use-gemini-detector"
 import { isMacOSDesktop, isBrowserAiEnforcementPlatform, applyBrowserAiPlatformPolicy } from "@/lib/device-utils"
+import { isDesktopElectronAssessmentClient } from "@/lib/desktop-anticheat-policy"
+import { isDesktopNativeAssessmentLockdownActive } from "@/lib/desktop-assessment-lockdown-active"
+import { useDesktopAssessmentLockdown } from "@/hooks/use-desktop-assessment-lockdown"
 import { isQuizAntiCheatDisabledForTesting } from "@/lib/quiz-anticheat-test-mode"
 import {
   getDashboardPath,
@@ -107,10 +111,7 @@ import {
   repairStaleSectionPoolSeconds,
 } from "@/lib/section-circuit-pool"
 import { WaterBreakDurationDialog, WaterBreakOverlay } from "@/components/quiz-water-break"
-import {
-  SectionQuestionPickToggle,
-  SectionPickNavigatorHint,
-} from "@/components/section-question-pick-controls"
+import { SectionQuestionPickToggle } from "@/components/section-question-pick-controls"
 import type { SectionQuestionSelections } from "@/lib/section-pick-scoring"
 import type { StudentPickSectionSummary } from "@/lib/section-pick-scoring"
 import { formatApiErrorMessage } from "@/lib/format-api-error-message"
@@ -534,26 +535,28 @@ export function QuizTaker({
   } | null>(null)
 
   const [showCompiler, setShowCompiler] = useState(false)
-  // Template for Trailblazer members (with boilerplate)
   const TRAILBLAZER_TEMPLATE = `#include <iostream>\nusing namespace std;\n\nint main() {\n    //Your code goes in here....\n    return 0;\n}`
-  // Empty template for Scholar members (no boilerplate)
-  const SCHOLAR_TEMPLATE = ``
-  // Legacy template for backward compatibility
   const HELLO_WORLD = `#include <iostream>\nusing namespace std;\n\nint main() {\n    // Start your code here\n    cout << "Hello, world!" << endl;\n    return 0;\n}`
-  
-  // Get appropriate template based on membership tier
-  const getCodeTemplate = () => {
-    return membershipTier === "Trailblazer" ? TRAILBLAZER_TEMPLATE : SCHOLAR_TEMPLATE
-  }
-  
-  // Check if code is just the template (empty for Scholar, template for Trailblazer)
+
+  const membershipGetsCodeWriteBoilerplate = () =>
+    membershipTier === "Explorer" || membershipTier === "Trailblazer"
+
+  /** code_write editor default: boilerplate for Explorer/Trailblazer; empty for Scholar and other tiers. */
+  const getCodeTemplate = () => (membershipGetsCodeWriteBoilerplate() ? TRAILBLAZER_TEMPLATE : "")
+
   const isTemplateCode = (codeToCheck: string, questionType?: string) => {
-    if (!codeToCheck || !codeToCheck.trim()) {
-      // Empty code is template for Scholar members on code_write
-      return questionType === "code_write" && membershipTier !== "Trailblazer"
+    if (questionType === "code_write") {
+      const t = (codeToCheck || "").trim()
+      const expected = getCodeTemplate().trim()
+      if (!t) {
+        return !membershipGetsCodeWriteBoilerplate()
+      }
+      if (expected && t === expected) return true
+      if (!membershipGetsCodeWriteBoilerplate() && t === TRAILBLAZER_TEMPLATE.trim()) return true
+      return false
     }
-    const template = questionType === "code_write" ? getCodeTemplate() : HELLO_WORLD
-    return codeToCheck.trim() === template.trim()
+    if (!codeToCheck || !codeToCheck.trim()) return false
+    return codeToCheck.trim() === HELLO_WORLD.trim()
   }
   
   const getCodeStorageKey = (questionId: number) => `code_${attemptId || "unknown"}_${questionId}`
@@ -876,6 +879,25 @@ export function QuizTaker({
     [antiCheatConfig, solutionUploadSuspendingAntiCheat],
   )
 
+  const desktopNativeLockdownActive = useMemo(
+    () =>
+      isDesktopNativeAssessmentLockdownActive({
+        disabledForTesting: antiCheatDisabledForTesting,
+        quizStarted,
+        loading,
+        antiCheatEnabled,
+        config: activeAntiCheatConfig,
+      }),
+    [
+      antiCheatDisabledForTesting,
+      quizStarted,
+      loading,
+      antiCheatEnabled,
+      activeAntiCheatConfig,
+    ],
+  )
+  useDesktopAssessmentLockdown(desktopNativeLockdownActive)
+
   useEffect(() => {
     setSolutionUploadAntiCheatSuspension(false)
   }, [currentQuestionIndex, setSolutionUploadAntiCheatSuspension])
@@ -1000,7 +1022,8 @@ export function QuizTaker({
     answer: any,
     questionType: string,
     typingReplay?: { startTime: number; events: Array<{ t: number; op: "i" | "d"; offset: number; text: string; len?: number }> } | null,
-    timeSpentSeconds?: number
+    timeSpentSeconds?: number,
+    finalize = false,
   ) => {
     if (!attemptId) return
 
@@ -1014,7 +1037,7 @@ export function QuizTaker({
         questionId,
         answer,
         questionType,
-        autoSave: true
+        autoSave: !finalize,
       }
       if (typingReplay?.events?.length) {
         body.typingReplay = typingReplay
@@ -1039,6 +1062,8 @@ export function QuizTaker({
         }
         if (response.status === 409 && payload.locked) {
           setSavedAnswers((prev) => new Set(prev).add(questionId))
+          setLockedQuestions((prev) => new Set(prev).add(questionId))
+          setSubmittedQuestions((prev) => new Set(prev).add(questionId))
           return
         }
         const lockable = ["mcq", "true_false", "select_all", "multi_output"].includes(
@@ -1565,15 +1590,16 @@ export function QuizTaker({
   } = useGeminiDetector({
     enabled:
       !antiCheatDisabledForTesting &&
-      antiCheatConfig.trackGeminiWindow &&
-      isBrowserAiEnforcementPlatform() &&
       quizStarted &&
       !loading &&
-      !isSolutionUploadAntiCheatPaused(),
+      !isSolutionUploadAntiCheatPaused() &&
+      ((antiCheatConfig.trackGeminiWindow && isBrowserAiEnforcementPlatform()) ||
+        (isDesktopElectronAssessmentClient() && antiCheatConfig.requireFullscreen === true)),
     onDetected: handleGeminiDetected,
     onCleared: handleGeminiCleared,
     requireFullscreen: antiCheatDisabledForTesting ? false : antiCheatConfig.requireFullscreen,
     isDetectionPaused: isSolutionUploadAntiCheatPaused,
+    skipBrowserAiHeuristics: isDesktopElectronAssessmentClient(),
   })
 
   const handleManualGeminiDismiss = useCallback(() => {
@@ -3085,12 +3111,34 @@ export function QuizTaker({
         serverLog("QuizTaker FETCH", "quiz-attempt URL", { attemptUrl, quizId, quizDataId: quizData.id, attemptIdFromTake })
         const attemptResponse = await fetch(attemptUrl)
 
-        const attemptContentType = attemptResponse.headers.get("content-type")
-        if (!attemptContentType || !attemptContentType.includes("application/json")) {
-          throw new Error(`Quiz attempt API returned non-JSON response. Content-Type: ${attemptContentType}`)
+        const attemptContentType = attemptResponse.headers.get("content-type") || ""
+        let attemptData: Awaited<ReturnType<typeof attemptResponse.json>> | null = null
+        if (attemptContentType.includes("application/json")) {
+          attemptData = await attemptResponse.json()
+        } else {
+          const attemptBody = (await attemptResponse.text()).trim().slice(0, 240)
+          serverLog("QuizTaker FETCH", "quiz-attempt non-JSON", {
+            status: attemptResponse.status,
+            contentType: attemptContentType,
+            body: attemptBody,
+          })
+          if (attemptIdFromTake) {
+            setAttemptId(Number(attemptIdFromTake))
+            toast({
+              title: "Resume data unavailable",
+              description:
+                "Your attempt is active, but saved progress could not be loaded. You can keep working; refresh if answers look wrong.",
+              variant: "default",
+              duration: 8000,
+            })
+          } else {
+            throw new Error(
+              `Quiz attempt API returned non-JSON response (HTTP ${attemptResponse.status}). Content-Type: ${attemptContentType || "text/plain"}`,
+            )
+          }
         }
 
-        const attemptData = await attemptResponse.json()
+        if (attemptData) {
         serverLog("QuizTaker FETCH", "attemptData from API", {
           attemptId: attemptData.attemptId,
           completedAt: attemptData.completedAt,
@@ -3099,8 +3147,9 @@ export function QuizTaker({
           currentQuestionIndex: attemptData.currentQuestionIndex,
           answeredQuestionIds: attemptData.answeredQuestionIds,
         })
+        }
 
-        if (attemptData.attemptId) {
+        if (attemptData?.attemptId) {
           setAttemptId(attemptData.attemptId)
           resumeFromSaveLaterRef.current = Boolean(attemptData.savedForLaterAt)
           if (attemptData.hasSaveAndFinishLaterAccess !== undefined) {
@@ -3374,8 +3423,9 @@ export function QuizTaker({
             resumeToastShownForAttempts.add(attemptIdNum)
             toast({
               title: "Resuming Quiz",
-              description:
-                "Your previous answers were saved. Multiple-choice questions you already submitted stay locked; you can keep editing code and other open-ended questions.",
+              description: resumeFromSaveLaterRef.current
+                ? "Your previous answers were saved. Questions you already completed stay locked—you cannot change them."
+                : "Your previous answers were saved. Multiple-choice questions you already submitted stay locked; you can keep editing code and other open-ended questions.",
               variant: "default",
               duration: 5000,
             })
@@ -3464,16 +3514,9 @@ export function QuizTaker({
       const savedInStorage = latest.codeByQuestion[currentQuestion.id] ?? codeByQuestion[currentQuestion.id]
       const currentCodeState = latest.code || code
       
-      // Helper to check if code is just a template (not student's actual work)
-      const isTemplateCode = (codeToCheck: string | null | undefined): boolean => {
-        if (!codeToCheck || !codeToCheck.trim()) {
-          // Empty string is template for Scholar code_write questions
-          return questionType === "code_write" && membershipTier !== "Trailblazer"
-        }
-        const template = questionType === "code_write" ? getCodeTemplate() : HELLO_WORLD
-        return codeToCheck.trim() === template.trim()
-      }
-      
+      const isUnsavedTemplate = (codeToCheck: string | null | undefined): boolean =>
+        isTemplateCode(codeToCheck ?? "", questionType)
+
       // Get the most recent code - PREFER editor.getValue() (source of truth) to fix Q1 data loss
       // Editor may have content before React state/refs sync; codeSyncRef is fallback
       const fromEditor = codeEditorRef.current?.getValue?.()
@@ -4269,15 +4312,8 @@ export function QuizTaker({
       const currentCodeState = code
       const fromEditor = codeEditorRef.current?.getValue?.()
       
-      // Helper to check if code is just a template (not student's actual work)
-      const isTemplateCode = (codeToCheck: string | null | undefined): boolean => {
-        if (!codeToCheck || !codeToCheck.trim()) {
-          // Empty string is template for Scholar code_write questions
-          return questionType === "code_write" && membershipTier !== "Trailblazer"
-        }
-        const template = questionType === "code_write" ? getCodeTemplate() : HELLO_WORLD
-        return codeToCheck.trim() === template.trim()
-      }
+      const isUnsavedTemplate = (codeToCheck: string | null | undefined): boolean =>
+        isTemplateCode(codeToCheck ?? "", questionType)
 
       // Get the most recent code - PREFER editor (source of truth), then codeByQuestion, code state, codeSyncRef
       let savedCode = (fromEditor != null && fromEditor !== undefined ? fromEditor : null) ?? savedInStorage ?? currentCodeState ?? codeSyncRef.current ?? ""
@@ -5483,6 +5519,7 @@ export function QuizTaker({
           attemptCount[currentQ.id] ?? 0,
         )
       }
+
     }
     
     // Dismiss any active toasts when navigating
@@ -5527,14 +5564,10 @@ export function QuizTaker({
         if (!isTemplateCode(savedCode, questionType)) {
           setCode(savedCode)
         } else {
-          // Use appropriate template based on membership and question type
-          // For code_write: Scholar gets empty string, Trailblazer gets template
           const template = questionType === "code_write" ? getCodeTemplate() : HELLO_WORLD
           setCode(template)
         }
       } else {
-        // No saved code - use appropriate template based on membership and question type
-        // For code_write: Scholar gets empty string, Trailblazer gets template
         const template = questionType === "code_write" ? getCodeTemplate() : HELLO_WORLD
         setCode(template)
       }
@@ -6906,27 +6939,29 @@ export function QuizTaker({
         }
 
         if (restoredCode !== undefined && restoredCode !== null) {
-          // Restore saved code (even if empty - that's valid for Scholar members)
-          // But check if it's the wrong template for this membership tier
           const expectedTemplate = questionType === "code_write" ? getCodeTemplate() : HELLO_WORLD
-          if (restoredCode.trim() === expectedTemplate.trim()) {
-            // It's the expected template for this tier, use it
+          if (questionType === "code_write" && isTemplateCode(restoredCode, questionType)) {
+            codeSyncRef.current = expectedTemplate
+            setCode(expectedTemplate)
+            setCodeByQuestion((prev) => ({ ...prev, [currentQuestion.id]: expectedTemplate }))
+            persistCodeValue(currentQuestion.id, expectedTemplate)
+          } else if (
+            questionType === "code_write" &&
+            !membershipGetsCodeWriteBoilerplate() &&
+            restoredCode.trim() === TRAILBLAZER_TEMPLATE.trim()
+          ) {
+            codeSyncRef.current = ""
+            setCode("")
+            setCodeByQuestion((prev) => ({ ...prev, [currentQuestion.id]: "" }))
+            persistCodeValue(currentQuestion.id, "")
+          } else if (restoredCode.trim() === expectedTemplate.trim()) {
             codeSyncRef.current = restoredCode
             setCode(restoredCode)
-          } else if (restoredCode.trim() === TRAILBLAZER_TEMPLATE.trim() && membershipTier !== "Trailblazer") {
-            // Non-trailblazer has Trailblazer template saved - clear it
-            const correctTemplate = questionType === "code_write" ? getCodeTemplate() : HELLO_WORLD
-            codeSyncRef.current = correctTemplate
-            setCode(correctTemplate)
-            setCodeByQuestion((prev) => ({ ...prev, [currentQuestion.id]: correctTemplate }))
-            persistCodeValue(currentQuestion.id, correctTemplate)
           } else {
-            // Restore the actual code
             codeSyncRef.current = restoredCode
             setCode(restoredCode)
           }
         } else {
-          // Initialize with appropriate template for new code questions
           if (questionType === "code_write_plot") {
             const matlabTemplate = `% MATLAB Script\n% Start your code here\n\ndisp('Hello, MATLAB!');\n`
             codeSyncRef.current = matlabTemplate
@@ -6934,8 +6969,6 @@ export function QuizTaker({
             setCodeByQuestion((prev) => ({ ...prev, [currentQuestion.id]: matlabTemplate }))
             persistCodeValue(currentQuestion.id, matlabTemplate)
           } else if (questionType === "code_write") {
-            // Use membership-based template for code_write questions
-            // Scholar members get empty string, Trailblazers get template
             const template = getCodeTemplate()
             codeSyncRef.current = template
             setCode(template)
@@ -7712,7 +7745,8 @@ export function QuizTaker({
   })
 
   // Lock questions if: timer expired OR (lockable type AND submitted) OR (AI-graded AND timer expired)
-  const shouldLockQuestion = isQuestionLocked || (isLockableType && isQuestionSubmitted)
+  const shouldLockQuestion =
+    isQuestionLocked || (isLockableType && isQuestionSubmitted)
 
   const hasHint = currentQuestion.hint && currentQuestion.hint.trim().length > 0
   const hintUsed = usedHints.has(currentQuestion.id)
@@ -7739,27 +7773,113 @@ export function QuizTaker({
     questionType.toLowerCase(),
   )
 
+  const toolbarChipClass =
+    "inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 text-xs font-medium sm:px-3"
+  const toolbarActionClass =
+    "h-9 gap-1.5 rounded-lg px-2.5 text-xs font-medium shadow-none sm:px-3 sm:text-sm"
+
+  const questionNavigator = (
+    <StudentQuizQuestionNavigator
+      questionCount={quiz.questions.length}
+      currentQuestionIndex={currentQuestionIndex}
+      questions={quiz.questions}
+      answeredQuestionIds={answeredQuestions}
+      flaggedQuestionIds={flaggedQuestions}
+      sections={sections}
+      parsedSectionConfig={parsedSectionConfig}
+      sectionQuestionSelections={sectionQuestionSelections}
+      onNavigate={(idx) => void goToQuestion(idx)}
+    />
+  )
+
+  const hasTimerOrSuperpowersInCardHeader =
+    showTimerColumn || Boolean((quiz as any)?.activeSuperpowers?.length)
+  const showMobileFlagHintInCardHeader = !showQuestionNav
+
+  const questionFlagHintActions = (layout: "sidebar" | "compact") => (
+    <div
+      className={cn(
+        layout === "sidebar" ? "flex flex-col gap-1.5" : "flex flex-wrap items-center gap-1.5 sm:gap-2",
+      )}
+    >
+      <Button
+        variant={isFlagged ? "default" : "outline"}
+        size="sm"
+        onClick={() => toggleFlag(currentQuestion.id)}
+        className={cn(
+          layout === "sidebar" ? cn(toolbarActionClass, "w-full justify-start") : "h-8 gap-1 rounded-md px-2.5 text-xs",
+          isFlagged
+            ? "border-transparent bg-amber-500 text-white hover:bg-amber-600"
+            : "border-[var(--border)] bg-[var(--card)] text-[var(--cc-text)]",
+        )}
+      >
+        <Flag className="size-3.5 shrink-0" />
+        <span>{isFlagged ? "Flagged for review" : "Flag question"}</span>
+      </Button>
+      {hasHint ? (
+        <Button
+          variant={hintUsed ? "secondary" : "default"}
+          size="sm"
+          onClick={() => {
+            if (!hintUsed) {
+              handleUseHint(currentQuestion.id, currentQuestion.hint_penalty || 0.25)
+            } else {
+              setShowHint(!showHint)
+            }
+          }}
+          className={cn(
+            layout === "sidebar" ? cn(toolbarActionClass, "w-full justify-start") : "h-8 gap-1 rounded-md px-2.5 text-xs",
+            hintUsed
+              ? "border-[var(--cc-sem-warning-border)] bg-[var(--cc-sem-warning-soft)] text-[var(--cc-sem-warning-text)]"
+              : "bg-amber-600 text-white hover:bg-amber-700",
+          )}
+          disabled={
+            showFeedback ||
+            isQuestionLocked ||
+            isLockedDueToViolations ||
+            isBlockedByFullscreen ||
+            isBlockedByLocation
+          }
+        >
+          <Lightbulb className="size-3.5 shrink-0" />
+          <span>
+            {hintUsed
+              ? showHint
+                ? "Hide hint"
+                : "Show hint"
+              : `Get hint (−${currentQuestion.hint_penalty || 0.25} pts)`}
+          </span>
+        </Button>
+      ) : null}
+    </div>
+  )
+
   return (
     <div
       data-quiz-native-root={isNativeApp ? true : undefined}
       data-quiz-taker-root
-      className="relative min-h-[100dvh] w-full overflow-x-hidden"
+      className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden"
     >
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,var(--cc-accent-soft),transparent_55%)] opacity-60"
       />
-      <div className="relative">
+      <div className="relative flex min-h-0 flex-1 flex-col">
       <QuizTakerChrome
         title={isNativeApp ? undefined : quiz.title}
         toolbar={
             <div className="flex flex-col gap-2 px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5 sm:py-2.5">
               <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-0.5 sm:gap-3 [scrollbar-width:thin]">
-                <div className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] px-2.5 py-1.5">
+                <div
+                  className={cn(
+                    toolbarChipClass,
+                    "border-[var(--border)] bg-[var(--card)] text-[var(--cc-text)]",
+                  )}
+                >
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--cc-text-muted)]">
                     Q
                   </span>
-                  <p className="text-sm font-bold tabular-nums leading-none text-[var(--cc-text)]">
+                  <p className="text-sm font-bold tabular-nums leading-none">
                     {currentQuestionIndex + 1}
                     <span className="text-xs font-medium text-[var(--cc-text-muted)]">
                       /{quiz.questions.length}
@@ -7792,69 +7912,110 @@ export function QuizTaker({
 
                 <div className="flex shrink-0 items-center gap-1.5">
                 {!isOnline && (
-                  <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-[var(--cc-sem-danger-border)] bg-[var(--cc-sem-danger-soft)] px-2.5 py-1 text-xs font-medium text-[var(--cc-sem-danger-text)] animate-pulse">
-                    <AlertCircle className="h-3 w-3" />
+                  <span
+                    className={cn(
+                      toolbarChipClass,
+                      "border-[var(--cc-sem-danger-border)] bg-[var(--cc-sem-danger-soft)] text-[var(--cc-sem-danger-text)] animate-pulse",
+                    )}
+                  >
+                    <AlertCircle className="size-3.5 shrink-0" />
                     Offline
                   </span>
                 )}
                 {answerQueue.length > 0 && (
-                  <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-[var(--cc-sem-warning-border)] bg-[var(--cc-sem-warning-soft)] px-2.5 py-1 text-xs font-medium text-[var(--cc-sem-warning-text)]">
-                    <AlertCircle className="h-3 w-3" />
+                  <span
+                    className={cn(
+                      toolbarChipClass,
+                      "border-[var(--cc-sem-warning-border)] bg-[var(--cc-sem-warning-soft)] text-[var(--cc-sem-warning-text)]",
+                    )}
+                  >
+                    <AlertCircle className="size-3.5 shrink-0" />
                     {answerQueue.length} pending
                   </span>
                 )}
                 {retryingSubmission && (
-                  <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-[var(--cc-sem-info-border)] bg-[var(--cc-sem-info-soft)] px-2.5 py-1 text-xs font-medium text-[var(--cc-sem-info-text)]">
-                    <Loader2 className="h-3 w-3 animate-spin" />
+                  <span
+                    className={cn(
+                      toolbarChipClass,
+                      "border-[var(--cc-sem-info-border)] bg-[var(--cc-sem-info-soft)] text-[var(--cc-sem-info-text)]",
+                    )}
+                  >
+                    <Loader2 className="size-3.5 shrink-0 animate-spin" />
                     Syncing
                   </span>
                 )}
                 {unansweredCount > 0 && (
-                  <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-[var(--cc-sem-warning-border)] bg-[var(--cc-sem-warning-soft)] px-2.5 py-1 text-xs font-medium text-[var(--cc-sem-warning-text)]">
-                    <AlertCircle className="h-3 w-3" />
+                  <span
+                    className={cn(
+                      toolbarChipClass,
+                      "border-[var(--border)] bg-[var(--muted)]/50 text-[var(--cc-text-secondary)]",
+                    )}
+                  >
+                    <AlertCircle className="size-3.5 shrink-0 text-[var(--cc-sem-warning-text)]" />
                     {unansweredCount} unanswered
                   </span>
                 )}
                 {flaggedCount > 0 && (
-                  <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--cc-accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--cc-accent-dark)]">
-                    <Flag className="h-3 w-3" />
+                  <span
+                    className={cn(
+                      toolbarChipClass,
+                      "border-[var(--border)] bg-[var(--cc-accent-soft)] text-[var(--cc-accent-dark)]",
+                    )}
+                  >
+                    <Flag className="size-3.5 shrink-0" />
                     {flaggedCount} flagged
                   </span>
                 )}
                 {sections.length > 0 && (
-                  <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--cc-accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--cc-accent-dark)]">
+                  <span
+                    className={cn(
+                      toolbarChipClass,
+                      "border-[var(--border)] bg-[var(--card)] text-[var(--cc-text-secondary)]",
+                    )}
+                  >
                     {sections.length} sections
                   </span>
                 )}
                 {isOnline && answerQueue.length === 0 && !retryingSubmission && unansweredCount === 0 && flaggedCount === 0 && sections.length === 0 && (
-                  <span className="whitespace-nowrap px-1 text-xs text-[var(--cc-text-muted)]">In progress</span>
+                  <span
+                    className={cn(
+                      toolbarChipClass,
+                      "border-[var(--border)] bg-[var(--card)] text-[var(--cc-text-muted)]",
+                    )}
+                  >
+                    In progress
+                  </span>
                 )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2 md:flex md:shrink-0 md:items-center">
+              <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setShowQuestionNav(!showQuestionNav)}
                   className={cn(
-                    "h-9 gap-1 rounded-lg px-2 text-xs sm:px-3 sm:text-sm",
+                    toolbarActionClass,
+                    "lg:hidden",
                     showQuestionNav
-                      ? "border-[var(--cc-accent-border)] bg-[var(--cc-accent-soft)] text-[var(--cc-accent-dark)]"
+                      ? "border-[var(--cc-accent-border)] bg-[var(--cc-accent-soft)] text-[var(--cc-accent-dark)] hover:bg-[var(--cc-accent-soft)]"
                       : "border-[var(--border)] bg-[var(--card)] text-[var(--cc-text)]",
                   )}
                 >
-                  <Grid3x3 className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-                  <span className="truncate">Navigator</span>
+                  <Grid3x3 className="size-3.5 shrink-0 sm:size-4" />
+                  <span className="truncate">{showQuestionNav ? "Hide" : "Questions"}</span>
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setShowWaterBreakPicker(true)}
                   disabled={submitting || waterBreakActive}
-                  className="h-9 gap-1 rounded-lg border-[var(--border)] bg-[var(--card)] px-2 text-xs text-[var(--cc-text)] sm:px-3 sm:text-sm"
+                  className={cn(
+                    toolbarActionClass,
+                    "border-[var(--border)] bg-[var(--card)] text-[var(--cc-text)]",
+                  )}
                 >
-                  <Droplets className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+                  <Droplets className="size-3.5 shrink-0 sm:size-4" />
                   <span className="truncate hidden sm:inline">Water Break</span>
                   <span className="truncate sm:hidden">Break</span>
                 </Button>
@@ -7871,16 +8032,22 @@ export function QuizTaker({
                   }}
                   data-testid="continue-later-btn"
                   disabled={submitting}
-                  className="h-9 gap-1 rounded-lg border-[var(--border)] bg-[var(--card)] px-2 text-xs text-[var(--cc-text)] sm:px-3 sm:text-sm"
+                  className={cn(
+                    toolbarActionClass,
+                    "border-[var(--border)] bg-[var(--card)] text-[var(--cc-text)]",
+                  )}
                 >
                   <span className="truncate hidden sm:inline">Continue Later</span>
                   <span className="truncate sm:hidden">Later</span>
                 </Button>
                 <Button
-                  variant="destructive"
+                  variant="outline"
                   size="sm"
                   onClick={() => setShowExitDialog(true)}
-                  className="h-9 gap-1 rounded-lg px-2 text-xs shadow-sm sm:px-3 sm:text-sm"
+                  className={cn(
+                    toolbarActionClass,
+                    "border-[var(--cc-sem-danger-border)] bg-[var(--cc-sem-danger-soft)] text-[var(--cc-sem-danger-text)] hover:bg-[var(--cc-sem-danger-soft)] hover:text-[var(--cc-sem-danger-text)]",
+                  )}
                 >
                   <span className="truncate hidden sm:inline">Exit Quiz</span>
                   <span className="truncate sm:hidden">Exit</span>
@@ -7892,150 +8059,52 @@ export function QuizTaker({
 
       <div
         className={cn(
-          "mx-auto w-full px-3 pb-8 pt-4 sm:px-5 sm:pt-5",
-          isCompactObjectiveQuestion ? "max-w-3xl" : "max-w-5xl",
+          "flex min-h-0 flex-1 items-stretch overflow-hidden",
+          coraDrawerOpen && canAskCoraOnCurrentQuestion && "max-md:flex-col",
+        )}
+      >
+        <aside className="hidden w-[17rem] shrink-0 flex-col gap-4 overflow-y-auto border-r border-[var(--border)] bg-[var(--card)] p-4 lg:flex xl:w-72">
+          {questionNavigator}
+          <div className="shrink-0 space-y-2 border-t border-[var(--border)] pt-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--cc-text-muted)]">
+              Question {currentQuestionIndex + 1}
+            </p>
+            {questionFlagHintActions("sidebar")}
+          </div>
+        </aside>
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          {showQuestionNav ? (
+            <div className="shrink-0 space-y-3 border-b border-[var(--border)] bg-[var(--card)] p-4 lg:hidden">
+              <StudentQuizQuestionNavigator
+                questionCount={quiz.questions.length}
+                currentQuestionIndex={currentQuestionIndex}
+                questions={quiz.questions}
+                answeredQuestionIds={answeredQuestions}
+                flaggedQuestionIds={flaggedQuestions}
+                sections={sections}
+                parsedSectionConfig={parsedSectionConfig}
+                sectionQuestionSelections={sectionQuestionSelections}
+                compact
+                onNavigate={(idx) => void goToQuestion(idx)}
+              />
+              {questionFlagHintActions("compact")}
+            </div>
+          ) : null}
+
+      <div
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto overflow-x-hidden mx-auto w-full px-3 pb-8 pt-4 sm:px-5 sm:pt-5",
+          isCompactObjectiveQuestion ? "max-w-3xl lg:max-w-none" : "max-w-5xl lg:max-w-none",
           isNativeApp && "pt-2",
           (isGeminiBlocking || isBlockedByFullscreen || isBlockedByLocation) && quizStarted && "pointer-events-none opacity-50",
         )}
       >
-        {showQuestionNav && (
-          <Card className="mx-auto mb-4 w-full overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm sm:mb-6">
-            <div className="border-b border-[var(--border)] px-4 py-4 sm:px-6">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 rounded-xl bg-[var(--cc-accent)] shadow-lg shadow-[var(--cc-accent)]/25 shrink-0">
-                    <Grid3x3 className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="font-semibold text-slate-800 dark:text-slate-100">Question Navigator</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Tap any number to jump between questions
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:gap-4">
-                  <div className="flex items-center gap-2 min-w-[140px]">
-                    <div className="h-2 flex-1 min-w-[80px] rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-                        style={{ width: `${(answeredQuestions.size / quiz.questions.length) * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-sm font-medium tabular-nums text-slate-700 dark:text-slate-300 shrink-0">
-                      {answeredQuestions.size}/{quiz.questions.length}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                    <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" /> Answered
-                    </span>
-                    <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 whitespace-nowrap">
-                      <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" /> Pending
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <CardContent className="p-4 sm:p-5">
-              {sections.length > 0 ? (
-                <div className="space-y-5">
-                  {sections.map((section) => (
-                    <div key={section.sectionIndex} className="space-y-2">
-                        <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2 min-w-0">
-                          <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                            {shortSectionNavigatorTitle(section.title)}
-                          </span>
-                          {section.weightPercent > 0 && (
-                            <span className="text-xs text-violet-600 dark:text-violet-400 shrink-0">
-                              {section.weightPercent}% of grade
-                            </span>
-                          )}
-                          <SectionPickNavigatorHint
-                            section={section}
-                            sectionConfig={parsedSectionConfig}
-                            selections={sectionQuestionSelections}
-                          />
-                          <span className="hidden sm:inline text-xs text-slate-400 dark:text-slate-500 truncate">
-                            {section.title}
-                          </span>
-                        </div>
-                      <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2">
-                        {section.questionIndices.map((idx) => {
-                          const q = quiz.questions[idx]
-                          if (!q) return null
-                          const isAnswered = answeredQuestions.has(q.id)
-                          const isFlagged = flaggedQuestions.has(q.id)
-                          const isCurrent = idx === currentQuestionIndex
-                          const isGradedPick =
-                            sectionQuestionSelections[section.sectionIndex]?.includes(q.id) ?? false
-
-                          return (
-                            <button
-                              key={q.id}
-                              type="button"
-                              onClick={() => goToQuestion(idx)}
-                              className={`
-                                relative aspect-square min-w-[36px] w-full max-w-[44px] rounded-xl font-semibold text-sm
-                                transition-all duration-200 ease-out
-                                hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2
-                                ${isCurrent
-                                  ? "bg-[var(--cc-accent)] text-white shadow-lg shadow-[var(--cc-accent)]/30 ring-2 ring-[var(--cc-accent)]/50 ring-offset-2 scale-105"
-                                  : isAnswered
-                                    ? "bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-300/50 dark:border-emerald-600/50 hover:bg-emerald-500/25"
-                                    : "bg-slate-100 dark:bg-slate-700/80 text-amber-700 dark:text-amber-400 border border-amber-300/50 dark:border-amber-600/50 hover:bg-amber-500/20"
-                                }
-                                ${isGradedPick ? "ring-2 ring-violet-400/80" : ""}
-                              `}
-                            >
-                              {idx + 1}
-                              {isFlagged && (
-                                <Flag className="absolute -top-1 -right-1 h-3 w-3 text-amber-500 fill-amber-500" />
-                              )}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2">
-                  {quiz.questions.map((q, idx) => {
-                    const isAnswered = answeredQuestions.has(q.id)
-                    const isFlagged = flaggedQuestions.has(q.id)
-                    const isCurrent = idx === currentQuestionIndex
-
-                    return (
-                      <button
-                        key={q.id}
-                        type="button"
-                        onClick={() => goToQuestion(idx)}
-                        className={`
-                          relative aspect-square min-w-[36px] w-full max-w-[44px] rounded-xl font-semibold text-sm
-                          transition-all duration-200 ease-out
-                          hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2
-                          ${isCurrent
-                            ? "bg-[var(--cc-accent)] text-white shadow-lg shadow-[var(--cc-accent)]/30 ring-2 ring-[var(--cc-accent)]/50 ring-offset-2 scale-105"
-                            : isAnswered
-                              ? "bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-300/50 dark:border-emerald-600/50 hover:bg-emerald-500/25"
-                              : "bg-slate-100 dark:bg-slate-700/80 text-amber-700 dark:text-amber-400 border border-amber-300/50 dark:border-amber-600/50 hover:bg-amber-500/20"
-                          }
-                        `}
-                      >
-                        {idx + 1}
-                        {isFlagged && (
-                          <Flag className="absolute -top-1 -right-1 h-3 w-3 text-amber-500 fill-amber-500" />
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
+        <div
+          className={cn(
+            isCompactObjectiveQuestion ? "mx-auto max-w-3xl" : "mx-auto max-w-5xl",
+          )}
+        >
         <div
           className={cn(
             "relative flex flex-col gap-4 lg:flex-row",
@@ -8050,138 +8119,84 @@ export function QuizTaker({
             )}
           >
             <Card className="gap-0 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] py-0 shadow-sm sm:rounded-2xl">
-              <CardHeader className="space-y-2 border-b border-[var(--border)] bg-[var(--muted)]/25 px-4 py-2.5 sm:px-5 [.border-b]:pb-2.5">
-                <div
-                  className={cn(
-                    "flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2 sm:gap-3 sm:px-4",
-                    showTimerColumn && timerColumnUrgent
-                      ? "border-[var(--cc-sem-danger-border)] bg-[var(--cc-sem-danger-soft)]"
-                      : "border-[var(--border)] bg-[var(--card)]",
-                  )}
-                >
-                  {showTimerColumn ? (
-                    <>
-                      <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-                        <div className="shrink-0 text-center">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--cc-text-muted)]">
-                            {timerColumnLabel}
-                          </span>
-                          <p
-                            className={cn(
-                              "text-lg font-bold tabular-nums leading-none sm:text-xl",
-                              timerColumnUrgent
-                                ? "text-[var(--cc-sem-danger-text)] animate-pulse"
-                                : "text-[var(--cc-text)]",
-                            )}
-                          >
-                            {timerColumnValue}
-                          </p>
-                        </div>
-                        {(hasQuestionTimerDisplay && questionTimeLimit > 0) ||
-                        (hasSectionTimerDisplay && sectionTimeLimit > 0) ||
-                        (hasExamTimerDisplay && sectionTimeLimit > 0) ? (
-                          <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-                            <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--muted)]">
-                              {hasQuestionTimerDisplay && questionTimeLimit > 0 ? (
-                                timeLeft <= 0 ? (
-                                  <div className="h-full w-0 rounded-full bg-[var(--cc-sem-danger)]" />
-                                ) : (
-                                  <motion.div
-                                    key={`timer-${currentQuestionIndex}-${timeLeft}`}
-                                    initial={{ width: `${Math.max(0, Math.min(100, timerProgress))}%` }}
-                                    animate={{ width: "0%" }}
-                                    transition={{
-                                      duration: timeLeft,
-                                      ease: "linear",
-                                    }}
-                                    className={cn(
-                                      "h-full rounded-full",
-                                      timeLeft <= 10
-                                        ? "bg-[var(--cc-sem-danger)]"
-                                        : "bg-[var(--cc-sem-info)]",
-                                    )}
-                                  />
-                                )
-                              ) : (
-                                <div
-                                  className={cn(
-                                    "h-full rounded-full transition-all duration-1000 ease-linear",
-                                    timerColumnUrgent
-                                      ? "bg-[var(--cc-sem-warning)]"
-                                      : "bg-[var(--cc-accent)]",
-                                  )}
-                                  style={{ width: `${Math.max(0, Math.min(100, timerDrainPercent))}%` }}
-                                />
-                              )}
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                      <div
-                        className="hidden h-8 w-px shrink-0 bg-[var(--border)] sm:block"
-                        aria-hidden
-                      />
-                    </>
-                  ) : null}
+              {(hasTimerOrSuperpowersInCardHeader || showMobileFlagHintInCardHeader) ? (
+              <CardHeader
+                className={cn(
+                  "space-y-2 border-b border-[var(--border)] bg-[var(--muted)]/25 px-4 py-2.5 sm:px-5 [.border-b]:pb-2.5",
+                  !hasTimerOrSuperpowersInCardHeader && "lg:hidden",
+                )}
+              >
+                {showMobileFlagHintInCardHeader ? (
+                  <div className="lg:hidden">{questionFlagHintActions("compact")}</div>
+                ) : null}
 
+                {showTimerColumn ? (
                   <div
                     className={cn(
-                      "flex shrink-0 items-center gap-1.5 sm:gap-2",
-                      showTimerColumn ? "sm:pl-1" : "ml-auto",
+                      "flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2 sm:gap-3 sm:px-4",
+                      timerColumnUrgent
+                        ? "border-[var(--cc-sem-danger-border)] bg-[var(--cc-sem-danger-soft)]"
+                        : "border-[var(--border)] bg-[var(--card)]",
                     )}
                   >
-                    <Button
-                      variant={isFlagged ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => toggleFlag(currentQuestion.id)}
-                      className={cn(
-                        "h-8 gap-1 rounded-md px-2.5 text-xs",
-                        isFlagged
-                          ? "border-transparent bg-amber-500 text-white hover:bg-amber-600"
-                          : "border-[var(--border)] bg-[var(--card)] text-[var(--cc-text)]",
-                      )}
-                    >
-                      <Flag className="h-3.5 w-3.5 shrink-0" />
-                      <span className="hidden sm:inline">{isFlagged ? "Flagged" : "Flag"}</span>
-                    </Button>
-                    {hasHint ? (
-                      <Button
-                        variant={hintUsed ? "secondary" : "default"}
-                        size="sm"
-                        onClick={() => {
-                          if (!hintUsed) {
-                            handleUseHint(currentQuestion.id, currentQuestion.hint_penalty || 0.25)
-                          } else {
-                            setShowHint(!showHint)
-                          }
-                        }}
-                        className={cn(
-                          "h-8 gap-1 rounded-md px-2.5 text-xs",
-                          hintUsed
-                            ? "border-[var(--cc-sem-warning-border)] bg-[var(--cc-sem-warning-soft)] text-[var(--cc-sem-warning-text)]"
-                            : "bg-amber-600 text-white hover:bg-amber-700",
-                        )}
-                        disabled={
-                          showFeedback ||
-                          isQuestionLocked ||
-                          isLockedDueToViolations ||
-                          isBlockedByFullscreen ||
-                          isBlockedByLocation
-                        }
-                      >
-                        <Lightbulb className="h-3.5 w-3.5 shrink-0" />
-                        <span className="hidden md:inline">
-                          {hintUsed
-                            ? showHint
-                              ? "Hide Hint"
-                              : "Show Hint"
-                            : `Get Hint (-${currentQuestion.hint_penalty || 0.25} pts)`}
+                    <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+                      <div className="shrink-0 text-center">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--cc-text-muted)]">
+                          {timerColumnLabel}
                         </span>
-                        <span className="md:hidden">{hintUsed ? (showHint ? "Hide" : "Show") : "Hint"}</span>
-                      </Button>
-                    ) : null}
+                        <p
+                          className={cn(
+                            "text-lg font-bold tabular-nums leading-none sm:text-xl",
+                            timerColumnUrgent
+                              ? "text-[var(--cc-sem-danger-text)] animate-pulse"
+                              : "text-[var(--cc-text)]",
+                          )}
+                        >
+                          {timerColumnValue}
+                        </p>
+                      </div>
+                      {(hasQuestionTimerDisplay && questionTimeLimit > 0) ||
+                      (hasSectionTimerDisplay && sectionTimeLimit > 0) ||
+                      (hasExamTimerDisplay && sectionTimeLimit > 0) ? (
+                        <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--muted)]">
+                            {hasQuestionTimerDisplay && questionTimeLimit > 0 ? (
+                              timeLeft <= 0 ? (
+                                <div className="h-full w-0 rounded-full bg-[var(--cc-sem-danger)]" />
+                              ) : (
+                                <motion.div
+                                  key={`timer-${currentQuestionIndex}-${timeLeft}`}
+                                  initial={{ width: `${Math.max(0, Math.min(100, timerProgress))}%` }}
+                                  animate={{ width: "0%" }}
+                                  transition={{
+                                    duration: timeLeft,
+                                    ease: "linear",
+                                  }}
+                                  className={cn(
+                                    "h-full rounded-full",
+                                    timeLeft <= 10
+                                      ? "bg-[var(--cc-sem-danger)]"
+                                      : "bg-[var(--cc-sem-info)]",
+                                  )}
+                                />
+                              )
+                            ) : (
+                              <div
+                                className={cn(
+                                  "h-full rounded-full transition-all duration-1000 ease-linear",
+                                  timerColumnUrgent
+                                    ? "bg-[var(--cc-sem-warning)]"
+                                    : "bg-[var(--cc-accent)]",
+                                )}
+                                style={{ width: `${Math.max(0, Math.min(100, timerDrainPercent))}%` }}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
+                ) : null}
 
                 {(quiz as any)?.activeSuperpowers?.length > 0 ? (
                   <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--border)] pt-2">
@@ -8203,6 +8218,7 @@ export function QuizTaker({
                   </div>
                 ) : null}
               </CardHeader>
+              ) : null}
               <CardContent className="relative px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-6">
                 {/* Loading Overlay - Show while question is rendering */}
                 {!questionRendered && (
@@ -8751,7 +8767,7 @@ export function QuizTaker({
                     {currentQuestionIndex === quiz.questions.length - 1 && (
                       <div className="mt-4 sm:mt-6 p-4 sm:p-6 border border-purple-200/60 dark:border-purple-700/60 rounded-xl sm:rounded-2xl bg-purple-50/80 dark:bg-purple-900/30">
                         <p className="text-xs sm:text-sm text-purple-900 dark:text-purple-200 mb-3 sm:mb-4 break-words">
-                          You're on the last question. Review your answers using the Question Navigator, then submit
+                          You&apos;re on the last question. Review your answers in the question list, then submit
                           when ready.
                         </p>
                         <Button
@@ -8784,6 +8800,8 @@ export function QuizTaker({
           </div>
 
           {/* CodeBench panel removed - compiler not yet implemented */}
+        </div>
+        </div>
         </div>
 
         {/* Question locked modal removed - questions lock silently without blocking navigation */}
@@ -9262,6 +9280,31 @@ export function QuizTaker({
             </motion.div>
           </div>
         )}
+        </div>
+
+        {coraDrawerOpen && currentQuestion && quiz && canAskCoraOnCurrentQuestion ? (
+          <CoraAskDrawer
+            variant="panel"
+            open={coraDrawerOpen}
+            onClose={() => setCoraDrawerOpen(false)}
+            studentId={studentDatabaseIdForRenderer?.toString() ?? null}
+            title="Ask Cora"
+            subtitle={`${quiz.title} · Question ${currentQuestionIndex + 1}`}
+            theme={isDark ? "dark" : "light"}
+            problem={coraContextFromQuestion({
+              source: "quiz",
+              questionText: currentQuestion.question_text,
+              title: `Question ${currentQuestionIndex + 1}`,
+              questionType: currentQuestion.question_type,
+              hint: currentQuestion.hint ?? null,
+              questionId: currentQuestion.id,
+              bankQuestionId: currentQuestion.bank_question_id,
+              quizId: quiz.id,
+              attemptId: attemptId ?? undefined,
+              studentDatabaseId: studentDatabaseIdForRenderer,
+            })}
+          />
+        ) : null}
       </div>
 
       {/* Anti-Cheat Warning Modal - only show if anti-cheat is enabled */}
@@ -9378,28 +9421,6 @@ export function QuizTaker({
         />
       )}
 
-      {currentQuestion && quiz && canAskCoraOnCurrentQuestion ? (
-        <CoraAskDrawer
-          open={coraDrawerOpen}
-          onClose={() => setCoraDrawerOpen(false)}
-          studentId={studentDatabaseIdForRenderer?.toString() ?? null}
-          title="Ask Cora"
-          subtitle={`${quiz.title} · Question ${currentQuestionIndex + 1}`}
-          theme={isDark ? "dark" : "light"}
-          problem={coraContextFromQuestion({
-            source: "quiz",
-            questionText: currentQuestion.question_text,
-            title: `Question ${currentQuestionIndex + 1}`,
-            questionType: currentQuestion.question_type,
-            hint: currentQuestion.hint ?? null,
-            questionId: currentQuestion.id,
-            bankQuestionId: currentQuestion.bank_question_id,
-            quizId: quiz.id,
-            attemptId: attemptId ?? undefined,
-            studentDatabaseId: studentDatabaseIdForRenderer,
-          })}
-        />
-      ) : null}
       </div>
     </div>
   )

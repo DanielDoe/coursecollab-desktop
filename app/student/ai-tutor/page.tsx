@@ -49,6 +49,7 @@ import { cn } from "@/lib/utils"
 import { useMembership } from "@/hooks/use-membership"
 import { getStudentData, studentApiFetch } from "@/lib/auth"
 import type { MembershipTier } from "@/lib/membership-constants"
+import { studentTierHasCodeBenchAccess } from "@/lib/codebench-entitlement-client"
 import { EnhancedAIChat } from "@/components/enhanced-ai-chat"
 import { TutorSettingsDrawer } from "@/components/ai-tutor/TutorSettingsDrawer"
 import { StudentHeader } from "@/components/student-header"
@@ -675,19 +676,19 @@ export default function StudentAITutorPage({ embedded }: { embedded?: boolean })
                     </div>
 
                     <div className={`rounded-xl sm:rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.05)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)] bg-white/85 dark:bg-slate-800/85 backdrop-blur-sm p-4 sm:p-5 md:p-6 transition-all ${
-                      effectiveTier === "Trailblazer" ? "hover:shadow-[0_8px_25px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_8px_25px_rgba(0,0,0,0.4)] cursor-pointer" : effectiveTier === null ? "" : "opacity-75 cursor-not-allowed"
+                      studentTierHasCodeBenchAccess(effectiveTier) ? "hover:shadow-[0_8px_25px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_8px_25px_rgba(0,0,0,0.4)] cursor-pointer" : effectiveTier === null ? "" : "opacity-75 cursor-not-allowed"
                     }`}
                       onClick={() => {
                         if (effectiveTier === null) {
                           // Still loading, don't do anything
                           return
                         }
-                        if (effectiveTier === "Trailblazer") {
+                        if (studentTierHasCodeBenchAccess(effectiveTier)) {
                           router.push(embedded ? "/student/dashboard-v2/codebench" : "/student/codebench")
                         } else {
                           toast({
                             title: "CodeBench Access Required",
-                            description: "CodeBench is only available with Trailblazer membership or active trial. Upgrade to access the IDE.",
+                            description: "Cora in CodeBench requires Explorer or Trailblazer. Core CodeBench is available on Scholar.",
                             variant: "destructive",
                           })
                           router.push("/student/dashboard-v2/membership")
@@ -705,8 +706,8 @@ export default function StudentAITutorPage({ embedded }: { embedded?: boolean })
                               <Badge className="bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400 text-[10px] sm:text-xs shrink-0">
                                 Checking...
                               </Badge>
-                            ) : effectiveTier === "Trailblazer" ? (
-                              <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 text-[10px] sm:text-xs shrink-0">
+                            ) : studentTierHasCodeBenchAccess(effectiveTier) ? (
+                              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 text-[10px] sm:text-xs shrink-0">
                                 Available
                               </Badge>
                             ) : (
@@ -725,15 +726,15 @@ export default function StudentAITutorPage({ embedded }: { embedded?: boolean })
                       </p>
                       <Button 
                         className={`w-full rounded-lg sm:rounded-full text-xs sm:text-sm h-9 sm:h-10 ${
-                          effectiveTier === "Trailblazer" 
+                          studentTierHasCodeBenchAccess(effectiveTier) 
                             ? "bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800" 
                             : "bg-slate-400 hover:bg-slate-500 dark:bg-slate-600 dark:hover:bg-slate-700"
                         }`}
-                        disabled={effectiveTier !== "Trailblazer"}
+                        disabled={!studentTierHasCodeBenchAccess(effectiveTier)}
                       >
                         {effectiveTier === null ? (
                           <span className="sm:hidden">Checking...</span>
-                        ) : effectiveTier === "Trailblazer" ? (
+                        ) : studentTierHasCodeBenchAccess(effectiveTier) ? (
                           <>
                             <span className="sm:hidden">Open</span>
                             <span className="hidden sm:inline">Open Editor</span>

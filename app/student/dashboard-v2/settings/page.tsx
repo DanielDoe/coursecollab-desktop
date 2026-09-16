@@ -2,6 +2,7 @@
 
 import { useState, useEffect, type ReactNode } from "react"
 import {
+  Settings,
   User,
   Bell,
   Shield,
@@ -11,27 +12,32 @@ import {
   EyeOff,
   CheckCircle2,
   Loader2,
+  Receipt,
+  ChevronRight,
   Globe,
+  Palette,
+  History,
   type LucideIcon,
 } from "lucide-react"
 import { motion } from "@/components/student/dashboard-v2/light-motion"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
+import Link from "next/link"
 import { useUserTimezoneOptional } from "@/components/providers/user-timezone-provider"
 import { cn } from "@/lib/utils"
 import { getStudentModuleTheme } from "@/lib/student-module-themes"
 import { portalOutlineButtonClass } from "@/lib/portal-module-themes"
+import { useAppearance } from "@/components/appearance/AppearanceProvider"
+import { THEME_DEFINITIONS } from "@/lib/appearance/app-themes"
+import { EmbedModuleCard } from "@/components/student/dashboard-v2/embed-module-ui"
 import { MfaSecurityStatusCard } from "@/components/auth/MfaSecurityStatusCard"
 import { resolveStudentDatabaseId, studentApiFetch } from "@/lib/auth"
 import { CalendarFeedSettingsCard } from "@/components/calendar/CalendarFeedSettingsCard"
-import {
-  PORTAL_CARD,
-  PORTAL_CTA,
-  PORTAL_TEXT_MUTED,
-} from "@/lib/appearance/portal-nav-classes"
+import { PORTAL_CTA } from "@/lib/appearance/portal-nav-classes"
 
 const settingsTheme = getStudentModuleTheme("settings")
 
@@ -58,20 +64,60 @@ function SettingsSection({
   className?: string
 }) {
   return (
-    <section
-      className={cn(
-        "space-y-3 border-t border-[color-mix(in_srgb,var(--cc-text)_10%,transparent)] pt-4 sm:space-y-4 sm:pt-5",
-        className,
-      )}
-    >
+    <section className={cn("space-y-3 sm:space-y-4", className)}>
       <div>
-        <h2 className="text-sm font-semibold text-[var(--cc-text)]">{title}</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--cc-text-muted)]">{title}</h2>
         {description ? (
-          <p className={cn("mt-0.5 text-xs leading-relaxed", PORTAL_TEXT_MUTED)}>{description}</p>
+          <p className="mt-0.5 text-sm text-[var(--cc-text-secondary)]">{description}</p>
         ) : null}
       </div>
       {children}
     </section>
+  )
+}
+
+function SettingsLinkTile({
+  href,
+  icon: Icon,
+  title,
+  description,
+  meta,
+}: {
+  href: string
+  icon: LucideIcon
+  title: string
+  description: string
+  meta?: string
+}) {
+  return (
+    <Link href={href} className="group block min-w-0">
+      <Card
+        className={cn(
+          "h-full rounded-xl border-0 bg-[var(--muted)]/30 shadow-none transition-colors",
+          "hover:bg-[var(--muted)]/45",
+        )}
+      >
+        <CardContent className="flex items-center gap-3 p-4 sm:p-5">
+          <span
+            className={cn(
+              "flex size-11 shrink-0 items-center justify-center rounded-2xl",
+              settingsTheme.page.iconBg,
+              settingsTheme.page.iconText,
+            )}
+          >
+            <Icon className="size-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-[var(--cc-text)]">{title}</p>
+            <p className="mt-0.5 text-sm text-[var(--cc-text-muted)] line-clamp-2">{description}</p>
+            {meta ? (
+              <p className="mt-1.5 text-xs font-medium text-[var(--cc-accent-dark)]">{meta}</p>
+            ) : null}
+          </div>
+          <ChevronRight className="size-5 shrink-0 text-[var(--cc-text-muted)] transition-transform group-hover:translate-x-0.5" />
+        </CardContent>
+      </Card>
+    </Link>
   )
 }
 
@@ -87,32 +133,36 @@ function SettingsPanel({
   children: ReactNode
 }) {
   return (
-    <div className={cn(PORTAL_CARD, "overflow-hidden")}>
-      <div className="border-b border-[var(--border)] px-4 py-3.5 sm:px-5">
+    <Card className={cn("h-full rounded-xl border-0 bg-[var(--muted)]/30 shadow-none")}>
+      <CardHeader className="pb-4">
         <div className="flex items-center gap-3">
           <span
             className={cn(
-              "flex size-9 shrink-0 items-center justify-center rounded-xl",
+              "flex size-10 shrink-0 items-center justify-center rounded-xl",
               settingsTheme.page.iconBg,
               settingsTheme.page.iconText,
             )}
           >
-            <Icon className="size-4" strokeWidth={2.25} />
+            <Icon className="size-5" />
           </span>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-[var(--cc-text)]">{title}</p>
-            <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>{description}</p>
+          <div>
+            <CardTitle className="text-base font-semibold text-[var(--cc-text)]">{title}</CardTitle>
+            <CardDescription className="text-[var(--cc-text-muted)]">{description}</CardDescription>
           </div>
         </div>
-      </div>
-      <div className="px-4 py-4 sm:px-5">{children}</div>
-    </div>
+      </CardHeader>
+      <CardContent className="pt-5">{children}</CardContent>
+    </Card>
   )
 }
 
 export default function DashboardV2SettingsPage() {
   const { toast } = useToast()
   const deviceTz = useUserTimezoneOptional()?.timezone
+  const { themeId, appearanceMode, isDark } = useAppearance()
+  const themeName = THEME_DEFINITIONS.find((t) => t.id === themeId)?.name ?? "Default"
+  const appearanceLabel =
+    appearanceMode === "system" ? "System" : isDark ? "Dark" : "Light"
 
   const [profileLoading, setProfileLoading] = useState(true)
   const [profileSaving, setProfileSaving] = useState(false)
@@ -251,12 +301,44 @@ export default function DashboardV2SettingsPage() {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="w-full min-w-0 space-y-4 pb-4 sm:space-y-5"
+      className="w-full min-w-0 pb-8"
     >
+      <EmbedModuleCard>
+        <div className="space-y-8 p-4 sm:p-5">
+      <SettingsSection title="Quick access" description="Jump to dedicated settings pages.">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SettingsLinkTile
+            href="/student/dashboard-v2/settings/appearance"
+            icon={Palette}
+            title="Appearance & themes"
+            description="Color themes and light / dark mode"
+            meta={`${themeName} · ${appearanceLabel}`}
+          />
+          <SettingsLinkTile
+            href="/student/dashboard-v2/settings/purchases"
+            icon={Receipt}
+            title="Purchase history"
+            description="Invoices, receipts, and refund requests"
+          />
+          <SettingsLinkTile
+            href="/student/dashboard-v2/cora-credits"
+            icon={History}
+            title="Cora Credits"
+            description="Balance, monthly allowance, packs, and usage history"
+          />
+          <SettingsLinkTile
+            href="/student/dashboard-v2/settings/privacy"
+            icon={Shield}
+            title="Privacy & legal"
+            description="Privacy policy, AI & data, and account deletion"
+          />
+        </div>
+      </SettingsSection>
+
+      {/* Account & security */}
       <SettingsSection
         title="Account & security"
         description="Update your personal details and sign-in password."
-        className="border-t-0 pt-0"
       >
         <div className="grid gap-4 lg:grid-cols-2">
           <SettingsPanel icon={User} title="Profile" description="Name, email, and student ID">
@@ -384,60 +466,60 @@ export default function DashboardV2SettingsPage() {
         ) : null}
       </SettingsSection>
       <SettingsSection title="Preferences" description="Notifications and regional settings.">
-        <div className={cn(PORTAL_CARD, "overflow-hidden")}>
-          <div className="flex flex-col gap-3 border-b border-[var(--border)] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <Card className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-sm">
+          <div className="flex flex-col gap-4 border-b border-[var(--border)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex items-center gap-3">
               <span
                 className={cn(
-                  "flex size-9 shrink-0 items-center justify-center rounded-xl",
+                  "flex size-10 shrink-0 items-center justify-center rounded-xl",
                   settingsTheme.page.iconBg,
                   settingsTheme.page.iconText,
                 )}
               >
-                <Globe className="size-4" strokeWidth={2.25} />
+                <Globe className="size-5" />
               </span>
               <div>
-                <p className="text-sm font-semibold text-[var(--cc-text)]">Time zone</p>
-                <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
+                <p className="font-medium text-[var(--cc-text)]">Time zone</p>
+                <p className="text-sm text-[var(--cc-text-muted)]">
                   Dates and times follow your device automatically
                 </p>
               </div>
             </div>
-            <p className="rounded-lg bg-[var(--muted)]/60 px-3 py-2 text-sm font-medium tabular-nums text-[var(--cc-text)] sm:text-right">
+            <p className="rounded-lg bg-[var(--muted)] px-3 py-2 text-sm font-medium text-[var(--cc-text)] sm:text-right">
               {deviceTz ?? "Detecting…"}
             </p>
           </div>
 
-          <div className="border-b border-[var(--border)] px-4 py-3.5 sm:px-5">
+          <CardHeader className="border-b border-[var(--border)] pb-4">
             <div className="flex items-center gap-3">
               <span
                 className={cn(
-                  "flex size-9 shrink-0 items-center justify-center rounded-xl",
+                  "flex size-10 shrink-0 items-center justify-center rounded-xl",
                   settingsTheme.page.iconBg,
                   settingsTheme.page.iconText,
                 )}
               >
-                <Bell className="size-4" strokeWidth={2.25} />
+                <Bell className="size-5" />
               </span>
               <div>
-                <p className="text-sm font-semibold text-[var(--cc-text)]">Notifications</p>
-                <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
+                <CardTitle className="text-base font-semibold text-[var(--cc-text)]">Notifications</CardTitle>
+                <CardDescription className="text-[var(--cc-text-muted)]">
                   Choose which alerts you want to receive
-                </p>
+                </CardDescription>
               </div>
             </div>
-          </div>
+          </CardHeader>
 
-          <div className="px-4 py-4 sm:px-5">
-            <div className="grid gap-0 sm:grid-cols-2 sm:gap-x-6">
+          <CardContent className="pt-5">
+            <div className="grid gap-1 sm:grid-cols-2 sm:gap-x-6">
               {NOTIFICATION_KEYS.map(({ key, label, desc }) => (
                 <div
                   key={key}
-                  className="flex items-center justify-between gap-4 border-b border-[var(--border)]/60 py-3 last:border-b-0 sm:py-3.5"
+                  className="flex items-center justify-between gap-4 rounded-lg px-1 py-3 sm:py-3.5"
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-[var(--cc-text)]">{label}</p>
-                    <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>{desc}</p>
+                    <p className="text-xs text-[var(--cc-text-muted)]">{desc}</p>
                   </div>
                   <Switch
                     checked={notifPrefs[key] ?? true}
@@ -447,12 +529,12 @@ export default function DashboardV2SettingsPage() {
                 </div>
               ))}
             </div>
-            <div className="mt-4 border-t border-[var(--border)] pt-4">
+            <div className="mt-4 pt-4">
               <Button
                 onClick={handleSaveNotifs}
                 disabled={notifSaving}
                 variant="outline"
-                className={cn("h-9 w-full rounded-xl sm:w-auto", portalOutlineButtonClass(settingsTheme))}
+                className={cn("w-full sm:w-auto", portalOutlineButtonClass(settingsTheme))}
               >
                 {notifSaving ? (
                   <Loader2 className="mr-2 size-4 animate-spin" />
@@ -462,8 +544,8 @@ export default function DashboardV2SettingsPage() {
                 Save notification preferences
               </Button>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         <CalendarFeedSettingsCard
           portal="student"
@@ -473,6 +555,8 @@ export default function DashboardV2SettingsPage() {
           quietClass={portalOutlineButtonClass(settingsTheme)}
         />
       </SettingsSection>
+        </div>
+      </EmbedModuleCard>
     </motion.div>
   )
 }

@@ -23,7 +23,6 @@ import {
 } from "@/lib/guest/guest-nav"
 import { GUEST_CORA_CAREER_LIFETIME_CREDITS, guestPlanHasCareerUnlock } from "@/lib/guest/membership-config"
 import { useGuestDashboard } from "./GuestDashboardContext"
-import { DesktopWorkspaceHeader } from "@/components/desktop/DesktopWorkspaceHeader"
 
 function NavTooltip({ label, collapsed, children }: { label: string; collapsed: boolean; children: ReactNode }) {
   if (!collapsed) return <>{children}</>
@@ -62,8 +61,8 @@ function GuestNavLink({
       href={item.href}
       onClick={onNavigate}
       className={cn(
-        "flex items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-[13px] font-medium transition-colors mx-1 min-h-8",
-        collapsed && "justify-center px-2 mx-0.5 min-h-9 py-2",
+        "flex items-center gap-4 rounded-[28px] px-4 py-3 text-[15px] font-medium transition-colors mx-1 min-h-[44px]",
+        collapsed && "justify-center px-2 mx-0.5 min-h-[40px] py-2.5",
         isActive
           ? "bg-[var(--cc-drawer-nav-active-bg)] text-[var(--cc-drawer-primary)] font-semibold"
           : "text-[var(--cc-drawer-label)] hover:bg-[var(--cc-drawer-nav-hover-bg)]",
@@ -75,7 +74,7 @@ function GuestNavLink({
         ) : (
           <Icon
             className={cn(
-              "h-4 w-4",
+              "h-[22px] w-[22px]",
               isActive ? "text-[var(--cc-drawer-primary)]" : "text-[var(--cc-drawer-label-secondary)]",
             )}
             aria-hidden
@@ -135,7 +134,7 @@ function FlatNavSection({
 export function GuestSidebar() {
   const pathname = usePathname() ?? ""
   const isLg = useIsLg()
-  const { mobileSidebarOpen, setMobileSidebarOpen, sidebarCollapsed, setSidebarCollapsed, entitlements } = useGuestDashboard()
+  const { mobileSidebarOpen, setMobileSidebarOpen, sidebarCollapsed, entitlements } = useGuestDashboard()
   const iconOnlySidebar = isLg && sidebarCollapsed && !mobileSidebarOpen
   const navGroups = filterGuestNavGroups({
     capabilities: entitlements.capabilities,
@@ -175,12 +174,8 @@ export function GuestSidebar() {
           mobileSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         )}
       >
-        <nav className="flex flex-col h-full overflow-y-auto overflow-x-hidden scrollbar-hide py-3 px-2 overscroll-contain">
+        <nav className="flex flex-col h-full overflow-y-auto overflow-x-hidden scrollbar-hide py-4 sm:py-6 px-2 sm:px-3 overscroll-contain">
           <TooltipProvider delayDuration={300}>
-            <DesktopWorkspaceHeader
-              collapsed={iconOnlySidebar}
-              onToggleCollapsed={() => setSidebarCollapsed(!sidebarCollapsed)}
-            />
             <div className="space-y-1">
               <GuestNavLink
                 item={GUEST_DASHBOARD_ITEM}

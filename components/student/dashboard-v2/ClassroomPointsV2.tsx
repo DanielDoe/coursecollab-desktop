@@ -29,7 +29,6 @@ import {
   Flame,
   BarChart3,
   PenLine,
-  LayoutDashboard,
   type LucideIcon,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -55,7 +54,6 @@ import {
 } from "@/components/student/dashboard-v2/ClassroomPointsBrowseNav"
 import { ClassroomPointsOverviewPanel } from "@/components/student/dashboard-v2/ClassroomPointsOverviewPanel"
 import { FacultyModuleSplitLayout } from "@/components/instructor/dashboard-v2/FacultyModuleSplitLayout"
-import { StudentModuleHubLayout } from "@/components/student/dashboard-v2/StudentModuleHubLayout"
 import {
   PortalLeaderboardPodium,
   buildPortalPodiumEntries,
@@ -265,8 +263,6 @@ export function ClassroomPointsV2({
   const solutionAvailableSubmissions = availableSubmissions.filter((s) => isSolutionAssignment(s))
   const solutionPendingSubmissions = pendingSubmissions.filter((s) => isSolutionAssignment(s))
   const solutionMissingSubmissions = missingSubmissions.filter((s) => isSolutionAssignment(s))
-  const openCodeAssignmentCount = codeAvailableSubmissions.length
-  const openSolutionAssignmentCount = solutionMissingSubmissions.length
 
   const effectiveSolutionAssignmentId =
     selectedSolutionSubmissionId || selectedSolutionMissingId || selectedSolutionPendingId
@@ -441,7 +437,8 @@ export function ClassroomPointsV2({
     }
   }
 
-  const formatTimeRemaining = (expiresAt: string) => {
+  const formatTimeRemaining = (expiresAt: string | null | undefined) => {
+    if (!expiresAt) return "Open — no deadline set"
     const now = new Date()
     const expires = new Date(expiresAt)
     const diff = expires.getTime() - now.getTime()
@@ -726,49 +723,7 @@ export function ClassroomPointsV2({
     [leaderboard, studentId, blurLeaderboardPeers],
   )
 
-  const classroomMenuItems = useMemo(() => {
-    const items = [
-      { id: "overview" as const, label: "Overview", icon: LayoutDashboard },
-      ...(showCodeAssignmentsBlock
-        ? [
-            {
-              id: "code" as const,
-              label: "Code assignments",
-              icon: Code,
-              badge: openCodeAssignmentCount || undefined,
-            },
-          ]
-        : []),
-      ...(showSolutionAssignmentsBlock
-        ? [
-            {
-              id: "solutions" as const,
-              label: "Solution assignments",
-              icon: PenLine,
-              badge: solutionAvailableSubmissions.length + solutionMissingSubmissions.length || undefined,
-            },
-          ]
-        : []),
-      {
-        id: "history" as const,
-        label: "Points history",
-        icon: Award,
-        badge: points.length || undefined,
-      },
-      { id: "leaderboard" as const, label: "Leaderboard", icon: Trophy },
-    ]
-    return items
-  }, [
-    showCodeAssignmentsBlock,
-    showSolutionAssignmentsBlock,
-    codeAvailableSubmissions.length,
-    missingSubmissions,
-    solutionAvailableSubmissions.length,
-    solutionMissingSubmissions.length,
-    points.length,
-  ])
-
-  if (loading && !embedInDashboard) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className={cn("animate-spin rounded-full h-10 w-10 border-2 border-[var(--border)]", studentModuleSpinnerClass("classroom-points"))} />
@@ -776,18 +731,30 @@ export function ClassroomPointsV2({
     )
   }
 
-  const hubMetaLine = loading ? (
-    <span className="inline-block h-4 w-52 animate-pulse rounded bg-[var(--muted)]" />
-  ) : (
-    <>
-      {totalPoints} pts · {classroomGradePoints}/10 grade
-      {myRank != null ? ` · rank #${myRank}` : ""}
-      {session ? ` · section ${session}` : ""}
-    </>
-  )
-
-  const pointsPanel = (
-    <div className="min-w-0 space-y-4 sm:space-y-5">
+  return (
+    <div className="space-y-4 sm:space-y-6 w-full min-w-0 overflow-x-hidden">
+      <FacultyModuleSplitLayout
+        className="gap-2 sm:gap-3 lg:min-h-[min(640px,72vh)] lg:gap-4"
+        menuWidthClass="lg:w-52"
+        menu={
+          <ClassroomPointsBrowseNav
+            activeId={browseView}
+            onSelect={setBrowseView}
+            showCode={showCodeAssignmentsBlock}
+            showSolutions={showSolutionAssignmentsBlock}
+            counts={{
+              history: points.length || undefined,
+              code:
+                codeAvailableSubmissions.length +
+                  missingSubmissions.filter((s) => !isSolutionAssignment(s)).length ||
+                undefined,
+              solutions:
+                solutionAvailableSubmissions.length + solutionMissingSubmissions.length || undefined,
+            }}
+          />
+        }
+      >
+        <div className="min-w-0 space-y-4 sm:space-y-5">
       {browseView === "overview" ? (
         <ClassroomPointsOverviewPanel
           totalPoints={totalPoints}
@@ -802,8 +769,11 @@ export function ClassroomPointsV2({
             total_points: Number(e.total_points),
           }))}
           studentId={studentId}
-          openCodeCount={openCodeAssignmentCount}
-          openSolutionsCount={openSolutionAssignmentCount}
+          openCodeCount={
+            codeAvailableSubmissions.length +
+            missingSubmissions.filter((s) => !isSolutionAssignment(s)).length
+          }
+          openSolutionsCount={solutionAvailableSubmissions.length + solutionMissingSubmissions.length}
           pendingReviewCount={pendingSubmissions.length}
           cardVariant={cardVariant}
           onNavigate={setBrowseView}
@@ -922,7 +892,7 @@ export function ClassroomPointsV2({
                           availableSubmissions
                             .filter((submission) => {
                               if (isSolutionAssignment(submission)) return false
-                              const isExpired = new Date(submission.expires_at) < new Date()
+                              const isExpired = isAssignmentPastDue(submission)
                               const isAttempted = submission.attempted
                               return !isExpired && !isAttempted
                             })
@@ -971,9 +941,9 @@ export function ClassroomPointsV2({
                                 <div className="flex flex-col">
                                   <span>{submission.title}</span>
                                   <span className="text-xs text-[var(--cc-text-muted)]">
-                                    {submission.is_active === false || new Date(submission.expires_at) <= new Date()
+                                    {isAssignmentPastDue(submission)
                                       ? "Closed — awaiting review"
-                                      : `Expires: ${formatTimeRemaining(submission.expires_at)}`}
+                                      : formatTimeRemaining(submission.expires_at)}
                                   </span>
                                 </div>
                               </SelectItem>
@@ -1323,7 +1293,7 @@ export function ClassroomPointsV2({
                           ) : (
                             solutionAvailableSubmissions
                               .filter((submission) => {
-                                const isExpired = new Date(submission.expires_at) < new Date()
+                                const isExpired = isAssignmentPastDue(submission)
                                 const isAttempted = submission.attempted
                                 return !isExpired && !isAttempted
                               })
@@ -1789,45 +1759,7 @@ export function ClassroomPointsV2({
       </CardWrapper>
       ) : null}
         </div>
-  )
-
-  return (
-    <div className="space-y-4 sm:space-y-6 w-full min-w-0 overflow-x-hidden">
-      {embedInDashboard ? (
-        <StudentModuleHubLayout
-          moduleId="classroom-points"
-          title="Classroom Points"
-          metaLine={hubMetaLine}
-          metaSuffix="submit assignments and climb the leaderboard"
-          menuView={browseView}
-          onMenuSelect={(id) => setBrowseView(id as ClassroomPointsBrowseId)}
-          menuItems={classroomMenuItems}
-          loading={loading}
-          loadingRows={8}
-        >
-          {pointsPanel}
-        </StudentModuleHubLayout>
-      ) : (
-        <FacultyModuleSplitLayout
-          className="gap-2 sm:gap-3 lg:min-h-[min(640px,72vh)] lg:gap-4"
-          menuWidthClass="lg:w-52"
-          menu={
-            <ClassroomPointsBrowseNav
-              activeId={browseView}
-              onSelect={setBrowseView}
-              showCode={showCodeAssignmentsBlock}
-              showSolutions={showSolutionAssignmentsBlock}
-              counts={{
-                history: points.length || undefined,
-                code: openCodeAssignmentCount || undefined,
-                solutions: openSolutionAssignmentCount || undefined,
-              }}
-            />
-          }
-        >
-          {pointsPanel}
-        </FacultyModuleSplitLayout>
-      )}
+      </FacultyModuleSplitLayout>
 
       {/* Template Warning Modal */}
       <AnimatePresence>

@@ -50,32 +50,7 @@ export async function resolveStudentCourseIdForLectures(): Promise<number | null
   }
 }
 
-function activeEnrollmentFromSession(session: ReturnType<typeof getStudentData>, dbIdNum: number) {
-  const enrollments = session?.enrollments ?? []
-  if (!enrollments.length) return null
-
-  if (Number.isFinite(dbIdNum)) {
-    const byRow = enrollments.find((row) => row.studentRowId === dbIdNum)
-    if (byRow) return byRow
-  }
-
-  const courseId = session?.courseId ?? null
-  const section = session?.section?.trim()
-  if (courseId != null && section) {
-    const byCourseSection = enrollments.find(
-      (row) => row.courseId === courseId && row.section?.trim() === section,
-    )
-    if (byCourseSection) return byCourseSection
-  }
-
-  if (courseId != null) {
-    return enrollments.find((row) => row.courseId === courseId) ?? null
-  }
-
-  return null
-}
-
-/** Append course + student db id + catalog session/term for student-scoped API calls. */
+/** Append course + student db id for student-scoped API calls. */
 export function buildStudentScopedSearchParams(
   extra?: Record<string, string | undefined | null>,
 ): URLSearchParams {
@@ -85,22 +60,11 @@ export function buildStudentScopedSearchParams(
       if (value != null && value !== "") params.set(key, String(value))
     }
   }
-  const session = getStudentData()
-  const courseId = session?.courseId ?? getStudentCourseIdFromSession()
+  const courseId = getStudentCourseIdFromSession()
   if (courseId != null) params.set("courseId", String(courseId))
-  const dbIdFromSession = session?.databaseId?.trim()
-  const dbIdFromStorage =
-    typeof sessionStorage !== "undefined" ? sessionStorage.getItem("studentDatabaseId")?.trim() : null
-  const dbId = dbIdFromSession || dbIdFromStorage
-  if (dbId) params.set("studentDatabaseId", dbId)
-
-  const dbIdNum = dbId ? Number.parseInt(dbId, 10) : NaN
-  const activeEnrollment = activeEnrollmentFromSession(session, dbIdNum)
-  if (activeEnrollment?.academicTermId != null) {
-    params.set("academicTermId", String(activeEnrollment.academicTermId))
-  }
-  if (activeEnrollment?.sessionId != null) {
-    params.set("catalogSessionId", String(activeEnrollment.sessionId))
+  if (typeof sessionStorage !== "undefined") {
+    const dbId = sessionStorage.getItem("studentDatabaseId")
+    if (dbId) params.set("studentDatabaseId", dbId)
   }
   return params
 }

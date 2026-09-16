@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { resolveMessageActor } from "@/lib/direct-messages/auth"
 import { searchMessageRecipients } from "@/lib/direct-messages/service"
+import { readInstructorOfferingFromRequest } from "@/lib/instructor-session-scope"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -15,7 +16,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ recipients: [] })
     }
 
-    const recipients = await searchMessageRecipients(actor, q)
+    const recipients = await searchMessageRecipients(
+      actor,
+      q,
+      20,
+      actor.kind === "instructor" ? readInstructorOfferingFromRequest(request) : null,
+    )
     return NextResponse.json({ recipients })
   } catch (error) {
     console.error("[messages/recipients GET]", error)

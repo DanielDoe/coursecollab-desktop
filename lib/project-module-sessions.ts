@@ -19,7 +19,7 @@ export function getProjectModuleSessionCodes(): string[] {
 export function getProjectModuleSessionsForCourse(courseCode: string | null | undefined) {
   const family = presentationCatalogFamilyPrefix(courseCode)
   if (!family) return [...PROJECT_MODULE_SESSIONS]
-  if (family === "ECE2202") return [{ code: "ECE2202", label: "ECE2202" }]
+  if (family === "ECE2202") return [{ code: "ECE2202", label: "ECE2202" }] as const
   return PROJECT_MODULE_SESSIONS.filter((s) => presentationSessionBelongsToCourse(s.code, family))
 }
 

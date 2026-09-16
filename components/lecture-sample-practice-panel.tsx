@@ -39,6 +39,8 @@ import {
   useLectureSamplePracticeConfig,
 } from "@/components/lecture-sample-practice-editor"
 import { cn } from "@/lib/utils"
+import { CoraLauncherButton } from "@/components/cora/CoraLauncherButton"
+import { coraContextFromQuestion } from "@/lib/cora/question-context"
 import { QuestionPrepareGate } from "@/components/question-prepare-gate"
 
 export type LectureSamplePracticePanelMode = "student" | "instructor"
@@ -60,6 +62,7 @@ function QuestionCard({
   question,
   index,
   studentRosterId,
+  studentDatabaseId,
   lectureId,
   expanded,
   onToggleExpand,
@@ -69,6 +72,7 @@ function QuestionCard({
   question: LectureSamplePracticeQuestion
   index: number
   studentRosterId?: string
+  studentDatabaseId?: number | null
   lectureId: number
   expanded: boolean
   onToggleExpand: () => void
@@ -215,6 +219,31 @@ function QuestionCard({
             className="text-sm leading-relaxed text-slate-800 dark:text-slate-100"
           />
 
+          {!isInstructorPreview ? (
+            submitted ? (
+              <CoraLauncherButton
+                label="Walk through with Cora"
+                assessmentState="practice"
+                problem={coraContextFromQuestion({
+                  source: "lecture_practice",
+                  title: question.title,
+                  topic: question.topic,
+                  questionText: question.question_text,
+                  questionType: question.question_type,
+                  explanation: result?.explanation ?? null,
+                  mediaUrl: question.question_media?.media_url ?? null,
+                  lectureId,
+                  questionId: question.id,
+                  studentDatabaseId: studentDatabaseId ?? null,
+                })}
+              />
+            ) : (
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Submit your answer first to unlock Cora for this question.
+              </p>
+            )
+          ) : null}
+
           {rendererQuestion ? (
             <QuestionRenderer
               question={rendererQuestion}
@@ -317,6 +346,7 @@ function QuestionCard({
 export function LectureSamplePracticePanel({
   lectureId,
   studentRosterId,
+  studentDatabaseId,
   open,
   onOpenChange,
   buttonLabel = "Sample Practice",
@@ -538,6 +568,7 @@ export function LectureSamplePracticePanel({
                       question={q}
                       index={idx}
                       studentRosterId={studentRosterId}
+                      studentDatabaseId={studentDatabaseId}
                       lectureId={lectureId}
                       expanded={expandedId === q.id}
                       onToggleExpand={() => setExpandedId((cur) => (cur === q.id ? null : q.id))}

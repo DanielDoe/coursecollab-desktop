@@ -31,6 +31,7 @@ import { shouldActivateAntiCheat, getAntiCheatSettings } from "@/lib/antiCheatCo
 import type { SectionConfig } from "@/lib/assessment-sections"
 import { useGeminiDetector } from "@/hooks/use-gemini-detector"
 import { isBrowserAiEnforcementPlatform, applyBrowserAiPlatformPolicy } from "@/lib/device-utils"
+import { isDesktopElectronAssessmentClient } from "@/lib/desktop-anticheat-policy"
 import confetti from "canvas-confetti"
 
 interface FinalExamTakerProps {
@@ -172,9 +173,13 @@ export function FinalExamTaker({ examId, assessmentType = "final" }: FinalExamTa
 
   // Gemini detection - desktop Windows/macOS only
   useGeminiDetector({
-    enabled: antiCheatConfig.trackGeminiWindow && isBrowserAiEnforcementPlatform(),
+    enabled:
+      (antiCheatConfig.trackGeminiWindow && isBrowserAiEnforcementPlatform()) ||
+      (isDesktopElectronAssessmentClient() && antiCheatConfig.requireFullscreen === true),
     onDetected: handleGeminiDetected,
     onCleared: handleGeminiCleared,
+    requireFullscreen: antiCheatConfig.requireFullscreen,
+    skipBrowserAiHeuristics: isDesktopElectronAssessmentClient(),
   })
 
   const { state: antiCheatState, closeWarning } = useAntiCheat({

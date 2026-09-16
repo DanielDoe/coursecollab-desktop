@@ -156,6 +156,19 @@ export async function POST(request: NextRequest) {
 
     await replaceLectureSessionAccessFromRecord(sql, lecture[0].id, session_access)
 
+    if (published) {
+      const { notifyCourseStudents } = await import("@/lib/notify-course-students")
+      void notifyCourseStudents(
+        { courseId },
+        {
+          type: "lecture",
+          title: "New lecture available",
+          message: `"${titleText}" is now published.`,
+          link: "/student/dashboard-v2/lectures",
+        },
+      ).catch((err) => console.warn("[lectures] publish notify failed:", err))
+    }
+
     return NextResponse.json({ lecture: lecture[0] })
   } catch (error) {
     console.error("Error creating lecture:", error)
@@ -205,6 +218,14 @@ export async function PUT(request: NextRequest) {
         : []
     const sessionCol = sessionAccessJsonForColumn(session_access)
 
+    const before = await sql`
+      SELECT is_published, title FROM lectures
+      WHERE id = ${id}
+        AND (course_id = ${courseId} OR course_id IS NULL)
+      LIMIT 1
+    `
+    const wasPublished = Boolean((before[0] as { is_published?: boolean } | undefined)?.is_published)
+
     const lecture = await sql`
       UPDATE lectures SET
         title = ${title},
@@ -225,6 +246,19 @@ export async function PUT(request: NextRequest) {
     }
 
     await replaceLectureSessionAccessFromRecord(sql, id, session_access)
+
+    if (published && !wasPublished) {
+      const { notifyCourseStudents } = await import("@/lib/notify-course-students")
+      void notifyCourseStudents(
+        { courseId },
+        {
+          type: "lecture",
+          title: "New lecture available",
+          message: `"${title}" is now published.`,
+          link: "/student/dashboard-v2/lectures",
+        },
+      ).catch((err) => console.warn("[lectures] update notify failed:", err))
+    }
 
     return NextResponse.json({ lecture: lecture[0] })
   } catch (error) {

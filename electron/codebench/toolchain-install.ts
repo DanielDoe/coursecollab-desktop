@@ -43,7 +43,7 @@ async function downloadFile(url: string, dest: string, sha256: string, hops = 0)
         if (total > 0) {
           emitToolchainProgress({
             phase: 'downloading',
-            message: 'Downloading the CourseCollab C++ compiler…',
+            message: 'Downloading the C++ compiler…',
             percent: Math.min(99, Math.round((received / total) * 100)),
           })
         }
@@ -110,7 +110,10 @@ export async function installPortableToolchain(): Promise<string> {
 
   emitToolchainProgress({
     phase: 'downloading',
-    message: 'Downloading the CourseCollab C++ compiler…',
+    message:
+      artifact.driver === 'g++'
+        ? 'Downloading MinGW-w64 (g++)…'
+        : 'Downloading the CourseCollab C++ compiler…',
     percent: 0,
   })
   const archive = downloadPath(artifact)

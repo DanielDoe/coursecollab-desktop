@@ -116,7 +116,6 @@ export function minimizeStudentContextForExternalAi(
     knowledgeGraph: learningContext && personalized ? ctx.knowledgeGraph : undefined,
     strugglingTopics: learningContext && personalized ? ctx.strugglingTopics : [],
     strengths: learningContext && personalized ? ctx.strengths : [],
-    codebenchStudio: learningContext && personalized ? ctx.codebenchStudio : undefined,
     profile: learningContext && personalized ? ctx.profile : {},
     summary: learningContext && personalized ? ctx.summary : {},
   }

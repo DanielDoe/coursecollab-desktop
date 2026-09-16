@@ -3,13 +3,12 @@
 import { EmbedModuleCard } from "@/components/student/dashboard-v2/embed-module-ui"
 import { PageEnter } from "@/components/student/dashboard-v2/light-motion"
 import { AttendanceBrowseShell } from "@/components/student/dashboard-v2/AttendanceBrowseShell"
-import { dashboardV2PageRootClass } from "@/lib/dashboard-v2-layout"
 
 export default function AttendanceHubLayout({ children }: { children: React.ReactNode }) {
   return (
-    <PageEnter className={dashboardV2PageRootClass}>
-      <EmbedModuleCard className="shrink-0">
-        <div className="shrink-0 p-4 sm:p-5 md:p-6">
+    <PageEnter className="w-full min-w-0">
+      <EmbedModuleCard>
+        <div className="p-4 sm:p-5">
           <AttendanceBrowseShell>{children}</AttendanceBrowseShell>
         </div>
       </EmbedModuleCard>

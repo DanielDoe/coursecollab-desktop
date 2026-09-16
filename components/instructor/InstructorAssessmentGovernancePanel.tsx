@@ -21,8 +21,21 @@ import {
   membershipAssessmentBenefitsAllowed,
   tradeCenterAssessmentBenefitsAllowed,
 } from "@/lib/assessment-privilege-governance-shared"
+import {
+  DEFAULT_ASSESSMENT_PLATFORM_ACCESS,
+  parseAssessmentPlatformAccess,
+  type AssessmentPlatformAccess,
+  type AssessmentPlatformKind,
+} from "@/lib/assessment-platform-access"
 import { PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
 import { cn } from "@/lib/utils"
+
+const PLATFORM_KIND_ROWS: Array<{ kind: AssessmentPlatformKind; label: string }> = [
+  { kind: "quiz", label: "Quizzes" },
+  { kind: "homework", label: "Homework" },
+  { kind: "mid_semester", label: "Mid-semester exams" },
+  { kind: "final", label: "Final exams" },
+]
 
 const SOURCE_OPTIONS: Array<{
   value: AssessmentPrivilegeSource
@@ -62,6 +75,9 @@ export function InstructorAssessmentGovernancePanel() {
   const [source, setSource] = useState<AssessmentPrivilegeSource>("instructor_only")
   const [showNotice, setShowNotice] = useState(true)
   const [studentsImpacted, setStudentsImpacted] = useState(0)
+  const [platformAccess, setPlatformAccess] = useState<AssessmentPlatformAccess>(
+    DEFAULT_ASSESSMENT_PLATFORM_ACCESS,
+  )
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -75,6 +91,7 @@ export function InstructorAssessmentGovernancePanel() {
       setSource(data.assessment_privilege_source ?? "instructor_only")
       setShowNotice(data.show_course_policy_notice !== false)
       setStudentsImpacted(Number(data.students_impacted) || 0)
+      setPlatformAccess(parseAssessmentPlatformAccess(data.platform_access))
     } catch (e) {
       toast({
         title: "Could not load governance settings",
@@ -99,6 +116,7 @@ export function InstructorAssessmentGovernancePanel() {
         body: JSON.stringify({
           assessment_privilege_source: source,
           show_course_policy_notice: showNotice,
+          platform_access: platformAccess,
         }),
       })
       const data = await res.json()
@@ -188,6 +206,34 @@ export function InstructorAssessmentGovernancePanel() {
             </p>
           </div>
         ) : null}
+      </InstructorPolicySurfaceCard>
+
+      <InstructorPolicySurfaceCard
+        variant="section"
+        title="Where students may take assessments"
+        description="Course default for each assessment type. You can override these on an individual quiz, homework, or exam."
+      >
+        <InstructorPolicyDividedList>
+          {PLATFORM_KIND_ROWS.map(({ kind, label }) => (
+            <InstructorPolicyToggleRow
+              key={kind}
+              label={`${label} on mobile`}
+              hint={
+                platformAccess[kind].mobile
+                  ? "Students can start this type in the CourseCollab app."
+                  : "Students must take this type on the CourseCollab website."
+              }
+              checked={platformAccess[kind].mobile}
+              onCheckedChange={(next) =>
+                setPlatformAccess((prev) => ({
+                  ...prev,
+                  [kind]: { ...prev[kind], mobile: next },
+                }))
+              }
+              switchClass={switchClass}
+            />
+          ))}
+        </InstructorPolicyDividedList>
       </InstructorPolicySurfaceCard>
 
       <InstructorPolicySurfaceCard variant="section" title="Student visibility" description="Optional notice on the student course dashboard.">

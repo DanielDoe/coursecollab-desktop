@@ -7,9 +7,11 @@ import {
 } from "lucide-react"
 import {
   categoryLabel,
+  clientPlatformLabel,
   formatActivityActorPrimary,
   formatActivityActorSecondary,
   portalLabel,
+  resolveActivityClientPlatform,
   type PlatformActivityRow,
 } from "@/lib/platform-activity-constants"
 import { Badge } from "@/components/ui/badge"
@@ -83,6 +85,9 @@ export function PlatformActivityDetailModal({ row, open, onOpenChange }: Platfor
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={actionBadgeVariant(row.action)}>{row.action}</Badge>
             <Badge variant="outline">{portalLabel(row.portal)}</Badge>
+            <Badge variant="secondary">
+              {clientPlatformLabel(resolveActivityClientPlatform(row))}
+            </Badge>
             {row.success ? (
               <Badge className="bg-emerald-600/90 hover:bg-emerald-600/90">Success</Badge>
             ) : (
@@ -141,6 +146,10 @@ export function PlatformActivityDetailModal({ row, open, onOpenChange }: Platfor
             <TabPanel>
               <DetailRow label="Path" value={row.path ?? "—"} mono />
               <DetailRow label="Method" value={row.method ?? "—"} />
+              <DetailRow
+                label="Client"
+                value={clientPlatformLabel(resolveActivityClientPlatform(row))}
+              />
               <DetailRow label="IP address" value={row.ip_address ?? "—"} mono />
               <DetailRow
                 label="User agent"

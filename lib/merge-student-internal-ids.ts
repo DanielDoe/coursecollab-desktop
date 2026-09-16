@@ -119,6 +119,9 @@ async function deleteConflictingRowsOnDrop(keeperId: number, dropId: number): Pr
     `DELETE FROM missed_deadline_reminders_sent dup USING missed_deadline_reminders_sent keep
        WHERE dup.student_id = ${dropId} AND keep.student_id = ${keeperId}
          AND dup.assessment_id = keep.assessment_id AND dup.assessment_type = keep.assessment_type`,
+    `DELETE FROM assessment_reminder_dispatches dup USING assessment_reminder_dispatches keep
+       WHERE dup.student_id = ${dropId} AND keep.student_id = ${keeperId}
+         AND dup.quiz_id = keep.quiz_id AND dup.kind = keep.kind`,
   ]
 
   const singleStudentIdTables = [

@@ -1,16 +1,8 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useEffect, useRef, useState } from "react"
+import { createContext, useContext, useEffect, useState } from "react"
 import { toast } from "@/hooks/use-toast"
-import {
-  buildDesktopNotificationSyncContext,
-  deliverNewDesktopNotifications,
-  registerDesktopNotificationSync,
-  setDesktopBadgeCount,
-  shouldKeepNotificationPollingWhenHidden,
-} from "@/lib/desktop-notifications"
-import { getNotificationPollIntervalMs } from "@/lib/desktop-notification-poll"
 
 interface Notification {
   id: number
@@ -45,34 +37,6 @@ export function AdminNotificationProvider({
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
-  const knownNotificationIds = useRef<Set<number>>(new Set())
-  const notificationsInitialized = useRef(false)
-
-  const applyNotificationPayload = (data: {
-    notifications?: Notification[]
-    unread_count?: number
-  }) => {
-    const list = data.notifications || []
-    setNotifications(list)
-    const apiUnread = Number(data.unread_count ?? 0)
-    const derivedUnread = list.filter((n) => !n.is_read).length
-    const nextUnread = Math.max(apiUnread, derivedUnread)
-    setUnreadCount(nextUnread)
-
-    if (notificationsInitialized.current) {
-      void deliverNewDesktopNotifications(knownNotificationIds.current, list, {
-        initialized: true,
-        portal: "admin",
-      }).then((nextIds) => {
-        knownNotificationIds.current = nextIds
-      })
-    } else {
-      notificationsInitialized.current = true
-      knownNotificationIds.current = new Set(list.map((n) => n.id))
-    }
-
-    void setDesktopBadgeCount(nextUnread)
-  }
 
   const fetchNotifications = async () => {
     if (!adminId) {
@@ -90,7 +54,8 @@ export function AdminNotificationProvider({
 
       if (response.ok) {
         const data = await response.json()
-        applyNotificationPayload(data)
+        setNotifications(data.notifications || [])
+        setUnreadCount(data.unread_count || 0)
       } else if (response.status === 429) {
         // Rate limited - silently skip this fetch
         console.log("[Admin Notifications] Rate limited, will retry on next interval")
@@ -169,23 +134,6 @@ export function AdminNotificationProvider({
   }
 
   useEffect(() => {
-    if (!adminId) {
-      void registerDesktopNotificationSync(null)
-      return
-    }
-
-    void registerDesktopNotificationSync(
-      buildDesktopNotificationSyncContext("admin", "/api/admin/notifications?limit=20", {
-        "x-admin-id": adminId,
-      }),
-    )
-
-    return () => {
-      void registerDesktopNotificationSync(null)
-    }
-  }, [adminId])
-
-  useEffect(() => {
     fetchNotifications()
 
     if (!adminId) return
@@ -193,13 +141,11 @@ export function AdminNotificationProvider({
     // Set up polling with visibility awareness
     let interval: NodeJS.Timeout | null = null
 
-    const pollMs = getNotificationPollIntervalMs()
-
     const startPolling = () => {
       if (interval) clearInterval(interval)
       interval = setInterval(() => {
         fetchNotifications()
-      }, pollMs)
+      }, 30000)
     }
 
     const stopPolling = () => {
@@ -211,35 +157,24 @@ export function AdminNotificationProvider({
 
     // Handle visibility change - pause polling when tab is hidden
     const handleVisibilityChange = () => {
-      if (document.hidden && !shouldKeepNotificationPollingWhenHidden()) {
+      if (document.hidden) {
         stopPolling()
-      } else if (!document.hidden) {
+      } else {
+        // Fetch immediately when tab becomes visible, then resume polling
         fetchNotifications()
         startPolling()
       }
     }
 
+    // Start initial polling
     startPolling()
 
-    const handleWindowFocus = () => {
-      if (shouldKeepNotificationPollingWhenHidden()) {
-        fetchNotifications()
-      }
-    }
-
-    if (!shouldKeepNotificationPollingWhenHidden()) {
-      document.addEventListener("visibilitychange", handleVisibilityChange)
-    } else {
-      window.addEventListener("focus", handleWindowFocus)
-    }
+    // Listen for visibility changes
+    document.addEventListener("visibilitychange", handleVisibilityChange)
 
     return () => {
       stopPolling()
-      if (!shouldKeepNotificationPollingWhenHidden()) {
-        document.removeEventListener("visibilitychange", handleVisibilityChange)
-      } else {
-        window.removeEventListener("focus", handleWindowFocus)
-      }
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
     }
   }, [adminId])
 

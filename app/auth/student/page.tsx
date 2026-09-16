@@ -2,18 +2,14 @@
 
 import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { DesktopAuthLoading } from "@/components/auth/DesktopAuthLoading"
-import { DesktopAuthPanel } from "@/components/auth/desktop-auth-primitives"
-import { DesktopAuthShell } from "@/components/auth/DesktopAuthShell"
+import { AuthGlassCard, AuthShell } from "@/components/auth/AuthShell"
 import { StudentAuthForm } from "@/components/auth/StudentAuthForm"
 import { useAuth } from "@/lib/auth-context"
 import { getStudentData, isStudentAuthenticated, studentApiFetch } from "@/lib/auth"
-import { readRememberedUniversity } from "@/lib/remembered-auth"
+import { readRememberedUniversity, hasRememberedStudentUniversity } from "@/lib/remembered-auth"
 import { readSessionSelectedUniversity } from "@/lib/universities-shared"
 import { tryRestoreStudentSessionFromRefresh, hasStudentExplicitSignOut } from "@/lib/student-session-restore-client"
-import { readDesktopRefreshToken } from "@/lib/desktop-refresh-token"
-import { clearLeftoverClientSessions, clearAllClientSessionsIncludingRefresh } from "@/lib/session-restore-guard"
-import { restoreStudentSessionWithRetry } from "@/lib/student-session-restore-retry"
+import { clearLeftoverClientSessions } from "@/lib/session-restore-guard"
 import { studentEnrollmentCount } from "@/lib/student-select-course"
 
 export default function AuthStudentLoginPage() {
@@ -25,34 +21,14 @@ export default function AuthStudentLoginPage() {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    if (hasStudentExplicitSignOut()) {
-      clearAllClientSessionsIncludingRefresh()
-      setReady(true)
-      return
-    }
-
-    if (signedOut) {
-      clearAllClientSessionsIncludingRefresh()
+    if (searchParams.get("change") === "1" || signedOut || expired || hasStudentExplicitSignOut()) {
+      clearLeftoverClientSessions()
       setReady(true)
       return
     }
 
     void (async () => {
-      if (expired || searchParams.get("change") === "1") {
-        const restored = await restoreStudentSessionWithRetry()
-        if (restored && isStudentAuthenticated()) {
-          router.replace("/student/dashboard-v2")
-          return
-        }
-        if (expired && !readDesktopRefreshToken()) {
-          sessionStorage.setItem("studentSessionExpired", "1")
-          clearLeftoverClientSessions()
-        }
-        setReady(true)
-        return
-      }
-
-      const restored = await restoreStudentSessionWithRetry()
+      const restored = await tryRestoreStudentSessionFromRefresh()
       if (restored && isStudentAuthenticated()) {
         let count = studentEnrollmentCount(getStudentData()?.enrollments)
         if (count < 2) {
@@ -90,26 +66,15 @@ export default function AuthStudentLoginPage() {
     router.replace("/auth/university")
   }, [ready, selectedUniversityId, router, setSelectedUniversity])
 
-  if (!ready || !university) {
-    return (
-      <DesktopAuthShell>
-        <DesktopAuthLoading label="Preparing sign in" />
-      </DesktopAuthShell>
-    )
-  }
+  if (!ready || !university) return null
+
+  const backHref = hasRememberedStudentUniversity() ? "/auth/university?change=1" : "/auth/university"
 
   return (
-    <DesktopAuthShell
-      sidebarTagline={`Sign in to ${university.name} to access your courses and AI tools.`}
-    >
-      <DesktopAuthPanel>
-        <StudentAuthForm
-          university={university}
-          expired={expired}
-          variant="desktop"
-          backHref="/auth/university?change=1"
-        />
-      </DesktopAuthPanel>
-    </DesktopAuthShell>
+    <AuthShell backHref={backHref} university={university}>
+      <AuthGlassCard>
+        <StudentAuthForm university={university} expired={expired} />
+      </AuthGlassCard>
+    </AuthShell>
   )
 }

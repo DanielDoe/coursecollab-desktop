@@ -48,11 +48,13 @@ export const desktopAuth = {
     "flex h-9 w-full items-center justify-center gap-1 rounded-md text-[13px] font-medium text-[var(--cc-text-muted)] transition-colors hover:bg-[var(--cc-accent-soft)] hover:text-[var(--cc-text)]",
 } as const
 
-/** Shared horizontal rhythm — compact centered auth column. */
+/** Shared horizontal rhythm — compact centered auth column (readable, not stretched). */
 export const desktopAuthLayout = {
   insetX: "px-4",
-  contentWidth: "w-full max-w-[360px]",
-  contentColumn: "mx-auto w-full max-w-[360px]",
+  contentWidth: "w-full max-w-[28rem]",
+  contentColumn: "mx-auto w-full max-w-[28rem]",
+  /** Welcome / multi-portal picker — slightly wider than sign-in forms. */
+  contentColumnWide: "mx-auto w-full max-w-[30rem]",
 } as const
 
 /** Removed — do not render a full-width app header on auth screens. */

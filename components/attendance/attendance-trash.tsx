@@ -40,11 +40,10 @@ interface TrashRecord {
 }
 
 interface AttendanceTrashProps {
-  instructorId?: string
-  embedInDashboard?: boolean
+  instructorId: string;
 }
 
-export function AttendanceTrash({ instructorId, embedInDashboard }: AttendanceTrashProps) {
+export function AttendanceTrash({ instructorId }: AttendanceTrashProps) {
   const { toast } = useToast();
   const { courseScopeVersion } = useInstructorDashboardV2();
   const instHeaders = (): Record<string, string> => ({
@@ -155,11 +154,11 @@ export function AttendanceTrash({ instructorId, embedInDashboard }: AttendanceTr
     return matchesSearch;
   });
 
-  if (loading) return <FacultyAttendanceLoading fillHeight={embedInDashboard} />;
+  if (loading) return <FacultyAttendanceLoading />;
 
   return (
-    <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3"}>
-      <div className={cn("flex flex-wrap items-center gap-2", embedInDashboard && "shrink-0")}>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[180px] flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--cc-text-muted)]" />
               <Input
@@ -187,12 +186,11 @@ export function AttendanceTrash({ instructorId, embedInDashboard }: AttendanceTr
       {filteredRecords.length > 0 && (
         <FacultyAttendancePanel
           title={`${filteredRecords.length} recoverable`}
-          fillHeight={embedInDashboard && expiredRecords.length === 0}
           action={
             <span className={cn("text-xs", PORTAL_TEXT_MUTED)}>24h window</span>
           }
         >
-            <div className={cn("-mx-3 -mb-3 divide-y divide-[var(--border)] overflow-hidden sm:-mx-4 sm:-mb-4", embedInDashboard && expiredRecords.length === 0 && "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2")}>
+            <div className="-mx-3 -mb-3 divide-y divide-[var(--border)] overflow-hidden sm:-mx-4 sm:-mb-4">
               {filteredRecords.map((record, index) => {
                 const hoursLeft = getHoursUntilExpiry(record.deletedAt);
                 const stripe = portalListStripe(index, chrome.theme.family);
@@ -282,8 +280,8 @@ export function AttendanceTrash({ instructorId, embedInDashboard }: AttendanceTr
       )}
 
       {!loading && filteredRecords.length === 0 && expiredRecords.length === 0 && (
-        <FacultyAttendancePanel title="Trash" fillHeight={embedInDashboard}>
-          <div className={cn("text-center", embedInDashboard ? "flex min-h-0 flex-1 flex-col items-center justify-center" : "py-8")}>
+        <FacultyAttendancePanel title="Trash">
+          <div className="py-8 text-center">
             <div className={cn("mx-auto mb-3", chrome.iconBadge())}>
               <Trash2 className="h-5 w-5 !text-white" />
             </div>

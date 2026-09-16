@@ -30,12 +30,6 @@ export const AM_STATUS_PILL =
 
 export const AM_EMPTY = cn(AM_PANEL, "py-10 text-center")
 
-/** Panel fill chain for dashboard-v2 embed (matches attendance / classroom points). */
-export const AM_PANEL_SECTION = "flex min-h-0 flex-1 flex-col overflow-hidden"
-export const AM_PANEL_SCROLL = "min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1 sm:pr-2"
-export const AM_PANEL_FILL = "flex min-h-0 flex-1 flex-col items-center justify-center"
-export const AM_EMPTY_FILL = cn(AM_EMPTY, AM_PANEL_FILL)
-
 export const AM_CHART_PANEL = cn(AM_TILE, "overflow-hidden p-0")
 
 export const AM_CHART_BODY = "p-3 sm:p-4"

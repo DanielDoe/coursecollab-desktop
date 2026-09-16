@@ -17,11 +17,6 @@ import { getSQL } from "@/lib/db"
 import bcrypt from "bcryptjs"
 import { getStudentRosterDefaultPassword } from "@/lib/student-roster-default-password"
 import { serializeStudentEnrollment } from "@/lib/student-active-enrollment-logic"
-import {
-  enrichStudentEnrollmentOptions,
-  findEnrollmentsForStudentDbId,
-  publicStudentEnrollments,
-} from "@/lib/student-active-enrollment"
 
 export const dynamic = "force-dynamic"
 
@@ -82,10 +77,16 @@ export async function POST(request: NextRequest) {
     }
 
     if ("requiresCourseSelection" in result && result.requiresCourseSelection) {
-      const enriched = await enrichStudentEnrollmentOptions(result.enrollments)
       return NextResponse.json({
         requiresCourseSelection: true,
-        enrollments: publicStudentEnrollments(enriched),
+        enrollments: result.enrollments.map((e) =>
+          serializeStudentEnrollment({
+            ...e,
+            academicTermId: null,
+            academicTermLabel: null,
+            status: "active",
+          }),
+        ),
         studentPreview: result.studentPreview,
       })
     }
@@ -98,9 +99,6 @@ export async function POST(request: NextRequest) {
     const student = result.student
     const enrollment = result.selectedEnrollment
 
-    const studentDbId = Number(student.id)
-    const enrichedEnrollments = await findEnrollmentsForStudentDbId(studentDbId)
-
     const loginPayload = {
       student,
       effectiveMembershipTier: result.effectiveMembershipTier,
@@ -108,16 +106,15 @@ export async function POST(request: NextRequest) {
       resetRequestId: result.resetRequestId,
       trialActivated: result.trialActivated,
       university,
-      enrollment: serializeStudentEnrollment(
-        enrichedEnrollments.find((row) => row.studentRowId === studentDbId) ??
-          enrichedEnrollments.find(
-            (row) =>
-              row.courseId === enrollment.courseId &&
-              row.section.trim() === enrollment.section.trim(),
-          ) ??
-          enrichedEnrollments[0]!,
+      enrollment,
+      enrollments: result.enrollments.map((e) =>
+        serializeStudentEnrollment({
+          ...e,
+          academicTermId: null,
+          academicTermLabel: null,
+          status: "active",
+        }),
       ),
-      enrollments: publicStudentEnrollments(enrichedEnrollments),
       sessionExpiresIn: sessionDurationMs(rememberMe),
       rememberMe,
       mfaAccountName: String(student.email ?? student.student_id ?? student.full_name ?? ""),

@@ -23,7 +23,8 @@ export type DesktopUpdateStatus = {
   message?: string
 }
 
-const STARTUP_CHECK_DELAY_MS = 8_000
+/** After the main window loads — early enough to prompt on launch, late enough for React to subscribe. */
+const STARTUP_CHECK_DELAY_MS = 2_500
 const INSTALL_EXIT_FALLBACK_MS = 2_500
 
 /** Public Blob feed — works even when the GitHub repo is private. */

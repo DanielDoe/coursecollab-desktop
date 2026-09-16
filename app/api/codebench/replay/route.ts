@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
-import { studioPromptBlock } from "@/lib/codebench-studio-analytics"
+import { requireCodebenchCoraStudent } from "@/lib/codebench-request-auth"
 import { enrichReplaySteps, parseReplayStepsFromApi } from "@/lib/codebench-replay"
 import { codebenchUsageContext, jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
@@ -15,9 +14,9 @@ const openai = isOpenAIConfigured
 
 export async function POST(request: NextRequest) {
   try {
-    const { code, language = "cpp", studentId, learningMode = "intermediate", studioContext } = await request.json()
+    const { code, language = "cpp", studentId, learningMode = "intermediate" } = await request.json()
 
-    const auth = await requireCodebenchStudent(request, studentId != null ? String(studentId) : null)
+    const auth = await requireCodebenchCoraStudent(request, studentId != null ? String(studentId) : null)
     if (!auth.ok) return auth.response
 
     if (!code) {
@@ -55,7 +54,7 @@ ${learningMode === "beginner"
   ? "Include subtle notes on complexity and correctness where relevant."
   : "Be thorough: every loop iteration should appear as separate condition + body steps when the loop runs fewer than 8 times."}
 
-Simulate REAL execution order. Minimum 8 steps for non-trivial programs. JSON only.${studioPromptBlock(studioContext)}`
+Simulate REAL execution order. Minimum 8 steps for non-trivial programs. JSON only.`
 
     const { content } = await createForFeature(openai, "codebench", {
       usageContext: codebenchUsageContext(auth.studentDbId, "STEP_BY_STEP", "codebench-replay"),

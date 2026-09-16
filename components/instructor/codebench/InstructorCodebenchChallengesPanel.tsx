@@ -38,6 +38,7 @@ import {
 import { CLASSROOM_SUBMISSION_KIND_CODE } from "@/lib/classroom-solution-submission"
 import { buildInstructorAuthorizedApiHeaders, instructorApiFetch } from "@/lib/instructor-api-headers"
 import { studentApiFetch } from "@/lib/auth"
+import { InstructorClassroomAssignmentActions } from "@/components/instructor/InstructorClassroomAssignmentActions"
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 import { PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
 import { cn } from "@/lib/utils"
@@ -58,9 +59,13 @@ function questionPreview(text: string, max = 160) {
 function ChallengeCard({
   row,
   onOpen,
+  sessions,
+  onMutated,
 }: {
   row: ClassroomAssignmentRow
   onOpen: (handoff: InstructorClassroomHandoff) => void
+  sessions: string[]
+  onMutated: () => void
 }) {
   const chrome = facultyEmbedChrome("codebench")
   const handoff = classroomAssignmentToHandoff(row)
@@ -73,8 +78,15 @@ function ChallengeCard({
           <p className={cn("text-sm font-semibold leading-snug", PORTAL_TEXT)}>{row.title}</p>
           <p className={cn("line-clamp-3 text-xs leading-relaxed", PORTAL_TEXT_MUTED)}>{preview}</p>
         </div>
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--cc-accent)_12%,var(--card))] text-[var(--cc-accent)]">
-          <Code2 className="h-4 w-4" />
+        <div className="flex shrink-0 items-start gap-1">
+          <InstructorClassroomAssignmentActions
+            submission={row}
+            sessions={sessions}
+            onMutated={onMutated}
+          />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--cc-accent)_12%,var(--card))] text-[var(--cc-accent)]">
+            <Code2 className="h-4 w-4" />
+          </div>
         </div>
       </div>
 
@@ -412,7 +424,13 @@ export function InstructorCodebenchChallengesPanel({ onOpenClassroomInIde, onOpe
         ) : (
           <div className="instructor-challenges-grid grid grid-cols-1 gap-4">
             {codeChallenges.map((row) => (
-              <ChallengeCard key={row.id} row={row} onOpen={onOpenClassroomInIde} />
+              <ChallengeCard
+                key={row.id}
+                row={row}
+                onOpen={onOpenClassroomInIde}
+                sessions={sessions.length > 0 ? sessions : sessionOptions}
+                onMutated={() => void reload()}
+              />
             ))}
           </div>
         )}

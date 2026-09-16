@@ -2,7 +2,27 @@ import { NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { requireInstructorCourse } from "@/lib/instructor-course-scope"
 import { getGroupsProjectsCourseIdColumns, resolveInstructorOwnedGroupsCourseScopeSqlFragment } from "@/lib/instructor-default-courses"
+import { resolveGroupProjectTermScope } from "@/lib/group-project-term-scope"
 import { resolveInstructorSessionCodeForScope } from "@/lib/instructor-session-scope"
+
+async function instructorProjectGroupScopes(
+  request: NextRequest,
+  courseId: number,
+  instructorId: number,
+  courseCode: string,
+) {
+  const selectedSessionCode = await resolveInstructorSessionCodeForScope(request)
+  const gScope = await resolveInstructorOwnedGroupsCourseScopeSqlFragment(
+    "g",
+    courseId,
+    instructorId,
+    courseCode,
+    "g.session",
+    selectedSessionCode,
+  )
+  const gTerm = await resolveGroupProjectTermScope(request, courseId, selectedSessionCode)
+  return { gScope, gTerm }
+}
 
 export const dynamic = "force-dynamic"
 
@@ -10,14 +30,11 @@ export async function GET(request: NextRequest) {
   try {
     const scope = await requireInstructorCourse(request)
     if (!scope.ok) return scope.response
-    const selectedSessionCode = await resolveInstructorSessionCodeForScope(request)
-    const gScope = await resolveInstructorOwnedGroupsCourseScopeSqlFragment(
-      "g",
+    const { gScope, gTerm } = await instructorProjectGroupScopes(
+      request,
       scope.course.id,
       scope.instructorId,
       scope.course.course_code,
-      "g.session",
-      selectedSessionCode,
     )
 
     const projects = await sql`
@@ -30,6 +47,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN project_submissions pr ON p.id = pr.project_id
       INNER JOIN groups g ON g.id = p.group_id
       WHERE (${gScope})
+        AND (${gTerm})
       GROUP BY p.id
       ORDER BY p.created_at DESC
     `
@@ -65,6 +83,18 @@ export async function POST(request: NextRequest) {
       ) RETURNING *
     `
 
+    const created = project[0] as { id?: number; title?: string }
+    const { notifyCourseStudents } = await import("@/lib/notify-course-students")
+    void notifyCourseStudents(
+      { courseId: scope.course.id },
+      {
+        type: "project",
+        title: "New project posted",
+        message: `"${created.title ?? title}" is now available.`,
+        link: "/student/dashboard-v2/projects",
+      },
+    ).catch((err) => console.warn("[projects] create notify failed:", err))
+
     return NextResponse.json({ project: project[0] })
   } catch (error) {
     console.error("Error creating project:", error)
@@ -76,14 +106,11 @@ export async function PUT(request: NextRequest) {
   try {
     const scope = await requireInstructorCourse(request)
     if (!scope.ok) return scope.response
-    const selectedSessionCode = await resolveInstructorSessionCodeForScope(request)
-    const gScope = await resolveInstructorOwnedGroupsCourseScopeSqlFragment(
-      "g",
+    const { gScope, gTerm } = await instructorProjectGroupScopes(
+      request,
       scope.course.id,
       scope.instructorId,
       scope.course.course_code,
-      "g.session",
-      selectedSessionCode,
     )
     const body = await request.json()
     const { id, title, description, requirements, deadline, max_members } = body
@@ -96,8 +123,25 @@ export async function PUT(request: NextRequest) {
       WHERE p.id = ${id}
         AND g.id = p.group_id
         AND (${gScope})
+        AND (${gTerm})
       RETURNING p.*
     `
+
+    if (project[0]) {
+      const members = await sql`
+        SELECT student_id FROM project_members WHERE project_id = ${id}
+      `
+      const { notifyStudents } = await import("@/lib/notify-course-students")
+      void notifyStudents(
+        (members as Array<{ student_id: number }>).map((m) => m.student_id),
+        {
+          type: "project",
+          title: "Project updated",
+          message: `"${title}" was updated${deadline ? " (check the deadline)" : ""}.`,
+          link: "/student/dashboard-v2/projects",
+        },
+      ).catch((err) => console.warn("[projects] update notify failed:", err))
+    }
 
     return NextResponse.json({ project: project[0] })
   } catch (error) {
@@ -110,14 +154,11 @@ export async function DELETE(request: NextRequest) {
   try {
     const scope = await requireInstructorCourse(request)
     if (!scope.ok) return scope.response
-    const selectedSessionCode = await resolveInstructorSessionCodeForScope(request)
-    const gScope = await resolveInstructorOwnedGroupsCourseScopeSqlFragment(
-      "g",
+    const { gScope, gTerm } = await instructorProjectGroupScopes(
+      request,
       scope.course.id,
       scope.instructorId,
       scope.course.course_code,
-      "g.session",
-      selectedSessionCode,
     )
     const projectId = request.nextUrl.searchParams.get("projectId")
     if (!projectId) {
@@ -130,6 +171,7 @@ export async function DELETE(request: NextRequest) {
       WHERE p.id = ${projectId}
         AND g.id = p.group_id
         AND (${gScope})
+        AND (${gTerm})
     `
 
     return NextResponse.json({ message: "Project deleted successfully" })

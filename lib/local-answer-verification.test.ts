@@ -79,6 +79,37 @@ describe("local answer verification", () => {
     assert.equal(result.isCorrect, true)
   })
 
+  it("grades select_all A+B correct when key includes missing option F", () => {
+    const options = {
+      A: "960 W",
+      B: "P = V_rms I_rms cos(36.87°) = 120 × 10 × cos(36.87°)",
+      C: "1200 W",
+      D: "720 W",
+      E: "P = 120 × 10 × sin(36.87°)",
+    }
+    const result = verifyAnswerLocally("select_all", ["A", "B"], {
+      correctAnswer: '["A","B","F"]',
+      options,
+    })
+    assert.equal(result.isCorrect, true)
+    assert.equal(result.score, 100)
+  })
+
+  it("awards select_all partial credit when student misses one correct option", () => {
+    const result = verifyAnswerLocally("select_all", ["A", "B"], {
+      correctAnswer: '["A","B","C"]',
+      options: {
+        A: "960 W",
+        B: "Formula B",
+        C: "1200 W",
+        D: "720 W",
+        E: null,
+      },
+    })
+    assert.equal(result.isCorrect, false)
+    assert.ok(result.score > 0 && result.score < 100)
+  })
+
   it("does not award select_all full credit when every option is selected", () => {
     const result = verifyAnswerLocally("select_all", ["A", "B", "C", "D", "E"], {
       correctAnswer: '["A","B","C"]',
@@ -93,6 +124,21 @@ describe("local answer verification", () => {
     assert.equal(result.isCorrect, false)
     assert.equal(result.score, 33.33)
   })
+
+  it("grades select_all zero when student selects only incorrect options", () => {
+    const result = verifyAnswerLocally("select_all", ["D", "E"], {
+      correctAnswer: '["A","B"]',
+      options: {
+        A: "960 W",
+        B: "Formula B",
+        C: "1200 W",
+        D: "720 W",
+        E: "Wrong formula",
+      },
+    })
+    assert.equal(result.isCorrect, false)
+    assert.equal(result.score, 0)
+  })
 })
 
 describe("normalizeQuizRowForEvaluation", () => {
@@ -104,5 +150,18 @@ describe("normalizeQuizRowForEvaluation", () => {
       option_b: "False",
     })
     assert.equal(row.correct_answer, "A")
+  })
+
+  it("drops select_all letters that have no option column on the quiz copy", () => {
+    const row = normalizeQuizRowForEvaluation({
+      question_type: "select_all",
+      correct_answer: '["A","B","F"]',
+      option_a: "960 W",
+      option_b: "Formula B",
+      option_c: "1200 W",
+      option_d: "720 W",
+      option_e: "Wrong",
+    })
+    assert.equal(row.correct_answer, '["A","B"]')
   })
 })

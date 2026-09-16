@@ -105,28 +105,22 @@ export default function AdminResetPasswordPage() {
   }
 
   return (
-    <div className="cc-brand-surface cc-brand-auth relative min-h-screen bg-[var(--cc-background)]">
-      {/* Ambient aurora wash */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_55%_at_50%_-12%,color-mix(in_srgb,var(--cc-accent)_8%,transparent),transparent),radial-gradient(ellipse_50%_40%_at_88%_110%,color-mix(in_srgb,var(--cc-brand-gold)_5%,transparent),transparent)]"
-      />
-
+    <div className="cc-brand-surface cc-brand-auth min-h-screen">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--cc-surface)]">
+      <header className="sticky top-0 z-50 border-b border-white/20 dark:border-gray-800/50 backdrop-blur-xl bg-white/80 dark:bg-gray-900/80">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/admin/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="h-8 w-8 rounded-lg bg-[var(--cc-accent)] flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center">
               <GraduationCap className="h-5 w-5 text-white" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-[var(--cc-text)]">CourseCollab</h1>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">CourseCollab</h1>
           </Link>
           <AdminProfileDropdown />
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="relative container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -136,13 +130,13 @@ export default function AdminResetPasswordPage() {
           <Button
             variant="ghost"
             onClick={() => router.push("/admin/dashboard")}
-            className="mb-8 hover:bg-[var(--cc-accent-soft)] rounded-xl group"
+            className="mb-8 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-xl group"
           >
             <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
             Back to Dashboard
           </Button>
 
-          <Card className="rounded-2xl border border-[var(--border)] bg-[var(--cc-surface)] shadow-[0_1px_2px_rgba(15,10,40,0.05),0_8px_24px_-8px_color-mix(in_srgb,var(--cc-accent)_12%,transparent)]">
+          <Card className="border-0 shadow-2xl bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl">
             <CardHeader className="text-center pb-6">
               <motion.div 
                 className="flex justify-center mb-6"
@@ -150,12 +144,12 @@ export default function AdminResetPasswordPage() {
                 animate={{ scale: 1 }}
                 transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
               >
-                <div className="h-16 w-16 rounded-2xl bg-[var(--cc-accent)] flex items-center justify-center shadow-lg">
+                <div className="h-16 w-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg">
                   <Lock className="h-8 w-8 text-white" />
                 </div>
               </motion.div>
-              <CardTitle className="text-[21px] font-semibold leading-[1.3] tracking-[-0.01em] text-[var(--cc-text)]">Reset Password</CardTitle>
-              <CardDescription className="mt-1.5 text-[14px] text-[var(--cc-text-secondary)]">
+              <CardTitle className="text-3xl font-bold text-gray-900 dark:text-gray-100">Reset Password</CardTitle>
+              <CardDescription className="text-lg text-gray-600 dark:text-gray-400 mt-2">
                 Update your password to keep your account secure
               </CardDescription>
             </CardHeader>
@@ -176,7 +170,7 @@ export default function AdminResetPasswordPage() {
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="space-y-3">
-                    <Label htmlFor="currentPassword" className="text-[13px] font-medium text-[var(--cc-text)] flex items-center gap-2">
+                    <Label htmlFor="currentPassword" className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                       <Lock className="h-4 w-4" />
                       Current Password
                     </Label>
@@ -189,12 +183,12 @@ export default function AdminResetPasswordPage() {
                         onChange={(e) => setCurrentPassword(e.target.value)}
                         required
                         disabled={loading}
-                        className="h-10 rounded-lg pr-12 text-[14px] border border-[var(--border)] focus:border-[var(--cc-accent)] bg-[var(--cc-surface)]"
+                        className="pr-12 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-400 bg-white/50 dark:bg-gray-800/50"
                       />
                       <button
                         type="button"
                         onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--cc-text-muted)] hover:text-[var(--cc-text)] transition-colors"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                         tabIndex={-1}
                       >
                         {showCurrentPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -203,7 +197,7 @@ export default function AdminResetPasswordPage() {
                   </div>
 
                   <div className="space-y-3">
-                    <Label htmlFor="newPassword" className="text-[13px] font-medium text-[var(--cc-text)] flex items-center gap-2">
+                    <Label htmlFor="newPassword" className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                       <Shield className="h-4 w-4" />
                       New Password
                     </Label>
@@ -216,12 +210,12 @@ export default function AdminResetPasswordPage() {
                         onChange={(e) => setNewPassword(e.target.value)}
                         required
                         disabled={loading}
-                        className="h-10 rounded-lg pr-12 text-[14px] border border-[var(--border)] focus:border-[var(--cc-accent)] bg-[var(--cc-surface)]"
+                        className="pr-12 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-400 bg-white/50 dark:bg-gray-800/50"
                       />
                       <button
                         type="button"
                         onClick={() => setShowNewPassword(!showNewPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--cc-text-muted)] hover:text-[var(--cc-text)] transition-colors"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                         tabIndex={-1}
                       >
                         {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -230,16 +224,16 @@ export default function AdminResetPasswordPage() {
 
                     {/* Password strength indicators */}
                     {newPassword && (
-                      <div className="space-y-3 mt-4 p-4 bg-[color-mix(in_srgb,var(--cc-accent-soft)_45%,transparent)] rounded-xl">
-                        <p className="text-sm font-semibold text-[var(--cc-text)]">Password requirements:</p>
+                      <div className="space-y-3 mt-4 p-4 bg-gradient-to-r from-gray-50/50 to-slate-50/50 dark:from-gray-800/50 dark:to-slate-800/50 rounded-xl">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Password requirements:</p>
                         <div className="space-y-2">
                           <div className="flex items-center gap-3 text-sm">
                             {passwordStrength.length ? (
                               <CheckCircle2 className="h-4 w-4 text-green-600" />
                             ) : (
-                              <X className="h-4 w-4 text-[var(--cc-text-muted)]" />
+                              <X className="h-4 w-4 text-gray-400" />
                             )}
-                            <span className={passwordStrength.length ? "text-green-600 font-medium" : "text-[var(--cc-text-muted)]"}>
+                            <span className={passwordStrength.length ? "text-green-600 font-medium" : "text-gray-500"}>
                               At least 8 characters
                             </span>
                           </div>
@@ -247,9 +241,9 @@ export default function AdminResetPasswordPage() {
                             {passwordStrength.number ? (
                               <CheckCircle2 className="h-4 w-4 text-green-600" />
                             ) : (
-                              <X className="h-4 w-4 text-[var(--cc-text-muted)]" />
+                              <X className="h-4 w-4 text-gray-400" />
                             )}
-                            <span className={passwordStrength.number ? "text-green-600 font-medium" : "text-[var(--cc-text-muted)]"}>
+                            <span className={passwordStrength.number ? "text-green-600 font-medium" : "text-gray-500"}>
                               At least 1 number
                             </span>
                           </div>
@@ -257,9 +251,9 @@ export default function AdminResetPasswordPage() {
                             {passwordStrength.special ? (
                               <CheckCircle2 className="h-4 w-4 text-green-600" />
                             ) : (
-                              <X className="h-4 w-4 text-[var(--cc-text-muted)]" />
+                              <X className="h-4 w-4 text-gray-400" />
                             )}
-                            <span className={passwordStrength.special ? "text-green-600 font-medium" : "text-[var(--cc-text-muted)]"}>
+                            <span className={passwordStrength.special ? "text-green-600 font-medium" : "text-gray-500"}>
                               At least 1 special character
                             </span>
                           </div>
@@ -269,7 +263,7 @@ export default function AdminResetPasswordPage() {
                   </div>
 
                   <div className="space-y-3">
-                    <Label htmlFor="confirmPassword" className="text-[13px] font-medium text-[var(--cc-text)] flex items-center gap-2">
+                    <Label htmlFor="confirmPassword" className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                       <Lock className="h-4 w-4" />
                       Confirm New Password
                     </Label>
@@ -282,12 +276,12 @@ export default function AdminResetPasswordPage() {
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         required
                         disabled={loading}
-                        className="h-10 rounded-lg pr-12 text-[14px] border border-[var(--border)] focus:border-[var(--cc-accent)] bg-[var(--cc-surface)]"
+                        className="pr-12 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-400 bg-white/50 dark:bg-gray-800/50"
                       />
                       <button
                         type="button"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--cc-text-muted)] hover:text-[var(--cc-text)] transition-colors"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                         tabIndex={-1}
                       >
                         {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -306,7 +300,7 @@ export default function AdminResetPasswordPage() {
                     <Button 
                       type="submit" 
                       disabled={loading}
-                      className="h-10 flex-1 rounded-lg bg-[var(--cc-accent)] text-[14px] font-semibold hover:bg-[var(--cc-accent-hover)] text-white"
+                      className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all py-3"
                     >
                       {loading ? (
                         <div className="flex items-center gap-2">
@@ -325,7 +319,7 @@ export default function AdminResetPasswordPage() {
                       variant="outline"
                       onClick={() => router.push("/admin/dashboard")}
                       disabled={loading}
-                      className="h-10 flex-1 rounded-lg border border-[var(--border)] hover:bg-[var(--cc-accent-soft)]"
+                      className="flex-1 rounded-xl border-2 hover:bg-gray-50 dark:hover:bg-gray-800/50"
                     >
                       Cancel
                     </Button>

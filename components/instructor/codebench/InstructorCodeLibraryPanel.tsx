@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Award,
   BookOpen,
@@ -9,9 +10,11 @@ import {
   FolderOpen,
   Loader2,
   PenLine,
+  Plus,
   RefreshCw,
   Search,
   Tag,
+  Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,6 +22,7 @@ import { Badge } from "@/components/ui/badge"
 import {
   INSTRUCTOR_LIBRARY_CATEGORIES,
   INSTRUCTOR_LIBRARY_CATEGORY_LABELS,
+  deleteLibraryItem,
   loadInstructorLibrary,
   type InstructorLibraryCategory,
   type InstructorLibraryItem,
@@ -40,7 +44,23 @@ import {
 } from "@/lib/classroom-solution-submission"
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 import { PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
+import { buildInstructorAuthorizedApiHeaders, instructorApiFetch } from "@/lib/instructor-api-headers"
+import { InstructorClassroomAssignmentActions } from "@/components/instructor/InstructorClassroomAssignmentActions"
+import { InstructorTeachingLibraryItemDialog } from "@/components/instructor/codebench/InstructorTeachingLibraryItemDialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+
+const CLASSROOM_POINTS_HREF = "/faculty/dashboard/assessments/classroom-points"
 
 type LibrarySource = "classroom" | "teaching"
 
@@ -58,9 +78,13 @@ function questionPreview(text: string, max = 160) {
 function ClassroomAssignmentCard({
   row,
   onOpen,
+  sessions,
+  onMutated,
 }: {
   row: ClassroomAssignmentRow
   onOpen: (handoff: InstructorClassroomHandoff) => void
+  sessions: string[]
+  onMutated: () => void
 }) {
   const chrome = facultyEmbedChrome("codebench")
   const handoff = classroomAssignmentToHandoff(row)
@@ -114,11 +138,17 @@ function ClassroomAssignmentCard({
         ) : null}
       </div>
 
-      <div className="mt-auto flex flex-wrap gap-2">
+      <div className="mt-auto flex w-full flex-wrap items-center gap-2">
         <Button type="button" size="sm" onClick={() => onOpen(handoff)}>
           <FolderOpen className="mr-1 h-3.5 w-3.5" />
           {isCode ? "Teach in IDE" : "Open prompt in IDE"}
         </Button>
+        <InstructorClassroomAssignmentActions
+          submission={row}
+          sessions={sessions}
+          onMutated={onMutated}
+          className="ml-auto"
+        />
       </div>
     </article>
   )
@@ -126,20 +156,53 @@ function ClassroomAssignmentCard({
 
 export function InstructorCodeLibraryPanel({ onOpenInIde, onOpenClassroomInIde }: Props) {
   const chrome = facultyEmbedChrome("codebench")
+  const { toast } = useToast()
   const { courseScopeVersion } = useInstructorDashboardV2()
   const [source, setSource] = useState<LibrarySource>("classroom")
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState<InstructorLibraryCategory | "all">("all")
   const [kindFilter, setKindFilter] = useState<"all" | "code" | "solution">("all")
   const [sessionFilter, setSessionFilter] = useState<string>(defaultFacultySessionFilter)
-  const items = useMemo(() => loadInstructorLibrary().items, [])
+  const [libraryRevision, setLibraryRevision] = useState(0)
+  const [editDialogSessions, setEditDialogSessions] = useState<string[]>(["all"])
+  const [teachingDialogOpen, setTeachingDialogOpen] = useState(false)
+  const [teachingEditItem, setTeachingEditItem] = useState<InstructorLibraryItem | null>(null)
+  const [deleteTeachingItem, setDeleteTeachingItem] = useState<InstructorLibraryItem | null>(null)
+  const [deletingTeaching, setDeletingTeaching] = useState(false)
+  const items = useMemo(() => loadInstructorLibrary().items, [libraryRevision])
   const { submissions, loading, error, reload } = useInstructorClassroomAssignments(sessionFilter)
+
+  const refreshLibrary = useCallback(() => {
+    setLibraryRevision((value) => value + 1)
+  }, [])
+
+  const handleClassroomMutated = useCallback(() => {
+    void reload()
+  }, [reload])
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const response = await instructorApiFetch("/api/instructor/sessions", {
+          headers: buildInstructorAuthorizedApiHeaders(),
+        })
+        if (!response.ok) return
+        const data = (await response.json()) as { sessions?: Array<{ code?: string }> }
+        const codes = [
+          ...new Set((data.sessions?.map((entry) => entry.code).filter(Boolean) as string[]) ?? []),
+        ]
+        setEditDialogSessions(["all", ...codes])
+      } catch {
+        setEditDialogSessions(["all"])
+      }
+    })()
+  }, [courseScopeVersion])
 
   useEffect(() => {
     setSessionFilter(defaultFacultySessionFilter())
   }, [courseScopeVersion])
 
-  const sessions = useMemo(() => {
+  const filterSessionOptions = useMemo(() => {
     const set = new Set<string>()
     for (const row of submissions) {
       if (row.session?.trim()) set.add(row.session.trim())
@@ -192,46 +255,113 @@ export function InstructorCodeLibraryPanel({ onOpenInIde, onOpenClassroomInIde }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
   }, [filteredTeaching])
 
+  const confirmDeleteTeachingItem = useCallback(async () => {
+    if (!deleteTeachingItem) return
+    setDeletingTeaching(true)
+    try {
+      const removed = deleteLibraryItem(deleteTeachingItem.id)
+      if (!removed) throw new Error("Snippet not found")
+      toast({ title: "Snippet removed", description: `"${deleteTeachingItem.title}" was deleted from this device.` })
+      setDeleteTeachingItem(null)
+      refreshLibrary()
+    } catch (err) {
+      toast({
+        title: "Could not delete snippet",
+        description: err instanceof Error ? err.message : "Try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setDeletingTeaching(false)
+    }
+  }, [deleteTeachingItem, refreshLibrary, toast])
+
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-x-hidden">
-      <div className={cn(chrome.card, "space-y-3 p-4 sm:p-5")}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4 text-[var(--cc-accent)]" />
-              <h2 className={cn("text-base font-semibold", PORTAL_TEXT)}>Code Library</h2>
-            </div>
-            <p className={cn("mt-1 text-sm", PORTAL_TEXT_MUTED)}>
-              Classroom Points assignments and teaching snippets — pick a question and teach live in the IDE.
-            </p>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+      <div className={cn(chrome.card, "min-w-0 space-y-3 p-4 sm:p-5")}>
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <BookOpen className="h-4 w-4 text-[var(--cc-accent)]" />
+            <h2 className={cn("text-base font-semibold", PORTAL_TEXT)}>Code Library</h2>
           </div>
-          {source === "classroom" ? (
-            <Button type="button" size="sm" variant="outline" onClick={() => void reload()} disabled={loading}>
-              {loading ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1 h-3.5 w-3.5" />}
-              Refresh
-            </Button>
-          ) : null}
+          <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>
+            Classroom Points assignments and teaching snippets — pick a question and teach live in the IDE.
+          </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant={source === "classroom" ? "default" : "outline"}
-            onClick={() => setSource("classroom")}
-          >
-            <Award className="mr-1 h-3.5 w-3.5" />
-            Classroom Points
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={source === "teaching" ? "default" : "outline"}
-            onClick={() => setSource("teaching")}
-          >
-            <BookOpen className="mr-1 h-3.5 w-3.5" />
-            Teaching Library
-          </Button>
+        <div className="min-w-0 overflow-x-auto overscroll-x-contain [scrollbar-width:thin]">
+          <div className="flex w-max min-w-full flex-nowrap items-center gap-2">
+            <div
+              className="inline-flex shrink-0 rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--muted)_35%,var(--card))] p-0.5"
+              role="tablist"
+              aria-label="Library source"
+            >
+              <Button
+                type="button"
+                size="sm"
+                variant={source === "classroom" ? "default" : "ghost"}
+                className={cn(
+                  "h-8 shrink-0 rounded-md px-2.5 shadow-none",
+                  source !== "classroom" && "hover:bg-[var(--card)]",
+                )}
+                role="tab"
+                aria-selected={source === "classroom"}
+                onClick={() => setSource("classroom")}
+              >
+                <Award className="mr-1 h-3.5 w-3.5 shrink-0" />
+                Classroom Points
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={source === "teaching" ? "default" : "ghost"}
+                className={cn(
+                  "h-8 shrink-0 rounded-md px-2.5 shadow-none",
+                  source !== "teaching" && "hover:bg-[var(--card)]",
+                )}
+                role="tab"
+                aria-selected={source === "teaching"}
+                onClick={() => setSource("teaching")}
+              >
+                <BookOpen className="mr-1 h-3.5 w-3.5 shrink-0" />
+                Teaching Library
+              </Button>
+            </div>
+
+            <div className="ml-auto flex shrink-0 items-center gap-2 pl-1">
+              {source === "classroom" ? (
+                <>
+                  <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => void reload()} disabled={loading}>
+                    {loading ? (
+                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                    )}
+                    Refresh
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" className="shrink-0" asChild>
+                    <Link href={CLASSROOM_POINTS_HREF}>
+                      <Plus className="mr-1 h-3.5 w-3.5 shrink-0" />
+                      New assignment
+                    </Link>
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0"
+                  onClick={() => {
+                    setTeachingEditItem(null)
+                    setTeachingDialogOpen(true)
+                  }}
+                >
+                  <Plus className="mr-1 h-3.5 w-3.5 shrink-0" />
+                  New snippet
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="flex flex-col gap-2 @[28rem]/codebench-panel:flex-row @[28rem]/codebench-panel:flex-wrap">
@@ -261,7 +391,7 @@ export function InstructorCodeLibraryPanel({ onOpenInIde, onOpenClassroomInIde }
                 className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--card)] px-2 text-sm @[28rem]/codebench-panel:w-auto"
               >
                 <option value="all">All sections</option>
-                {sessions.map((session) => (
+                {filterSessionOptions.map((session) => (
                   <option key={session} value={session}>
                     {session}
                   </option>
@@ -315,15 +445,32 @@ export function InstructorCodeLibraryPanel({ onOpenInIde, onOpenClassroomInIde }
                 </div>
                 <div className="instructor-library-grid">
                   {rows.map((row) => (
-                    <ClassroomAssignmentCard key={row.id} row={row} onOpen={onOpenClassroomInIde} />
+                    <ClassroomAssignmentCard
+                      key={row.id}
+                      row={row}
+                      onOpen={onOpenClassroomInIde}
+                      sessions={editDialogSessions}
+                      onMutated={handleClassroomMutated}
+                    />
                   ))}
                 </div>
               </section>
             ))
           )
         ) : teachingGrouped.length === 0 ? (
-          <div className={cn(chrome.card, "p-6 text-center text-sm", PORTAL_TEXT_MUTED)}>
-            No teaching library items match your filters.
+          <div className={cn(chrome.card, "space-y-3 p-6 text-center text-sm", PORTAL_TEXT_MUTED)}>
+            <p>No teaching library items match your filters.</p>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                setTeachingEditItem(null)
+                setTeachingDialogOpen(true)
+              }}
+            >
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              Create your first snippet
+            </Button>
           </div>
         ) : (
           teachingGrouped.map(([topic, topicItems]) => (
@@ -332,9 +479,11 @@ export function InstructorCodeLibraryPanel({ onOpenInIde, onOpenClassroomInIde }
               <div className="instructor-library-grid">
                 {topicItems.map((item) => (
                   <article key={item.id} className={cn(chrome.card, "instructor-lift-card flex flex-col gap-3 p-4")}>
-                    <div className="space-y-1">
-                      <p className={cn("text-sm font-semibold", PORTAL_TEXT)}>{item.title}</p>
-                      <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>{item.description}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 space-y-1">
+                        <p className={cn("text-sm font-semibold", PORTAL_TEXT)}>{item.title}</p>
+                        <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>{item.description}</p>
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       <Badge variant="secondary" className="text-[10px]">
@@ -360,12 +509,39 @@ export function InstructorCodeLibraryPanel({ onOpenInIde, onOpenClassroomInIde }
                         {item.tags.join(" · ")}
                       </div>
                     ) : null}
-                    <div className="mt-auto flex flex-wrap gap-2">
+                    <div className="mt-auto flex w-full flex-wrap items-center gap-2">
                       <Button type="button" size="sm" onClick={() => onOpenInIde(item)}>
                         <FolderOpen className="mr-1 h-3.5 w-3.5" />
                         Open in IDE
                         <ChevronRight className="ml-0.5 h-3.5 w-3.5 opacity-60" />
                       </Button>
+                      <div className="ml-auto flex items-center gap-0.5">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          title="Edit snippet"
+                          aria-label="Edit snippet"
+                          className="h-8 w-8 text-[var(--cc-text)] hover:bg-muted/60"
+                          onClick={() => {
+                            setTeachingEditItem(item)
+                            setTeachingDialogOpen(true)
+                          }}
+                        >
+                          <PenLine className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          title="Delete snippet"
+                          aria-label="Delete snippet"
+                          className="h-8 w-8 text-[var(--cc-text)] hover:bg-muted/60 hover:text-[var(--cc-sem-danger,var(--destructive))]"
+                          onClick={() => setDeleteTeachingItem(item)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   </article>
                 ))}
@@ -374,6 +550,39 @@ export function InstructorCodeLibraryPanel({ onOpenInIde, onOpenClassroomInIde }
           ))
         )}
       </div>
+
+      <InstructorTeachingLibraryItemDialog
+        open={teachingDialogOpen}
+        onOpenChange={setTeachingDialogOpen}
+        item={teachingEditItem}
+        onSaved={() => refreshLibrary()}
+      />
+
+      <AlertDialog open={Boolean(deleteTeachingItem)} onOpenChange={(open) => !open && setDeleteTeachingItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this snippet?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove <strong>{deleteTeachingItem?.title}</strong> from your teaching library on this device? This cannot
+              be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingTeaching}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deletingTeaching}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(event) => {
+                event.preventDefault()
+                void confirmDeleteTeachingItem()
+              }}
+            >
+              {deletingTeaching ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+              Delete snippet
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

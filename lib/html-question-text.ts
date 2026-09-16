@@ -2,9 +2,13 @@ import katex from "katex"
 import { normalizeInlineLatex } from "@/lib/math-markdown"
 import { sanitizeUserHtml } from "@/lib/security/sanitize-html"
 
+const CPP_STD_HEADER_TAGS =
+  /<\/?(?:iostream|string|vector|map|set|algorithm|cmath|cstdlib|cstring|sstream|fstream|iomanip|stdexcept|memory|utility|functional|numeric|limits|bitset|queue|stack|deque|list|array|unordered_map|unordered_set)\s*>/gi
+
 /** True when the string contains HTML element tags (rich-text / WYSIWYG question stems). */
 export function hasHtmlTags(text: string): boolean {
-  return /<[a-z][\s\S]*?>/i.test(text)
+  const withoutCppHeaders = text.replace(CPP_STD_HEADER_TAGS, "")
+  return /<[a-z][\s\S]*?>/i.test(withoutCppHeaders)
 }
 
 /**
@@ -13,6 +17,7 @@ export function hasHtmlTags(text: string): boolean {
  */
 export function hasMarkdownOutsideHtml(text: string): boolean {
   if (text.includes("```") || text.includes("~~~")) return true
+  if (/``(?:cpp|c\+\+|c|python|java|javascript|typescript|matlab)\b/i.test(text)) return true
   const withoutTags = text.replace(/<[^>]+>/g, " ")
   if (/\*\*[^*]+\*\*/.test(withoutTags)) return true
   if (/(?:^|\n)#{1,6}\s/.test(withoutTags)) return true

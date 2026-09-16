@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import remarkMath from "remark-math"
 import rehypeKatex from "rehype-katex"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
@@ -22,6 +23,11 @@ import {
   hasMarkdownOutsideHtml,
   prepareHtmlQuestionText,
 } from "@/lib/html-question-text"
+import {
+  normalizeQuestionStemMarkdown,
+  questionStemHasCodeFence,
+  stripStarterBoilerplateFromQuestionStem,
+} from "@/lib/question-stem-markdown"
 import "katex/dist/katex.min.css"
 
 interface QuestionTextRendererProps {
@@ -41,17 +47,6 @@ const EXPLANATION_ROOT_CLASS =
   "[&_.katex]:text-current [&_.katex-display]:text-current " +
   "[&_.katex-display]:my-1.5 [&_.katex-display]:overflow-x-auto [&_.katex-display]:text-[0.95rem] " +
   "[&_.katex-display]:!text-left [&_.katex-display>.katex]:!text-left"
-
-function parseCodeBlocks(input: string): string {
-  let parsed = input.replace(/\\n/g, "\n")
-  const languageTagMatch = parsed.match(/^(cpp|c|python|java|javascript|typescript)\n/)
-  if (languageTagMatch) {
-    const language = languageTagMatch[1]
-    const codeContent = parsed.substring(languageTagMatch[0].length)
-    parsed = `\`\`\`${language}\n${codeContent}\n\`\`\``
-  }
-  return parsed
-}
 
 function useThemeIsDark() {
   const [isDark, setIsDark] = useState(() =>
@@ -79,7 +74,7 @@ function MarkdownMathBody({
   return (
     <div className={`prose prose-slate dark:prose-invert ${QUESTION_TEXT_ROOT_CLASS} ${className}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkMath]}
+        remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={{
           code({ node, inline, className, children, ...props }) {
@@ -167,11 +162,14 @@ function RichTextContent({
 }) {
   const isDark = useThemeIsDark()
   const hasMath = hasMathContent(text) || hasMathContent(processedText)
-  const hasCodeFence = processedText.includes("```") || processedText.includes("~~~")
+  const hasCodeFence =
+    questionStemHasCodeFence(processedText) ||
+    questionStemHasCodeFence(text)
   const hasHTML = hasHtmlTags(processedText)
   const hasMarkdown = hasMarkdownOutsideHtml(processedText)
+  const useMarkdown = Boolean(forceMarkdown || hasCodeFence || hasMarkdown || hasMath)
 
-  if (hasHTML && !forceMarkdown) {
+  if (hasHTML && !useMarkdown) {
     return (
       <div
         className={`prose prose-slate dark:prose-invert ${QUESTION_TEXT_ROOT_CLASS} ${className}`}
@@ -180,7 +178,7 @@ function RichTextContent({
     )
   }
 
-  if (!forceMarkdown && !hasMarkdown && !hasMath) {
+  if (!useMarkdown) {
     const lines = processedText.split("\n")
     return (
       <div className={`${QUESTION_TEXT_ROOT_CLASS} leading-relaxed ${className}`}>
@@ -251,7 +249,11 @@ export function QuestionTextRenderer({
   const processedText = fixUnbracedMultiCharSubscriptsInMath(
     normalizeMathDelimiters(
       repairLatexDamagedByJsonEscapes(
-        formatLetteredSubparts(formatEngineeringQuestionText(parseCodeBlocks(text))),
+        formatLetteredSubparts(
+          formatEngineeringQuestionText(
+            normalizeQuestionStemMarkdown(stripStarterBoilerplateFromQuestionStem(text)),
+          ),
+        ),
       ),
     ),
   )

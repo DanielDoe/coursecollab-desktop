@@ -134,7 +134,7 @@ export async function readInstructorApiJson<T>(
       status: response.status,
       error:
         response.status === 404
-          ? `${routeLabel} is not deployed on this server yet. Publish the latest build (includes /api/instructor/codebench/live-push), or for local dev set VITE_API_URL=http://localhost:3000 and run npm run dev.`
+          ? `${routeLabel} is not deployed on this server yet. Publish the latest build (includes /api/instructor/codebench/live-session), or for local dev set VITE_API_URL=http://localhost:3000 and run npm run dev:api.`
           : `${routeLabel} returned an HTML error page (HTTP ${response.status}).`,
     }
   }

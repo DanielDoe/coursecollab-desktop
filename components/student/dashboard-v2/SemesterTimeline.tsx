@@ -30,8 +30,6 @@ type Props = {
   limit?: number
   showFilters?: boolean
   showViewToggle?: boolean
-  viewMode?: ViewMode
-  onViewModeChange?: (mode: ViewMode) => void
   className?: string
 }
 
@@ -40,16 +38,12 @@ export function SemesterTimeline({
   limit,
   showFilters = !compact,
   showViewToggle = !compact,
-  viewMode: viewModeProp,
-  onViewModeChange,
   className,
 }: Props) {
   const [items, setItems] = useState<SemesterTimelineItem[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<Filter>("all")
-  const [viewModeInternal, setViewModeInternal] = useState<ViewMode>("timeline")
-  const viewMode = viewModeProp ?? viewModeInternal
-  const setViewMode = onViewModeChange ?? setViewModeInternal
+  const [viewMode, setViewMode] = useState<ViewMode>("timeline")
 
   useEffect(() => {
     const dbId = resolveStudentDatabaseId()

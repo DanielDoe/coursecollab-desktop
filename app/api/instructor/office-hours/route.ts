@@ -1,17 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
-import { requireInstructorCourse, studentBelongsToCourse } from "@/lib/instructor-course-scope"
+import { requireInstructorCourse } from "@/lib/instructor-course-scope"
 import {
   buildOfficeHourRequestCourseScopeSqlFragment,
-  buildOfficeHourStudentInCourseSqlFragment,
+  buildOfficeHourStudentInOfferingSqlFragmentFromRequest,
   ensureOfficeHoursCourseScopeColumns,
   hasOfficeHourRequestsCourseIdColumn,
+  studentBelongsToOfficeHourOffering,
 } from "@/lib/office-hours-course-scope"
 import { createInstructorNotification } from "@/lib/create-instructor-notification"
+import { readInstructorSessionScopeFromRequest } from "@/lib/instructor-session-scope"
 
 export const dynamic = "force-dynamic"
 
-/** GET - List office hour requests for the instructor's selected course */
+/** GET - List office hour requests for the instructor's selected course offering */
 export async function GET(request: NextRequest) {
   try {
     const scope = await requireInstructorCourse(request)
@@ -21,7 +23,7 @@ export async function GET(request: NextRequest) {
     const courseId = scope.course.id
     const hasRequestCourseId = await hasOfficeHourRequestsCourseIdColumn()
     const requestScope = buildOfficeHourRequestCourseScopeSqlFragment("ohr", courseId, hasRequestCourseId)
-    const studentScope = buildOfficeHourStudentInCourseSqlFragment("s", courseId)
+    const studentScope = buildOfficeHourStudentInOfferingSqlFragmentFromRequest(request, courseId, "s")
 
     const requests = await sql`
       SELECT ohr.*, s.full_name, s.student_id as student_code, s.email
@@ -81,8 +83,16 @@ export async function POST(request: NextRequest) {
     if (!topic?.trim()) {
       return NextResponse.json({ error: "topic required" }, { status: 400 })
     }
-    if (!(await studentBelongsToCourse(internalId, scope.course.id))) {
-      return NextResponse.json({ error: "Student is not in this course" }, { status: 403 })
+    const offering = readInstructorSessionScopeFromRequest(request)
+    if (
+      !(await studentBelongsToOfficeHourOffering({
+        studentId: internalId,
+        courseId: scope.course.id,
+        sessionId: offering.sessionId,
+        academicTermId: offering.academicTermId,
+      }))
+    ) {
+      return NextResponse.json({ error: "Student is not in this course offering" }, { status: 403 })
     }
 
     await ensureOfficeHoursCourseScopeColumns()
@@ -141,7 +151,6 @@ export async function POST(request: NextRequest) {
         link: "/instructor/office-hours",
         source_type: "office_hour",
         source_id: String(requestId),
-        courseId: scope.course.id,
       })
     } catch (e) {
       console.warn("[Instructor Office Hours] notification failed:", e)

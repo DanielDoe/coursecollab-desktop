@@ -2,8 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { resolveStudentDatabaseIdFromParam } from "@/lib/resolve-student-db-id"
 import {
-  resolveStudentCourseContextForRequest,
-  sqlQuizInStudentCatalogSession,
+  resolveStudentCourseContextByDbId,
   sqlQuizInStudentCourse,
 } from "@/lib/student-course-scope"
 import { logAssessmentIssueToSystemLog } from "@/lib/system-log-assessment-issue"
@@ -30,10 +29,9 @@ export async function GET(request: NextRequest) {
     if (studentDbId == null) {
       return NextResponse.json({ issues: [] })
     }
-    const ctx = await resolveStudentCourseContextForRequest(request, studentDbId)
+    const ctx = await resolveStudentCourseContextByDbId(studentDbId)
     const courseClause =
       ctx?.courseId != null ? sqlQuizInStudentCourse("q", ctx.courseId) : sql.unsafe("(FALSE)")
-    const sessionClause = sqlQuizInStudentCatalogSession("q", ctx?.sessionId ?? null)
 
     const issues = await sql`
       SELECT 
@@ -46,7 +44,6 @@ export async function GET(request: NextRequest) {
       WHERE qi.status = ${status}
         AND (qi.assessment_type = ${assessmentType} OR (qi.assessment_type IS NULL AND ${assessmentType} = 'quiz'))
         AND (${courseClause})
-        AND (${sessionClause})
       ORDER BY qi.created_at DESC
     `
 

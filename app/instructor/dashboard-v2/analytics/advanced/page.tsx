@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation"
+"use client"
+
+import { ClientRedirect } from "@/components/client-redirect"
 
 export default function AnalyticsAdvancedPage() {
-  redirect("/faculty/dashboard/analytics?section=student-progress")
+  return <ClientRedirect href="/faculty/dashboard/analytics?section=student-progress" />
 }

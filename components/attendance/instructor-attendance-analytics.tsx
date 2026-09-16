@@ -27,15 +27,14 @@ import { cn } from "@/lib/utils"
 import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
-import { ATTENDANCE_INPUT, ATTENDANCE_TABLE_HEAD, ATTENDANCE_TABLE_HEAD_CELL, ATTENDANCE_TABLE_ROW } from "@/lib/attendance/attendance-surface-classes"
+import { ATTENDANCE_INPUT, ATTENDANCE_TABLE_HEAD, ATTENDANCE_TABLE_ROW } from "@/lib/attendance/attendance-surface-classes"
 import {
   FacultyAttendancePanel,
   FacultyAttendanceLoading,
 } from "@/components/attendance/faculty-attendance-ui"
 
 interface InstructorAttendanceAnalyticsProps {
-  instructorId?: string
-  embedInDashboard?: boolean
+  instructorId: string
 }
 
 const CHART_TOOLTIP = {
@@ -58,7 +57,7 @@ function num(value: unknown): number {
 
 type SortKey = "name" | "credit" | "absent" | "late"
 
-export function InstructorAttendanceAnalytics({ instructorId, embedInDashboard }: InstructorAttendanceAnalyticsProps) {
+export function InstructorAttendanceAnalytics({ instructorId }: InstructorAttendanceAnalyticsProps) {
   const { toast } = useToast()
   const { courseScopeVersion } = useInstructorDashboardV2()
   const [analytics, setAnalytics] = useState<any>(null)
@@ -200,11 +199,11 @@ export function InstructorAttendanceAnalytics({ instructorId, embedInDashboard }
     }
   }
 
-  if (loading) return <FacultyAttendanceLoading fillHeight={embedInDashboard} />
+  if (loading) return <FacultyAttendanceLoading />
 
   return (
-    <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3"}>
-      <div className={cn("flex flex-wrap items-center gap-2", embedInDashboard && "shrink-0")}>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
         <div className="flex shrink-0 items-center gap-2 text-xs font-semibold tabular-nums">
           <span className={cn("rounded-lg border border-[var(--border)] bg-[var(--card)] px-2 py-1.5", PORTAL_TEXT)}>
             <span className={cn("font-medium", PORTAL_TEXT_MUTED)}>Avg </span>{pct(avgCredit)}
@@ -239,7 +238,7 @@ export function InstructorAttendanceAnalytics({ instructorId, embedInDashboard }
       </div>
 
       {weeklyData.length > 0 ? (
-        <FacultyAttendancePanel title="Weekly trend" className={embedInDashboard ? "shrink-0" : undefined}>
+        <FacultyAttendancePanel title="Weekly trend">
           <ResponsiveContainer width="100%" height={180}>
             <ComposedChart data={[...weeklyData].reverse()}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
@@ -263,35 +262,25 @@ export function InstructorAttendanceAnalytics({ instructorId, embedInDashboard }
 
       <FacultyAttendancePanel
         title="Student breakdown"
-        fillHeight={embedInDashboard}
         action={
           <span className={cn("text-xs", PORTAL_TEXT_MUTED)}>{visibleStudents.length} students</span>
         }
       >
         {visibleStudents.length > 0 ? (
-          <div className={cn("overflow-x-auto -mx-1", embedInDashboard && "min-h-0 flex-1 overflow-y-auto pr-1 sm:pr-2")}>
+          <div className="overflow-x-auto -mx-1">
             <table className="w-full text-sm">
-              <thead className={cn("sticky top-0 z-10", ATTENDANCE_TABLE_HEAD)}>
-                <tr>
-                  <th
-                    className={cn(ATTENDANCE_TABLE_HEAD_CELL, "cursor-pointer text-left hover:opacity-80")}
-                    onClick={() => toggleSort("name")}
-                  >
+              <thead>
+                <tr className={cn(ATTENDANCE_TABLE_HEAD, "text-left")}>
+                  <th className={cn("px-3 py-2 font-medium cursor-pointer hover:text-[var(--cc-text)]", PORTAL_TEXT_MUTED)} onClick={() => toggleSort("name")}>
                     Student {sortKey === "name" ? (sortAsc ? "↑" : "↓") : ""}
                   </th>
-                  <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "px-2 text-center")}>P</th>
-                  <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "px-2 text-center")}>L</th>
-                  <th className={cn(ATTENDANCE_TABLE_HEAD_CELL, "px-2 text-center")}>E</th>
-                  <th
-                    className={cn(ATTENDANCE_TABLE_HEAD_CELL, "cursor-pointer px-2 text-center hover:opacity-80")}
-                    onClick={() => toggleSort("absent")}
-                  >
+                  <th className={cn("px-2 py-2 font-medium text-center", PORTAL_TEXT_MUTED)}>P</th>
+                  <th className={cn("px-2 py-2 font-medium text-center", PORTAL_TEXT_MUTED)}>L</th>
+                  <th className={cn("px-2 py-2 font-medium text-center", PORTAL_TEXT_MUTED)}>E</th>
+                  <th className={cn("px-2 py-2 font-medium text-center cursor-pointer hover:text-[var(--cc-text)]", PORTAL_TEXT_MUTED)} onClick={() => toggleSort("absent")}>
                     A {sortKey === "absent" ? (sortAsc ? "↑" : "↓") : ""}
                   </th>
-                  <th
-                    className={cn(ATTENDANCE_TABLE_HEAD_CELL, "cursor-pointer text-right hover:opacity-80")}
-                    onClick={() => toggleSort("credit")}
-                  >
+                  <th className={cn("px-3 py-2 font-medium text-right cursor-pointer hover:text-[var(--cc-text)]", PORTAL_TEXT_MUTED)} onClick={() => toggleSort("credit")}>
                     Credit {sortKey === "credit" ? (sortAsc ? "↑" : "↓") : ""}
                   </th>
                 </tr>
@@ -337,7 +326,7 @@ export function InstructorAttendanceAnalytics({ instructorId, embedInDashboard }
             </table>
           </div>
         ) : (
-          <p className={cn("text-center text-sm", embedInDashboard ? "flex min-h-0 flex-1 items-center justify-center" : "py-8", PORTAL_TEXT_MUTED)}>No students in this section.</p>
+          <p className={cn("py-8 text-center text-sm", PORTAL_TEXT_MUTED)}>No students in this section.</p>
         )}
       </FacultyAttendancePanel>
     </div>

@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
-import { studioPromptBlock } from "@/lib/codebench-studio-analytics"
+import { requireCodebenchCoraStudent } from "@/lib/codebench-request-auth"
 import { codebenchUsageContext, jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
@@ -15,9 +14,9 @@ export const maxDuration = 30
 
 export async function POST(request: NextRequest) {
   try {
-    const { code, language = "cpp", studentId, learningMode = "intermediate", studioContext } = await request.json()
+    const { code, language = "cpp", studentId, learningMode = "intermediate" } = await request.json()
 
-    const auth = await requireCodebenchStudent(request, studentId != null ? String(studentId) : null)
+    const auth = await requireCodebenchCoraStudent(request, studentId != null ? String(studentId) : null)
     if (!auth.ok) return auth.response
 
     if (!code) {
@@ -56,7 +55,7 @@ Use markdown formatting with:
 - Numbered lists for steps
 - Bullet points for features
 
-Make explanations clear and educational, suitable for ${learningMode} level students learning ${language}.${studioPromptBlock(studioContext)}`,
+Make explanations clear and educational, suitable for ${learningMode} level students learning ${language}.`,
         },
         {
           role: "user",

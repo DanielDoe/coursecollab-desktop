@@ -104,21 +104,6 @@ export function InstitutionCoraUsageHub() {
                 ]}
               />
             ) : null}
-            {data?.assessmentAssistance ? (
-              <InstitutionKpiGrid
-                items={[
-                  { label: "Ask Cora students", value: data.assessmentAssistance.adoptionStudents, sub: "AI adoption (30d)", icon: Users, valueKind: "count" },
-                  { label: "Ask Cora requests", value: data.assessmentAssistance.requests, sub: "Assistance frequency", icon: Sparkles, valueKind: "count" },
-                  { label: "Answer protections", value: data.assessmentAssistance.answerProtections, sub: "Redirected or blocked", icon: AlertTriangle, valueKind: "count" },
-                  {
-                    label: "Assisted success",
-                    value: data.assessmentAssistance.assistedSuccessRate != null ? `${data.assessmentAssistance.assistedSuccessRate}%` : "—",
-                    sub: "When a later result is known",
-                    icon: Gauge,
-                  },
-                ]}
-              />
-            ) : null}
             <InstitutionChartCard title="Consumption over time" hint="Weekly institutional usage">
               <CoraActivityChart
                 data={(data?.weekly ?? []).map((w) => ({

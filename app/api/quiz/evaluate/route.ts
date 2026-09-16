@@ -17,7 +17,7 @@ import {
   buildAssessmentCoreEvaluateResponse,
   isAssessmentCoreEvalType,
 } from "@/lib/assessment-core/evaluate-http"
-import { getLockableAnswerBlockReason } from "@/lib/quiz-answer-lock"
+import { getAnswerChangeBlockReasonForRequest } from "@/lib/quiz-answer-lock"
 import { resolveReferenceAnswerForAiGrading } from "@/lib/resolve-reference-answer-for-ai"
 
 export const dynamic = 'force-dynamic'
@@ -86,7 +86,8 @@ export async function POST(request: NextRequest) {
     const actualQuestionType = (questionType || question.question_type || "mcq").toLowerCase()
 
     if (attemptId && canVerifyLocally(actualQuestionType)) {
-      const lockReason = await getLockableAnswerBlockReason(
+      const lockReason = await getAnswerChangeBlockReasonForRequest(
+        request,
         Number(attemptId),
         Number(questionId),
         actualQuestionType,

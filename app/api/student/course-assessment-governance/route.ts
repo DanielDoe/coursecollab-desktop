@@ -6,6 +6,7 @@ import {
   ensureAssessmentGovernanceColumns,
   parseAssessmentPrivilegeSource,
 } from "@/lib/assessment-privilege-governance"
+import { getAssessmentPolicyForCourse } from "@/lib/assessment-policy-settings.server"
 
 export const dynamic = "force-dynamic"
 
@@ -39,6 +40,7 @@ export async function GET(request: NextRequest) {
     } | undefined
 
     const source = parseAssessmentPrivilegeSource(row?.assessment_privilege_source)
+    const policy = await getAssessmentPolicyForCourse(courseId)
 
     return NextResponse.json({
       course_id: courseId,
@@ -47,6 +49,7 @@ export async function GET(request: NextRequest) {
       assessment_privilege_source: source,
       source_label: assessmentPrivilegeSourceLabel(source),
       show_course_policy_notice: row?.show_course_policy_notice !== false,
+      platform_access: policy.access.platform_access,
     })
   } catch (error) {
     console.error("[student course-assessment-governance GET]", error)

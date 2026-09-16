@@ -8,6 +8,7 @@ import {
 import { requireInstructorCourse } from "@/lib/instructor-course-scope"
 import { loadInstructorActor } from "@/lib/instructor-actor-scope"
 import { sqlQuizVisibleInCourse } from "@/lib/quiz-course-access"
+import { sessionOfferingAndSql, studentOfferingAndSql } from "@/lib/instructor-session-scope"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -86,6 +87,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { reportType, format = "json", filters = {} } = body
     const dateSql = attemptCompletedDateSql(filters as Record<string, unknown>)
+    const offeringSt = studentOfferingAndSql(req, platformCourseId, "st")
+    const offeringS = studentOfferingAndSql(req, platformCourseId, "s")
+    const offeringSt2 = studentOfferingAndSql(req, platformCourseId, "st2")
+    const offeringSess = sessionOfferingAndSql(req, platformCourseId, "s")
+    const offeringSe = sessionOfferingAndSql(req, platformCourseId, "se")
 
     let reportData: any = []
     let extraMetadata: Record<string, unknown> = {}
@@ -117,7 +123,7 @@ export async function POST(req: NextRequest) {
               AND (qa.is_final_grade IS DISTINCT FROM false)
               ${dateSql}
             INNER JOIN students st ON qa.student_id = st.id AND (st.deleted_at IS NULL)
-            INNER JOIN sessions sess ON st.session_id = sess.id AND sess.course_id = ${platformCourseId}
+            INNER JOIN sessions sess ON st.session_id = sess.id AND sess.course_id = ${platformCourseId} ${offeringSt}
             WHERE q.deleted_at IS NULL
               AND ${sqlQuizVisibleInCourse("q", actor, instructorId, courseOwnerId, platformCourseId)}
             GROUP BY q.id, q.title, q.assessment_type
@@ -191,7 +197,7 @@ export async function POST(req: NextRequest) {
               SUM(CASE WHEN COALESCE(qa.tab_switch_count,0) > 3 OR COALESCE(qa.copy_paste_attempts,0) > 2 THEN 1 ELSE 0 END) as flagged_attempts,
               ROUND(AVG(EXTRACT(EPOCH FROM (qa.completed_at - qa.started_at)))::numeric / 60, 1) as avg_time_per_quiz_minutes
             FROM students s
-            INNER JOIN sessions sess_sc ON s.session_id = sess_sc.id AND sess_sc.course_id = ${platformCourseId}
+            INNER JOIN sessions sess_sc ON s.session_id = sess_sc.id AND sess_sc.course_id = ${platformCourseId} ${offeringS}
             INNER JOIN quiz_attempts qa ON s.id = qa.student_id
               AND qa.completed_at IS NOT NULL
               AND qa.deleted_at IS NULL
@@ -275,6 +281,7 @@ export async function POST(req: NextRequest) {
               ${dateSql}
             LEFT JOIN quizzes q ON qa.quiz_id = q.id AND q.deleted_at IS NULL AND ${sqlQuizVisibleInCourse("q", actor, instructorId, courseOwnerId, platformCourseId)}
             WHERE s.course_id = ${platformCourseId}
+            ${offeringSess}
             GROUP BY s.id, s.code, s.description
             ORDER BY s.code
           `
@@ -323,7 +330,7 @@ export async function POST(req: NextRequest) {
               AND (qa.is_final_grade IS DISTINCT FROM false)
               ${dateSql}
             INNER JOIN students st ON qa.student_id = st.id AND (st.deleted_at IS NULL)
-            INNER JOIN sessions sess ON st.session_id = sess.id AND sess.course_id = ${platformCourseId}
+            INNER JOIN sessions sess ON st.session_id = sess.id AND sess.course_id = ${platformCourseId} ${offeringSt}
             WHERE q.deleted_at IS NULL
               AND ${sqlQuizVisibleInCourse("q", actor, instructorId, courseOwnerId, platformCourseId)}
             GROUP BY q.assessment_type
@@ -375,8 +382,8 @@ export async function POST(req: NextRequest) {
             LEFT JOIN LATERAL (
               SELECT COUNT(DISTINCT s.id)::bigint AS eligible_students
               FROM quiz_session_access qsa
-              INNER JOIN sessions se ON se.id = qsa.session_id AND se.course_id = ${platformCourseId}
-              INNER JOIN students s ON s.session_id = qsa.session_id AND (s.deleted_at IS NULL)
+              INNER JOIN sessions se ON se.id = qsa.session_id AND se.course_id = ${platformCourseId} ${offeringSe}
+              INNER JOIN students s ON s.session_id = qsa.session_id AND (s.deleted_at IS NULL) ${offeringS}
               WHERE qsa.quiz_id = q.id AND (qsa.is_active IS DISTINCT FROM false)
             ) enr ON true
             LEFT JOIN quiz_attempts qa ON qa.quiz_id = q.id AND (qa.deleted_at IS NULL)
@@ -384,6 +391,7 @@ export async function POST(req: NextRequest) {
                 SELECT 1 FROM students st2
                 INNER JOIN sessions se2 ON st2.session_id = se2.id AND se2.course_id = ${platformCourseId}
                 WHERE st2.id = qa.student_id
+                ${offeringSt2}
               )
             WHERE q.deleted_at IS NULL
               AND ${sqlQuizVisibleInCourse("q", actor, instructorId, courseOwnerId, platformCourseId)}
@@ -431,7 +439,7 @@ export async function POST(req: NextRequest) {
             FROM quiz_attempts qa
             JOIN quizzes q ON qa.quiz_id = q.id AND q.deleted_at IS NULL AND ${sqlQuizVisibleInCourse("q", actor, instructorId, courseOwnerId, platformCourseId)}
             INNER JOIN students st ON qa.student_id = st.id AND (st.deleted_at IS NULL)
-            INNER JOIN sessions sess ON st.session_id = sess.id AND sess.course_id = ${platformCourseId}
+            INNER JOIN sessions sess ON st.session_id = sess.id AND sess.course_id = ${platformCourseId} ${offeringSt}
             WHERE qa.completed_at IS NOT NULL
               AND qa.deleted_at IS NULL
               AND (qa.is_final_grade IS DISTINCT FROM false)
@@ -449,7 +457,7 @@ export async function POST(req: NextRequest) {
               ROUND(AVG((qa.score::numeric / NULLIF(${sql.unsafe(SQL_QUIZ_MAX_POINTS)}, 0)) * 100), 2) as avg_percentage,
               MAX(qa.completed_at) as last_activity
             FROM students s
-            INNER JOIN sessions sess_sc ON s.session_id = sess_sc.id AND sess_sc.course_id = ${platformCourseId}
+            INNER JOIN sessions sess_sc ON s.session_id = sess_sc.id AND sess_sc.course_id = ${platformCourseId} ${offeringS}
             JOIN quiz_attempts qa ON s.id = qa.student_id
               AND qa.completed_at IS NOT NULL
               AND qa.deleted_at IS NULL
@@ -472,7 +480,7 @@ export async function POST(req: NextRequest) {
               ROUND(AVG((qa.score::numeric / NULLIF(${sql.unsafe(SQL_QUIZ_MAX_POINTS)}, 0)) * 100), 2) as avg_percentage,
               MAX(qa.completed_at) as last_activity
             FROM students s
-            INNER JOIN sessions sess_sc ON s.session_id = sess_sc.id AND sess_sc.course_id = ${platformCourseId}
+            INNER JOIN sessions sess_sc ON s.session_id = sess_sc.id AND sess_sc.course_id = ${platformCourseId} ${offeringS}
             JOIN quiz_attempts qa ON s.id = qa.student_id
               AND qa.completed_at IS NOT NULL
               AND qa.deleted_at IS NULL
@@ -573,7 +581,7 @@ export async function POST(req: NextRequest) {
             FROM quiz_attempts qa
             JOIN quizzes q ON qa.quiz_id = q.id AND q.deleted_at IS NULL AND ${sqlQuizVisibleInCourse("q", actor, instructorId, courseOwnerId, platformCourseId)}
             INNER JOIN students st ON qa.student_id = st.id AND (st.deleted_at IS NULL)
-            INNER JOIN sessions sess ON st.session_id = sess.id AND sess.course_id = ${platformCourseId}
+            INNER JOIN sessions sess ON st.session_id = sess.id AND sess.course_id = ${platformCourseId} ${offeringSt}
             WHERE (qa.is_final_grade IS DISTINCT FROM false)
               AND qa.completed_at IS NOT NULL
               AND qa.deleted_at IS NULL

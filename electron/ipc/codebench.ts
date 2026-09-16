@@ -53,6 +53,10 @@ export function registerCodebenchIpc(): void {
     return codeBenchProcessManager.checkCompiler()
   })
 
+  ipcMain.handle('codebench:warmup-toolchain', async () => {
+    return codeBenchProcessManager.warmupToolchain()
+  })
+
   ipcMain.handle('codebench:ensure-toolchain', async () => {
     return codeBenchProcessManager.ensureToolchain()
   })

@@ -1,12 +1,6 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect } from "react"
-import { buildInstructorApiHeaders } from "@/lib/instructor-api-headers"
-import {
-  buildDesktopNotificationSyncContext,
-  isDesktopElectronShell,
-  registerDesktopNotificationSync,
-} from "@/lib/desktop-notifications"
 
 interface InstructorNotification {
   id: string
@@ -63,37 +57,6 @@ export function InstructorNotificationProvider({ children }: { children: React.R
   const clearAll = () => {
     setNotifications([])
   }
-
-  /**
-   * Register the desktop background-sync context here rather than in the
-   * notification bell. The bell only exists on pages that render the faculty
-   * header or topbar, so navigating to CodeBench, the playground or a
-   * full-screen assessment used to unmount it and tear down background sync —
-   * and the remount re-primed its "seen" set, silently swallowing anything that
-   * arrived meanwhile. This provider wraps every authenticated faculty route.
-   */
-  useEffect(() => {
-    // Web app renders this provider too; the sync context is desktop-only.
-    if (!isDesktopElectronShell()) return
-
-    const headers = buildInstructorApiHeaders()
-    if (!headers["x-instructor-id"]) {
-      void registerDesktopNotificationSync(null)
-      return
-    }
-
-    void registerDesktopNotificationSync(
-      buildDesktopNotificationSyncContext(
-        "faculty",
-        "/api/instructor/notifications?limit=50",
-        headers,
-      ),
-    )
-
-    return () => {
-      void registerDesktopNotificationSync(null)
-    }
-  }, [])
 
   return (
     <InstructorNotificationContext.Provider value={{

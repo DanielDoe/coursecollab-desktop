@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { requireInstructorCourse } from "@/lib/instructor-course-scope"
+import { readInstructorSessionScopeFromRequest } from "@/lib/instructor-session-scope"
 import { ensureCoraAiAccountingSchema } from "@/lib/cora/ai/schema"
 import { ensureFacultyCoraThreadsSchema } from "@/lib/cora/faculty-cora-threads"
 import {
@@ -12,7 +13,6 @@ import {
   aggregateCoraModules,
   loadCoraInsightTurns,
 } from "@/lib/cora/instructor-cora-insights"
-import { getFacultyAskCoraInsights } from "@/lib/cora/assessment-policy-analytics"
 
 export const dynamic = "force-dynamic"
 
@@ -164,7 +164,13 @@ export async function GET(request: NextRequest) {
       credits: num(row, "credits"),
     }))
 
-    const insightTurns = await loadCoraInsightTurns({ instructorId, courseId })
+    const sessionScope = readInstructorSessionScopeFromRequest(request)
+    const insightTurns = await loadCoraInsightTurns({
+      instructorId,
+      courseId,
+      sessionId: sessionScope.sessionId,
+      academicTermId: sessionScope.sessionId != null ? null : sessionScope.academicTermId,
+    })
     const inferredModules = aggregateCoraModules(insightTurns)
     const studentBySource = inferredModules.map((row) => ({
       source: row.module.toLowerCase().replace(/\s+/g, "-"),
@@ -204,11 +210,8 @@ export async function GET(request: NextRequest) {
         }
       })
 
-    const assessmentAssistance = await getFacultyAskCoraInsights(courseId).catch(() => null)
-
     return NextResponse.json({
       course: { id: course.id, code: course.course_code, title: course.course_title },
-      assessmentAssistance,
       student: {
         conversations30d: num(studentConv[0] as CountRow, "count"),
         activeStudents7d: num(studentActive[0] as CountRow, "count"),

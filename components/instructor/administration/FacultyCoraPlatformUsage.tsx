@@ -30,20 +30,7 @@ type FeatureRow = {
   credits?: number
 }
 
-type AssessmentAssistance = {
-  requests: number
-  students: number
-  answerSeeking: number
-  answerBlocked: number
-  codeWriteRequests: number
-  circuitRequests: number
-  byAssessment: Array<{ assessmentId: number | null; assessmentType: string | null; requests: number }>
-  byQuestion: Array<{ questionId: number | null; questionType: string | null; requests: number }>
-  byCategory: Array<{ category: string; requests: number }>
-}
-
 type UsagePayload = {
-  assessmentAssistance?: AssessmentAssistance | null
   student: {
     conversations30d: number
     activeStudents7d: number
@@ -222,35 +209,6 @@ export function FacultyCoraPlatformUsage({
           <Stat label="Copilot events (30d)" value={data.faculty.events30d} />
         </div>
       </InstructorPolicySurfaceCard>
-
-      {data.assessmentAssistance ? (
-        <InstructorPolicySurfaceCard
-          variant="section"
-          title="Ask Cora assessment integrity"
-          description="Guided assistance on written questions. Counts are course-level for the last 30 days — individual conversations stay private."
-        >
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Stat label="Ask Cora requests" value={data.assessmentAssistance.requests} />
-            <Stat label="Students assisted" value={data.assessmentAssistance.students} />
-            <Stat label="Answer-seeking redirected" value={data.assessmentAssistance.answerSeeking} />
-            <Stat label="Answers blocked" value={data.assessmentAssistance.answerBlocked} />
-            <Stat label="CodeWrite help" value={data.assessmentAssistance.codeWriteRequests} />
-            <Stat label="Circuit help" value={data.assessmentAssistance.circuitRequests} />
-          </div>
-          {data.assessmentAssistance.byAssessment.length > 0 ? (
-            <div className="mt-4 divide-y divide-[var(--border)]">
-              {data.assessmentAssistance.byAssessment.slice(0, 6).map((row) => (
-                <div key={`${row.assessmentId}-${row.assessmentType}`} className="flex justify-between py-2 text-sm">
-                  <span className={PORTAL_TEXT}>
-                    {row.assessmentType || "Assessment"} {row.assessmentId ? `#${row.assessmentId}` : ""}
-                  </span>
-                  <span className={cn("tabular-nums", PORTAL_TEXT_MUTED)}>{row.requests}</span>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </InstructorPolicySurfaceCard>
-      ) : null}
 
       <InstructorPolicySurfaceCard
         variant="section"

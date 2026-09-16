@@ -20,17 +20,6 @@ export function presentationSessionBelongsToCourse(
   return token === family || token.startsWith(family)
 }
 
-export function readFacultySelectedCourseCode(): string | null {
-  if (typeof window === "undefined") return null
-  try {
-    const raw = localStorage.getItem("instructorSession")
-    if (!raw) return null
-    const s = JSON.parse(raw) as {
-      selectedCatalogCourseCode?: string | null
-      selectedCourseCode?: string | null
-    }
-    return s.selectedCatalogCourseCode ?? s.selectedCourseCode ?? null
-  } catch {
-    return null
-  }
+export function presentationConfigSessionLikePrefix(courseCode: string | null | undefined): string {
+  return presentationCatalogFamilyPrefix(courseCode).replace(/'/g, "''")
 }

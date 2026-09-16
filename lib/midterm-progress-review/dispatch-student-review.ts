@@ -149,7 +149,7 @@ export async function dispatchProgressReview(opts: DispatchOptions): Promise<Dis
           ${announcementContent},
           ${opts.instructorId},
           ${opts.courseId},
-          false,
+          true,
           false,
           false,
           ${opts.studentDbId}
@@ -183,7 +183,7 @@ export async function dispatchProgressReview(opts: DispatchOptions): Promise<Dis
   if (opts.createNotification !== false) {
     const notif = await createNotification({
       studentId: opts.studentDbId,
-      type: "exam",
+      type: "progress_review",
       title,
       message: notifPreview,
       link: reviewLink,

@@ -30,4 +30,18 @@ describe("classroom points leaderboard scope", () => {
     const rows = [row({ total_points: 12, session: "ELEG1301P01" })]
     assert.equal(classroomPointsLeaderboardForCurrentOffering(rows, { section: "ELEG1301P01" }).length, 1)
   })
+
+  it("keeps FERPA privacy stubs beside the current student", () => {
+    const rows = [
+      row({ rank: 1, total_points: 75, is_current_user: true, session: "ELEG1301P01" }),
+      { rank: 2, is_current_user: false },
+      { rank: 3, is_current_user: false },
+    ]
+    const filtered = classroomPointsLeaderboardForCurrentOffering(rows, { section: "ELEG1301P01" })
+    assert.equal(filtered.length, 3)
+    assert.deepEqual(
+      filtered.map((entry) => entry.rank),
+      [1, 2, 3],
+    )
+  })
 })

@@ -135,15 +135,7 @@ export function FacultyModuleSideMenu({
               !toneClass && (isActive ? fp.iconText : "text-[var(--cc-text)]"),
             )}
           />
-          <span
-            className={cn(
-              "min-w-0 truncate",
-              embedded && "@[720px]/faculty-split:whitespace-normal @[720px]/faculty-split:line-clamp-2 @[720px]/faculty-split:leading-snug",
-              "lg:whitespace-normal lg:line-clamp-2 lg:leading-snug",
-            )}
-          >
-            {item.label}
-          </span>
+          <span className="min-w-0 truncate">{item.label}</span>
         </div>
         {item.badge !== undefined && item.badge !== null && (typeof item.badge !== "number" || item.badge > 0) ? (
           typeof item.badge === "number" ? (

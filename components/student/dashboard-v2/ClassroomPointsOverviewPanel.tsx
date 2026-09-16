@@ -142,7 +142,7 @@ function buildCoraBriefing(args: {
     tips.push("Presentations and participation awards stack on top of assignment points.")
   }
 
-  return { title, narrative: lines.slice(0, 2).join(" "), tips: tips.slice(0, 2), pct }
+  return { title, narrative: lines.join(" "), tips: tips.slice(0, 3), pct }
 }
 
 const CATEGORY_SHORT: Record<string, string> = {
@@ -417,45 +417,48 @@ export function ClassroomPointsOverviewPanel({
 
       {/* Cora creative briefing */}
       <CardWrapper variant={cardVariant} delay={0.05} hover={false}>
-        <div className="relative overflow-hidden p-3 sm:p-4">
+        <div className="relative overflow-hidden p-4 sm:p-5">
           <div
-            className="pointer-events-none absolute inset-0 opacity-[0.45]"
+            className="pointer-events-none absolute inset-0 opacity-[0.55]"
             style={{
               background:
-                "radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--cc-accent) 16%, transparent), transparent 55%)",
+                "radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--cc-accent) 18%, transparent), transparent 55%)",
             }}
           />
-          <div className="relative space-y-2.5">
-            <div className="flex min-w-0 items-center gap-2.5">
+          <div className="relative space-y-4">
+            <div className="flex items-start gap-3">
               <SolidListThumbTile thumb={solidListThumb(0)} icon={Sparkles} size="compact" />
               <div className="min-w-0 flex-1">
-                <p className={cn("text-[10px] font-semibold uppercase tracking-wide", PORTAL_TEXT_MUTED)}>
+                <p className={cn("text-[11px] font-semibold uppercase tracking-wide", PORTAL_TEXT_MUTED)}>
                   Cora · Classroom Points
                 </p>
-                <h3 className={cn("truncate text-sm font-semibold leading-tight sm:text-base", PORTAL_TEXT)}>
+                <h3 className={cn("mt-0.5 text-lg sm:text-xl font-semibold leading-snug", PORTAL_TEXT)}>
                   {briefing.title}
                 </h3>
               </div>
             </div>
-            <p className={cn("text-xs leading-snug sm:text-[13px]", PORTAL_TEXT_MUTED)}>{briefing.narrative}</p>
-            <ul className="space-y-1">
+            <p className={cn("text-sm leading-relaxed", PORTAL_TEXT)}>{briefing.narrative}</p>
+            <ul className="space-y-2">
               {briefing.tips.map((tip) => (
-                <li key={tip} className="flex items-start gap-2 text-xs leading-snug">
-                  <Zap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--cc-accent-dark)]" />
-                  <span className={PORTAL_TEXT}>{tip}</span>
+                <li
+                  key={tip}
+                  className="flex items-start gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--muted)]/30 px-3 py-2.5"
+                >
+                  <Zap className="mt-0.5 h-4 w-4 shrink-0 text-[var(--cc-accent-dark)]" />
+                  <span className={cn("text-sm", PORTAL_TEXT)}>{tip}</span>
                 </li>
               ))}
             </ul>
-            <div className="flex flex-wrap gap-1.5 pt-0.5">
+            <div className="flex flex-wrap gap-2 pt-1">
               {openSolutionsCount > 0 ? (
                 <Button
                   type="button"
                   size="sm"
-                  className={cn("h-8 rounded-lg gap-1 px-2.5 text-xs", PORTAL_CTA)}
+                  className={cn("rounded-xl gap-1.5", PORTAL_CTA)}
                   onClick={() => onNavigate("solutions")}
                 >
                   Open solutions
-                  <ChevronRight className="h-3.5 w-3.5" />
+                  <ChevronRight className="h-4 w-4" />
                 </Button>
               ) : null}
               {openCodeCount > 0 ? (
@@ -463,32 +466,32 @@ export function ClassroomPointsOverviewPanel({
                   type="button"
                   size="sm"
                   variant="ghost"
-                  className={cn("h-8 rounded-lg gap-1 px-2.5 text-xs", PORTAL_OUTLINE_BTN)}
+                  className={cn("rounded-xl gap-1.5", PORTAL_OUTLINE_BTN)}
                   onClick={() => onNavigate("code")}
                 >
                   Code assignments
-                  <ChevronRight className="h-3.5 w-3.5" />
+                  <ChevronRight className="h-4 w-4" />
                 </Button>
               ) : null}
               <Button
                 type="button"
                 size="sm"
                 variant="ghost"
-                className={cn("h-8 rounded-lg gap-1 px-2.5 text-xs", PORTAL_OUTLINE_BTN)}
+                className={cn("rounded-xl gap-1.5", PORTAL_OUTLINE_BTN)}
                 onClick={() => onNavigate("history")}
               >
                 Points history
-                <ChevronRight className="h-3.5 w-3.5" />
+                <ChevronRight className="h-4 w-4" />
               </Button>
               <Button
                 type="button"
                 size="sm"
                 variant="ghost"
-                className={cn("h-8 rounded-lg gap-1 px-2.5 text-xs", PORTAL_OUTLINE_BTN)}
+                className={cn("rounded-xl gap-1.5", PORTAL_OUTLINE_BTN)}
                 onClick={() => onNavigate("leaderboard")}
               >
                 Leaderboard
-                <ChevronRight className="h-3.5 w-3.5" />
+                <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           </div>

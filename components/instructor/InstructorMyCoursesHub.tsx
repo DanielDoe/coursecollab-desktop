@@ -380,7 +380,7 @@ export function InstructorMyCoursesHub() {
   )
 
   if (loading) {
-    return <InstructorPolicyLoadingState moduleId="my-courses" label="Loading your courses…" fillHeight />
+    return <InstructorPolicyLoadingState moduleId="my-courses" label="Loading your courses…" />
   }
 
   const deleteCourse = async () => {
@@ -416,10 +416,10 @@ export function InstructorMyCoursesHub() {
 
   return (
     <>
-    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
-      <InstructorPolicySurfaceCard fillHeight className="w-full">
-        <div className="grid min-h-0 flex-1 gap-6 xl:grid-cols-[minmax(0,1fr)_min(22rem,100%)] xl:items-stretch">
-          <div className="flex min-h-0 min-w-0 flex-col space-y-5 overflow-y-auto pr-1 sm:pr-2">
+    <div className="flex w-full min-w-0 flex-col gap-4">
+      <InstructorPolicySurfaceCard className="w-full">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_min(22rem,100%)]">
+          <div className="min-w-0 space-y-5">
             <PolicyBlock
               title="Your offerings"
               description={
@@ -486,7 +486,7 @@ export function InstructorMyCoursesHub() {
             </PolicyBlock>
           </div>
 
-          <div className="flex min-h-0 min-w-0 flex-col border-t border-[var(--border)] pt-5 xl:border-l xl:border-[var(--border)] xl:overflow-y-auto xl:border-t-0 xl:pl-6 xl:pt-0 xl:pr-1">
+          <div className="min-w-0 border-t border-[var(--border)] pt-5 xl:sticky xl:top-4 xl:self-start xl:border-t-0 xl:pt-0">
             <PolicyBlock
               title="Add a course"
               description="Start from scratch or import a Canvas Common Cartridge. Export from Canvas: course → Settings → Export Course Content."

@@ -98,6 +98,19 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       RETURNING *
     `
 
+    if (isPublished && !existing.is_published) {
+      const { notifyCourseStudents } = await import("@/lib/notify-course-students")
+      void notifyCourseStudents(
+        { courseId: scope.course.id, sessionCode: session },
+        {
+          type: "notes",
+          title: "New course note",
+          message: `"${title}" was published.`,
+          link: "/student/dashboard-v2/digital-notes",
+        },
+      ).catch((err) => console.warn("[course-notes] publish notify failed:", err))
+    }
+
     return NextResponse.json({ note: mapCourseDigitalNote(rows[0] as never) })
   } catch (error) {
     console.error("[instructor/course-notes/[noteId] PATCH]", error)

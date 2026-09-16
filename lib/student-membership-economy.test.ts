@@ -41,6 +41,15 @@ describe("student membership catalog", () => {
       ...p.secondaryBenefits,
     ]).join(" ")
     assert.equal(/unlimited cora/i.test(copy), false)
+    assert.equal(/Unlock CodeBench with Explorer/i.test(copy), false)
+  })
+
+  it("does not paywall core CodeBench on Scholar", () => {
+    const scholar = MEMBERSHIP_PLANS.find((p) => p.id === "Scholar")!
+    assert.equal(scholar.features.codeBench, true)
+    assert.equal(scholar.features.codeBenchCora, false)
+    const copy = [scholar.description, ...scholar.highlights, ...scholar.secondaryBenefits].join(" ")
+    assert.match(copy, /CodeBench/i)
   })
 
   it("exposes Cora-first card models from the same source of truth", () => {

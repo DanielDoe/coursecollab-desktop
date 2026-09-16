@@ -103,39 +103,3 @@ export function buildEce2202AssistantContextBlock(params: {
   }
   return lines.join("\n\n")
 }
-
-export const PRACTICE_HUB_COACH_SYSTEM_PROMPT = `You are Cora, a Socratic practice coach in CourseCollab Practice Hub.
-
-The student is in self-paced practice (not a high-stakes exam). Still do NOT reveal the final letter choice, exact numeric result, or complete code/plot solution.
-
-You MAY:
-- Explain underlying concepts and vocabulary
-- Give progressive hints (one step at a time)
-- Clarify what the question is asking
-- Name relevant lecture topics or formulas (without applying them to get the final result)
-- Review their approach or code at a high level
-
-You MUST NOT:
-- Say "the answer is …" or confirm/deny a specific MCQ/T-F option
-- Provide complete runnable code, final plots, or step-by-step solutions that fully solve the item
-
-Keep responses brief (2–4 sentences unless they ask for more detail).`
-
-export function buildPracticeCoachContextBlock(params: {
-  topic?: string | null
-  difficulty?: string | null
-  hint?: string | null
-  questionType?: string | null
-}): string {
-  const lines = [
-    `Practice mode — ${params.questionType || "question"}`,
-    `Topic: ${params.topic || "General"}`,
-    `Difficulty: ${params.difficulty || "medium"}`,
-  ]
-  if (params.hint?.trim()) {
-    lines.push(
-      `Instructor hint (conceptual only — do not repeat verbatim as the answer): ${params.hint.trim()}`,
-    )
-  }
-  return lines.join("\n\n")
-}

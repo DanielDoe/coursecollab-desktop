@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation"
 import { dashboardV2PageRootClass } from "@/lib/dashboard-v2-layout"
 import { EmbedModuleCard } from "@/components/student/dashboard-v2/embed-module-ui"
 import { PageEnter } from "@/components/student/dashboard-v2/light-motion"
-import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
 import { useNativeApp } from "@/hooks/use-native-app"
 
 const StudentNotesUnifiedPage = dynamic(
@@ -25,18 +24,6 @@ export default function DashboardV2NotesPage() {
       <div className={dashboardV2PageRootClass}>
         <StudentNotesUnifiedPage nativeLayout initialNoteId={noteId} />
       </div>
-    )
-  }
-
-  if (isDesktopAppShell()) {
-    return (
-      <PageEnter className={`${dashboardV2PageRootClass} flex min-h-0 flex-1 flex-col`}>
-        <EmbedModuleCard className="flex min-h-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4 md:p-5">
-            <StudentNotesUnifiedPage initialNoteId={noteId} />
-          </div>
-        </EmbedModuleCard>
-      </PageEnter>
     )
   }
 

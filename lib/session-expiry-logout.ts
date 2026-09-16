@@ -1,13 +1,7 @@
 "use client"
 
-import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
-import {
-  DESKTOP_REFRESH_TOKEN_HEADER,
-} from "@/lib/desktop-refresh-token"
-
 let loggingOut = false
 let fetchGuardInstalled = false
-let logoutTimer: ReturnType<typeof setTimeout> | null = null
 
 const SKIP_URL_PARTS = [
   "/api/auth/",
@@ -24,7 +18,6 @@ const IGNORE_401_URL_PARTS = [
   "/api/presence",
   "/api/platform/activity",
   "/api/system-log",
-  "/api/admin/",
 ]
 
 function requestUrl(input: RequestInfo | URL | undefined): string {
@@ -113,58 +106,13 @@ function lacksCurrentPortalIdentity(headers: Headers): boolean {
   return false
 }
 
-/** Only treat 401 as session death when the call was actually authenticated. */
-function wasMeaningfulAuthenticatedRequest(
-  url: string,
-  headers: Headers,
-  init?: RequestInit,
-  input?: RequestInfo | URL,
-): boolean {
-  if (
-    headers.get("x-student-id")?.trim() ||
-    headers.get("x-instructor-id")?.trim() ||
-    headers.get("x-admin-id")?.trim() ||
-    headers.get(DESKTOP_REFRESH_TOKEN_HEADER)?.trim()
-  ) {
-    return true
-  }
-
-  const path = url.split("?")[0]
-  if (!path.includes("/api/")) return false
-
-  let credentials = init?.credentials
-  if (
-    credentials == null &&
-    typeof Request !== "undefined" &&
-    input instanceof Request
-  ) {
-    credentials = input.credentials
-  }
-  return credentials === "include"
-}
-
 /** End the portal session and send the user to login. Safe to call repeatedly. */
 export function forceExpiredSessionLogout(): void {
   if (typeof window === "undefined") return
   if (loggingOut) return
   if (isPublicAuthPage()) return
-  if (logoutTimer) {
-    clearTimeout(logoutTimer)
-    logoutTimer = null
-  }
   loggingOut = true
   void beginExpiredLogout()
-}
-
-function scheduleExpiredSessionLogout(): void {
-  if (typeof window === "undefined") return
-  if (loggingOut || isPublicAuthPage()) return
-  if (logoutTimer) clearTimeout(logoutTimer)
-  const debounceMs = isDesktopAppShell() ? 2000 : 400
-  logoutTimer = setTimeout(() => {
-    logoutTimer = null
-    void recoverOrLogout()
-  }, debounceMs)
 }
 
 /** If an API returned 401, try one server refresh, then log out if it failed. */
@@ -183,51 +131,18 @@ export function logoutOnUnauthorizedResponse(
   const headers = requestHeaders(input, init)
   if (isCrossPortalUnauthorized(headers)) return
   if (lacksCurrentPortalIdentity(headers)) return
-  if (!wasMeaningfulAuthenticatedRequest(url, headers, init, input)) return
-  scheduleExpiredSessionLogout()
+  void recoverOrLogout()
 }
 
 let recovering = false
-
-
-async function restoreCurrentPortalSessionWithRetry(): Promise<boolean> {
-  if (isFacultyPortalPath()) {
-    const { restoreFacultySessionWithRetry } = await import("@/lib/faculty-session-restore-retry")
-    return restoreFacultySessionWithRetry({ maxAttempts: isDesktopAppShell() ? 4 : 2 })
-  }
-  if (isDesktopAppShell()) {
-    const { restoreStudentSessionWithRetry } = await import("@/lib/student-session-restore-retry")
-    return restoreStudentSessionWithRetry({ maxAttempts: 4 })
-  }
-  const { tryKeepAliveServerSession } = await import("@/lib/session-keepalive")
-  return tryKeepAliveServerSession({ force: true })
-}
 
 async function recoverOrLogout(): Promise<void> {
   if (loggingOut || recovering) return
   recovering = true
   try {
-    const recovered = await restoreCurrentPortalSessionWithRetry()
-    if (recovered) {
-      if (logoutTimer) {
-        clearTimeout(logoutTimer)
-        logoutTimer = null
-      }
-      window.dispatchEvent(new Event("cc-session-restored"))
-      return
-    }
-
-    if (isDesktopAppShell()) {
-      const { readDesktopRefreshToken } = await import("@/lib/desktop-refresh-token")
-      if (readDesktopRefreshToken()) {
-        if (logoutTimer) clearTimeout(logoutTimer)
-        logoutTimer = setTimeout(() => {
-          logoutTimer = null
-          void recoverOrLogout()
-        }, 5000)
-        return
-      }
-    }
+    const { tryKeepAliveServerSession } = await import("@/lib/session-keepalive")
+    const recovered = await tryKeepAliveServerSession({ force: true })
+    if (recovered) return
   } catch {
     /* fall through to logout */
   } finally {
@@ -238,21 +153,6 @@ async function recoverOrLogout(): Promise<void> {
 
 async function beginExpiredLogout(): Promise<void> {
   try {
-    const recovered = await restoreCurrentPortalSessionWithRetry()
-    if (recovered) {
-      loggingOut = false
-      window.dispatchEvent(new Event("cc-session-restored"))
-      return
-    }
-
-    if (isDesktopAppShell()) {
-      const { readDesktopRefreshToken } = await import("@/lib/desktop-refresh-token")
-      if (readDesktopRefreshToken()) {
-        loggingOut = false
-        return
-      }
-    }
-
     const path = window.location.pathname
     if (path.startsWith("/faculty") || path.startsWith("/instructor")) {
       const { logoutFaculty } = await import("@/lib/faculty-auth-flow")

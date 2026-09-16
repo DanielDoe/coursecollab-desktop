@@ -284,12 +284,13 @@ function WorkspaceQuestionCard({
                 {coraDrawerOpen ? "Hide Cora" : "Ask Cora"}
               </Button>
               <CoraAskDrawer
+                variant="overlay"
+                topOffsetPx={0}
                 open={coraDrawerOpen}
                 onClose={() => setCoraDrawerOpen(false)}
                 studentId={studentDatabaseId != null ? String(studentDatabaseId) : null}
                 title="Ask Cora"
                 subtitle={question.title || "Workspace problem"}
-                topOffset="0px"
                 problem={coraContextFromQuestion({
                   source: "lecture_workspace",
                   domain: "circuit",

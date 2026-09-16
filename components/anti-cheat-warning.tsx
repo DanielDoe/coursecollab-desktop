@@ -1,10 +1,9 @@
 "use client"
 
 import { useEffect } from "react"
-import { AlertTriangle, X } from "lucide-react"
+import { AlertTriangle, X, Loader2 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
 
 interface AntiCheatWarningProps {
   show: boolean
@@ -13,9 +12,9 @@ interface AntiCheatWarningProps {
   onClose: () => void
   violationCount?: number
   maxViolations?: number
-  isBlocking?: boolean
-  isCleared?: boolean
-  onManualDismiss?: () => void
+  isBlocking?: boolean // If true, prevents dismissal until violation is cleared
+  isCleared?: boolean // Indicates if the violation condition is cleared
+  onManualDismiss?: () => void // Manual dismissal callback for when automatic detection fails
 }
 
 export function AntiCheatWarning({
@@ -29,6 +28,7 @@ export function AntiCheatWarning({
   isCleared = false,
   onManualDismiss,
 }: AntiCheatWarningProps) {
+  // Debug logging for Gemini warnings
   useEffect(() => {
     if (type === "gemini_window") {
       console.log("[AntiCheatWarning] Gemini warning state:", {
@@ -36,184 +36,199 @@ export function AntiCheatWarning({
         isBlocking,
         isCleared,
         violationCount,
-        maxViolations,
+        maxViolations
       })
     }
   }, [show, isBlocking, isCleared, type, violationCount, maxViolations])
 
   if (!show) return null
 
-  const effectivelyBlocking =
-    type !== "tab_switch" && type !== "copy_paste" && isBlocking && !isCleared
+  // Tab switch and copy_paste warnings are always dismissible (never trap Scholars)
+  const effectivelyBlocking = type !== "tab_switch" && type !== "copy_paste" && isBlocking && !isCleared
 
-  const severity =
-    violationCount >= maxViolations * 0.8
-      ? "critical"
-      : violationCount >= maxViolations * 0.5
-        ? "high"
-        : "medium"
+  const getColorClasses = () => {
+    if (violationCount >= maxViolations * 0.8) {
+      return {
+        bg: "bg-red-50 dark:bg-red-900/30",
+        border: "border-red-500 dark:border-red-700",
+        text: "text-red-900 dark:text-red-100",
+        icon: "text-red-600 dark:text-red-400",
+      }
+    } else if (violationCount >= maxViolations * 0.5) {
+      return {
+        bg: "bg-orange-50 dark:bg-orange-900/30",
+        border: "border-orange-500 dark:border-orange-700",
+        text: "text-orange-900 dark:text-orange-100",
+        icon: "text-orange-600 dark:text-orange-400",
+      }
+    }
+    return {
+      bg: "bg-yellow-50 dark:bg-yellow-900/30",
+      border: "border-yellow-500 dark:border-yellow-700",
+      text: "text-yellow-900 dark:text-yellow-100",
+      icon: "text-yellow-600 dark:text-yellow-400",
+    }
+  }
 
-  const panelClass = cn(
-    "rounded-2xl border-2 p-6 shadow-2xl",
-    severity === "critical"
-      ? "border-red-500/70 bg-red-50 dark:border-red-400/60 dark:bg-red-950/80"
-      : severity === "high"
-        ? "border-orange-500/70 bg-orange-50 dark:border-orange-400/55 dark:bg-orange-950/75"
-        : "border-amber-500/70 bg-amber-50 dark:border-amber-400/55 dark:bg-amber-950/75",
-  )
-
-  const titleClass =
-    severity === "critical"
-      ? "text-red-950 dark:text-red-50"
-      : severity === "high"
-        ? "text-orange-950 dark:text-orange-50"
-        : "text-amber-950 dark:text-amber-50"
-
-  const bodyClass =
-    severity === "critical"
-      ? "text-red-900/95 dark:text-red-100/95"
-      : severity === "high"
-        ? "text-orange-900/95 dark:text-orange-100/95"
-        : "text-amber-900/95 dark:text-amber-100/95"
-
-  const iconClass =
-    severity === "critical"
-      ? "text-red-600 dark:text-red-300"
-      : severity === "high"
-        ? "text-orange-600 dark:text-orange-300"
-        : "text-amber-600 dark:text-amber-300"
-
-  const progressClass =
-    severity === "critical"
-      ? "bg-red-600"
-      : severity === "high"
-        ? "bg-orange-600"
-        : "bg-amber-500"
+  const colors = getColorClasses()
 
   return (
     <AnimatePresence>
       {show && (
         <>
+          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="pointer-events-auto fixed inset-0 z-[9998] bg-black/75 backdrop-blur-md"
+            className="fixed inset-0 bg-black/70 backdrop-blur-md z-[9998]"
             onClick={effectivelyBlocking ? undefined : onClose}
           />
 
+          {/* Warning Modal */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: -20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -20 }}
             transition={{ type: "spring", duration: 0.3 }}
-            className="pointer-events-auto fixed left-1/2 top-1/2 z-[9999] mx-4 w-full max-w-md -translate-x-1/2 -translate-y-1/2"
+            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[9999] w-full max-w-md mx-4"
           >
-            <div className={cn(panelClass, "relative")}>
-              {!effectivelyBlocking && (
+            <div
+              className={`${colors.bg} ${colors.border} border-2 rounded-2xl shadow-2xl p-6 relative`}
+            >
+              {/* Close Button - disabled if blocking and not cleared */}
+              {(!effectivelyBlocking) && (
                 <button
-                  type="button"
                   onClick={onClose}
-                  className={cn("absolute right-4 top-4 transition-opacity hover:opacity-70", iconClass)}
+                  className={`absolute top-4 right-4 ${colors.icon} hover:opacity-70 transition-opacity`}
                   aria-label="Close warning"
                 >
                   <X className="h-5 w-5" />
                 </button>
               )}
 
+              {/* Icon */}
               <div className="flex items-start gap-4">
-                <div className={cn("mt-1 shrink-0", iconClass)}>
+                <div className={`${colors.icon} flex-shrink-0 mt-1`}>
                   <motion.div
-                    animate={{ scale: [1, 1.15, 1], rotate: [0, -8, 8, -8, 0] }}
-                    transition={{ duration: 0.5, repeat: 2 }}
+                    animate={{
+                      scale: [1, 1.2, 1],
+                      rotate: [0, -10, 10, -10, 0],
+                    }}
+                    transition={{
+                      duration: 0.5,
+                      repeat: 2,
+                    }}
                   >
                     <AlertTriangle className="h-8 w-8" />
                   </motion.div>
                 </div>
 
-                <div className="min-w-0 flex-1">
-                  <h3 className={cn("mb-2 text-lg font-bold", titleClass)}>
-                    {type === "gemini_window" ? "Browser AI tool detected" : "Assessment integrity warning"}
+                {/* Content */}
+                <div className="flex-1">
+                  <h3 className={`text-lg font-bold ${colors.text} mb-2`}>
+                    {type === "gemini_window" ? "Browser AI Tool Detected" : "Assessment Integrity Warning"}
                   </h3>
-                  <p className={cn("mb-4 text-sm leading-relaxed", bodyClass)}>{message}</p>
+                  <p className={`${colors.text} text-sm leading-relaxed mb-4`}>
+                    {message}
+                  </p>
 
+                  {/* Violation Counter */}
                   {(type === "tab_switch" || type === "gemini_window") && maxViolations > 0 && (
                     <div className="mb-4">
-                      <div className={cn("mb-1 flex items-center justify-between text-xs font-medium", bodyClass)}>
-                        <span>
-                          {type === "gemini_window" ? "Gemini strikes" : "Tab switches"}: {violationCount} /{" "}
-                          {maxViolations}
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className={colors.text}>
+                          {type === "gemini_window" ? "Gemini Strikes" : "Tab Switches"}: {violationCount} / {maxViolations}
                         </span>
-                        <span>{Math.max(0, maxViolations - violationCount)} remaining</span>
+                        <span className={colors.text}>
+                          {maxViolations - violationCount} remaining
+                        </span>
                       </div>
-                      <div className="h-2 w-full rounded-full bg-black/10 dark:bg-white/15">
+                      <div className="w-full bg-white/50 dark:bg-black/20 rounded-full h-2">
                         <motion.div
                           initial={{ width: 0 }}
-                          animate={{ width: `${(violationCount / maxViolations) * 100}%` }}
-                          className={cn("h-2 rounded-full", progressClass)}
+                          animate={{
+                            width: `${(violationCount / maxViolations) * 100}%`,
+                          }}
+                          className={`h-2 rounded-full ${
+                            violationCount >= maxViolations * 0.8
+                              ? "bg-red-600"
+                              : violationCount >= maxViolations * 0.5
+                              ? "bg-orange-600"
+                              : "bg-yellow-600"
+                          }`}
                         />
                       </div>
                     </div>
                   )}
 
+                  {/* Warning Message */}
                   {violationCount >= maxViolations * 0.8 && (
-                    <div className="mb-4 rounded-lg border border-red-400/50 bg-red-100/90 p-3 dark:border-red-400/40 dark:bg-red-900/50">
-                      <p className="text-xs font-semibold text-red-950 dark:text-red-50">
-                        Critical: you are approaching the maximum allowed violations ({violationCount}/{maxViolations}).
-                        {violationCount >= maxViolations ? (
-                          <span className="mt-1 block">
-                            Maximum violations reached. Your assessment may be submitted automatically.
+                    <div className="bg-red-100 dark:bg-red-900/50 border border-red-300 dark:border-red-700 rounded-lg p-3 mb-4">
+                      <p className="text-xs text-red-900 dark:text-red-100 font-semibold">
+                        🚨 CRITICAL WARNING: You are approaching the maximum allowed violations ({violationCount}/{maxViolations}). 
+                        {violationCount >= maxViolations && (
+                          <span className="block mt-1 text-red-800 dark:text-red-200">
+                            MAXIMUM VIOLATIONS REACHED! Your assessment will be automatically submitted.
                           </span>
-                        ) : (
-                          <span className="mt-1 block">
-                            One more violation may trigger automatic submission.
+                        )}
+                        {violationCount < maxViolations && (
+                          <span className="block mt-1">
+                            One more violation will trigger automatic submission of your assessment.
                           </span>
                         )}
                       </p>
                     </div>
                   )}
 
+                  {/* Action Buttons */}
                   {effectivelyBlocking && onManualDismiss ? (
+                    // Show manual dismissal button when blocking and not cleared
                     <div className="space-y-2">
                       <Button
                         onClick={onManualDismiss}
-                        className="w-full bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                        className="w-full bg-green-600 hover:bg-green-700 text-white"
                       >
-                        I closed the AI tool — continue quiz
+                        ✓ I Have Closed the AI Tool - Continue Quiz
                       </Button>
-                      <p className="text-center text-xs text-[var(--cc-text-muted)]">
-                        Click after you have closed the AI tool window to continue.
+                      <p className="text-xs text-center text-slate-600 dark:text-slate-400">
+                        Click this button after you have closed the AI tool window to continue the quiz.
                       </p>
                     </div>
                   ) : (
+                    // Show regular close button when not blocking or cleared
                     <Button
                       onClick={onClose}
                       disabled={effectivelyBlocking}
-                      className={cn(
-                        "w-full text-white disabled:cursor-not-allowed disabled:opacity-50",
-                        severity === "critical"
+                      className={`w-full ${
+                        violationCount >= maxViolations * 0.8
                           ? "bg-red-600 hover:bg-red-700"
-                          : severity === "high"
-                            ? "bg-orange-600 hover:bg-orange-700"
-                            : "bg-amber-600 hover:bg-amber-700",
-                      )}
+                          : violationCount >= maxViolations * 0.5
+                          ? "bg-orange-600 hover:bg-orange-700"
+                          : "bg-yellow-600 hover:bg-yellow-700"
+                      } text-white disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
-                      {effectivelyBlocking ? "Close the AI tool to continue" : "I understand"}
+                      {effectivelyBlocking 
+                        ? "Please close the AI tool to continue" 
+                        : "I Understand"}
                     </Button>
                   )}
-
                   {effectivelyBlocking && !onManualDismiss && (
-                    <p className="mt-2 text-center text-xs text-[var(--cc-text-muted)]">
-                      The quiz is paused. Close the AI tool window to continue.
-                    </p>
+                    <div className="text-xs text-center mt-2 space-y-1">
+                      <p className="text-slate-600 dark:text-slate-400">
+                        The quiz is paused. Close the AI tool window to continue.
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>
 
-              <div className="mt-4 border-t border-black/10 pt-4 dark:border-white/15">
-                <p className={cn("text-xs leading-relaxed", bodyClass)}>
-                  <strong>Note:</strong> Activity during this assessment is monitored for academic integrity. Stay on
-                  this page and avoid external tools until you finish.
+              {/* Additional Info */}
+              <div className="mt-4 pt-4 border-t border-current/20">
+                <p className={`text-xs ${colors.text} opacity-75`}>
+                  <strong>Note:</strong> All activities during this assessment are being monitored
+                  for academic integrity. Please focus on the assessment and avoid switching tabs
+                  or using external resources.
                 </p>
               </div>
             </div>
@@ -223,3 +238,4 @@ export function AntiCheatWarning({
     </AnimatePresence>
   )
 }
+

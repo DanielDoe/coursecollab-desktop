@@ -10,7 +10,7 @@ import {
   loadAttendanceGradebookRowsRaw,
   mapAttendanceGradebookRow,
 } from "@/lib/attendance-gradebook-rows-query"
-import { resolveAttendanceInstructorScope } from "@/lib/attendance-instructor-scope"
+import { resolveAttendanceInstructorScope, sqlAttendanceStudentIdInScope } from "@/lib/attendance-instructor-scope"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -247,6 +247,7 @@ export async function PATCH(request: NextRequest) {
 
     const att = Math.min(100, Math.max(0, attendanceScore))
 
+    const offeringStudent = await sqlAttendanceStudentIdInScope(request, scoped.courseId, studentId)
     const rosterFrag =
       scoped.courseId != null
         ? sql.unsafe(` AND sess.course_id = ${scoped.courseId}`)
@@ -260,14 +261,9 @@ export async function PATCH(request: NextRequest) {
         AND (
           TRIM(sess.code) = ANY(${variants}::text[])
           OR TRIM(s.section) = ANY(${variants}::text[])
-          OR EXISTS (
-            SELECT 1 FROM unnest(${variants}::text[]) AS v(val)
-            WHERE val IS NOT NULL
-              AND trim(val) <> ''
-              AND strpos(upper(trim(coalesce(s.section::text, ''))), upper(trim(val))) > 0
-          )
         )
         ${rosterFrag}
+        ${offeringStudent}
       LIMIT 1
     `
     if (rosterOk.length === 0) {

@@ -8,7 +8,10 @@ import {
   SystemAlertShell,
   systemAlertButtonClass,
 } from "@/components/ui/system-alert-shell"
-import { type SystemAlertVariant } from "@/lib/system-alert-theme"
+import {
+  defaultAlertActionLabel,
+  type SystemAlertVariant,
+} from "@/lib/system-alert-theme"
 import { cn } from "@/lib/utils"
 
 type ToastContent = ReactNode | string
@@ -71,7 +74,11 @@ function renderAction(
     return fallbackAction as ReactNode
   }
 
-  return null
+  return (
+    <button type="button" className={systemAlertButtonClass(variant)} onClick={dismiss}>
+      {defaultAlertActionLabel(variant)}
+    </button>
+  )
 }
 
 function showAlert(variant: SystemAlertVariant, title: ToastContent, opts?: ToastOptions) {
@@ -94,7 +101,7 @@ function showAlert(variant: SystemAlertVariant, title: ToastContent, opts?: Toas
               type="button"
               aria-label="Dismiss notification"
               className={cn(
-                "absolute right-3.5 top-3.5 rounded-md p-1 transition-colors",
+                "absolute right-3 top-3.5 rounded-md p-0.5 transition-colors",
                 SYSTEM_ALERT_CLOSE,
               )}
               onClick={dismiss}

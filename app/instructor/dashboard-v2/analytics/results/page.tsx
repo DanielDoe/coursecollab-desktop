@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation"
+"use client"
 
-export default function FacultyAnalyticsResultsRedirectPage() {
-  redirect("/faculty/dashboard/analytics?section=results")
+import { ClientRedirect } from "@/components/client-redirect"
+
+export default function InstructorAnalyticsResultsRedirectPage() {
+  return <ClientRedirect href="/faculty/dashboard/analytics?section=results" />
 }

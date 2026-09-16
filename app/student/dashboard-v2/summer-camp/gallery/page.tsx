@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge"
 import { CamperPageShell } from "@/components/summer-camp/CamperPageShell"
 import { useCampHub } from "@/components/summer-camp/use-camp-hub"
 import { cn } from "@/lib/utils"
-import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 type GalleryEntry = {
   id: number
@@ -33,7 +32,6 @@ type GalleryHub = {
 export default function GalleryPage() {
   const { data, loading, reload, session } = useCampHub<GalleryHub>("gallery")
   const [votingId, setVotingId] = useState<number | null>(null)
-  const { alert } = useAppConfirm()
 
   const vote = async (entryId: number) => {
     if (!session?.databaseId) return
@@ -50,10 +48,7 @@ export default function GalleryPage() {
       }
       await reload()
     } catch (e) {
-      await alert({
-        title: "Vote failed",
-        description: e instanceof Error ? e.message : "Vote failed",
-      })
+      alert(e instanceof Error ? e.message : "Vote failed")
     } finally {
       setVotingId(null)
     }

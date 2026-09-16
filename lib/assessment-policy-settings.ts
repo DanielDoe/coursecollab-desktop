@@ -17,6 +17,11 @@ import {
 } from "@/lib/ai-model-catalog"
 import { getDefaultTimeLimit } from "@/lib/config/quizSettings"
 import type { SectionConfig, SectionTimerMode } from "@/lib/assessment-sections"
+import {
+  DEFAULT_ASSESSMENT_PLATFORM_ACCESS,
+  parseAssessmentPlatformAccess,
+  type AssessmentPlatformAccess,
+} from "@/lib/assessment-platform-access"
 
 export type AiEvaluationModeDefault = "relaxed" | "standard" | "strict" | "very_strict"
 export type RetakePolicyDefault = "best" | "latest" | "average"
@@ -82,6 +87,8 @@ export type AssessmentAccessPolicy = {
   restrict_access_default: boolean
   geo_required_default: boolean
   geo_radius_meters_default: number
+  /** Which clients may start each assessment type. Source of truth for web, mobile, and desktop. */
+  platform_access: AssessmentPlatformAccess
 }
 
 export type AssessmentSuperpowerPolicy = {
@@ -151,6 +158,7 @@ export const DEFAULT_ASSESSMENT_ACCESS_POLICY: AssessmentAccessPolicy = {
   restrict_access_default: false,
   geo_required_default: false,
   geo_radius_meters_default: 100,
+  platform_access: structuredClone(DEFAULT_ASSESSMENT_PLATFORM_ACCESS),
 }
 
 export const DEFAULT_ASSESSMENT_SUPERPOWER_POLICY: AssessmentSuperpowerPolicy = {
@@ -308,6 +316,7 @@ function parseAccess(raw: unknown): AssessmentAccessPolicy {
     restrict_access_default: parseBool(o.restrict_access_default, d.restrict_access_default),
     geo_required_default: parseBool(o.geo_required_default, d.geo_required_default),
     geo_radius_meters_default: parseNum(o.geo_radius_meters_default, d.geo_radius_meters_default, 10, 5000),
+    platform_access: parseAssessmentPlatformAccess(o.platform_access ?? o.platforms),
   }
 }
 

@@ -40,7 +40,7 @@ export default defineConfig(({ mode }) => {
     },
     optimizeDeps: {
       exclude: ['pg', '@neondatabase/serverless'],
-      include: ['decimal.js-light', 'recharts'],
+      include: ['decimal.js-light', 'recharts', 'pdfjs-dist'],
     },
     server: {
       host: '127.0.0.1',

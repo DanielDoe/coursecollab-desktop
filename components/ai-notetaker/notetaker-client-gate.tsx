@@ -26,5 +26,5 @@ export function NotetakerClientGate({ children }: { children: ReactNode }) {
     )
   }
 
-  return <div data-notetaker-native-root className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+  return <div data-notetaker-native-root className="min-h-0">{children}</div>
 }

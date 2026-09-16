@@ -1,14 +1,12 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   SYSTEM_ALERT_CLOSE,
   SYSTEM_ALERT_DESCRIPTION,
   SYSTEM_ALERT_ICONS,
   SYSTEM_ALERT_SHELL,
-  SYSTEM_ALERT_SPARKLES,
   SYSTEM_ALERT_TITLE,
   SYSTEM_ALERT_VARIANTS,
   defaultAlertActionLabel,
@@ -36,10 +34,13 @@ export function SystemAlertShell({
   onDismiss,
   onClose,
   className,
+  showProgress = false,
+  duration = 5000,
 }: Props) {
   const tokens = SYSTEM_ALERT_VARIANTS[variant]
   const Icon = SYSTEM_ALERT_ICONS[variant]
   const spinning = variant === "loading"
+  const showTimer = showProgress && Number.isFinite(duration) && duration > 0
 
   const footerAction =
     action ??
@@ -50,44 +51,41 @@ export function SystemAlertShell({
     ) : null)
 
   return (
-    <div className={cn("cc-system-alert relative rounded-[20px]", SYSTEM_ALERT_SHELL, className)}>
-      <div className="px-5 pb-5 pt-4">
-        <div className="flex items-start gap-3 pr-7">
+    <div className={cn("cc-system-alert relative overflow-hidden rounded-xl border", SYSTEM_ALERT_SHELL, className)}>
+      <div className="px-4 pb-4 pt-4">
+        <div className="flex items-center gap-2.5 pr-7">
           <div
             className={cn(
-              "mt-0.5 flex size-6 shrink-0 items-center justify-center",
-              tokens.iconShape,
+              "flex size-5 shrink-0 items-center justify-center rounded-full",
               tokens.iconWrap,
             )}
           >
-            {variant === "warning" ? (
-              <span className="translate-y-[3px] text-[11px] font-bold leading-none text-white">!</span>
-            ) : (
-              <Icon
-                className={cn("size-3.5", tokens.iconColor, spinning && "animate-spin")}
-                strokeWidth={2.75}
-              />
-            )}
+            <Icon
+              className={cn("size-3", tokens.iconColor, spinning && "animate-spin")}
+              strokeWidth={2.75}
+            />
           </div>
-
-          <div className="min-w-0 flex-1">
-            {title ? (
-              <div className="flex items-center gap-1.5">
-                <Sparkles className={cn("size-3.5 shrink-0", SYSTEM_ALERT_SPARKLES)} strokeWidth={2} aria-hidden />
-                <div className={cn("min-w-0", SYSTEM_ALERT_TITLE)}>{title}</div>
-              </div>
-            ) : null}
-
-            {description ? (
-              <div className={cn(title ? "mt-2" : null, SYSTEM_ALERT_DESCRIPTION)}>{description}</div>
-            ) : null}
-
-            {footerAction ? <div className="mt-4 flex flex-wrap items-center gap-5">{footerAction}</div> : null}
-          </div>
+          {title ? <div className={cn("min-w-0 flex-1", SYSTEM_ALERT_TITLE)}>{title}</div> : null}
         </div>
 
         {onClose}
+
+        {description ? (
+          <div className={cn("mt-2 pl-7", SYSTEM_ALERT_DESCRIPTION)}>{description}</div>
+        ) : null}
+
+        {footerAction ? <div className="mt-4 flex justify-end">{footerAction}</div> : null}
       </div>
+
+      {showTimer ? (
+        <div className="h-[2px] w-full bg-zinc-100 dark:bg-zinc-800">
+          <div
+            className="cc-system-alert-progress h-full origin-left rounded-full bg-[var(--cc-accent)]"
+            style={{ animationDuration: `${duration}ms` }}
+            aria-hidden
+          />
+        </div>
+      ) : null}
     </div>
   )
 }

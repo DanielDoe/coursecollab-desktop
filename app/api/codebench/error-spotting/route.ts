@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
+import { requireCodebenchCoraStudent } from "@/lib/codebench-request-auth"
 import { jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
   try {
     const { code, language = "cpp", studentId, learningMode = "intermediate" } = await request.json()
 
-    const auth = await requireCodebenchStudent(request, studentId != null ? String(studentId) : null)
+    const auth = await requireCodebenchCoraStudent(request, studentId != null ? String(studentId) : null)
     if (!auth.ok) return auth.response
 
     if (!code || !isOpenAIConfigured || !openai) {
@@ -150,6 +150,19 @@ Identify 3-5 suspicious lines. Don't give away the answer - make students think!
         return line
       }).filter((line: any) => line !== null) // Remove invalid lines
       
+      void import("@/lib/cora/insights/codebench-mistakes").then(({ recordCodebenchMistakeFindings }) =>
+        recordCodebenchMistakeFindings({
+          studentId: auth.studentDbId,
+          module: "codebench-error-spotting",
+          feature: "CODE_HELP",
+          findings: suspiciousLines.flatMap((line: { issue?: string; explanation?: string }) => [
+            line?.issue,
+            line?.explanation,
+          ]),
+          code,
+        }),
+      ).catch(() => undefined)
+
       return NextResponse.json({ suspiciousLines })
     } catch (parseError) {
       console.error("Failed to parse error spotting:", parseError)

@@ -1,0 +1,5 @@
+- Code Library: edit and delete classroom assignments from cards; create and manage teaching snippets (local library).
+- Live Classroom: new live-session create flow, assignment persistence after end live, clearer action buttons.
+- Student CodeBench: question drawer when joining live classroom (matches instructor teach drawer).
+- Toolchain setup: verify compilers on app update only, not every CodeBench open.
+- UI: persistent CourseCollab header in instructor and student sidebars; CodeBench modal accent cleanup.

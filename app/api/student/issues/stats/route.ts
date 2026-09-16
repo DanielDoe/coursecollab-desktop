@@ -2,8 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { resolveStudentDatabaseIdFromParam } from "@/lib/resolve-student-db-id"
 import {
-  resolveStudentCourseContextForRequest,
-  sqlQuizInStudentCatalogSession,
+  resolveStudentCourseContextByDbId,
   sqlQuizInStudentCourse,
 } from "@/lib/student-course-scope"
 import { requireBoundStudentCaller } from "@/lib/student-api-auth"
@@ -15,7 +14,6 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const studentId = searchParams.get("studentId")
-    const assessmentType = searchParams.get("assessmentType") || "quiz"
 
     if (!studentId) {
       return NextResponse.json({ error: "Student ID required" }, { status: 400 })
@@ -40,10 +38,9 @@ export async function GET(request: NextRequest) {
         },
       })
     }
-    const ctx = await resolveStudentCourseContextForRequest(request, studentDbId)
+    const ctx = await resolveStudentCourseContextByDbId(studentDbId)
     const courseClause =
       ctx?.courseId != null ? sqlQuizInStudentCourse("q", ctx.courseId) : sql.unsafe("(FALSE)")
-    const sessionClause = sqlQuizInStudentCatalogSession("q", ctx?.sessionId ?? null)
 
     const stats = await sql`
       SELECT 
@@ -56,10 +53,9 @@ export async function GET(request: NextRequest) {
         COUNT(CASE WHEN qi.reporter_id = ${studentId} AND qi.status = 'resolved' THEN 1 END)::INTEGER as my_resolved_issues
       FROM quiz_issues qi
       JOIN quizzes q ON q.id = COALESCE(qi.assessment_id, qi.quiz_id)
-      WHERE (qi.assessment_type = ${assessmentType} OR (qi.assessment_type IS NULL AND ${assessmentType} = 'quiz'))
+      WHERE q.assessment_type = 'quiz'
         AND (q.deleted_at IS NULL OR q.deleted_at IS NULL)
         AND (${courseClause})
-        AND (${sessionClause})
     `
 
     const commentStats = await sql`
@@ -69,10 +65,9 @@ export async function GET(request: NextRequest) {
       FROM quiz_issue_comments qic
       JOIN quiz_issues qi ON qic.issue_id = qi.id
       JOIN quizzes q ON q.id = COALESCE(qi.assessment_id, qi.quiz_id)
-      WHERE (qi.assessment_type = ${assessmentType} OR (qi.assessment_type IS NULL AND ${assessmentType} = 'quiz'))
+      WHERE q.assessment_type = 'quiz'
         AND (q.deleted_at IS NULL OR q.deleted_at IS NULL)
         AND (${courseClause})
-        AND (${sessionClause})
     `
 
     const result = {

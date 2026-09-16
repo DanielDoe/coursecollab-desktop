@@ -1,5 +1,4 @@
 import { sql } from "@/lib/db"
-import { fetchStudioSnapshotForStudent } from "@/lib/codebench-studio-server"
 import { buildStudentKnowledgeGraph } from "@/lib/cora/student-knowledge-graph"
 import { resolveStudentCourseContextByDbId } from "@/lib/student-course-scope"
 import { getEffectiveMembershipTier, getAITutorCredits } from "@/lib/membership"
@@ -67,16 +66,6 @@ export type CoraStudentContextPayload = {
   strugglingTopics: string[]
   strengths: string[]
   summary: Record<string, number>
-  codebenchStudio?: {
-    runs: number
-    successRate: number
-    compileErrors: number
-    focusSkill: string
-    coachTitle: string
-    coachBody: string
-    topErrors: Array<{ family: string; label: string; count: number }>
-    coraBrief: string
-  }
   syncedAt: string
 }
 
@@ -107,9 +96,6 @@ export async function getStudentContextForCora(studentIdNum: number): Promise<Co
   } catch (profileError) {
     console.warn("[cora/student-context] update_student_learning_profile skipped:", profileError)
   }
-
-  const courseCtx = await resolveStudentCourseContextByDbId(studentIdNum)
-  const courseId = courseCtx?.courseId ?? null
 
   const practiceAttempts = await sql`
     SELECT 
@@ -197,36 +183,22 @@ export async function getStudentContextForCora(studentIdNum: number): Promise<Co
     LIMIT 10
   `
 
-  const lectureProgress = courseId
-    ? await sql`
-        SELECT 
-          lsp.lecture_id,
-          l.title,
-          lsp.status,
-          lsp.last_accessed,
-          l.week
-        FROM lecture_student_progress lsp
-        JOIN lectures l ON lsp.lecture_id = l.id
-        WHERE lsp.student_id = ${studentIdNum}
-          AND l.deleted_at IS NULL
-          AND (l.course_id IS NULL OR l.course_id = ${courseId})
-        ORDER BY lsp.last_accessed DESC NULLS LAST
-        LIMIT 10
-      `
-    : await sql`
-        SELECT 
-          lsp.lecture_id,
-          l.title,
-          lsp.status,
-          lsp.last_accessed,
-          l.week
-        FROM lecture_student_progress lsp
-        JOIN lectures l ON lsp.lecture_id = l.id
-        WHERE lsp.student_id = ${studentIdNum}
-          AND l.deleted_at IS NULL
-        ORDER BY lsp.last_accessed DESC NULLS LAST
-        LIMIT 10
-      `
+  const lectureProgress = await sql`
+    SELECT 
+      lsp.lecture_id,
+      l.title,
+      lsp.status,
+      lsp.last_accessed,
+      l.week
+    FROM lecture_student_progress lsp
+    JOIN lectures l ON lsp.lecture_id = l.id
+    WHERE lsp.student_id = ${studentIdNum}
+    ORDER BY lsp.last_accessed DESC
+    LIMIT 10
+  `
+
+  const courseCtx = await resolveStudentCourseContextByDbId(studentIdNum)
+  const courseId = courseCtx?.courseId ?? null
 
   let topicMastery: { topic: string; mastery: number; status?: string }[] = []
   try {
@@ -324,13 +296,8 @@ export async function getStudentContextForCora(studentIdNum: number): Promise<Co
     console.warn("[cora/student-context] notifications skipped:", notificationError)
   }
 
-  const studio = await fetchStudioSnapshotForStudent(studentIdNum).catch(() => null)
-
   const strugglingTopics = new Set<string>()
   const strengths = new Set<string>()
-  if (studio?.focusSkill && studio.compileErrors > 0) {
-    strugglingTopics.add(`CodeBench: ${studio.focusSkill}`)
-  }
 
   practiceAttempts.forEach((attempt: Record<string, unknown>) => {
     const score = Number(attempt.score_percentage) || 0
@@ -547,22 +514,6 @@ export async function getStudentContextForCora(studentIdNum: number): Promise<Co
     knowledgeGraph,
     strugglingTopics: Array.from(strugglingTopics),
     strengths: Array.from(strengths),
-    codebenchStudio: studio
-      ? {
-          runs: studio.runs,
-          successRate: studio.successRate,
-          compileErrors: studio.compileErrors,
-          focusSkill: studio.focusSkill,
-          coachTitle: studio.coachTitle,
-          coachBody: studio.coachBody,
-          topErrors: studio.topErrors.map((item) => ({
-            family: item.family,
-            label: item.label,
-            count: item.count,
-          })),
-          coraBrief: studio.coraBrief,
-        }
-      : undefined,
     summary: {
       totalPracticeAttempts: Number(summaryRecord?.practice_attempts_count) || 0,
       avgPracticeScore: Number(summaryRecord?.practice_avg_score) || 0,

@@ -32,10 +32,10 @@ export function buildImportedProblemPrompt(problem: CoraProblemContext): string 
     lines.push("", "OFFICIAL HINT (use sparingly — prefer guiding questions first):", problem.hint.trim())
   }
   if (problem.referenceSteps?.length) {
-    lines.push("", "INSTRUCTOR REFERENCE STEPS (authorized review only — teach, do not paste wholesale):")
+    lines.push("", "INSTRUCTOR REFERENCE STEPS (do not dump all at once — reveal progressively when solving together):")
     problem.referenceSteps.forEach((step, i) => lines.push(`${i + 1}. ${step}`))
   } else if (problem.explanation?.trim()) {
-    lines.push("", "INSTRUCTOR EXPLANATION (authorized review only — teach, don't paste wholesale):", problem.explanation.trim())
+    lines.push("", "INSTRUCTOR EXPLANATION (reference only — teach, don't paste wholesale):", problem.explanation.trim())
   }
 
   if (problem.mediaUrl || problem.questionMedia?.media_url) {

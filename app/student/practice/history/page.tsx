@@ -1,8 +1,8 @@
 "use client"
 
 
+import { instructorApiFetch } from "@/lib/instructor-api-headers"
 import { useState, useEffect, useMemo } from "react"
-import { getStudentData, studentApiFetch } from "@/lib/auth"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,7 @@ import {
   Layers,
   Eye,
 } from "lucide-react"
+import { getStudentData } from "@/lib/auth"
 import { getPracticePath } from "@/lib/student-dashboard-paths"
 import { format } from "date-fns"
 import { StudentHeader } from "@/components/student-header"
@@ -46,10 +47,7 @@ interface PracticeAttempt {
   correct_answers: number
   score_percentage: number
   time_spent_seconds: number
-  completed_at: string | null
-  started_at?: string | null
-  answered_count?: number
-  status?: "completed" | "in_progress"
+  completed_at: string
 }
 
 function formatDuration(totalSeconds: number): string {
@@ -87,26 +85,11 @@ export default function PracticeHistoryPage({ embedded = false }: { embedded?: b
     fetchHistory(Number.parseInt(studentData.databaseId))
   }, [router])
 
-  const resumeAttempt = (attempt: PracticeAttempt) => {
-    sessionStorage.setItem("practiceAttemptId", String(attempt.id))
-    const keyed = sessionStorage.getItem(`practiceQuestions:${attempt.id}`)
-    if (keyed) {
-      sessionStorage.setItem("practiceQuestions", keyed)
-      router.push("/student/dashboard-v2/practice/quiz")
-      return
-    }
-    router.push(getPracticePath())
-  }
-
   const fetchHistory = async (studentDbId: number) => {
     try {
-      const response = await studentApiFetch(`/api/practice/history?studentId=${studentDbId}`)
+      const response = await instructorApiFetch(`/api/practice/history?studentId=${studentDbId}`)
       const data = await response.json()
-      if (response.ok) {
-        setAttempts(data.attempts || [])
-      } else {
-        console.error("[v0] Failed to fetch history:", data.error)
-      }
+      if (response.ok) setAttempts(data.attempts || [])
     } catch (error) {
       console.error("[v0] Failed to fetch history:", error)
     } finally {
@@ -118,20 +101,18 @@ export default function PracticeHistoryPage({ embedded = false }: { embedded?: b
     if (attempts.length === 0) {
       return { total: 0, avgScore: 0, bestScore: 0, questions: 0 }
     }
-    const completed = attempts.filter((a) => a.status !== "in_progress" && a.completed_at)
     let sum = 0
     let best = 0
     let questions = 0
-    for (const a of completed.length > 0 ? completed : attempts) {
+    for (const a of attempts) {
       const pct = normalizePracticeScorePercent(a.score_percentage)
       sum += pct
       best = Math.max(best, pct)
       questions += a.total_questions || 0
     }
-    const basis = completed.length > 0 ? completed : attempts
     return {
       total: attempts.length,
-      avgScore: basis.length > 0 ? Math.round(sum / basis.length) : 0,
+      avgScore: Math.round(sum / attempts.length),
       bestScore: Math.round(best),
       questions,
     }
@@ -268,20 +249,12 @@ export default function PracticeHistoryPage({ embedded = false }: { embedded?: b
             />
 
             {attempts.map((attempt, index) => {
-              const isInProgress = attempt.status === "in_progress" || !attempt.completed_at
-              const scorePct = isInProgress
-                ? Math.round(
-                    ((attempt.answered_count ?? attempt.correct_answers ?? 0) /
-                      Math.max(1, attempt.total_questions)) *
-                      100,
-                  )
-                : normalizePracticeScorePercent(attempt.score_percentage)
+              const scorePct = normalizePracticeScorePercent(attempt.score_percentage)
               const tone = scoreTone(scorePct)
               const thumb = practiceChromeKpi(index, roles)
               const topicLabel =
                 attempt.topics?.length > 0 ? attempt.topics.join(", ") : "Practice session"
               const duration = formatDuration(attempt.time_spent_seconds)
-              const when = attempt.completed_at ?? attempt.started_at
 
               return (
                 <div key={attempt.id} className="relative flex gap-3 sm:gap-4">
@@ -294,9 +267,7 @@ export default function PracticeHistoryPage({ embedded = false }: { embedded?: b
 
                   <button
                     type="button"
-                    onClick={() =>
-                      isInProgress ? resumeAttempt(attempt) : router.push(`/student/practice/results/${attempt.id}`)
-                    }
+                    onClick={() => router.push(`/student/practice/results/${attempt.id}`)}
                     className={cn(
                       HISTORY_CARD,
                       "group min-w-0 flex-1 p-4 text-left sm:p-5",
@@ -312,7 +283,7 @@ export default function PracticeHistoryPage({ embedded = false }: { embedded?: b
                           </h3>
                           <p className={cn("mt-1 flex items-center gap-1.5 text-sm", HISTORY_MUTED)}>
                             <Calendar className="h-3.5 w-3.5 shrink-0" />
-                            {when ? format(new Date(when), "PPp") : "In progress"}
+                            {format(new Date(attempt.completed_at), "PPp")}
                           </p>
                         </div>
                       </div>
@@ -320,17 +291,9 @@ export default function PracticeHistoryPage({ embedded = false }: { embedded?: b
                         className="shrink-0 rounded-xl px-3 py-1.5 text-base font-bold tabular-nums shadow-sm"
                         style={{ backgroundColor: tone.soft, color: tone.fill }}
                       >
-                        {isInProgress
-                          ? `${attempt.answered_count ?? 0}/${attempt.total_questions}`
-                          : `${scorePct.toFixed(0)}%`}
+                        {scorePct.toFixed(0)}%
                       </span>
                     </div>
-
-                    {isInProgress ? (
-                      <p className={cn("mb-3 text-sm font-medium", HISTORY_BODY)}>
-                        In progress — resume to finish this session
-                      </p>
-                    ) : null}
 
                     <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-white/10">
                       <div
@@ -354,17 +317,9 @@ export default function PracticeHistoryPage({ embedded = false }: { embedded?: b
                       <MetaCell
                         icon={Award}
                         label="Score"
-                        value={
-                          isInProgress
-                            ? `${attempt.answered_count ?? 0}/${attempt.total_questions} answered`
-                            : `${attempt.correct_answers}/${attempt.total_questions}`
-                        }
+                        value={`${attempt.correct_answers}/${attempt.total_questions}`}
                       />
-                      <MetaCell
-                        icon={Clock}
-                        label={isInProgress ? "Started" : "Time"}
-                        value={isInProgress && when ? format(new Date(when), "p") : duration}
-                      />
+                      <MetaCell icon={Clock} label="Time" value={duration} />
                     </div>
 
                     <div
@@ -375,7 +330,7 @@ export default function PracticeHistoryPage({ embedded = false }: { embedded?: b
                       )}
                     >
                       <Eye className="h-3.5 w-3.5" />
-                      {isInProgress ? "Resume session" : "View results"}
+                      View results
                     </div>
                   </button>
                 </div>

@@ -492,20 +492,6 @@ export async function POST(request: NextRequest) {
         console.warn("[Approve Points] Assessment email error:", e)
       }
 
-      try {
-        const { createNotification } = await import("@/lib/create-notification")
-        const title = point.submission_title || "Code Submission"
-        await createNotification({
-          studentId: approvedPoint.student_id,
-          type: "classroom_points",
-          title: "Classroom points awarded",
-          message: `You earned ${pointsToAward} point${pointsToAward === 1 ? "" : "s"} for "${title}".`,
-          link: "/student/dashboard-v2/classroom-points",
-        })
-      } catch (e) {
-        console.warn("[Approve Points] In-app notification failed:", e)
-      }
-
       return NextResponse.json({
         success: true,
         message: duplicateWarning 

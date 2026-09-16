@@ -38,7 +38,7 @@ function hasMinTier(tier: MembershipTier | null, minTier: MembershipTier): boole
 const MODULES = [
   { id: "quizzes", title: "Quizzes", href: "/student/dashboard-v2/quizzes", icon: ClipboardList, minTier: null as MembershipTier | null },
   { id: "practice", title: "Practice Hub", href: "/student/dashboard-v2/practice", icon: Lightbulb, minTier: "Explorer" as MembershipTier },
-  { id: "codebench", title: "CodeBench", href: "/student/dashboard-v2/codebench", icon: Code2, minTier: "Trailblazer" as MembershipTier },
+  { id: "codebench", title: "CodeBench", href: "/student/dashboard-v2/codebench", icon: Code2, minTier: null },
   { id: "ai-tutor", title: CORA_NAV_LABEL, href: "/student/dashboard-v2/ai-tutor", icon: CoraSidebarMark, minTier: null },
   { id: "lectures", title: "Lectures", href: "/student/dashboard-v2/lectures", icon: BookOpen, minTier: null },
   { id: "classroom-points", title: "Classroom Points", href: "/student/dashboard-v2/classroom-points", icon: Trophy, minTier: null },

@@ -59,6 +59,14 @@ export async function fetchInstructorStudentsBySessionCode(
     ${sql.unsafe(QA_COUNTS_JOIN)}
     WHERE TRIM(sess.code) = ANY(${variants})
       AND sess.course_id = ${cid}
+      AND (
+        sess.academic_term_id IS NULL
+        OR EXISTS (
+          SELECT 1 FROM academic_terms at
+          WHERE at.id = sess.academic_term_id
+            AND COALESCE(at.is_active, false) = true
+        )
+      )
     ORDER BY s.full_name
   `
 }
@@ -116,6 +124,14 @@ export async function fetchInstructorStudentsBySessionCodeAndQuiz(
     WHERE TRIM(sess.code) = ANY(${variants})
       AND qa.quiz_id = ${quizParam}
       AND sess.course_id = ${cid}
+      AND (
+        sess.academic_term_id IS NULL
+        OR EXISTS (
+          SELECT 1 FROM academic_terms at
+          WHERE at.id = sess.academic_term_id
+            AND COALESCE(at.is_active, false) = true
+        )
+      )
     ORDER BY s.full_name
   `
 }

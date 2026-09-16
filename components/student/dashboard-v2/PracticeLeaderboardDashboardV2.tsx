@@ -326,9 +326,9 @@ export function PracticeLeaderboardDashboardV2() {
   }
 
   return (
-    <div className="@container/leaderboard min-w-0 space-y-4 overflow-x-hidden sm:space-y-5">
+    <div className="space-y-4 sm:space-y-5 min-w-0">
       {kpiStats.length > 0 ? (
-        <div className="grid grid-cols-2 gap-x-2.5 gap-y-4 pt-1 @min-[520px]/leaderboard:grid-cols-4 @min-[520px]/leaderboard:gap-x-3 @min-[520px]/leaderboard:gap-y-5 @min-[520px]/leaderboard:pt-3">
+        <div className="grid grid-cols-2 gap-x-2.5 gap-y-5 pt-3 sm:grid-cols-4 sm:gap-x-3 sm:gap-y-5">
           {kpiStats.map((stat) => (
             <ThemeKpiCard
               key={stat.label}
@@ -384,8 +384,8 @@ export function PracticeLeaderboardDashboardV2() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 @min-[680px]/leaderboard:grid-cols-3 @min-[680px]/leaderboard:gap-5">
-        <div className="min-w-0 space-y-4 @min-[680px]/leaderboard:col-span-1">
+      <div className="grid gap-4 lg:grid-cols-3 lg:gap-5">
+        <div className="space-y-4 lg:col-span-1">
           {currentStudent ? (
             <div className={cn("p-4 sm:p-5", EMBED_MATERIAL_PANEL)}>
               <div className="flex items-center gap-3">
@@ -436,10 +436,10 @@ export function PracticeLeaderboardDashboardV2() {
             </div>
           ) : null}
 
-          <div className={cn("min-w-0 p-4 sm:p-5", EMBED_MATERIAL_PANEL)}>
-            <div className="mb-3 flex min-w-0 items-center gap-2.5">
+          <div className={cn("p-4 sm:p-5", EMBED_MATERIAL_PANEL)}>
+            <div className="mb-3 flex items-center gap-2.5">
               <SolidListThumbTile thumb={roles.summary} icon={Target} size="compact" />
-              <div className="min-w-0">
+              <div>
                 <h3 className="text-sm font-semibold text-[var(--cc-text)]">Practice insights</h3>
                 <p className="text-xs text-[var(--cc-text-muted)]">Your learning snapshot</p>
               </div>
@@ -483,11 +483,11 @@ export function PracticeLeaderboardDashboardV2() {
             </div>
             <Button
               onClick={() => router.push("/student/dashboard-v2/practice")}
-              className="h-10 w-full min-w-0 rounded-xl border-0 shadow-sm hover:opacity-90"
+              className="h-10 w-full rounded-xl border-0 shadow-sm hover:opacity-90"
               style={{ backgroundColor: roles.cta.fill, color: ctaInk }}
             >
-              <Play className="mr-2 h-4 w-4 shrink-0" />
-              <span className="truncate">Start new practice</span>
+              <Play className="mr-2 h-4 w-4" />
+              Start new practice
             </Button>
           </div>
 
@@ -550,7 +550,7 @@ export function PracticeLeaderboardDashboardV2() {
           ) : null}
         </div>
 
-        <div className="min-w-0 space-y-4 @min-[680px]/leaderboard:col-span-2">
+        <div className="min-w-0 space-y-4 lg:col-span-2">
           <div className={cn("p-4 sm:p-5", EMBED_MATERIAL_PANEL)}>
             <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
@@ -607,7 +607,7 @@ export function PracticeLeaderboardDashboardV2() {
                         isCurrentStudent && "ring-2 ring-[var(--cc-accent-border)]",
                       )}
                     >
-                      <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex items-center gap-3">
                         <div
                           className="flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-bold"
                           style={{ backgroundColor: rankThumb.fill, color: rankThumb.icon }}
@@ -656,7 +656,7 @@ export function PracticeLeaderboardDashboardV2() {
                         </div>
                         <div
                           className={cn(
-                            "flex shrink-0 items-center gap-2 text-right sm:gap-3",
+                            "flex shrink-0 items-center gap-3 text-right",
                             hidePeerDetails && "blur-[6px] select-none",
                           )}
                         >

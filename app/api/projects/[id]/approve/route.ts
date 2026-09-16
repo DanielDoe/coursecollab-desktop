@@ -90,6 +90,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       `
     }
 
+    const members = await sql`
+      SELECT student_id FROM project_members WHERE project_id = ${projectId}
+    `
+    const { notifyStudents } = await import("@/lib/notify-course-students")
+    void notifyStudents(
+      (members as Array<{ student_id: number }>).map((m) => m.student_id),
+      {
+        type: "project",
+        title: "Project approved",
+        message: `"${project.title}" was approved.`,
+        link: "/student/dashboard-v2/projects",
+      },
+    ).catch((err) => console.warn("[projects] approve notify failed:", err))
+
     return NextResponse.json({
       success: true,
       message: "Project approved successfully",

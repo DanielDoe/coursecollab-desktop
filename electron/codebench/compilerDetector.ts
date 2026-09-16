@@ -2,6 +2,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { accessSync, constants, existsSync, statSync } from 'node:fs'
 import { delimiter, dirname, isAbsolute, join } from 'node:path'
 import { portableToolchainForHost } from './toolchain-manifest'
+import { buildCodebenchChildEnv } from './process-env'
 import { bundledToolchainRoot, userToolchainRoot } from './toolchain-paths'
 import type { CompilerFamily, CompilerInfo, CompilerManager, CompilerSource } from './types'
 
@@ -19,6 +20,8 @@ const LINUX_HINT_DIRS = ['/usr/bin', '/usr/local/bin', '/bin', '/opt/homebrew/bi
 const WINDOWS_HINT_DIRS = [
   'C:\\Program Files\\LLVM\\bin',
   'C:\\Program Files (x86)\\LLVM\\bin',
+  'C:\\Program Files\\Git\\mingw64\\bin',
+  'C:\\Program Files\\Git\\usr\\bin',
   'C:\\msys64\\ucrt64\\bin',
   'C:\\msys64\\mingw64\\bin',
   'C:\\msys64\\clang64\\bin',
@@ -70,10 +73,10 @@ function pathDirectories(): string[] {
 function systemCandidateNames(): { family: CompilerFamily; name: string }[] {
   if (process.platform === 'win32') {
     return [
-      { family: 'clang++', name: 'clang++.exe' },
-      { family: 'clang++', name: 'clang++' },
       { family: 'g++', name: 'g++.exe' },
       { family: 'g++', name: 'g++' },
+      { family: 'clang++', name: 'clang++.exe' },
+      { family: 'clang++', name: 'clang++' },
       { family: 'cl', name: 'cl.exe' },
     ]
   }
@@ -135,17 +138,33 @@ function managedSearchDirs(): string[] {
   return dirs
 }
 
-function collectManagedZig(): { family: CompilerFamily; path: string }[] {
+function portableDriverNames(artifact: NonNullable<ReturnType<typeof portableToolchainForHost>>): {
+  family: CompilerFamily
+  name: string
+}[] {
+  if (artifact.driver === 'g++') {
+    return process.platform === 'win32'
+      ? [
+          { family: 'g++', name: 'g++.exe' },
+          { family: 'g++', name: 'g++' },
+        ]
+      : [{ family: 'g++', name: 'g++' }]
+  }
+  return zigNames()
+}
+
+function collectManagedPortable(): { family: CompilerFamily; path: string }[] {
   const artifact = portableToolchainForHost()
   const found: { family: CompilerFamily; path: string }[] = []
   const roots = [userToolchainRoot(), bundledToolchainRoot()].filter((dir): dir is string => Boolean(dir))
   if (artifact) {
+    const family = artifact.driver === 'g++' ? 'g++' : 'zig'
     for (const root of roots) {
       const full = join(root, artifact.binary)
-      if (isExecutableFile(full)) found.push({ family: 'zig', path: full })
+      if (isExecutableFile(full)) found.push({ family, path: full })
     }
+    found.push(...collectNamed(portableDriverNames(artifact), managedSearchDirs()))
   }
-  found.push(...collectNamed(zigNames(), managedSearchDirs()))
   const seen = new Set<string>()
   return found.filter((item) => {
     const key = item.path.toLowerCase()
@@ -206,6 +225,10 @@ function runVersion(executablePath: string, family: CompilerFamily): Promise<str
       shell: false,
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
+      env: buildCodebenchChildEnv({
+        pathPrefix: dirname(executablePath),
+        useZigCache: family === 'zig',
+      }),
     })
 
     let output = ''
@@ -259,7 +282,7 @@ async function firstUsable(candidates: { family: CompilerFamily; path: string }[
 export async function detectCppCompiler(): Promise<CompilerInfo> {
   const system = await firstUsable(collectSystemCandidates())
   if (system) return system
-  const managed = await firstUsable(collectManagedZig())
+  const managed = await firstUsable(collectManagedPortable())
   if (managed) return managed
   const pathZig = await firstUsable(collectPathZig())
   if (pathZig) return pathZig

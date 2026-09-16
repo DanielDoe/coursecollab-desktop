@@ -1,9 +1,4 @@
-import { CC_MODULE_SKELETON_SURFACE, CC_SKELETON } from "@/lib/appearance/ui-primitives"
 import { cn } from "@/lib/utils"
-
-function SkeletonBar({ className }: { className?: string }) {
-  return <div data-slot="skeleton" className={cn(CC_SKELETON, className)} />
-}
 
 export function ModuleListSkeleton({
   rows = 6,
@@ -14,14 +9,14 @@ export function ModuleListSkeleton({
 }) {
   return (
     <div className={cn("w-full min-w-0 space-y-3", className)} aria-busy aria-label="Loading">
-      <SkeletonBar className="h-9 w-48 rounded-lg" />
-      <div className={cn(CC_MODULE_SKELETON_SURFACE, "divide-y divide-[var(--border)] overflow-hidden")}>
+      <div className="h-9 w-48 animate-pulse rounded-lg bg-[var(--muted)]" />
+      <div className="divide-y divide-[var(--border)] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
         {Array.from({ length: rows }).map((_, i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3">
-            <SkeletonBar className="h-9 w-9 shrink-0 rounded-lg" />
+            <div className="h-9 w-9 shrink-0 animate-pulse rounded-lg bg-[var(--muted)]" />
             <div className="min-w-0 flex-1 space-y-2">
-              <SkeletonBar className="h-3.5 w-2/3" />
-              <SkeletonBar className="h-3 w-1/3" />
+              <div className="h-3.5 w-2/3 animate-pulse rounded bg-[var(--muted)]" />
+              <div className="h-3 w-1/3 animate-pulse rounded bg-[var(--muted)]" />
             </div>
           </div>
         ))}

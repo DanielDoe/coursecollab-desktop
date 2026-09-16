@@ -18,7 +18,6 @@ import { StreakTab } from "@/components/codebench/MoreMenu/StreakTab"
 import { XPTracker } from "@/components/codebench/MoreMenu/XPTracker"
 import { getCurrentXP } from "@/lib/codebench-xp"
 import { cn } from "@/lib/utils"
-import { CodebenchPaneSkeleton, type CodebenchBrowseView } from "@/components/codebench/CodebenchSkeletons"
 
 export default function CodeBenchMorePage() {
   const router = useRouter()
@@ -69,20 +68,9 @@ export default function CodeBenchMorePage() {
   }, [router, searchParams])
 
   if (!studentId) {
-    const tab = searchParams.get("tab") || "profile"
-    const view: CodebenchBrowseView =
-      tab === "badges"
-        ? "badges"
-        : tab === "leaderboard"
-          ? "leaderboard"
-          : tab === "streak"
-            ? "streak"
-            : tab === "challenge"
-              ? "challenge"
-              : "analytics"
     return (
-      <div className="min-h-screen p-4 sm:p-6">
-        <CodebenchPaneSkeleton view={view} />
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-slate-400">Loading...</div>
       </div>
     )
   }

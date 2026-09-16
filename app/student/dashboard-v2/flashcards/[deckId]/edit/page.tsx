@@ -1,12 +1,12 @@
 "use client"
 
-import { useParams } from "next/navigation"
+import { use } from "react"
 import { FlashcardDeckEditor } from "@/components/student/flashcards/flashcard-deck-editor"
 import { dashboardV2PageRootClass } from "@/lib/dashboard-v2-layout"
 
-export default function FlashcardEditPage() {
-  const params = useParams()
-  const id = Number(typeof params?.deckId === "string" ? params.deckId : "")
+export default function FlashcardEditPage({ params }: { params: Promise<{ deckId: string }> }) {
+  const { deckId } = use(params)
+  const id = Number(deckId)
 
   return (
     <div className={dashboardV2PageRootClass}>

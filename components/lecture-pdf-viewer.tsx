@@ -26,7 +26,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { fetchLecturePdfDocument, type LecturePdfDocument } from "@/lib/lecture-pdf-document"
-import { buildInstructorApiHeaders } from "@/lib/instructor-api-headers"
+import { withInstructorApiInit } from "@/lib/instructor-api-headers"
 import { lecturePdfDownloadName, buildLecturePdfProxyUrl } from "@/lib/resolve-lecture-pdf-url"
 import { cn } from "@/lib/utils"
 
@@ -249,7 +249,7 @@ export const LecturePdfViewer = forwardRef<LecturePdfViewerHandle, LecturePdfVie
         try {
           const doc = await fetchLecturePdfDocument(
             fileUrl,
-            useInstructorPdfProxy ? { headers: buildInstructorApiHeaders() } : undefined,
+            useInstructorPdfProxy ? withInstructorApiInit({ cache: "no-store" }) : undefined,
           )
           if (cancelled) return
           pdfRef.current = doc

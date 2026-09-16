@@ -4,6 +4,7 @@ import { Maximize2, AlertTriangle } from "lucide-react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { isMobileDevice } from "@/lib/device-utils"
+import { isDesktopElectronAssessmentClient } from "@/lib/desktop-anticheat-policy"
 import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 interface FullscreenRequirementProps {
@@ -20,6 +21,8 @@ export function FullscreenRequirement({
   // Don't show fullscreen requirement on mobile devices
   // Mobile devices can't run multiple tabs or Gemini concurrently, so fullscreen isn't needed
   if (!show || isMobileDevice()) return null
+
+  const desktopApp = isDesktopElectronAssessmentClient()
 
   const handleEnterFullscreen = async () => {
     try {
@@ -74,7 +77,9 @@ export function FullscreenRequirement({
               Fullscreen Mode Required
             </h2>
             <p className="text-slate-600 dark:text-slate-400">
-              To ensure assessment integrity and prevent AI tool overlays, you must enter fullscreen mode to continue.
+              {desktopApp
+                ? "CourseCollab will enter secured fullscreen for this attempt. Stay in the app until you submit—leaving the window is logged."
+                : "To ensure assessment integrity and prevent AI tool overlays, you must enter fullscreen mode to continue."}
             </p>
           </div>
 

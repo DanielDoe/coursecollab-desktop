@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo, useCallback, useRef } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -53,7 +53,6 @@ import { RolloverUpgradeModal } from "@/components/rollover-upgrade-modal"
 import { RolloverConfirmModal, type RolloverPolicyForModal } from "@/components/rollover-confirm-modal"
 import { AssessmentActionButtons } from "@/components/assessment-action-buttons"
 import { EmbeddedAssessmentCard } from "@/components/student/dashboard-v2/EmbeddedAssessmentCard"
-import { ModulePageSkeleton } from "@/components/student/dashboard-v2/ModulePageSkeleton"
 import { ExtendSelfServiceClosedBanner } from "@/components/student/ExtendSelfServiceClosedBanner"
 import { stripAssessmentInstructions } from "@/lib/student-assessment-hub"
 import {
@@ -67,17 +66,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { studentResultsPdfGateSatisfied } from "@/lib/student-results-pdf-gate"
 import { getStudentAuthHeaders, studentApiFetch } from "@/lib/auth"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination"
-
-const HUB_ITEMS_PER_PAGE_LIST = 8
-const HUB_ITEMS_PER_PAGE_GRID = 6
 
 function quizDisplayPercent(quiz: {
   display_percentage?: number
@@ -301,36 +289,12 @@ function buildQuizActionConfig(
   }
 }
 
-export type QuizHubMeta = {
-  total: number
-  official: number
-  practice: number
-  filtered: number
-  openIssues?: number
-  closedIssues?: number
-  refreshFailed?: boolean
-}
-
-export type QuizHubFilters = {
-  searchQuery: string
-  filterType: "all" | "admin" | "practice"
-  filterStatus: "all" | "active" | "completed" | "locked"
-  viewMode: "grid" | "list"
-  sortBy: "title" | "status" | "newest"
-}
-
 export function QuizList({
-  assessmentType = "quiz",
+  assessmentType: assessmentTypeProp = "quiz",
   embedInDashboard = false,
-  hubLayout = false,
-  hubFilters,
-  onHubMetaChange,
 }: {
   assessmentType?: string
   embedInDashboard?: boolean
-  hubLayout?: boolean
-  hubFilters?: QuizHubFilters
-  onHubMetaChange?: (meta: QuizHubMeta) => void
 }) {
   const router = useRouter()
   const { toast } = useNotification()
@@ -341,8 +305,10 @@ export function QuizList({
   try {
     assessmentConfig = useAssessmentType()
   } catch {
-    assessmentConfig = configForType(resolveAssessmentTypeKey(assessmentType))
+    assessmentConfig = configForType(resolveAssessmentTypeKey(assessmentTypeProp))
   }
+  // Dashboard embeds (homework, finals, …) set type via AssessmentTypeProvider — not the prop.
+  const assessmentType = assessmentConfig.assessmentType
 
   const assessmentsTheme = getStudentNavGroupTheme("assessments")
 
@@ -361,36 +327,18 @@ export function QuizList({
 
   // Persist filters per assessment type so e.g. "Practice" on Homework does not hide all Finals (API uses quiz_type "admin" for finals).
   const filterPersistId = assessmentType || "quiz"
-  const hubControlled = hubLayout && hubFilters != null
-  const [internalViewMode, setInternalViewMode] = usePersistedState<"grid" | "list">("student-quiz-view", "list")
-  const [internalSearchQuery, setInternalSearchQuery] = usePersistedState(
-    `student-quiz-search-${filterPersistId}`,
-    "",
-  )
-  const [internalFilterType, setInternalFilterType] = usePersistedState<"all" | "admin" | "practice">(
+  const [viewMode, setViewMode] = usePersistedState<"grid" | "list">("student-quiz-view", "list")
+  const [searchQuery, setSearchQuery] = usePersistedState(`student-quiz-search-${filterPersistId}`, "")
+  const [filterType, setFilterType] = usePersistedState<"all" | "admin" | "practice">(
     `student-quiz-filter-type-${filterPersistId}`,
     "all",
   )
-  const [internalFilterStatus, setInternalFilterStatus] = usePersistedState<
-    "all" | "active" | "completed" | "locked"
-  >(`student-quiz-filter-status-${filterPersistId}`, "all")
-  const [internalSortBy, setInternalSortBy] = usePersistedState<"title" | "status" | "newest">(
-    `student-quiz-sort-${filterPersistId}`,
-    "title",
+  const [filterStatus, setFilterStatus] = usePersistedState<"all" | "active" | "completed" | "locked">(
+    `student-quiz-filter-status-${filterPersistId}`,
+    "all",
   )
-  const viewMode = hubControlled ? hubFilters.viewMode : internalViewMode
-  const setViewMode = hubControlled ? () => {} : setInternalViewMode
-  const searchQuery = hubControlled ? hubFilters.searchQuery : internalSearchQuery
-  const setSearchQuery = hubControlled ? () => {} : setInternalSearchQuery
-  const filterType = hubControlled ? hubFilters.filterType : internalFilterType
-  const setFilterType = hubControlled ? () => {} : setInternalFilterType
-  const filterStatus = hubControlled ? hubFilters.filterStatus : internalFilterStatus
-  const setFilterStatus = hubControlled ? () => {} : setInternalFilterStatus
-  const sortBy = hubControlled ? hubFilters.sortBy : internalSortBy
-  const setSortBy = hubControlled ? () => {} : setInternalSortBy
+  const [sortBy, setSortBy] = usePersistedState<"title" | "status" | "newest">(`student-quiz-sort-${filterPersistId}`, "title")
   const [searchOpen, setSearchOpen] = useState(() => searchQuery.trim() !== "")
-  const [hubPage, setHubPage] = usePersistedState(`student-quiz-hub-page-${filterPersistId}`, 1)
-  const hubListScrollRef = useRef<HTMLDivElement>(null)
 
   // Restore scroll position
   useScrollRestoration("student-quiz-list")
@@ -409,7 +357,7 @@ export function QuizList({
             if (attempt > 0) {
               await new Promise((r) => setTimeout(r, 600))
             }
-            const response = await fetch(url)
+            const response = await studentApiFetch(url)
             if (!response.ok) {
               console.error(`[QuizList] API error: ${response.status} ${response.statusText}`)
               setQuizzes([])
@@ -774,52 +722,9 @@ export function QuizList({
     else if (effectiveSortBy === "newest") list.sort((a, b) => b.id - a.id)
 
     return list
-  }, [quizzes, searchQuery, filterType, filterStatus, effectiveSortBy, assessmentType])
-
-  const hubItemsPerPage = viewMode === "grid" ? HUB_ITEMS_PER_PAGE_GRID : HUB_ITEMS_PER_PAGE_LIST
-  const hubTotalPages = hubLayout ? Math.max(1, Math.ceil(filteredQuizzes.length / hubItemsPerPage)) : 1
-  const hubSafePage = hubLayout ? Math.min(hubPage, hubTotalPages) : 1
-
-  const paginatedQuizzes = useMemo(() => {
-    if (!hubLayout) return filteredQuizzes
-    const start = (hubSafePage - 1) * hubItemsPerPage
-    return filteredQuizzes.slice(start, start + hubItemsPerPage)
-  }, [filteredQuizzes, hubLayout, hubSafePage, hubItemsPerPage])
-
-  const displayedQuizzes = hubLayout ? paginatedQuizzes : filteredQuizzes
-  const showHubPagination = hubLayout && filteredQuizzes.length > hubItemsPerPage
-  const hubRangeStart = filteredQuizzes.length === 0 ? 0 : (hubSafePage - 1) * hubItemsPerPage + 1
-  const hubRangeEnd = Math.min(hubSafePage * hubItemsPerPage, filteredQuizzes.length)
-
-  useEffect(() => {
-    if (!hubLayout) return
-    setHubPage(1)
-  }, [searchQuery, filterStatus, filterType, sortBy, viewMode, hubLayout])
-
-  useEffect(() => {
-    if (!hubLayout) return
-    if (hubPage > hubTotalPages) setHubPage(hubTotalPages)
-  }, [hubPage, hubTotalPages, hubLayout])
-
-  useEffect(() => {
-    if (!hubLayout) return
-    hubListScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })
-  }, [hubSafePage, hubLayout])
-
-  useEffect(() => {
-    if (!onHubMetaChange || loading) return
-    onHubMetaChange({
-      total: quizzes.length,
-      official: quizzes.filter((q) => q.quiz_type === "admin").length,
-      practice: quizzes.filter((q) => q.quiz_type === "practice").length,
-      filtered: filteredQuizzes.length,
-    })
-  }, [quizzes, filteredQuizzes.length, onHubMetaChange, loading])
+  }, [quizzes, searchQuery, filterType, filterStatus, effectiveSortBy])
 
   if (loading) {
-    if (hubLayout) {
-      return <ModulePageSkeleton className="min-h-[280px]" />
-    }
     return (
       <div className="flex items-center justify-center py-20">
         <div className={cn(embedInDashboard ? "text-[var(--cc-text-muted)]" : "text-slate-600 dark:text-slate-400")}>
@@ -829,29 +734,22 @@ export function QuizList({
     )
   }
 
-  const useEmbedCards = embedInDashboard || hubLayout
-
   return (
-    <div
-      className={cn(
-        "overflow-x-hidden",
-        hubLayout
-          ? "flex h-full min-h-0 w-full flex-1 flex-col"
-          : "mx-auto max-w-full",
-        embedInDashboard && !hubLayout && "overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--muted)]/25",
-      )}
-    >
-      {!embedInDashboard && !hubLayout ? (
+    <div className={cn(
+      "max-w-full mx-auto overflow-x-hidden",
+      embedInDashboard && "overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--muted)]/25",
+    )}>
+      {embedInDashboard ? null : (
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 sm:mb-6 sm:gap-4">
           <h2 className={cn("text-lg sm:text-xl md:text-2xl font-bold tracking-tight break-words", assessmentConfig.colors.primary)}>
             <span className="sm:hidden">{assessmentConfig.displayName}s</span>
             <span className="hidden sm:inline">{assessmentConfig.pluralName} Library</span>
           </h2>
       </div>
-      ) : null}
+      )}
 
       {/* Extend cutoff banner lives in AssessmentDashboardShell when embedInDashboard. */}
-      {!embedInDashboard && !hubLayout &&
+      {!embedInDashboard &&
         rolloverPolicy &&
         !rolloverPolicy.self_service_open &&
         rolloverPolicy.show_closed_notice !== false &&
@@ -860,7 +758,6 @@ export function QuizList({
         )}
 
       {/* Filters Toolbar */}
-      {!hubLayout ? (
       <div
         className={cn(
           embedInDashboard
@@ -1052,10 +949,9 @@ export function QuizList({
           </div>
         </div>
       </div>
-      ) : null}
 
       {/* Practice Hub - standalone quiz page only (not in dashboard-v2 / native assessments list) */}
-      {assessmentType === "quiz" && !embedInDashboard && !hubLayout && (
+      {assessmentType === "quiz" && !embedInDashboard && (
       <div className={cn(
         "rounded-2xl overflow-hidden border",
         embedInDashboard ? "mb-4 sm:mb-5" : "mb-6 sm:mb-8",
@@ -1097,38 +993,28 @@ export function QuizList({
       {/* Quizzes/Homework List */}
       {filteredQuizzes.length === 0 ? (
         <div className={cn(
-          "flex flex-col items-center justify-center text-center space-y-4",
-          hubLayout
-            ? "h-full flex-1 py-10"
-            : cn("py-16 sm:py-20", useEmbedCards && "rounded-2xl border border-[var(--border)] bg-[var(--muted)]/30 py-10"),
+          "flex flex-col items-center justify-center py-16 sm:py-20 text-center space-y-4",
+          embedInDashboard && "rounded-xl bg-[var(--muted)]/20"
         )}>
           <div className={cn(
             "flex size-14 items-center justify-center rounded-2xl",
-            useEmbedCards ? "bg-[var(--cc-accent-soft)]" : "bg-slate-100/80 dark:bg-slate-700/80 p-4 rounded-2xl"
+            embedInDashboard ? "bg-[var(--cc-accent-soft)]" : "bg-slate-100/80 dark:bg-slate-700/80 p-4 rounded-2xl"
           )}>
-            <FolderOpen className={cn("h-7 w-7", useEmbedCards ? "text-[var(--cc-accent)]" : "text-slate-400 dark:text-slate-500")} />
+            <FolderOpen className={cn("h-7 w-7", embedInDashboard ? "text-[var(--cc-accent-dark)]" : "text-slate-400 dark:text-slate-500")} />
           </div>
-          <p className={cn("text-base sm:text-lg font-medium", useEmbedCards ? "text-[var(--cc-text)]" : "text-slate-600 dark:text-slate-400")}>
-            No {assessmentConfig.pluralName.toLowerCase()} match your filters.
-          </p>
-          {useEmbedCards ? (
-            <p className="text-sm text-[var(--cc-text-muted)]">Try another search, status filter, or browse category.</p>
-          ) : null}
+          <p className={cn("text-base sm:text-lg", embedInDashboard ? "text-[var(--cc-text-muted)]" : "text-slate-600 dark:text-slate-400")}>No {assessmentConfig.pluralName.toLowerCase()} match your filters.</p>
         </div>
       ) : (
-        <div className={cn("relative min-w-0 w-full", hubLayout && "flex min-h-0 flex-1 flex-col")}>
-          <div
-            ref={hubListScrollRef}
-            className={cn("min-w-0 w-full", hubLayout && "min-h-0 flex-1 overflow-y-auto p-3 sm:p-4")}
-          >
+        <div className="relative min-w-0">
           <div
             className={cn(
-              "min-w-0 w-full",
-              useEmbedCards
+              "min-w-0",
+              embedInDashboard
                 ? cn(
+                    "px-3 py-3 sm:px-4",
                     viewMode === "grid"
-                      ? "grid w-full grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-1"
-                      : "flex w-full flex-col gap-2",
+                      ? "grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3"
+                      : "space-y-3",
                   )
                 : cn(
                     "overflow-y-auto overflow-x-hidden pr-2 scrollbar-modern",
@@ -1137,9 +1023,9 @@ export function QuizList({
                       : "space-y-3 sm:space-y-4",
                   ),
             )}
-            style={useEmbedCards ? undefined : { maxHeight: "min(80vh, 800px)" }}
+            style={embedInDashboard ? undefined : { maxHeight: "min(80vh, 800px)" }}
           >
-          {displayedQuizzes.map((quiz) => {
+          {filteredQuizzes.map((quiz) => {
             const actionConfig = buildQuizActionConfig(quiz, assessmentConfig.displayName, {
               handleViewReport,
               handleRetakeClick,
@@ -1149,7 +1035,7 @@ export function QuizList({
               applyingRollover,
             })
 
-            if (useEmbedCards) {
+            if (embedInDashboard) {
               return (
                 <EmbeddedAssessmentCard
                   key={quiz.id}
@@ -1731,81 +1617,25 @@ export function QuizList({
             </Card>
           )})}
           </div>
-
-          {/* Scroll Indicator — legacy standalone / embed lists only */}
-          {!hubLayout && filteredQuizzes.length > 8 && (
-            <div className="mt-6 flex justify-center">
+          
+          {/* Scroll Indicator */}
+          {filteredQuizzes.length > 8 && (
+            <div className="flex justify-center mt-6">
               <div className={cn(
-                "flex items-center gap-2 rounded-xl border px-4 py-2",
-                embedInDashboard ? "border-slate-200/80 bg-slate-50/50 dark:border-white/10 dark:bg-white/5" : "border-slate-200/60 bg-slate-100/80 dark:border-slate-700/60 dark:bg-slate-700/80"
+                "flex items-center gap-2 px-4 py-2 rounded-xl border",
+                embedInDashboard ? "bg-slate-50/50 dark:bg-white/5 border-slate-200/80 dark:border-white/10" : "bg-slate-100/80 dark:bg-slate-700/80 border-slate-200/60 dark:border-slate-700/60"
               )}>
-                <div className="h-2 w-2 animate-pulse rounded-full bg-slate-400 dark:bg-slate-500" />
-                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                <div className="w-2 h-2 rounded-full bg-slate-400 dark:bg-slate-500 animate-pulse" />
+                <span className="text-sm text-slate-600 dark:text-slate-400 font-medium">
                   Scroll to see more {assessmentConfig.pluralName.toLowerCase()}
                 </span>
               </div>
             </div>
           )}
-          </div>
-
-          {showHubPagination ? (
-            <div className="flex shrink-0 flex-col gap-2 border-t border-[var(--border)] px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-              <p className="text-center text-xs text-[var(--cc-text-muted)] sm:text-left">
-                Showing {hubRangeStart}–{hubRangeEnd} of {filteredQuizzes.length}
-              </p>
-              <Pagination className="mx-0 w-auto justify-center sm:justify-end">
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      href="#"
-                      onClick={(event) => {
-                        event.preventDefault()
-                        if (hubSafePage > 1) setHubPage(hubSafePage - 1)
-                      }}
-                      className={
-                        hubSafePage <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"
-                      }
-                      aria-disabled={hubSafePage <= 1}
-                    />
-                  </PaginationItem>
-                  {Array.from({ length: hubTotalPages }, (_, i) => i + 1).map((page) => (
-                    <PaginationItem key={page} className="hidden sm:list-item">
-                      <PaginationLink
-                        href="#"
-                        onClick={(event) => {
-                          event.preventDefault()
-                          setHubPage(page)
-                        }}
-                        isActive={hubSafePage === page}
-                        className="cursor-pointer"
-                      >
-                        {page}
-                      </PaginationLink>
-                    </PaginationItem>
-                  ))}
-                  <PaginationItem>
-                    <PaginationNext
-                      href="#"
-                      onClick={(event) => {
-                        event.preventDefault()
-                        if (hubSafePage < hubTotalPages) setHubPage(hubSafePage + 1)
-                      }}
-                      className={
-                        hubSafePage >= hubTotalPages
-                          ? "pointer-events-none opacity-50"
-                          : "cursor-pointer"
-                      }
-                      aria-disabled={hubSafePage >= hubTotalPages}
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-            </div>
-          ) : null}
         </div>
       )}
 
-      {embedInDashboard && !hubLayout ? (
+      {embedInDashboard ? (
         <div className="border-t border-[var(--border)] px-3 py-2.5 sm:px-4">
           <p className="text-xs text-[var(--cc-text-muted)]">
             {assessmentConfig.pluralName}

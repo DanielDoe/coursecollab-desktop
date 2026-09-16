@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { StudentSignupExperience } from "@/components/student/onboarding/StudentSignupExperience"
-import { useDesktopSignupRedirect } from "@/components/auth/useDesktopSignupRedirect"
-import { DESKTOP_WEB_SIGNUP_PATHS } from "@/lib/desktop-auth-policy"
 import { useAuth } from "@/lib/auth-context"
 import { readRememberedUniversity } from "@/lib/remembered-auth"
 import { readSessionSelectedUniversity } from "@/lib/universities-shared"
@@ -13,8 +11,6 @@ export default function StudentSignupPage() {
   const router = useRouter()
   const { university, selectedUniversityId, setSelectedUniversity } = useAuth()
   const [ready, setReady] = useState(false)
-
-  useDesktopSignupRedirect(DESKTOP_WEB_SIGNUP_PATHS.student)
 
   useEffect(() => {
     if (selectedUniversityId && university) {

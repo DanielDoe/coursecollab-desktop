@@ -7,30 +7,8 @@ export type AuthUserType = "student" | "instructor" | "admin" | "institution_adm
 const REFRESH_COOKIE = "cc_refresh"
 /** Native clients send this when RN fetch drops the Cookie header. */
 export const REFRESH_TOKEN_HEADER = "x-cc-refresh"
-/** Desktop/Electron shell — longer-lived refresh tokens. */
-export const DESKTOP_CLIENT_HEADER = "x-cc-client"
 const REMEMBER_ME_DAYS = 30
 const SESSION_DAYS = 7
-const DESKTOP_SESSION_DAYS = 365
-
-export function isDesktopClientRequest(request: Pick<Request, "headers">): boolean {
-  return request.headers.get(DESKTOP_CLIENT_HEADER)?.trim().toLowerCase() === "desktop"
-}
-
-function sessionDaysFor(rememberMe: boolean, desktopClient: boolean): number {
-  if (desktopClient) return DESKTOP_SESSION_DAYS
-  return rememberMe ? REMEMBER_ME_DAYS : SESSION_DAYS
-}
-
-export function refreshTokenExpiry(rememberMe: boolean, options?: { desktopClient?: boolean }): Date {
-  const days = sessionDaysFor(rememberMe, options?.desktopClient === true)
-  return new Date(Date.now() + days * 24 * 60 * 60 * 1000)
-}
-
-export function sessionDurationMs(rememberMe: boolean, options?: { desktopClient?: boolean }): number {
-  const days = sessionDaysFor(rememberMe, options?.desktopClient === true)
-  return days * 24 * 60 * 60 * 1000
-}
 
 export function hashRefreshToken(raw: string): string {
   return createHash("sha256").update(raw).digest("hex")
@@ -38,6 +16,16 @@ export function hashRefreshToken(raw: string): string {
 
 export function generateRefreshToken(): string {
   return randomBytes(48).toString("base64url")
+}
+
+export function refreshTokenExpiry(rememberMe: boolean): Date {
+  const days = rememberMe ? REMEMBER_ME_DAYS : SESSION_DAYS
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000)
+}
+
+export function sessionDurationMs(rememberMe: boolean): number {
+  const days = rememberMe ? REMEMBER_ME_DAYS : SESSION_DAYS
+  return days * 24 * 60 * 60 * 1000
 }
 
 let schemaReady: Promise<void> | null = null
@@ -82,15 +70,13 @@ export async function persistRefreshToken(params: {
   userId: number
   universityId?: number | null
   rememberMe: boolean
-  desktopClient?: boolean
   userAgent?: string | null
   ipAddress?: string | null
 }): Promise<{ rawToken: string; expiresAt: Date }> {
   await ensureAuthRefreshTokenSchema()
   const rawToken = generateRefreshToken()
   const tokenHash = hashRefreshToken(rawToken)
-  const effectiveRememberMe = params.rememberMe || params.desktopClient === true
-  const expiresAt = refreshTokenExpiry(effectiveRememberMe, { desktopClient: params.desktopClient })
+  const expiresAt = refreshTokenExpiry(params.rememberMe)
 
   await sql`
     INSERT INTO auth_refresh_tokens (
@@ -100,7 +86,7 @@ export async function persistRefreshToken(params: {
       ${params.userType},
       ${params.userId},
       ${params.universityId ?? null},
-      ${params.rememberMe || params.desktopClient === true},
+      ${params.rememberMe},
       ${expiresAt.toISOString()},
       ${params.userAgent ?? null},
       ${params.ipAddress ?? null}
@@ -120,7 +106,6 @@ export async function rotateRefreshToken(params: {
   userId: number
   universityId?: number | null
   rememberMe: boolean
-  desktopClient?: boolean
   userAgent?: string | null
   ipAddress?: string | null
 }): Promise<{ rawToken: string; expiresAt: Date }> {
@@ -166,12 +151,10 @@ async function slideRefreshTokenIfNeeded(
   expiresAt: Date,
 ): Promise<void> {
   const remainingMs = expiresAt.getTime() - Date.now()
-  const desktopClient =
-    remainingMs > (REMEMBER_ME_DAYS + 1) * 24 * 60 * 60 * 1000
-  const fullMs = sessionDurationMs(rememberMe, { desktopClient })
+  const fullMs = sessionDurationMs(rememberMe)
   // Active use should keep a valid session alive (half-window remaining).
   if (remainingMs > fullMs / 2) return
-  const nextExpiry = refreshTokenExpiry(rememberMe, { desktopClient })
+  const nextExpiry = refreshTokenExpiry(rememberMe)
   try {
     await sql`
       UPDATE auth_refresh_tokens
@@ -251,4 +234,4 @@ export function readRefreshTokenFromRequest(request: NextRequest): string | null
   return fromHeader || null
 }
 
-export { REFRESH_COOKIE, REMEMBER_ME_DAYS, SESSION_DAYS, DESKTOP_SESSION_DAYS }
+export { REFRESH_COOKIE, REMEMBER_ME_DAYS, SESSION_DAYS }

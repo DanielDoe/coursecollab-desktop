@@ -7,8 +7,6 @@ import {
   clearRefreshTokenCookie,
   revokeRefreshToken,
   sessionDurationMs,
-  REFRESH_TOKEN_HEADER,
-  isDesktopClientRequest,
 } from "@/lib/auth-refresh-tokens"
 import { buildStudentSessionRefreshPayload } from "@/lib/student-session-refresh-payload"
 import { buildInstructorSessionRefreshPayload } from "@/lib/instructor-session-refresh-payload"
@@ -27,9 +25,6 @@ export async function POST(request: NextRequest) {
     clearRefreshTokenCookie(response)
     return response
   }
-
-  const desktopClient = isDesktopClientRequest(request)
-  const effectiveRememberMe = validated.rememberMe || desktopClient
 
   if (validated.userType !== "student") {
     if (validated.userType !== "instructor") {
@@ -53,8 +48,7 @@ export async function POST(request: NextRequest) {
       userType: "instructor",
       userId: validated.userId,
       universityId: validated.universityId,
-      rememberMe: effectiveRememberMe,
-      desktopClient,
+      rememberMe: validated.rememberMe,
       userAgent: request.headers.get("user-agent"),
       ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
     })
@@ -62,12 +56,11 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({
       refreshed: true,
       userType: "instructor",
-      rememberMe: effectiveRememberMe,
-      sessionExpiresIn: sessionDurationMs(effectiveRememberMe, { desktopClient }),
+      rememberMe: instructorPayload.rememberMe,
+      sessionExpiresIn: sessionDurationMs(validated.rememberMe),
       instructor: instructorPayload.instructor,
     })
     setRefreshTokenCookie(response, rawToken, expiresAt)
-    response.headers.set(REFRESH_TOKEN_HEADER, rawToken)
     return response
   }
 
@@ -88,16 +81,15 @@ export async function POST(request: NextRequest) {
     userType: "student",
     userId: validated.userId,
     universityId: validated.universityId,
-    rememberMe: effectiveRememberMe,
-    desktopClient,
+    rememberMe: validated.rememberMe,
     userAgent: request.headers.get("user-agent"),
     ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
   })
 
   const response = NextResponse.json({
     refreshed: true,
-    sessionExpiresIn: sessionDurationMs(effectiveRememberMe, { desktopClient }),
-    rememberMe: effectiveRememberMe,
+    sessionExpiresIn: sessionDurationMs(validated.rememberMe),
+    rememberMe: payload.rememberMe,
     effectiveMembershipTier: payload.effectiveMembershipTier,
     university: payload.university,
     student: payload.student,
@@ -105,7 +97,6 @@ export async function POST(request: NextRequest) {
     enrollments: payload.enrollments,
   })
   setRefreshTokenCookie(response, rawToken, expiresAt)
-  response.headers.set(REFRESH_TOKEN_HEADER, rawToken)
   return response
 }
 

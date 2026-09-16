@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react"
 import {
-  AlertTriangle,
+  AlertCircle,
   Check,
   Info,
   Loader2,
@@ -19,71 +19,68 @@ export type SystemAlertVariant =
 export type SystemAlertTokens = {
   iconWrap: string
   iconColor: string
-  iconShape: string
   actionButton: string
 }
 
+/** Shared card + text styles (variant only affects the status icon). */
 export const SYSTEM_ALERT_SHELL =
-  "border border-[#E8E8E8] bg-white text-[#1E1033] shadow-[0_16px_40px_rgba(30,16,51,0.10)] dark:border-0 dark:bg-[#2A2A2A] dark:text-white dark:shadow-[0_16px_40px_rgba(0,0,0,0.28)]"
+  "border-zinc-200/80 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.08)] dark:border-zinc-800 dark:bg-[#181b21] dark:shadow-[0_8px_30px_rgba(0,0,0,0.45)]"
 
-export const SYSTEM_ALERT_TITLE =
-  "text-[14px] font-semibold leading-5 tracking-tight text-[#1E1033] dark:text-white"
-export const SYSTEM_ALERT_DESCRIPTION =
-  "break-words text-[13px] leading-5 text-[#6B6570] line-clamp-4 dark:text-[#A3A3A3]"
+export const SYSTEM_ALERT_TITLE = "text-[15px] font-semibold text-zinc-900 dark:text-zinc-50"
+export const SYSTEM_ALERT_DESCRIPTION = "text-sm leading-relaxed text-zinc-500 dark:text-zinc-400"
 export const SYSTEM_ALERT_CLOSE =
-  "text-[#8A8490] hover:bg-black/[0.06] hover:text-[#1E1033] dark:text-[#9A9A9A] dark:hover:bg-white/10 dark:hover:text-white"
-export const SYSTEM_ALERT_SPARKLES = "text-[#7C5CBF] dark:text-white"
+  "text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
 
 export const SYSTEM_ALERT_BUTTON_BASE =
-  "inline-flex h-auto items-center bg-transparent p-0 text-[13px] font-medium text-[#1E1033] underline-offset-2 hover:underline focus:outline-none focus-visible:underline dark:text-white"
+  "inline-flex h-9 items-center rounded-lg px-5 text-sm font-medium text-white transition-colors focus:outline-none focus:ring-2"
 
-export function systemAlertButtonClass(_variant?: SystemAlertVariant): string {
-  return SYSTEM_ALERT_BUTTON_BASE
+export function systemAlertButtonClass(variant: SystemAlertVariant): string {
+  return `${SYSTEM_ALERT_BUTTON_BASE} ${SYSTEM_ALERT_VARIANTS[variant].actionButton}`
 }
 
 export const SYSTEM_ALERT_VARIANTS: Record<SystemAlertVariant, SystemAlertTokens> = {
   default: {
-    iconWrap: "bg-[#7C5CBF]",
+    iconWrap: "bg-[var(--cc-accent)]",
     iconColor: "text-white",
-    iconShape: "rounded-full",
-    actionButton: SYSTEM_ALERT_BUTTON_BASE,
+    actionButton:
+      "bg-[var(--cc-accent)] hover:bg-[var(--cc-accent-dark)] focus:ring-[var(--cc-accent)]/40",
   },
   success: {
-    iconWrap: "bg-[#2E9B4F]",
+    iconWrap: "bg-emerald-500",
     iconColor: "text-white",
-    iconShape: "rounded-full",
-    actionButton: SYSTEM_ALERT_BUTTON_BASE,
+    actionButton:
+      "bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500/40 dark:bg-emerald-500 dark:hover:bg-emerald-400",
   },
   warning: {
-    iconWrap: "bg-[#E89A1C] cc-toast-warn-shape",
+    iconWrap: "bg-amber-400",
     iconColor: "text-white",
-    iconShape: "",
-    actionButton: SYSTEM_ALERT_BUTTON_BASE,
+    actionButton:
+      "bg-amber-500 hover:bg-amber-600 focus:ring-amber-400/40 dark:bg-amber-500 dark:hover:bg-amber-400",
   },
   error: {
-    iconWrap: "bg-[#E24B4B]",
+    iconWrap: "bg-red-500",
     iconColor: "text-white",
-    iconShape: "rounded-full",
-    actionButton: SYSTEM_ALERT_BUTTON_BASE,
+    actionButton:
+      "bg-red-500 hover:bg-red-600 focus:ring-red-500/40 dark:bg-red-500 dark:hover:bg-red-400",
   },
   info: {
-    iconWrap: "bg-[#3B82F6]",
+    iconWrap: "bg-indigo-500",
     iconColor: "text-white",
-    iconShape: "rounded-full",
-    actionButton: SYSTEM_ALERT_BUTTON_BASE,
+    actionButton:
+      "bg-indigo-500 hover:bg-indigo-600 focus:ring-indigo-500/40 dark:bg-indigo-500 dark:hover:bg-indigo-400",
   },
   loading: {
-    iconWrap: "bg-[#7C5CBF]",
+    iconWrap: "bg-[var(--cc-accent)]",
     iconColor: "text-white",
-    iconShape: "rounded-full",
-    actionButton: SYSTEM_ALERT_BUTTON_BASE,
+    actionButton:
+      "bg-[var(--cc-accent)] hover:bg-[var(--cc-accent-dark)] focus:ring-[var(--cc-accent)]/40",
   },
 }
 
 export const SYSTEM_ALERT_ICONS: Record<SystemAlertVariant, LucideIcon> = {
   default: Sparkles,
   success: Check,
-  warning: AlertTriangle,
+  warning: AlertCircle,
   error: X,
   info: Info,
   loading: Loader2,

@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Image from "next/image"
-import { ShieldCheck } from "lucide-react"
-import { CcBookLoader } from "@/components/ui/cc-book-loader"
-import { Spinner } from "@/components/ui/spinner"
+import { Loader2, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -235,9 +233,9 @@ export function MfaSecurityStatusCard({
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
         {loading ? (
-          <div className="flex flex-col items-center gap-3 py-6 text-center">
-            <CcBookLoader size="sm" label="Loading security status" />
-            <p className="text-sm text-muted-foreground">Loading security status…</p>
+          <div className="flex items-center gap-2 text-muted-foreground py-2">
+            <Loader2 className="size-4 animate-spin" />
+            Loading security status…
           </div>
         ) : (
           <>
@@ -311,7 +309,7 @@ export function MfaSecurityStatusCard({
                       disabled={busy || setupCode.length !== 6}
                       onClick={() => void confirmEnroll()}
                     >
-                      {busy ? <Spinner size="sm" /> : null}
+                      {busy ? <Loader2 className="size-4 animate-spin" /> : null}
                       Enable two-factor
                     </Button>
                     <Button type="button" size="sm" variant="outline" disabled={busy} onClick={cancelEnroll}>
@@ -363,7 +361,7 @@ export function MfaSecurityStatusCard({
                     disabled={busy || disableCode.length !== 6}
                     onClick={() => void disableMfa()}
                   >
-                    {busy ? <Spinner size="sm" /> : null}
+                    {busy ? <Loader2 className="size-4 animate-spin" /> : null}
                     Turn off
                   </Button>
                   <Button
@@ -414,7 +412,7 @@ export function MfaSecurityStatusCard({
                       </SelectContent>
                     </Select>
                     {savingTrust ? (
-                      <Spinner size="sm" className="text-muted-foreground shrink-0" />
+                      <Loader2 className="size-4 animate-spin text-muted-foreground shrink-0" />
                     ) : trustSaved ? (
                       <span className="text-xs text-emerald-600 shrink-0">Saved</span>
                     ) : null}

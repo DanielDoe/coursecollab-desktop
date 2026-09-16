@@ -2,6 +2,12 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import { isBrowserAiEnforcementPlatform } from "@/lib/device-utils"
+import {
+  assessmentLeaveViolationDetail,
+  assessmentLeaveWarningMessage,
+  DESKTOP_ASSESSMENT_LEAVE_GRACE_MS,
+  isDesktopElectronAssessmentClient,
+} from "@/lib/desktop-anticheat-policy"
 
 export interface AntiCheatConfig {
   strictModeEnabled: boolean
@@ -113,6 +119,7 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
   const lastViewportHeightRef = useRef<number>(typeof window !== "undefined" ? window.innerHeight : 0)
   const lastVisibilityChangeTimeRef = useRef<number>(0)
   const visibilityChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const desktopLeaveGraceTimerRef = useRef<NodeJS.Timeout | null>(null)
   const violationLogDebounceDelay = 1000 // 1 second debounce for API calls
 
   // Log violation
@@ -416,10 +423,94 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
     
     window.addEventListener('resize', handleResize)
     
+    const recordTabSwitchLeave = () => {
+      if (antiCheatPaused() || !document.hidden) return
+
+      const now = Date.now()
+      const timeSinceLastSwitch = now - lastTabSwitchRef.current
+      const eventId = `${Math.floor(now / 10)}`
+
+      if (lastProcessedEventIdRef.current === eventId) {
+        return
+      }
+      if (timeSinceLastSwitch < tabSwitchDebounceDelay) {
+        return
+      }
+      if (tabSwitchProcessingRef.current) {
+        return
+      }
+
+      tabSwitchProcessingRef.current = true
+      lastTabSwitchRef.current = now
+      lastProcessedEventIdRef.current = eventId
+
+      setTimeout(() => {
+        tabSwitchProcessingRef.current = false
+        setTimeout(() => {
+          lastProcessedEventIdRef.current = null
+        }, 100)
+      }, tabSwitchDebounceDelay + 200)
+
+      const currentCount = tabSwitchCountRef.current
+      if (currentCount >= config.maxTabSwitches) {
+        setTimeout(() => {
+          tabSwitchProcessingRef.current = false
+        }, 100)
+        return
+      }
+
+      const newCount = currentCount + 1
+      tabSwitchCountRef.current = newCount
+
+      setState((prev) => {
+        const actualCount = Math.max(prev.tabSwitchCount, tabSwitchCountRef.current)
+        if (actualCount >= config.maxTabSwitches) {
+          return {
+            ...prev,
+            isWindowFocused: false,
+          }
+        }
+        const finalCount = Math.max(actualCount, tabSwitchCountRef.current)
+        return {
+          ...prev,
+          tabSwitchCount: finalCount,
+          isWindowFocused: false,
+        }
+      })
+
+      logViolation("tab_switch", assessmentLeaveViolationDetail())
+
+      const updatedCount = tabSwitchCountRef.current
+      const hasReachedMax = updatedCount >= config.maxTabSwitches
+
+      if (config.warnOnTabSwitch) {
+        if (hasReachedMax) {
+          showWarningModal(
+            "tab_switch",
+            `⚠️ CRITICAL WARNING: Maximum tab switches reached (${updatedCount}/${config.maxTabSwitches}). Your assessment will be automatically submitted.`,
+          )
+        } else {
+          showWarningModal("tab_switch", assessmentLeaveWarningMessage())
+        }
+      }
+
+      if (hasReachedMax && !onMaxViolationsTriggeredRef.current) {
+        if (config.autoSubmitOnViolations && onMaxViolations) {
+          onMaxViolationsTriggeredRef.current = true
+          onMaxViolations("tab_switch", updatedCount)
+        }
+      }
+    }
+
     const handleVisibilityChange = () => {
       if (antiCheatPaused()) return
       const isHidden = document.hidden
       const now = Date.now()
+
+      if (!isHidden && desktopLeaveGraceTimerRef.current) {
+        clearTimeout(desktopLeaveGraceTimerRef.current)
+        desktopLeaveGraceTimerRef.current = null
+      }
       
       // CRITICAL: On mobile/iPad, ignore visibility changes that occur shortly after keyboard events
       // This prevents false positives from swiping gestures and keyboard opening/closing
@@ -461,133 +552,18 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
       }
 
       if (isHidden) {
-        // CRITICAL: Debounce tab switch detection to prevent double counting
-        const now = Date.now()
-        const timeSinceLastSwitch = now - lastTabSwitchRef.current
-        
-        // CRITICAL: Create unique event ID based on timestamp (rounded to nearest 10ms)
-        // This helps identify and prevent processing the same event twice
-        // Using 10ms to catch events that fire within milliseconds of each other (like 1ms apart)
-        const eventId = `${Math.floor(now / 10)}`
-        
-        // CRITICAL: Check if we just processed this exact event (within 10ms window)
-        if (lastProcessedEventIdRef.current === eventId) {
+        if (isDesktopElectronAssessmentClient()) {
+          if (desktopLeaveGraceTimerRef.current) {
+            clearTimeout(desktopLeaveGraceTimerRef.current)
+          }
+          desktopLeaveGraceTimerRef.current = setTimeout(() => {
+            desktopLeaveGraceTimerRef.current = null
+            recordTabSwitchLeave()
+          }, DESKTOP_ASSESSMENT_LEAVE_GRACE_MS)
           return
         }
-        
-        // CRITICAL: Check debounce FIRST before setting processing flag
-        // This prevents race conditions where multiple events fire simultaneously
-        if (timeSinceLastSwitch < tabSwitchDebounceDelay) {
-          return
-        }
-        
-        // CRITICAL: Check processing flag AFTER debounce check
-        // If already processing, ignore this event (prevents double processing)
-        if (tabSwitchProcessingRef.current) {
-          return
-        }
-        
-        // CRITICAL: Set processing flag, timestamp, and event ID IMMEDIATELY (atomically)
-        // This must happen BEFORE any async operations to prevent race conditions
-        tabSwitchProcessingRef.current = true
-        lastTabSwitchRef.current = now
-        lastProcessedEventIdRef.current = eventId
-        
-        // Schedule flag clearing after debounce period + buffer
-        // This ensures the flag stays set long enough to prevent rapid duplicate events
-        setTimeout(() => {
-          tabSwitchProcessingRef.current = false
-          // Clear event ID after debounce period to allow new events
-          setTimeout(() => {
-            lastProcessedEventIdRef.current = null
-          }, 100)
-        }, tabSwitchDebounceDelay + 200) // Clear flag after debounce period + 200ms buffer
 
-        // Tab lost focus - check BEFORE incrementing to prevent counting beyond max
-        // CRITICAL: Use ref to get current count to avoid race conditions with async setState
-        const currentCount = tabSwitchCountRef.current
-        
-        // CRITICAL: Check if we've already processed this exact count increment
-        // This prevents duplicate setState calls from processing the same increment
-        if (currentCount >= config.maxTabSwitches) {
-          // Clear processing flag and return early
-          setTimeout(() => {
-            tabSwitchProcessingRef.current = false
-          }, 100)
-          return
-        }
-        
-        // CRITICAL: Increment count in ref FIRST (before setState) to prevent race conditions
-        const newCount = currentCount + 1
-        tabSwitchCountRef.current = newCount
-        
-        setState((prev) => {
-          // CRITICAL: Use the ref value (already incremented) to ensure consistency
-          // If state is behind ref, use ref value; otherwise use state value
-          const actualCount = Math.max(prev.tabSwitchCount, tabSwitchCountRef.current)
-          
-          // CRITICAL: Double-check we haven't already processed this increment
-          // This prevents duplicate setState calls from incrementing twice
-
-          // CRITICAL: Check if max already reached - if so, don't increment and trigger auto-submit
-          if (actualCount >= config.maxTabSwitches) {
-            // CRITICAL: Don't call onMaxViolations from inside setState - it will be called outside
-            // This prevents duplicate calls if setState runs multiple times
-            // Return state unchanged - don't increment beyond max
-            return {
-              ...prev,
-              isWindowFocused: false,
-            }
-          }
-
-          // CRITICAL: Use the ref value (already incremented) instead of incrementing again
-          // This ensures consistency even if setState is called multiple times
-          const finalCount = Math.max(actualCount, tabSwitchCountRef.current)
-          const hasReachedMax = finalCount >= config.maxTabSwitches
-
-          return {
-            ...prev,
-            tabSwitchCount: finalCount, // Use ref value to ensure consistency
-            isWindowFocused: false,
-          }
-        })
-        
-        // CRITICAL: Call logViolation OUTSIDE of setState to prevent duplicate API calls
-        // This ensures only ONE API call is made per tab switch, even if setState is called multiple times
-        // Use the count we already incremented in the ref
-        logViolation("tab_switch", "User switched away from assessment tab")
-        
-        // Get the updated count from ref (already incremented above)
-        const updatedCount = tabSwitchCountRef.current
-        const hasReachedMax = updatedCount >= config.maxTabSwitches
-        
-        // Show warning if enabled
-        if (config.warnOnTabSwitch) {
-          if (hasReachedMax) {
-            showWarningModal(
-              "tab_switch",
-              `⚠️ CRITICAL WARNING: Maximum tab switches reached (${updatedCount}/${config.maxTabSwitches}). Your assessment will be automatically submitted.`
-            )
-          } else {
-            showWarningModal(
-              "tab_switch",
-              "⚠️ Warning: You have switched away from the assessment tab. This action has been logged."
-            )
-          }
-        }
-
-        // If max reached, trigger auto-submit immediately
-        // CRITICAL: Only call onMaxViolations ONCE, even if this handler runs multiple times
-        if (hasReachedMax && !onMaxViolationsTriggeredRef.current) {
-          if (config.autoSubmitOnViolations && onMaxViolations) {
-            // CRITICAL: Set flag BEFORE calling to prevent duplicate calls
-            onMaxViolationsTriggeredRef.current = true
-            onMaxViolations("tab_switch", updatedCount)
-          }
-        }
-        
-        // Processing flag is cleared by the timeout set at the start of the handler
-        // No need to clear it here to avoid race conditions
+        recordTabSwitchLeave()
       } else {
         // Tab regained focus
         setState((prev) => ({
@@ -632,6 +608,9 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
       window.removeEventListener("resize", handleResize)
       if (visibilityChangeTimeoutRef.current) {
         clearTimeout(visibilityChangeTimeoutRef.current)
+      }
+      if (desktopLeaveGraceTimerRef.current) {
+        clearTimeout(desktopLeaveGraceTimerRef.current)
       }
     }
   }, [config.trackTabSwitches, config.warnOnTabSwitch, config.maxTabSwitches, config.autoSubmitOnViolations, logViolation, showWarningModal, onMaxViolations, antiCheatPaused])

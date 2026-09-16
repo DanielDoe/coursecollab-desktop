@@ -118,14 +118,9 @@ import {
 } from "@/components/instructor/dashboard-v2/FacultyIntegratedToolbar"
 import {
   AM_EMPTY,
-  AM_EMPTY_FILL,
   AM_LIST_ROW,
   AM_PANEL,
-  AM_PANEL_FILL,
-  AM_PANEL_SCROLL,
-  AM_PANEL_SECTION,
   AM_ROW,
-  AM_STAT_BOX,
   AM_STATUS_PILL,
   AM_TILE,
   PORTAL_TEXT,
@@ -133,22 +128,7 @@ import {
 } from "@/lib/assessments/assessment-management-surface-classes"
 import { portalListStripe } from "@/lib/portal-module-themes"
 
-import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 const ASSESSMENTS_PAGE_SIZE = 8
-
-/** Short sidebar label for the primary "all items" tab (avoids wrapping long plural names). */
-function allAssessmentsMenuLabel(type: string, pluralLabel: string): string {
-  switch (type) {
-    case "homework":
-      return "All Homework"
-    case "mid_semester":
-      return "All Mid-Semester"
-    case "final":
-      return "All Finals"
-    default:
-      return `All ${pluralLabel}`
-  }
-}
 
 function formatDeletedCountdown(deletedAt: string) {
   const elapsed = Date.now() - new Date(deletedAt).getTime()
@@ -199,6 +179,7 @@ interface Quiz {
   ta_content_visible?: boolean
   ta_content_restricted?: boolean
   unfinalized_count?: number
+  finalized_count?: number
   total_attempts?: number
 }
 
@@ -223,7 +204,6 @@ function v2AssessmentSegment(rawAssessmentType: string): string {
 
 export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizManagementProps = {}) {
   const router = useRouter()
-  const { confirm } = useAppConfirm()
   const pathname = usePathname()
   const { courseScopeVersion, basePath, loginPath, portal, hasPermission, staffRoleForCourse } =
     useInstructorDashboardV2()
@@ -292,27 +272,11 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
     "pending",
     "local"
   )
+  const [bonusPointsDialogOpen, setBonusPointsDialogOpen] = useState(false)
   const [autoFinalizingQuizId, setAutoFinalizingQuizId] = useState<number | null>(null)
   const [emailingMissedQuizId, setEmailingMissedQuizId] = useState<number | null>(null)
   const [grantingBonus, setGrantingBonus] = useState(false)
-  const [bonusPreviewLoading, setBonusPreviewLoading] = useState(false)
-  const [bonusPreview, setBonusPreview] = useState<{
-    affected_students: number | string
-    affected_answers: number | string
-    affected_quizzes: number | string
-    affected_attempts: number | string
-  } | null>(null)
-  const [bonusSampleStudents, setBonusSampleStudents] = useState<
-    Array<{
-      attempt_id: number
-      quiz_id: number
-      quiz_title: string
-      student_id: string
-      student_name: string
-      section: string
-      null_answers_count: number | string
-    }>
-  >([])
+  const [bonusPreview, setBonusPreview] = useState<any>(null)
   const [bonusResults, setBonusResults] = useState<any>(null)
   const [bonusQuizId, setBonusQuizId] = useState<string>("")
   const [bonusSection, setBonusSection] = useState<string>("")
@@ -654,14 +618,9 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
   }
 
   const handlePermanentDelete = async (itemId: number) => {
-    const ok = await confirm({
-      title: "Permanently delete this item?",
-      description: "This action cannot be undone.",
-      confirmLabel: "Delete permanently",
-      cancelLabel: "Cancel",
-      variant: "destructive",
-    })
-    if (!ok) return
+    if (!confirm("Are you sure you want to permanently delete this item? This action cannot be undone.")) {
+      return
+    }
 
     try {
       const response = await instructorApiFetch("/api/instructor/deleted-items", {
@@ -1014,27 +973,16 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
   }
 
   const handleBonusPreview = async () => {
-    setBonusPreviewLoading(true)
-    setBonusPreview(null)
-    setBonusSampleStudents([])
-    setBonusResults(null)
-
     try {
       const params = new URLSearchParams()
-      if (bonusQuizId && bonusQuizId !== "all") params.append("quizId", bonusQuizId)
+      if (bonusQuizId) params.append("quizId", bonusQuizId)
       if (bonusSection && bonusSection !== "all") params.append("section", bonusSection)
 
       const response = await instructorApiFetch(`/api/instructor/bonus-points?${params.toString()}`, {
         headers: buildInstructorApiHeaders(),
       })
       const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to load preview")
-      }
-
       setBonusPreview(data.preview)
-      setBonusSampleStudents(Array.isArray(data.sampleStudents) ? data.sampleStudents : [])
     } catch (error) {
       console.error("Failed to preview bonus points:", error)
       toast({
@@ -1042,8 +990,6 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
         description: "Could not load bonus points preview data. Please check your selection and try again.",
         variant: "destructive",
       })
-    } finally {
-      setBonusPreviewLoading(false)
     }
   }
 
@@ -1153,7 +1099,7 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          quizId: bonusQuizId && bonusQuizId !== "all" ? bonusQuizId : null,
+          quizId: bonusQuizId || null,
           section: bonusSection && bonusSection !== "all" ? bonusSection : null,
           confirm: true,
         }),
@@ -1165,13 +1111,13 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
 
       const data = await response.json()
       setBonusResults(data)
-      setBonusPreview(null)
-      setBonusSampleStudents([])
 
       toast({
         title: "🎁 Bonus Points Granted Successfully!",
-        description: `Awarded bonus points for ${data.affectedAnswers} unanswered questions. Student scores have been updated automatically.`,
+        description: `Awarded bonus points to ${data.affectedStudents} students for ${data.affectedAnswers} unanswered questions across ${data.affectedAttempts} attempts. Student scores have been updated automatically.`,
       })
+
+      setBonusPointsDialogOpen(false)
     } catch (error) {
       console.error("Failed to grant bonus points:", error)
       toast({
@@ -1366,8 +1312,17 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
     </div>
   )
 
+  const allItemsLabel =
+    rawAssessmentType === "homework"
+      ? "All homeworks"
+      : rawAssessmentType === "mid_semester"
+        ? "All midterms"
+        : rawAssessmentType === "final"
+          ? "All finals"
+          : `All ${assessment.pluralLabel}`
+
   const menuItems = [
-    { key: "quizzes" as const, label: allAssessmentsMenuLabel(rawAssessmentType, assessment.pluralLabel), icon: FileText, count: quizzes.length },
+    { key: "quizzes" as const, label: allItemsLabel, icon: FileText, count: quizzes.length },
     { key: "create-from-bank" as const, label: "Create from Bank", icon: Plus },
     { key: "saved" as const, label: "Saved", icon: Bookmark, count: savedQuizzes.length },
     { key: "analytics" as const, label: "Analytics", icon: TrendingUp },
@@ -1387,19 +1342,11 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
     { key: "question-bank" as const, label: "Question Bank", icon: Database, href: questionBankHref },
   ]
 
-  const isPanel = embedInDashboard
-  const panelSection = isPanel ? AM_PANEL_SECTION : undefined
-  const panelScroll = isPanel ? AM_PANEL_SCROLL : undefined
-  const panelFill = isPanel ? AM_PANEL_FILL : undefined
-  const emptyState = isPanel ? AM_EMPTY_FILL : AM_EMPTY
-  const tabShell = isPanel ? cn(AM_PANEL_SECTION, "gap-3 sm:gap-4") : "space-y-4 sm:space-y-6"
-  const tabShellTight = isPanel ? cn(AM_PANEL_SECTION, "gap-3") : "space-y-3"
-
   return (
     <div
       className={
         embedInDashboard
-          ? "flex min-h-0 flex-1 flex-col overflow-hidden w-full min-w-0"
+          ? "w-full min-w-0 overflow-x-hidden"
           : "w-full max-w-[min(100%,72rem)] mx-auto px-3 sm:px-4 md:px-5 py-3 sm:py-4 min-w-0 overflow-x-hidden"
       }
     >
@@ -1421,9 +1368,6 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
       )}
 
       <FacultyModuleSplitLayout
-        scrollMode={embedInDashboard ? "panel" : "page"}
-        className={embedInDashboard ? "min-h-0 flex-1" : undefined}
-        menuWidthClass="lg:w-60"
         menu={
           <FacultyModuleSideMenu
             moduleId={facultyModuleId}
@@ -1446,17 +1390,9 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
         }
       >
         {/* Main Content */}
-        <div
-          className={cn(
-            "min-w-0 w-full max-w-full",
-            isPanel
-              ? "flex min-h-0 flex-1 flex-col overflow-hidden"
-              : "flex-1 space-y-4 sm:space-y-6",
-          )}
-        >
+        <div className="min-w-0 flex-1 w-full max-w-full space-y-4 sm:space-y-6">
             {activeTab === "create-from-bank" && (
-              <div className={panelSection}>
-                <CreateQuizFromBankWizard
+              <CreateQuizFromBankWizard
                 variant={embedInDashboard ? "embedded" : "default"}
                 assessmentType={assessmentType === "practice" || assessmentType === "playground" ? "quiz" : assessmentType}
                 onSuccess={() => {
@@ -1464,11 +1400,10 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
                   fetchData()
                 }}
               />
-              </div>
             )}
 
             {activeTab === "quizzes" && (
-              <div className={cn(tabShellTight, panelSection)}>
+              <div className="space-y-3 sm:space-y-4">
                 {(() => {
                   if (process.env.NODE_ENV !== 'production') {
                     console.log('[Quiz Management] 🎨 RENDERING QUIZZES LIST:', {
@@ -1488,7 +1423,7 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
                   return null
                 })()}
                 {quizzes.length === 0 ? (
-                  <div className={emptyState}>
+                  <div className={AM_EMPTY}>
                     <FileText className="mx-auto mb-3 h-10 w-10 opacity-40 text-[var(--cc-text-muted)]" />
                     <p className={cn("text-sm font-medium", PORTAL_TEXT)}>No {assessment.pluralLabel.toLowerCase()} yet</p>
                     <p className={cn("mt-1 text-xs", PORTAL_TEXT_MUTED)}>{getEmptyMessage()}</p>
@@ -1504,7 +1439,7 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
                     ) : null}
                   </div>
                 ) : (
-                  <div className={cn("space-y-3", panelSection)}>
+                  <div className="space-y-3">
                     <InstructorAssessmentListToolbar
                       moduleId={facultyModuleId}
                       search={listSearch}
@@ -1523,7 +1458,7 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
                       trailing={listToolbarTrailing}
                     />
                     {filteredQuizzes.length === 0 ? (
-                      <div className={cn(emptyState, !isPanel && "py-8")}>
+                      <div className={cn(AM_EMPTY, "py-8")}>
                         <p className={cn("text-sm font-medium", PORTAL_TEXT)}>
                           {quizzes.length === 0 ? `No ${getPluralName()} yet` : "No assessments match your filters"}
                         </p>
@@ -1532,13 +1467,13 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
                         ) : null}
                       </div>
                     ) : listViewMode === "list" ? (
-                    <div className={cn(chrome.card, "divide-y divide-[var(--border)] overflow-hidden", panelScroll)}>
+                    <div className={cn(chrome.card, "divide-y divide-[var(--border)] overflow-hidden")}>
                       {paginatedQuizzes.map((quiz, index) =>
                         renderAssessmentCard(quiz, (quizzesSafePage - 1) * ASSESSMENTS_PAGE_SIZE + index),
                       )}
                     </div>
                     ) : (
-                    <div className={cn("grid grid-cols-1 gap-3 xl:grid-cols-2", panelScroll)}>
+                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                       {paginatedQuizzes.map((quiz, index) =>
                         renderAssessmentCard(quiz, (quizzesSafePage - 1) * ASSESSMENTS_PAGE_SIZE + index),
                       )}
@@ -1598,9 +1533,9 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
             )}
 
             {activeTab === "saved" && (
-              <div className={cn(tabShellTight, panelSection)}>
+              <div className="space-y-3">
                 {savedQuizzes.length === 0 ? (
-                  <div className={emptyState}>
+                  <div className={AM_EMPTY}>
                     <Bookmark className="mx-auto mb-3 h-10 w-10 opacity-40 text-[var(--cc-text-muted)]" />
                     <p className={cn("text-sm font-medium", PORTAL_TEXT)}>No saved templates</p>
                     <p className={cn("mt-1 text-xs", PORTAL_TEXT_MUTED)}>
@@ -1616,7 +1551,7 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
                     </Button>
                   </div>
                 ) : (
-                  <div className={cn("space-y-3", panelSection)}>
+                  <div className="space-y-3">
                     <InstructorAssessmentListToolbar
                       moduleId={facultyModuleId}
                       search={listSearch}
@@ -1647,17 +1582,17 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
                       }
                     />
                     {filteredSavedQuizzes.length === 0 ? (
-                      <div className={cn(emptyState, !isPanel && "py-8")}>
+                      <div className={cn(AM_EMPTY, "py-8")}>
                         <p className={cn("text-sm font-medium", PORTAL_TEXT)}>No templates match your filters</p>
                       </div>
                     ) : listViewMode === "list" ? (
-                    <div className={cn(chrome.card, "divide-y divide-[var(--border)] overflow-hidden", panelScroll)}>
+                    <div className={cn(chrome.card, "divide-y divide-[var(--border)] overflow-hidden")}>
                       {paginatedSavedQuizzes.map((quiz, index) =>
                         renderAssessmentCard(quiz, (savedSafePage - 1) * ASSESSMENTS_PAGE_SIZE + index),
                       )}
                     </div>
                     ) : (
-                    <div className={cn("grid grid-cols-1 gap-3 xl:grid-cols-2", panelScroll)}>
+                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                       {paginatedSavedQuizzes.map((quiz, index) =>
                         renderAssessmentCard(quiz, (savedSafePage - 1) * ASSESSMENTS_PAGE_SIZE + index),
                       )}
@@ -1717,7 +1652,7 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
             )}
 
             {activeTab === "reevaluate" && (
-              <div className={cn(AM_PANEL, "space-y-5", panelSection, panelScroll)}>
+              <div className={cn(AM_PANEL, "space-y-5")}>
                 <div className="space-y-1">
                   <p className={cn("text-sm font-semibold", PORTAL_TEXT)}>Bulk re-evaluate (AI)</p>
                   <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
@@ -1831,231 +1766,117 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
             )}
 
             {activeTab === "bonus" && (
-              <div className={cn(AM_PANEL, "space-y-5", panelSection, panelScroll)}>
-                <div className="space-y-2 shrink-0">
+              <div className="space-y-4">
+                <div className={cn(AM_PANEL, "space-y-2")}>
                   <p className={cn("text-sm font-semibold", PORTAL_TEXT)}>Grant bonus points</p>
                   <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
                     One-time operation for unanswered questions caused by past system issues. Use only to compensate students — the system now saves all answers correctly.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-                  <div>
-                    <label className={cn("mb-1.5 block text-xs font-medium sm:mb-2 sm:text-sm", PORTAL_TEXT)}>
-                      Filter by {assessment.label} (Optional)
-                    </label>
-                    <Select
-                      value={bonusQuizId || "all"}
-                      onValueChange={(value) => {
-                        setBonusQuizId(value)
-                        setBonusPreview(null)
-                        setBonusSampleStudents([])
-                        setBonusResults(null)
-                      }}
-                    >
-                      <SelectTrigger className={REEVAL_TAB_SELECT_TRIGGER}>
-                        <SelectValue placeholder="All quizzes (leave empty for all)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All {assessment.pluralLabel}</SelectItem>
-                        {quizzes.map((quiz) => (
-                          <SelectItem key={quiz.id} value={quiz.id.toString()}>
-                            {quiz.title}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className={cn(AM_PANEL, "space-y-4")}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      <div>
+                        <label className={cn("mb-1.5 block text-xs font-medium sm:mb-2 sm:text-sm", PORTAL_TEXT)}>
+                          Filter by {assessment.label} (Optional)
+                        </label>
+                        <Select
+                          value={bonusQuizId}
+                          onValueChange={(value) => {
+                            setBonusQuizId(value)
+                            setBonusPreview(null)
+                          }}
+                        >
+                          <SelectTrigger className={REEVAL_TAB_SELECT_TRIGGER}>
+                            <SelectValue placeholder="All quizzes (leave empty for all)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All {assessment.pluralLabel}</SelectItem>
+                            {quizzes.map((quiz) => (
+                              <SelectItem key={quiz.id} value={quiz.id.toString()}>
+                                {quiz.title}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                  <div>
-                    <label className={cn("mb-1.5 block text-xs font-medium sm:mb-2 sm:text-sm", PORTAL_TEXT)}>
-                      Filter by Section (Optional)
-                    </label>
-                    <Select
-                      value={bonusSection || "all"}
-                      onValueChange={(value) => {
-                        setBonusSection(value)
-                        setBonusPreview(null)
-                        setBonusSampleStudents([])
-                        setBonusResults(null)
-                      }}
+                      <div>
+                        <label className={cn("mb-1.5 block text-xs font-medium sm:mb-2 sm:text-sm", PORTAL_TEXT)}>
+                          Filter by Section (Optional)
+                        </label>
+                        <Select
+                          value={bonusSection}
+                          onValueChange={(value) => {
+                            setBonusSection(value)
+                            setBonusPreview(null)
+                          }}
+                        >
+                          <SelectTrigger className={REEVAL_TAB_SELECT_TRIGGER}>
+                            <SelectValue placeholder="All sections (leave empty for all)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Sections</SelectItem>
+                            {lectureTargets.map((target) => (
+                              <SelectItem key={target.sessionId} value={target.sessionCode}>
+                                {target.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <Button 
+                      onClick={handleBonusPreview} 
+                      variant="outline" 
+                      size="sm"
+                      className={cn("h-9 w-full rounded-lg text-xs sm:h-10 sm:text-sm", chrome.outline)}
                     >
-                      <SelectTrigger className={REEVAL_TAB_SELECT_TRIGGER}>
-                        <SelectValue placeholder="All sections (leave empty for all)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Sections</SelectItem>
-                        {lectureTargets.map((target) => (
-                          <SelectItem key={target.sessionId} value={target.sessionCode}>
-                            {target.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                      <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                      Preview Impact
+                    </Button>
+
+                    {bonusPreview && (
+                      <div className={cn(AM_PANEL, "space-y-3 border-[var(--cc-accent)]/20 bg-[var(--cc-accent)]/5")}>
+                        <p className={cn("flex items-center gap-2 text-sm font-semibold", PORTAL_TEXT)}>
+                          <TrendingUp className="h-4 w-4 text-[var(--cc-accent)]" />
+                          Preview results
+                        </p>
+                        <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 sm:text-sm">
+                          <p><strong>{bonusPreview.affected_students}</strong> students affected</p>
+                          <p><strong>{bonusPreview.affected_answers}</strong> unanswered questions</p>
+                          <p><strong>{bonusPreview.affected_quizzes}</strong> assessment(s)</p>
+                          <p><strong>{bonusPreview.affected_attempts}</strong> attempt(s) updated</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {bonusResults && (
+                      <div className={cn(AM_PANEL, "space-y-2 border-[var(--cc-sem-success)]/30 bg-[var(--cc-sem-success)]/5")}>
+                        <p className={cn("flex items-center gap-2 text-sm font-semibold", PORTAL_TEXT)}>
+                          <CheckCircle2 className="h-4 w-4 text-[var(--cc-sem-success)]" />
+                          Bonus points granted
+                        </p>
+                        <div className={cn("space-y-1 text-xs sm:text-sm", PORTAL_TEXT_MUTED)}>
+                          <p>{bonusResults.affectedStudents} students · {bonusResults.affectedAnswers} questions · {bonusResults.affectedAttempts} attempts</p>
+                        </div>
+                      </div>
+                    )}
+                    <Button
+                      onClick={() => setBonusPointsDialogOpen(true)}
+                      disabled={!bonusPreview || grantingBonus}
+                      className={cn("w-full", fp.cta)}
+                    >
+                      <Gift className="h-3.5 w-3.5 mr-1.5" />
+                      Grant bonus points
+                    </Button>
                 </div>
-
-                <Button
-                  onClick={handleBonusPreview}
-                  variant="outline"
-                  size="sm"
-                  disabled={bonusPreviewLoading}
-                  className={cn("h-9 w-full rounded-lg text-xs sm:h-10 sm:text-sm", chrome.outline)}
-                >
-                  {bonusPreviewLoading ? (
-                    <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2 animate-spin" />
-                  ) : (
-                    <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-                  )}
-                  {bonusPreviewLoading ? "Loading preview…" : "Preview Impact"}
-                </Button>
-
-                {bonusPreview && (
-                  <div className="space-y-4 rounded-xl border border-[var(--cc-accent)]/20 bg-[var(--cc-accent)]/5 p-4 sm:p-5">
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                      <p className={cn("flex items-center gap-2 text-sm font-semibold", PORTAL_TEXT)}>
-                        <TrendingUp className="h-4 w-4 text-[var(--cc-accent)]" />
-                        Impact preview
-                      </p>
-                      <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
-                        Review the counts below before granting bonus points.
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                      {[
-                        {
-                          label: "Students",
-                          value: bonusPreview.affected_students,
-                          icon: Users,
-                        },
-                        {
-                          label: "Unanswered questions",
-                          value: bonusPreview.affected_answers,
-                          icon: AlertCircle,
-                        },
-                        {
-                          label: "Assessments",
-                          value: bonusPreview.affected_quizzes,
-                          icon: FileText,
-                        },
-                        {
-                          label: "Attempts",
-                          value: bonusPreview.affected_attempts,
-                          icon: RefreshCw,
-                        },
-                      ].map(({ label, value, icon: Icon }) => (
-                        <div key={label} className={AM_STAT_BOX}>
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--cc-accent)]/10 text-[var(--cc-accent-dark)] dark:text-[var(--cc-accent)]">
-                            <Icon className="h-4 w-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className={cn("text-[10px] font-semibold uppercase tracking-wide", PORTAL_TEXT_MUTED)}>
-                              {label}
-                            </p>
-                            <p className={cn("text-lg font-semibold tabular-nums", PORTAL_TEXT)}>{value ?? 0}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {Number(bonusPreview.affected_answers) === 0 ? (
-                      <div className={cn("rounded-lg border border-[var(--border)] bg-[var(--background)]/60 px-4 py-3 text-sm", PORTAL_TEXT_MUTED)}>
-                        No eligible unanswered questions were found for the current filters.
-                      </div>
-                    ) : (
-                      <>
-                        {bonusSampleStudents.length > 0 && (
-                          <div className="space-y-2">
-                            <p className={cn("text-xs font-semibold uppercase tracking-wide", PORTAL_TEXT_MUTED)}>
-                              Sample affected students
-                            </p>
-                            <div className={cn(chrome.card, "max-h-56 divide-y divide-[var(--border)] overflow-y-auto")}>
-                              {bonusSampleStudents.map((student) => (
-                                <div key={`${student.attempt_id}-${student.student_id}`} className={AM_ROW}>
-                                  <div className="min-w-0">
-                                    <p className={cn("truncate text-sm font-medium", PORTAL_TEXT)}>
-                                      {student.student_name}
-                                    </p>
-                                    <p className={cn("truncate text-xs", PORTAL_TEXT_MUTED)}>
-                                      {student.section} · {student.quiz_title}
-                                    </p>
-                                  </div>
-                                  <Badge variant="secondary" className="shrink-0 tabular-nums">
-                                    +{student.null_answers_count}
-                                  </Badge>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="space-y-3 rounded-lg border border-[var(--cc-sem-warning)]/25 bg-[var(--cc-sem-warning)]/5 px-4 py-3">
-                          <p className={cn("flex items-start gap-2 text-xs sm:text-sm", PORTAL_TEXT_MUTED)}>
-                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--cc-sem-warning)]" />
-                            This marks eligible unanswered questions as correct and recalculates scores. This is a one-time compensation operation.
-                          </p>
-                          <Button
-                            onClick={handleGrantBonus}
-                            disabled={grantingBonus}
-                            className={cn("w-full", fp.cta)}
-                          >
-                            {grantingBonus ? (
-                              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                            ) : (
-                              <Gift className="h-3.5 w-3.5 mr-1.5" />
-                            )}
-                            {grantingBonus ? "Granting bonus points…" : "Grant bonus points"}
-                          </Button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {bonusResults && (
-                  <div className={cn(AM_PANEL, "space-y-3 border-[var(--cc-sem-success)]/30 bg-[var(--cc-sem-success)]/5")}>
-                    <p className={cn("flex items-center gap-2 text-sm font-semibold", PORTAL_TEXT)}>
-                      <CheckCircle2 className="h-4 w-4 text-[var(--cc-sem-success)]" />
-                      Bonus points granted
-                    </p>
-                    <div className={cn("space-y-1 text-xs sm:text-sm", PORTAL_TEXT_MUTED)}>
-                      <p>
-                        {bonusResults.affectedStudents} students · {bonusResults.affectedAnswers} questions updated
-                      </p>
-                    </div>
-                    {Array.isArray(bonusResults.summary) && bonusResults.summary.length > 0 && (
-                      <div className={cn(chrome.card, "max-h-48 divide-y divide-[var(--border)] overflow-y-auto")}>
-                        {bonusResults.summary.slice(0, 20).map((student: {
-                          studentId: string
-                          studentName: string
-                          section: string
-                          quizTitle: string
-                          bonusPoints: number
-                        }, idx: number) => (
-                          <div key={`${student.studentId}-${idx}`} className={AM_ROW}>
-                            <div className="min-w-0">
-                              <p className={cn("truncate text-sm font-medium", PORTAL_TEXT)}>
-                                {student.studentName}
-                              </p>
-                              <p className={cn("truncate text-xs", PORTAL_TEXT_MUTED)}>
-                                {student.section} · {student.quizTitle}
-                              </p>
-                            </div>
-                            <Badge variant="secondary" className="shrink-0 tabular-nums">
-                              +{student.bonusPoints}
-                            </Badge>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             )}
 
             {activeTab === "deleted" && (
-              <div className={cn(tabShellTight, panelSection)}>
+              <div className="space-y-3">
                 <div className={cn(AM_PANEL, "flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between")}>
                   <div className="min-w-0 space-y-1">
                     <p className={cn("text-sm font-semibold", PORTAL_TEXT)}>Deleted {assessment.pluralLabel}</p>
@@ -2081,12 +1902,12 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
                 </div>
 
                 {loadingDeleted ? (
-                  <div className={cn(AM_PANEL, "flex items-center justify-center gap-2", panelFill)}>
+                  <div className={cn(AM_PANEL, "flex items-center justify-center gap-2 py-10")}>
                     <Loader2 className="h-5 w-5 animate-spin text-[var(--cc-accent)]" />
                     <span className={cn("text-sm", PORTAL_TEXT_MUTED)}>Loading deleted items…</span>
                   </div>
                 ) : !Array.isArray(deletedItems) || deletedItems.length === 0 ? (
-                  <div className={emptyState}>
+                  <div className={AM_EMPTY}>
                     <CheckCircle2 className="mx-auto mb-3 h-10 w-10 opacity-40 text-[var(--cc-sem-success)]" />
                     <p className={cn("text-sm font-medium", PORTAL_TEXT)}>No deleted items</p>
                     <p className={cn("mt-1 text-xs", PORTAL_TEXT_MUTED)}>
@@ -2094,7 +1915,7 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
                     </p>
                   </div>
                 ) : (
-                  <div className={cn(chrome.card, "divide-y divide-[var(--border)] overflow-hidden", panelScroll)}>
+                  <div className={cn(chrome.card, "divide-y divide-[var(--border)] overflow-hidden")}>
                     {(Array.isArray(deletedItems) ? deletedItems : []).map((item, index) => {
                       const stripe = portalListStripe(index, chrome.theme.family)
                       const countdown = formatDeletedCountdown(item.deleted_at)
@@ -2178,35 +1999,31 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
             )}
 
             {activeTab === "issues" && (
-              <div className={cn(tabShell, panelSection)}>
-                <div className={cn(AM_PANEL, "space-y-1 shrink-0")}>
+              <div className="space-y-4">
+                <div className={cn(AM_PANEL, "space-y-1")}>
                   <p className={cn("text-sm font-semibold", PORTAL_TEXT)}>Student-reported issues</p>
                   <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
                     Review and resolve questions flagged during {assessment.pluralLabel.toLowerCase()}.
                   </p>
                 </div>
-                <InstructorQuizIssues
-                  assessmentType={assessmentType}
-                  courseCode={courseCode}
-                  panelLayout={isPanel}
-                />
+                <InstructorQuizIssues assessmentType={assessmentType} courseCode={courseCode} />
               </div>
             )}
 
             {activeTab === "results" && (
-              <div className={cn(tabShell, panelSection)}>
+              <div className="space-y-4 sm:space-y-6 min-h-[400px] min-w-0 w-full max-w-full overflow-x-hidden">
                 <AssessmentResultsViewer assessmentType={assessmentType} embedInDashboard={embedInDashboard} />
               </div>
             )}
 
             {activeTab === "flagged" && (
-              <div className={cn(tabShell, panelSection)}>
+              <div className="space-y-4 sm:space-y-6 min-h-[400px] min-w-0 w-full max-w-full overflow-x-hidden">
                 <AssessmentResultsViewer assessmentType={assessmentType} embedInDashboard={embedInDashboard} showFlaggedOnly />
               </div>
             )}
 
             {activeTab === "analytics" && (
-              <div className={cn(tabShellTight, panelSection, panelScroll)}>
+              <div className="space-y-3">
                 {quizzes.length > 0 ? (
                   <FacultyIntegratedToolbar
                     moduleId={facultyModuleId}
@@ -2261,14 +2078,11 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
             )}
 
             {activeTab === "ai-evaluation" && (
-              <div className={cn(tabShell, panelSection)}>
-                <InstructorAiEvaluationManager
-                  variant="embedded"
-                  assessmentTypeFilter={assessmentType}
-                  assessmentLabel={assessment.label}
-                  panelLayout={isPanel}
-                />
-              </div>
+              <InstructorAiEvaluationManager
+                variant="embedded"
+                assessmentTypeFilter={assessmentType}
+                assessmentLabel={assessment.label}
+              />
             )}
           </div>
       </FacultyModuleSplitLayout>
@@ -2299,6 +2113,25 @@ export function InstructorQuizManagement({ embedInDashboard }: InstructorQuizMan
             <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteConfirm} className={cn("rounded-xl", fp.cta)}>
               {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bonus Points Confirmation Dialog */}
+      <AlertDialog open={bonusPointsDialogOpen} onOpenChange={setBonusPointsDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Grant Bonus Points</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will grant bonus points to students for unanswered questions. This is a one-time operation.
+              Are you sure you want to proceed?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleGrantBonus} disabled={grantingBonus}>
+              {grantingBonus ? "Processing..." : "Grant Bonus Points"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

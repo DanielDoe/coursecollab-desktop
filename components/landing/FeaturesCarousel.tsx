@@ -174,8 +174,8 @@ const FEATURE_CARDS: FeatureCard[] = [
   {
     id: "codebench",
     title: "CodeBench IDE",
-    desc: "Write C++, C, and Python — with Cora walkthrough, debug, and explain built in. Local Run is available for C++ on desktop.",
-    badge: "C++ · C · Python",
+    desc: "Write and run C++, Python, JavaScript, Java, and more in the browser — with Cora walkthrough, debug, and explain built in.",
+    badge: "12+ languages",
     icon: Code2,
     media: {
       web: webShot(

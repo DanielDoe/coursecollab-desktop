@@ -18,7 +18,6 @@ import {
   Users,
   Zap,
 } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -56,6 +55,7 @@ export type InstructorAssessmentCardQuiz = {
   ta_content_visible?: boolean
   ta_content_restricted?: boolean
   unfinalized_count?: number
+  finalized_count?: number
   total_attempts?: number
 }
 
@@ -315,8 +315,8 @@ function StatusBadges({ quiz }: { quiz: InstructorAssessmentCardQuiz }) {
       ) : null}
       {quiz.unfinalized_count !== undefined &&
         Number(quiz.unfinalized_count) === 0 &&
-        quiz.total_attempts &&
-        Number(quiz.total_attempts) > 0 && (
+        Number(quiz.finalized_count ?? 0) > 0 &&
+        Number(quiz.total_attempts ?? 0) > 0 && (
           <span className={cn(AM_STATUS_PILL, "bg-[var(--cc-sem-success)]/10 text-[var(--cc-sem-success)]")}>
             All Finalized
           </span>
@@ -326,17 +326,16 @@ function StatusBadges({ quiz }: { quiz: InstructorAssessmentCardQuiz }) {
           {quiz.unfinalized_count} Unfinalized
         </span>
       )}
-      <Badge
-        variant="outline"
+      <span
         className={cn(
-          "text-xs border-0",
+          AM_STATUS_PILL,
           quiz.is_active
             ? "bg-[var(--cc-sem-success)]/10 text-[var(--cc-sem-success)]"
             : "bg-muted text-[var(--cc-text-muted)]",
         )}
       >
         {quiz.is_active ? "Active" : "Inactive"}
-      </Badge>
+      </span>
     </div>
   )
 }

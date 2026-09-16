@@ -27,15 +27,14 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { useMessagesTheme } from "@/components/messages/messages-theme-context"
-import { getMessageAuthHeaders } from "@/lib/direct-messages/client"
-import { stripHtmlToPlain } from "@/lib/direct-messages/html"
+import type { MessageAttachmentDraft } from "@/lib/direct-messages/attachments"
+import {
+  composerCanSend,
+  uploadMessageAttachment,
+} from "@/lib/direct-messages/upload-message-attachment-client"
+import { mediaDisplayUrl } from "@/lib/media/display-url"
 
-export type MessageAttachmentDraft = {
-  fileName: string
-  fileUrl: string
-  mimeType: string | null
-  fileSize: number | null
-}
+export type { MessageAttachmentDraft } from "@/lib/direct-messages/attachments"
 
 const QUICK_EMOJIS = [
   "😀", "😊", "👍", "🙏", "❤️", "🎉", "✅", "📎",
@@ -312,6 +311,7 @@ function ComposerPlusMenu({
 function SendButton({
   disabled,
   sending,
+  uploading,
   hasContent,
   onClick,
   compact,
@@ -319,13 +319,14 @@ function SendButton({
 }: {
   disabled?: boolean
   sending?: boolean
+  uploading?: boolean
   hasContent: boolean
   onClick?: () => void
   compact?: boolean
   extraDisabled?: boolean
 }) {
   const theme = useMessagesTheme()
-  const canSend = hasContent && !extraDisabled
+  const canSend = hasContent && !extraDisabled && !uploading
   return (
     <button
       type="button"
@@ -370,6 +371,16 @@ export function MessageComposer({
   const photoInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const uploadFileRef = useRef<(file: File) => void>(() => {})
+  const attachmentsRef = useRef(attachments)
+  attachmentsRef.current = attachments
+  const uploadChainRef = useRef<Promise<void>>(Promise.resolve())
+  const activeUploadsRef = useRef(0)
+
+  const setUploadingCount = useCallback((delta: number) => {
+    activeUploadsRef.current = Math.max(0, activeUploadsRef.current + delta)
+    setUploading(activeUploadsRef.current > 0)
+  }, [])
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -409,6 +420,37 @@ export function MessageComposer({
         }
         return false
       },
+      handlePaste: (_view, event) => {
+        const clipboard = event.clipboardData
+        if (!clipboard) return false
+        for (const item of clipboard.items) {
+          if (item.kind !== "file") continue
+          const file = item.getAsFile()
+          if (
+            file &&
+            (file.type.startsWith("image/") ||
+              /\.(png|jpe?g|gif|webp|heic|heif)$/i.test(file.name))
+          ) {
+            event.preventDefault()
+            uploadFileRef.current(file)
+            return true
+          }
+        }
+        return false
+      },
+      handleDrop: (_view, event) => {
+        const file = event.dataTransfer?.files?.[0]
+        if (
+          file &&
+          (file.type.startsWith("image/") ||
+            /\.(png|jpe?g|gif|webp|heic|heif)$/i.test(file.name))
+        ) {
+          event.preventDefault()
+          uploadFileRef.current(file)
+          return true
+        }
+        return false
+      },
     },
   })
 
@@ -436,39 +478,53 @@ export function MessageComposer({
     [editor],
   )
 
-  const uploadFile = useCallback(
-    async (file: File) => {
-      setUploadError(null)
-      setUploading(true)
-      try {
-        const form = new FormData()
-        form.append("file", file)
-        const res = await fetch("/api/messages/attachments", {
-          method: "POST",
-          headers: getMessageAuthHeaders(),
-          body: form,
-        })
-        const data = (await res.json()) as MessageAttachmentDraft & { error?: string }
-        if (!res.ok) throw new Error(data.error || "Upload failed")
-        onAttachmentsChange([
-          ...attachments,
-          {
-            fileName: data.fileName,
-            fileUrl: data.fileUrl,
-            mimeType: data.mimeType,
-            fileSize: data.fileSize,
-          },
-        ])
-      } catch (e) {
-        setUploadError(e instanceof Error ? e.message : "Upload failed")
-      } finally {
-        setUploading(false)
+  const queueUpload = useCallback(
+    (file: File) => {
+      const localKey =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random()}`
+      const pending: MessageAttachmentDraft = {
+        fileName: file.name || "Uploading…",
+        fileUrl: "",
+        mimeType: file.type || null,
+        fileSize: file.size,
+        uploadState: "uploading",
+        localKey,
       }
+      const withPending = [...attachmentsRef.current, pending]
+      attachmentsRef.current = withPending
+      onAttachmentsChange(withPending)
+
+      const task = uploadChainRef.current.then(async () => {
+        setUploadError(null)
+        setUploadingCount(1)
+        try {
+          const uploaded = await uploadMessageAttachment(file)
+          const next = attachmentsRef.current.map((a) =>
+            a.localKey === localKey ? { ...uploaded, localKey: undefined } : a,
+          )
+          attachmentsRef.current = next
+          onAttachmentsChange(next)
+        } catch (e) {
+          const next = attachmentsRef.current.filter((a) => a.localKey !== localKey)
+          attachmentsRef.current = next
+          onAttachmentsChange(next)
+          setUploadError(e instanceof Error ? e.message : "Upload failed")
+        } finally {
+          setUploadingCount(-1)
+        }
+      })
+      uploadChainRef.current = task.catch(() => undefined)
     },
-    [attachments, onAttachmentsChange],
+    [onAttachmentsChange, setUploadingCount],
   )
 
-  const hasContent = stripHtmlToPlain(value).length > 0 || attachments.length > 0
+  uploadFileRef.current = (file) => {
+    queueUpload(file)
+  }
+
+  const hasContent = composerCanSend(value, attachments)
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
@@ -542,22 +598,33 @@ export function MessageComposer({
         <div className="flex flex-wrap gap-2 px-1">
           {attachments.map((a) => (
             <div
-              key={a.fileUrl}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200/90 dark:border-white/10 bg-white dark:bg-slate-800/90 pl-2.5 pr-1.5 py-1 text-xs shadow-sm"
+              key={a.localKey ?? a.fileUrl ?? a.fileName}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 dark:border-white/10 bg-white dark:bg-slate-800/90 pl-1.5 pr-1.5 py-1 text-xs shadow-sm max-w-full"
             >
-              {a.mimeType?.startsWith("image/") ? (
-                <ImageIcon className={cn("h-3.5 w-3.5", theme.page.iconText)} />
+              {a.uploadState === "uploading" ? (
+                <Loader2 className={cn("h-8 w-8 animate-spin shrink-0 p-1.5", theme.page.iconText)} />
+              ) : a.mimeType?.startsWith("image/") && a.fileUrl ? (
+                <img
+                  src={mediaDisplayUrl(a.fileUrl, "thumbnail")}
+                  alt=""
+                  className="h-8 w-8 rounded-lg object-cover shrink-0 bg-slate-100 dark:bg-slate-900"
+                />
+              ) : a.mimeType?.startsWith("image/") ? (
+                <ImageIcon className={cn("h-3.5 w-3.5 shrink-0", theme.page.iconText)} />
               ) : (
-                <FileText className={cn("h-3.5 w-3.5", theme.page.iconText)} />
+                <FileText className={cn("h-3.5 w-3.5 shrink-0", theme.page.iconText)} />
               )}
               <span className="max-w-[120px] sm:max-w-[180px] truncate text-slate-700 dark:text-slate-200">
-                {a.fileName}
+                {a.uploadState === "uploading" ? "Uploading…" : a.fileName}
               </span>
               <button
                 type="button"
                 aria-label={`Remove ${a.fileName}`}
-                className="inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-400 hover:text-red-500 hover:bg-red-500/10 transition-colors"
-                onClick={() => onAttachmentsChange(attachments.filter((x) => x.fileUrl !== a.fileUrl))}
+                disabled={a.uploadState === "uploading"}
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-400 hover:text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-30"
+                onClick={() =>
+                  onAttachmentsChange(attachments.filter((x) => (x.localKey ?? x.fileUrl) !== (a.localKey ?? a.fileUrl)))
+                }
               >
                 <X className="h-3 w-3" />
               </button>
@@ -606,6 +673,7 @@ export function MessageComposer({
               compact={compact}
               hasContent={hasContent}
               disabled={disabled || sending}
+              uploading={uploading}
               sending={sending}
               extraDisabled={sendDisabled}
               onClick={onSubmit}
@@ -618,10 +686,10 @@ export function MessageComposer({
         ref={fileInputRef}
         type="file"
         className="hidden"
-        accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx,.txt,.csv,.zip"
+        accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.heic,.heif,.doc,.docx,.txt,.csv,.zip"
         onChange={(e) => {
           const file = e.target.files?.[0]
-          if (file) void uploadFile(file)
+          if (file) queueUpload(file)
           e.target.value = ""
         }}
       />
@@ -633,7 +701,7 @@ export function MessageComposer({
         capture="environment"
         onChange={(e) => {
           const file = e.target.files?.[0]
-          if (file) void uploadFile(file)
+          if (file) queueUpload(file)
           e.target.value = ""
         }}
       />
@@ -644,7 +712,7 @@ export function MessageComposer({
         accept="image/*"
         onChange={(e) => {
           const file = e.target.files?.[0]
-          if (file) void uploadFile(file)
+          if (file) queueUpload(file)
           e.target.value = ""
         }}
       />
@@ -665,5 +733,5 @@ export function MessageComposer({
 }
 
 export function isComposerEmpty(html: string, attachments: MessageAttachmentDraft[]): boolean {
-  return stripHtmlToPlain(html).length === 0 && attachments.length === 0
+  return !composerCanSend(html, attachments)
 }

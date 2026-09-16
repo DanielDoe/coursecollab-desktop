@@ -76,7 +76,7 @@ export function StreakAndPoints() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: 0.35 }}
-            className={`rounded-2xl p-5 ${attendanceTheme.softBg}`}
+            className={`rounded-2xl ${attendanceTheme.softBg} p-5`}
           >
             <Flame className={`mb-3 h-6 w-6 ${attendanceTheme.iconText}`} />
             <p className="text-3xl font-semibold tabular-nums tracking-tight text-[var(--cc-text)]">{streak}</p>
@@ -88,7 +88,7 @@ export function StreakAndPoints() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: 0.4 }}
-            className={`rounded-2xl p-5 ${classroomPointsTheme.softBg}`}
+            className={`rounded-2xl ${classroomPointsTheme.softBg} p-5`}
           >
             <Trophy className={`mb-3 h-6 w-6 ${classroomPointsTheme.iconText}`} />
             <p className="text-3xl font-semibold tabular-nums tracking-tight text-[var(--cc-text)]">{classroomPoints}</p>

@@ -12,7 +12,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { FacultyIntegratedToolbar } from "@/components/instructor/dashboard-v2/FacultyIntegratedToolbar"
-import { FacultySidebarPagination } from "@/components/instructor/dashboard-v2/FacultyContentNavigator"
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 import { instructorApiFetch } from "@/lib/instructor-api-headers"
 import type {
@@ -24,8 +23,6 @@ import { PORTAL_CARD, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/po
 import { cn } from "@/lib/utils"
 import { useInstructorScopeKey } from "@/hooks/use-instructor-scope-key"
 import { toast } from "@/lib/app-toast"
-
-const STUDENTS_PER_PAGE = 20
 
 const MODULE_COPY: Record<
   InstructorModuleActivityKind,
@@ -60,6 +57,7 @@ function formatWhen(value: string | null): string {
   return date.toLocaleString(undefined, {
     month: "short",
     day: "numeric",
+    year: "numeric",
     hour: "numeric",
     minute: "2-digit",
   })
@@ -68,10 +66,9 @@ function formatWhen(value: string | null): string {
 type Props = {
   module: InstructorModuleActivityKind
   moduleId: string
-  embedInDashboard?: boolean
 }
 
-export function InstructorModuleStudentActivityView({ module, moduleId, embedInDashboard = false }: Props) {
+export function InstructorModuleStudentActivityView({ module, moduleId }: Props) {
   const scopeKey = useInstructorScopeKey()
   const chrome = facultyEmbedChrome(moduleId)
   const copy = MODULE_COPY[module]
@@ -79,7 +76,6 @@ export function InstructorModuleStudentActivityView({ module, moduleId, embedInD
   const [payload, setPayload] = useState<ModuleStudentActivityPayload | null>(null)
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState<"all" | "engaged" | "not_started">("all")
-  const [studentsPage, setStudentsPage] = useState(1)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -121,34 +117,11 @@ export function InstructorModuleStudentActivityView({ module, moduleId, embedInD
     })
   }, [payload?.students, search, filter])
 
-  const totalStudentsPages = Math.max(1, Math.ceil(rows.length / STUDENTS_PER_PAGE))
-
-  const paginatedRows = useMemo(() => {
-    const start = (studentsPage - 1) * STUDENTS_PER_PAGE
-    return rows.slice(start, start + STUDENTS_PER_PAGE)
-  }, [rows, studentsPage])
-
-  useEffect(() => {
-    setStudentsPage(1)
-  }, [search, filter])
-
-  useEffect(() => {
-    if (studentsPage > totalStudentsPages) {
-      setStudentsPage(totalStudentsPages)
-    }
-  }, [studentsPage, totalStudentsPages])
-
   const showPoints = copy.pointsLabel != null
 
   return (
-    <div
-      className={
-        embedInDashboard
-          ? "flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto pr-1 [scrollbar-gutter:stable] sm:pr-2"
-          : "space-y-4"
-      }
-    >
-      <div className={cn("space-y-1", embedInDashboard && "shrink-0")}>
+    <div className="space-y-4">
+      <div className="space-y-1">
         <h2 className={cn("text-lg font-semibold tracking-tight", PORTAL_TEXT)}>{copy.title}</h2>
         <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>{copy.description}</p>
       </div>
@@ -215,7 +188,7 @@ export function InstructorModuleStudentActivityView({ module, moduleId, embedInD
         }
       />
 
-      <div className={cn(PORTAL_CARD, "min-w-0")}>
+      <div className={cn(PORTAL_CARD, "overflow-hidden")}>
         {loading && !payload ? (
           <div className="flex min-h-[240px] items-center justify-center">
             <Loader2 className={cn("h-7 w-7 animate-spin", chrome.p.iconText)} />
@@ -229,37 +202,24 @@ export function InstructorModuleStudentActivityView({ module, moduleId, embedInD
             </p>
           </div>
         ) : (
-          <>
-            <table className="w-full table-fixed text-sm">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)] bg-muted/20 text-left">
-                  <th className="px-3 py-3 font-medium sm:px-4">Student</th>
-                  <th className="w-[18%] px-2 py-3 font-medium sm:px-3">Section</th>
-                  <th className="w-[24%] px-2 py-3 font-medium sm:px-3">Activity</th>
-                  <th className="w-[6.75rem] whitespace-nowrap px-2 py-3 font-medium sm:px-3">Last activity</th>
-                  {showPoints ? (
-                    <th className="w-[7.25rem] px-3 py-3 text-right font-medium">
-                      {copy.pointsLabel}
-                    </th>
-                  ) : null}
+                  <th className="px-4 py-3 font-medium">Student</th>
+                  <th className="px-4 py-3 font-medium">Section</th>
+                  <th className="px-4 py-3 font-medium">Activity</th>
+                  <th className="px-4 py-3 font-medium">Last activity</th>
+                  {showPoints ? <th className="px-4 py-3 font-medium">{copy.pointsLabel}</th> : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
-                {paginatedRows.map((row) => (
+                {rows.map((row) => (
                   <ActivityRow key={row.studentDbId} row={row} showPoints={showPoints} moduleId={moduleId} />
                 ))}
               </tbody>
             </table>
-            <div className="px-4 pb-3">
-              <FacultySidebarPagination
-                page={studentsPage}
-                totalPages={totalStudentsPages}
-                totalItems={rows.length}
-                pageSize={STUDENTS_PER_PAGE}
-                onPageChange={setStudentsPage}
-              />
-            </div>
-          </>
+          </div>
         )}
       </div>
     </div>
@@ -278,37 +238,33 @@ function ActivityRow({
   const chrome = facultyEmbedChrome(moduleId)
   return (
     <tr className="hover:bg-muted/30">
-      <td className="min-w-0 px-3 py-3 align-top sm:px-4">
-        <div className="break-words font-medium text-[var(--foreground)] [overflow-wrap:anywhere]">
-          {row.fullName}
-        </div>
+      <td className="px-4 py-3 align-top">
+        <div className="font-medium text-[var(--foreground)]">{row.fullName}</div>
         <div className={cn("text-xs", PORTAL_TEXT_MUTED)}>{row.studentId}</div>
-        {row.email ? (
-          <div className={cn("text-xs [overflow-wrap:anywhere]", PORTAL_TEXT_MUTED)}>{row.email}</div>
-        ) : null}
+        {row.email ? <div className={cn("text-xs", PORTAL_TEXT_MUTED)}>{row.email}</div> : null}
       </td>
-      <td className={cn("px-2 py-3 align-top [overflow-wrap:anywhere] sm:px-3", PORTAL_TEXT_MUTED)}>
+      <td className={cn("px-4 py-3 align-top", PORTAL_TEXT_MUTED)}>
         {row.sessionCode || row.section || "—"}
       </td>
-      <td className="px-2 py-3 align-top sm:px-3">
+      <td className="px-4 py-3 align-top">
         <div className="flex flex-wrap items-center gap-2">
           <Badge
             variant="secondary"
             className={cn(
-              "max-w-full whitespace-normal rounded-md text-xs",
+              "rounded-md text-xs",
               row.engaged ? chrome.p.softBg : "bg-muted text-muted-foreground",
             )}
           >
             {row.activityLabel}
           </Badge>
         </div>
-        {row.detail ? <p className={cn("mt-1 text-xs [overflow-wrap:anywhere]", PORTAL_TEXT_MUTED)}>{row.detail}</p> : null}
+        {row.detail ? <p className={cn("mt-1 text-xs", PORTAL_TEXT_MUTED)}>{row.detail}</p> : null}
       </td>
-      <td className={cn("px-2 py-3 align-top [overflow-wrap:anywhere] sm:px-3", PORTAL_TEXT_MUTED)}>
+      <td className={cn("px-4 py-3 align-top whitespace-nowrap", PORTAL_TEXT_MUTED)}>
         {formatWhen(row.lastActivityAt)}
       </td>
       {showPoints ? (
-        <td className={cn("px-3 py-3 text-right align-top tabular-nums", PORTAL_TEXT)}>
+        <td className={cn("px-4 py-3 align-top tabular-nums", PORTAL_TEXT)}>
           {row.pointsAwarded > 0 ? row.pointsAwarded : "—"}
         </td>
       ) : null}

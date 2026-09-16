@@ -41,13 +41,39 @@ export async function ensureDirectMessagesSchema() {
       id BIGSERIAL PRIMARY KEY,
       message_id BIGINT NOT NULL REFERENCES dm_messages(id) ON DELETE CASCADE,
       file_name VARCHAR(255) NOT NULL,
-      file_url VARCHAR(500) NOT NULL,
+      file_url TEXT NOT NULL,
       mime_type VARCHAR(128),
       file_size INTEGER,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `
   await sql`CREATE INDEX IF NOT EXISTS idx_dm_attachments_message ON dm_message_attachments(message_id)`
+  await sql`
+    DO $$
+    BEGIN
+      ALTER TABLE dm_message_attachments
+        ALTER COLUMN file_url TYPE TEXT;
+    EXCEPTION
+      WHEN undefined_table THEN NULL;
+      WHEN others THEN NULL;
+    END $$
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS dm_message_upload_staging (
+      id BIGSERIAL PRIMARY KEY,
+      uploader_kind VARCHAR(16) NOT NULL CHECK (uploader_kind IN ('student', 'instructor')),
+      uploader_id INTEGER NOT NULL,
+      file_url TEXT NOT NULL UNIQUE,
+      file_name VARCHAR(255) NOT NULL,
+      mime_type VARCHAR(128),
+      file_size INTEGER,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      consumed_at TIMESTAMPTZ,
+      message_id BIGINT REFERENCES dm_messages(id) ON DELETE SET NULL
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS idx_dm_upload_staging_actor ON dm_message_upload_staging(uploader_kind, uploader_id, created_at DESC)`
+  await sql`CREATE INDEX IF NOT EXISTS idx_dm_upload_staging_open ON dm_message_upload_staging(uploader_kind, uploader_id) WHERE consumed_at IS NULL`
   await sql`
     CREATE TABLE IF NOT EXISTS dm_message_reactions (
       id BIGSERIAL PRIMARY KEY,

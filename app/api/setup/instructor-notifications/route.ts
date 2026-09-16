@@ -18,8 +18,6 @@ export async function POST(request: NextRequest) {
         link TEXT,
         source_type TEXT,
         source_id TEXT,
-        instructor_id INTEGER,
-        course_id INTEGER,
         is_read BOOLEAN DEFAULT false,
         read_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW()

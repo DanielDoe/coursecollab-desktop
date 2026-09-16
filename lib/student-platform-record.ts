@@ -44,6 +44,220 @@ export type StudentPlatformRecord = {
     started_at: string | null
     completed_at: string | null
   }>
+  gradebook: {
+    letter_grade: string | null
+    total_score: number | null
+    quiz_score: number | null
+    homework_score: number | null
+    midterm_score: number | null
+    final_score: number | null
+    attendance_score: number | null
+    classroom_score: number | null
+    project_score: number | null
+    engagement_credits: number | null
+  } | null
+  classroomPoints: Array<{
+    points: number
+    reason: string | null
+    category: string | null
+    awarded_at: string | null
+    status: string | null
+  }>
+  lectures: Array<{
+    title: string
+    status: string | null
+    week: number | null
+    last_accessed: string | null
+  }>
+  lecturePractice: Array<{
+    lecture_title: string
+    is_correct: boolean
+    completed_at: string | null
+  }>
+  flashcards: Array<{
+    title: string
+    card_count: number
+    updated_at: string | null
+  }>
+  notes: Array<{
+    title: string
+    updated_at: string | null
+  }>
+  attendance: {
+    present: number
+    recorded: number
+    rate: number | null
+    recent_missed: string[]
+  }
+  activity: Array<{
+    at: string | null
+    kind: string
+    label: string
+  }>
+}
+
+async function loadRecordModules(studentDbId: number): Promise<{
+  gradebook: StudentPlatformRecord["gradebook"]
+  classroomPoints: StudentPlatformRecord["classroomPoints"]
+  lectures: StudentPlatformRecord["lectures"]
+  lecturePractice: StudentPlatformRecord["lecturePractice"]
+  flashcards: StudentPlatformRecord["flashcards"]
+  notes: StudentPlatformRecord["notes"]
+  attendance: StudentPlatformRecord["attendance"]
+  coraActivity: StudentPlatformRecord["activity"]
+  codebenchActivity: StudentPlatformRecord["activity"]
+}> {
+  const emptyAttendance = { present: 0, recorded: 0, rate: null as number | null, recent_missed: [] as string[] }
+  const [
+    gradeRows,
+    pointRows,
+    lectureRows,
+    lecturePracticeRows,
+    deckRows,
+    noteRows,
+    attendanceRows,
+    coraRows,
+    codebenchRows,
+  ] = await Promise.all([
+    sql`
+      SELECT letter_grade, total_score, quiz_score, homework_score, midterm_score,
+             final_score, attendance_score, classroom_score, project_score, engagement_credits
+      FROM student_grades
+      WHERE student_id = ${studentDbId}
+      ORDER BY COALESCE(last_calculated_at, updated_at) DESC NULLS LAST
+      LIMIT 1
+    `.catch(() => []),
+    sql`
+      SELECT points, reason, category, status, COALESCE(awarded_at, created_at) AS awarded_at
+      FROM classroom_points
+      WHERE student_id = ${studentDbId}
+      ORDER BY COALESCE(awarded_at, created_at) DESC NULLS LAST
+      LIMIT 40
+    `.catch(() => []),
+    sql`
+      SELECT l.title, lsp.status, l.week, lsp.last_accessed
+      FROM lecture_student_progress lsp
+      JOIN lectures l ON l.id = lsp.lecture_id
+      WHERE lsp.student_id = ${studentDbId}
+      ORDER BY lsp.last_accessed DESC NULLS LAST
+      LIMIT 40
+    `.catch(() => []),
+    sql`
+      SELECT l.title AS lecture_title, lspa.is_correct, lspa.completed_at
+      FROM lecture_sample_practice_attempts lspa
+      JOIN lectures l ON l.id = lspa.lecture_id
+      WHERE lspa.student_id = ${studentDbId}
+      ORDER BY lspa.completed_at DESC NULLS LAST
+      LIMIT 30
+    `.catch(() => []),
+    sql`
+      SELECT d.title, COUNT(c.id)::int AS card_count, MAX(d.updated_at) AS updated_at
+      FROM flashcard_decks d
+      LEFT JOIN flashcard_cards c ON c.deck_id = d.id AND c.deleted_at IS NULL
+      WHERE d.student_id = ${studentDbId} AND d.deleted_at IS NULL
+      GROUP BY d.id, d.title
+      ORDER BY MAX(d.updated_at) DESC NULLS LAST
+      LIMIT 30
+    `.catch(() => []),
+    sql`
+      SELECT title, updated_at
+      FROM student_digital_notes
+      WHERE student_id = ${studentDbId}
+      ORDER BY updated_at DESC NULLS LAST
+      LIMIT 30
+    `.catch(() => []),
+    sql`
+      SELECT ar.status, asess.class_title
+      FROM attendance_records ar
+      LEFT JOIN attendance_sessions asess ON asess.id = ar.session_id
+      WHERE ar.student_id = ${studentDbId} AND ar.deleted_at IS NULL
+      ORDER BY ar.timestamp DESC
+      LIMIT 60
+    `.catch(() => []),
+    sql`
+      SELECT created_at, feature, module
+      FROM cora_usage_events
+      WHERE user_id = ${studentDbId} AND user_role = 'student'
+      ORDER BY created_at DESC
+      LIMIT 20
+    `.catch(() => []),
+    sql`
+      SELECT submitted_at, assignment_id, status
+      FROM codebench_submissions
+      WHERE student_id = ${studentDbId}
+      ORDER BY submitted_at DESC
+      LIMIT 15
+    `.catch(() => []),
+  ])
+
+  const g = (gradeRows as any[])[0]
+  const attendance = (attendanceRows as any[]).map((r) => ({
+    status: String(r.status ?? "").toLowerCase(),
+    title: String(r.class_title || "Class session"),
+  }))
+  const present = attendance.filter((r) => r.status === "present").length
+
+  return {
+    gradebook: g
+      ? {
+          letter_grade: g.letter_grade != null ? String(g.letter_grade) : null,
+          total_score: g.total_score != null ? Number(g.total_score) : null,
+          quiz_score: g.quiz_score != null ? Number(g.quiz_score) : null,
+          homework_score: g.homework_score != null ? Number(g.homework_score) : null,
+          midterm_score: g.midterm_score != null ? Number(g.midterm_score) : null,
+          final_score: g.final_score != null ? Number(g.final_score) : null,
+          attendance_score: g.attendance_score != null ? Number(g.attendance_score) : null,
+          classroom_score: g.classroom_score != null ? Number(g.classroom_score) : null,
+          project_score: g.project_score != null ? Number(g.project_score) : null,
+          engagement_credits: g.engagement_credits != null ? Number(g.engagement_credits) : null,
+        }
+      : null,
+    classroomPoints: (pointRows as any[]).map((r) => ({
+      points: Number(r.points) || 0,
+      reason: r.reason != null ? String(r.reason) : null,
+      category: r.category != null ? String(r.category) : null,
+      awarded_at: r.awarded_at != null ? String(r.awarded_at) : null,
+      status: r.status != null ? String(r.status) : null,
+    })),
+    lectures: (lectureRows as any[]).map((r) => ({
+      title: String(r.title || "Lecture"),
+      status: r.status != null ? String(r.status) : null,
+      week: r.week != null ? Number(r.week) : null,
+      last_accessed: r.last_accessed != null ? String(r.last_accessed) : null,
+    })),
+    lecturePractice: (lecturePracticeRows as any[]).map((r) => ({
+      lecture_title: String(r.lecture_title || "Lecture"),
+      is_correct: r.is_correct === true,
+      completed_at: r.completed_at != null ? String(r.completed_at) : null,
+    })),
+    flashcards: (deckRows as any[]).map((r) => ({
+      title: String(r.title || "Deck"),
+      card_count: Number(r.card_count) || 0,
+      updated_at: r.updated_at != null ? String(r.updated_at) : null,
+    })),
+    notes: (noteRows as any[]).map((r) => ({
+      title: String(r.title || "Note"),
+      updated_at: r.updated_at != null ? String(r.updated_at) : null,
+    })),
+    attendance: attendance.length
+      ? {
+          present,
+          recorded: attendance.length,
+          rate: Math.round((present / attendance.length) * 1000) / 10,
+          recent_missed: attendance.filter((r) => r.status !== "present").slice(0, 6).map((r) => r.title),
+        }
+      : emptyAttendance,
+    coraActivity: (coraRows as any[]).map((r) => ({
+      at: r.created_at != null ? String(r.created_at) : null,
+      kind: "cora",
+      label: String(r.module || r.feature || "Cora"),
+    })),
+    codebenchActivity: (codebenchRows as any[]).map((r) => ({
+      at: r.submitted_at != null ? String(r.submitted_at) : null,
+      kind: "codebench",
+      label: `CodeBench ${r.status ? String(r.status) : "submission"}`,
+    })),
+  }
 }
 
 export async function fetchStudentPlatformRecord(
@@ -101,7 +315,7 @@ export async function fetchStudentPlatformRecord(
           qa.results_finalized_at,
           qa.deleted_at,
           qa.saved_for_later_at,
-          COALESCE(qa.retake_count, 0) as retake_count,
+          GREATEST(COALESCE(qa.attempt_number, 1) - 1, 0) as retake_count,
           qa.is_final_grade
         FROM quiz_attempts qa
         JOIN quizzes q ON q.id = qa.quiz_id
@@ -124,7 +338,7 @@ export async function fetchStudentPlatformRecord(
           qa.results_finalized_at,
           qa.deleted_at,
           qa.saved_for_later_at,
-          COALESCE(qa.retake_count, 0) as retake_count,
+          GREATEST(COALESCE(qa.attempt_number, 1) - 1, 0) as retake_count,
           qa.is_final_grade
         FROM quiz_attempts qa
         JOIN quizzes q ON q.id = qa.quiz_id
@@ -201,6 +415,35 @@ export async function fetchStudentPlatformRecord(
 
   const activeAttempts = attempts.filter((a) => !a.deleted)
   const assessmentTypes = [...new Set(activeAttempts.map((a) => a.assessment_type))]
+  const modules = await loadRecordModules(studentDbId)
+
+  const activity = [
+    ...attempts.slice(0, 12).map((a) => ({
+      at: a.attempted_at || a.completed_at,
+      kind: "assessment",
+      label: a.quiz_title,
+    })),
+    ...practice.slice(0, 8).map((p) => ({
+      at: p.completed_at || p.started_at,
+      kind: "practice",
+      label: p.topics.length ? `Practice · ${p.topics.slice(0, 2).join(", ")}` : "Practice",
+    })),
+    ...modules.lectures.slice(0, 8).map((l) => ({
+      at: l.last_accessed,
+      kind: "lecture",
+      label: l.title,
+    })),
+    ...modules.classroomPoints.slice(0, 8).map((p) => ({
+      at: p.awarded_at,
+      kind: "points",
+      label: p.reason || p.category || `${p.points} pts`,
+    })),
+    ...modules.coraActivity,
+    ...modules.codebenchActivity,
+  ]
+    .filter((row) => row.at)
+    .sort((a, b) => String(b.at).localeCompare(String(a.at)))
+    .slice(0, 40)
 
   return {
     student: {
@@ -222,5 +465,13 @@ export async function fetchStudentPlatformRecord(
     },
     attempts,
     practice,
+    gradebook: modules.gradebook,
+    classroomPoints: modules.classroomPoints,
+    lectures: modules.lectures,
+    lecturePractice: modules.lecturePractice,
+    flashcards: modules.flashcards,
+    notes: modules.notes,
+    attendance: modules.attendance,
+    activity,
   }
 }

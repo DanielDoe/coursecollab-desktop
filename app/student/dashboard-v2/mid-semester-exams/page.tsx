@@ -1,7 +1,7 @@
 "use client"
 
-import { AssessmentV2ModulePage } from "@/components/student/dashboard-v2/AssessmentV2ModulePage"
+import { AssessmentModulePage } from "@/components/student/dashboard-v2/AssessmentModulePage"
 
 export default function DashboardV2MidSemesterExamsPage() {
-  return <AssessmentV2ModulePage assessmentType="mid_semester" />
+  return <AssessmentModulePage assessmentType="mid_semester" />
 }

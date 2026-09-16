@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
+import { requireCodebenchCoraStudent } from "@/lib/codebench-request-auth"
 import { codebenchUsageContext, jsonFromCodebenchCoraError } from "@/lib/codebench-cora-usage"
 import { createForFeature } from "@/lib/resolve-feature-ai-model"
 import OpenAI from "openai"
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     const claimed = body.studentId != null ? String(body.studentId) : null
-    const bound = await requireCodebenchStudent(request, claimed)
+    const bound = await requireCodebenchCoraStudent(request, claimed)
     if (!bound.ok) return bound.response
 
     const code = typeof body.code === "string" ? body.code : ""

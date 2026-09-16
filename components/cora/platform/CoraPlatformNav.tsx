@@ -17,10 +17,7 @@ export function CoraPlatformNav({ activeTab, onNavigate, chrome, className }: Pr
     <FacultyModuleSideMenu
       embedded
       moduleId="ai-tutor"
-      className={cn(
-        "@[720px]/cora-hub:border-r @[720px]/cora-hub:border-[var(--border)] @[720px]/cora-hub:pr-4",
-        className,
-      )}
+      className={cn("lg:border-r lg:border-[var(--border)] lg:pr-4", className)}
       accent={{ soft: chrome.soft, ink: chrome.ink }}
       title="Browse"
       activeId={activeTab}

@@ -48,8 +48,13 @@ export async function cloneClassroomPointAssignmentsToCourse(input: {
       row.duration_hours != null && Number.isFinite(Number(row.duration_hours))
         ? Number(row.duration_hours)
         : null
-    const dueAt = row.due_at ?? null
+    const dueAtRaw = row.due_at != null ? new Date(String(row.due_at)) : null
+    const dueAt =
+      dueAtRaw && !Number.isNaN(dueAtRaw.getTime()) && dueAtRaw.getTime() > Date.now()
+        ? dueAtRaw
+        : null
     const questionConfig = row.question_config ?? null
+    const kind = String(row.submission_kind ?? "code").toLowerCase() === "solution" ? "solution" : "code"
 
     const existing = (await sql`
       SELECT id FROM classroom_point_submissions
@@ -62,16 +67,19 @@ export async function cloneClassroomPointAssignmentsToCourse(input: {
 
     await sql`
       INSERT INTO classroom_point_submissions (
-        title, description, session, created_by, duration_hours, due_at, question_config
+        title, description, session, created_by, duration_hours, due_at,
+        question_config, submission_kind, hidden_from_students
       )
       VALUES (
         ${title},
         ${description},
         ${session},
         ${destinationInstructorId},
-        ${durationHours},
+        ${dueAt ? null : durationHours},
         ${dueAt},
-        ${questionConfig}
+        ${questionConfig},
+        ${kind},
+        true
       )
     `
     count += 1

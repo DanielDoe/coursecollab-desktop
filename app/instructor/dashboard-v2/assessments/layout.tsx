@@ -8,11 +8,11 @@ export default function AssessmentsLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-x-hidden">
-      <div className="mb-4 shrink-0">
+    <div className="w-full min-w-0 overflow-x-hidden">
+      <div className="mb-4">
         <InstructorMembershipDisclaimerBanner />
       </div>
-      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+      {children}
     </div>
   )
 }

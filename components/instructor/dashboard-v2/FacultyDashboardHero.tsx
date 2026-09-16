@@ -9,11 +9,6 @@ import { readRememberedFacultyUniversity } from "@/lib/remembered-auth"
 import { CORA_NAV_LABEL } from "@/lib/cora/constants"
 import { FACULTY_DASHBOARD_BASE } from "@/lib/faculty-portal-nav-config"
 import { cn } from "@/lib/utils"
-import {
-  DesktopChromeTitle,
-  DesktopChromeTitleActions,
-} from "@/components/desktop/DesktopLangSmithChrome"
-import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
 
 function firstName(fullName: string | undefined): string {
   const part = fullName?.trim().split(/\s+/)[0]
@@ -71,35 +66,6 @@ export function FacultyDashboardHero({ onCustomize }: { onCustomize: () => void 
   const name = firstName(faculty?.name)
   const courseLabel = [faculty?.selectedCourseCode, faculty?.selectedCourseTitle].filter(Boolean).join(" · ")
   const school = university?.short_name || university?.name
-  const greeting = `${greetingPrefix(now.getHours())}, ${name}`
-  const metaLine = [courseLabel, school, formatToday(now)].filter(Boolean).join(" · ")
-
-  if (isDesktopAppShell()) {
-    return (
-      <>
-        <DesktopChromeTitle>
-          <div className="min-w-0">
-            <h1 className="truncate text-[16px] font-semibold tracking-tight">{greeting}</h1>
-            {metaLine ? (
-              <p className="mt-0.5 truncate text-[12px] leading-4 text-[#6b7280] dark:text-[#9ca3af]">{metaLine}</p>
-            ) : null}
-          </div>
-        </DesktopChromeTitle>
-        <DesktopChromeTitleActions>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-8 shrink-0 rounded-[6px] border-[#e5e7eb] bg-transparent shadow-none hover:bg-[#f3f4f6] dark:border-[#262626] dark:hover:bg-[#1a1a1a]"
-            onClick={onCustomize}
-            title="Customize dashboard"
-          >
-            <Settings2 className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
-          </Button>
-        </DesktopChromeTitleActions>
-      </>
-    )
-  }
 
   return (
     <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)]">

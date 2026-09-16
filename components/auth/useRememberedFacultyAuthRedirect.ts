@@ -11,10 +11,7 @@ import {
   facultySessionReadyForDashboard,
   readFacultySession,
 } from "@/lib/faculty-auth-flow"
-import { hasFacultyExplicitSignOut } from "@/lib/faculty-session-restore-client"
-import { restoreFacultySessionWithRetry } from "@/lib/faculty-session-restore-retry"
-import { readDesktopRefreshToken } from "@/lib/desktop-refresh-token"
-import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
+import { hasFacultyExplicitSignOut, tryRestoreFacultySessionFromRefresh } from "@/lib/faculty-session-restore-client"
 import { clearLeftoverClientSessions } from "@/lib/session-restore-guard"
 
 /** Skip university picker when faculty university is remembered — never leftover local session. */
@@ -30,7 +27,7 @@ export function useRememberedFacultyAuthRedirect() {
     }
 
     void (async () => {
-      const restored = await restoreFacultySessionWithRetry()
+      const restored = await tryRestoreFacultySessionFromRefresh()
       if (hasFacultyExplicitSignOut()) {
         clearLeftoverClientSessions()
         return
@@ -45,10 +42,7 @@ export function useRememberedFacultyAuthRedirect() {
         return
       }
 
-      const keepRefreshFallback = isDesktopAppShell() && Boolean(readDesktopRefreshToken())
-      if (!keepRefreshFallback) {
-        clearLeftoverClientSessions()
-      }
+      clearLeftoverClientSessions()
       if (!hasRememberedFacultyUniversity()) return
       hydrateFacultySessionUniversityFromRemembered()
       router.replace("/faculty/login")

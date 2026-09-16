@@ -20,6 +20,7 @@ export type DeliverSavedBatchParams = {
   sendEmail?: boolean
   createAnnouncement?: boolean
   createNotification?: boolean
+  sessionScope?: { sessionId?: number | null; academicTermId?: number | null }
   onProgress?: (done: number, total: number, studentId: number) => void
 }
 
@@ -51,11 +52,15 @@ export async function listSavedReviewStudentIds(
 export async function runDeliverSavedProgressReviewBatch(
   params: DeliverSavedBatchParams,
 ): Promise<BatchRunResult> {
-  const savedStudentIds = await listSavedReviewStudentIds(
-    params.courseId,
-    params.reviewPeriod ?? "midterm",
-    params.asOfDate,
-  )
+  const { listCourseStudentIds } = await import("./gather-student-data")
+  const roster = new Set(await listCourseStudentIds(params.courseId, params.sessionScope))
+  const savedStudentIds = (
+    await listSavedReviewStudentIds(
+      params.courseId,
+      params.reviewPeriod ?? "midterm",
+      params.asOfDate,
+    )
+  ).filter((id) => roster.has(id))
 
   const targetIds =
     params.studentIds && params.studentIds.length > 0

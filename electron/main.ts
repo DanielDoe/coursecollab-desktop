@@ -31,6 +31,15 @@ import { setDesktopWindowGetter } from './desktop-window'
 import { installApplicationMenu } from './menu'
 import { readLastDesktopRoute, writeLastDesktopRoute } from './last-route'
 import { migrateLegacyElectronProfile, pinDesktopUserData } from './user-data'
+import {
+  attachSingleWindowNavigationPolicy,
+  resolveViteDevServerUrl,
+} from './navigation-policy'
+import {
+  forceExitAssessmentLockdown,
+  isAssessmentLockdownActive,
+  registerAssessmentLockdownIpc,
+} from './assessment-lockdown'
 
 loadEnv({ path: join(__dirname, '../.env') })
 
@@ -43,7 +52,7 @@ if (process.platform === 'win32') {
 setAppQuitting(false)
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
-const viteDevServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://127.0.0.1:5173'
+const viteDevServerUrl = resolveViteDevServerUrl()
 const startHidden = process.argv.includes('--hidden')
 
 if (!gotSingleInstanceLock) {
@@ -71,6 +80,16 @@ function registerIpcHandlers() {
     return writeLastDesktopRoute(typeof path === 'string' ? path : '')
   })
   ipcMain.handle('app:get-last-route', () => readLastDesktopRoute())
+  registerAssessmentLockdownIpc()
+
+  ipcMain.handle('app:open-external', (_event, url: unknown) => {
+    if (typeof url !== 'string') return { ok: false as const }
+    const trimmed = url.trim()
+    if (!trimmed) return { ok: false as const }
+    if (!/^(https?:|mailto:|tel:)/i.test(trimmed)) return { ok: false as const }
+    void shell.openExternal(trimmed)
+    return { ok: true as const }
+  })
 
   ipcMain.handle('notification:set-sync-context', (_event, context: NotificationSyncContext | null) => {
     setNotificationSyncContext(context)
@@ -86,13 +105,6 @@ function injectDesktopShellMarkers(webContents: Electron.WebContents) {
       document.body.classList.add('cc-desktop-app');
     })();
   `)
-}
-
-function isAllowedNavigation(url: string): boolean {
-  if (url.startsWith(viteDevServerUrl)) return true
-  if (url.startsWith(`${getAppOrigin()}/`) || url === getAppOrigin()) return true
-  if (url.startsWith('file://')) return true
-  return false
 }
 
 function getMainWindow(): BrowserWindow | null {
@@ -116,6 +128,8 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      webviewTag: false,
+      devTools: !app.isPackaged,
       partition: 'persist:coursecollab',
     },
   })
@@ -135,6 +149,11 @@ function createWindow() {
   window.on('closed', () => setMainWindow(null))
 
   window.on('close', (event) => {
+    if (isAssessmentLockdownActive() && !isAppQuitting()) {
+      event.preventDefault()
+      window.focus()
+      return
+    }
     if (isAppQuitting() || !shouldMinimizeToTrayOnClose()) return
     event.preventDefault()
     window.hide()
@@ -171,19 +190,6 @@ function createWindow() {
     console.error('[desktop] failed to load', { errorCode, errorDescription, validatedURL })
   })
 
-  contents.setWindowOpenHandler(({ url }) => {
-    if (isAllowedNavigation(url)) return { action: 'allow' }
-    void shell.openExternal(url)
-    return { action: 'deny' }
-  })
-
-  contents.on('will-navigate', (event, url) => {
-    if (!isAllowedNavigation(url)) {
-      event.preventDefault()
-      void shell.openExternal(url)
-    }
-  })
-
   const startPath = resolveInitialStartPath(readLastDesktopRoute, app.isPackaged)
   if (usePackagedRenderer()) {
     void contents.loadURL(`${getAppOrigin()}${startPath}`)
@@ -197,6 +203,10 @@ app.whenReady().then(async () => {
   if (!gotSingleInstanceLock) return
 
   migrateLegacyElectronProfile()
+
+  app.on('web-contents-created', (_event, contents) => {
+    attachSingleWindowNavigationPolicy(contents, viteDevServerUrl)
+  })
 
   const persistSession = session.fromPartition('persist:coursecollab')
   registerAppProtocol(persistSession)
@@ -219,12 +229,14 @@ app.whenReady().then(async () => {
   loadNotificationPreferences()
   syncLaunchAtLoginPreference()
   createDesktopTray({ getMainWindow })
+  // Only the first-run CodeBench wizard may use a second BrowserWindow. After it closes,
+  // the main window is the sole in-app surface; navigation-policy blocks popups everywhere.
   if (shouldRunFirstRunSetup()) {
     await runFirstRunSetupWindow()
   }
   createWindow()
   if (app.isPackaged && isFirstRunSetupComplete()) {
-    void ensureCppToolchain({ installIfMissing: true })
+    void ensureCppToolchain({ installIfMissing: true, mode: 'startup' })
   }
 
   app.on('activate', () => {
@@ -240,6 +252,7 @@ app.whenReady().then(async () => {
 
 app.on('before-quit', () => {
   setAppQuitting(true)
+  forceExitAssessmentLockdown()
   void shutdownCodebench()
 })
 

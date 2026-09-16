@@ -12,7 +12,7 @@ export const CODEBENCH_LIMITS = {
   sessionIdPattern: /^[A-Za-z0-9-]{8,80}$/,
 } as const
 
-export const CONTROLLED_COMPILE_ARGS = ['-std=c++17', '-Wall', '-Wextra'] as const
+export const CONTROLLED_COMPILE_ARGS = ['-std=c++17', '-O0', '-Wall', '-Wextra'] as const
 export const CONTROLLED_MSVC_ARGS = ['/nologo', '/EHsc', '/std:c++17', '/W3'] as const
 
 export const SOURCE_FILE_NAME = 'main.cpp'

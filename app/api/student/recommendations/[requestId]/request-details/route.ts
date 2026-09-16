@@ -129,7 +129,6 @@ export async function PATCH(
           link: `/instructor/dashboard-v2/recommendations/${requestId}`,
           source_type: "recommendation_request",
           source_id: String(requestId),
-          instructorId: Number(prev.instructor_id) || null,
         })
       } catch {
         /* notifications table may be missing */

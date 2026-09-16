@@ -36,6 +36,7 @@ import { formatComparison, formatMetricValue } from "@/components/institution/In
 import { CapabilityAuditTable, InsufficientMetric } from "@/components/institution/InstitutionResearchUi"
 import { InstitutionResearchHub } from "@/components/institution/InstitutionResearchHub"
 import { InstitutionKpiGrid, type InstitutionKpiItem } from "@/components/institution/portal/InstitutionPortalUi"
+import { InstitutionCoraInsightsBlock } from "@/components/institution/InstitutionCoraInsightsBlock"
 import type { InstitutionAnalyticsSection } from "@/lib/institution-analytics-nav-config"
 import { PORTAL_CARD, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
 import type { AnalyticsTab, CourseHealthRow, InstitutionAnalyticsMetrics, MetricValue } from "@/lib/institutions/metrics/types"
@@ -702,6 +703,7 @@ export function InstitutionAnalyticsSectionPanel({
     const link = c?.linkage
     return (
       <div className="space-y-4">
+        <InstitutionCoraInsightsBlock />
         {c ? <AnalyticsKpiGrid items={buildCoraKpis(c.kpis)} /> : null}
         {assist ? (
           <InstitutionChartCard title="Assistance proxy" hint={assist.proxyNote}>

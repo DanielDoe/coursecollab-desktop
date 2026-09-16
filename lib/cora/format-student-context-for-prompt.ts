@@ -49,9 +49,6 @@ export function formatStudentContextForPrompt(
   if (payload.strengths?.length) {
     lines.push(`- Strengths: ${payload.strengths.slice(0, 8).join(", ")}`)
   }
-  if (payload.codebenchStudio?.coraBrief) {
-    lines.push(`- CodeBench studio coach: ${payload.codebenchStudio.coraBrief}`)
-  }
 
   const summary = payload.summary ?? {}
   if (num(summary.avgQuizScore) > 0) {

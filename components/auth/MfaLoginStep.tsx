@@ -7,16 +7,14 @@ import {
   ArrowRight,
   Check,
   Copy,
+  Loader2,
   ShieldCheck,
   Smartphone,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { CcBookLoader } from "@/components/ui/cc-book-loader"
-import { Spinner } from "@/components/ui/spinner"
 import { cn } from "@/lib/utils"
-import { captureRefreshTokenFromResponse, withDesktopRefreshInit } from "@/lib/desktop-refresh-token"
 
 export type MfaLoginState = {
   challengeToken: string
@@ -52,9 +50,9 @@ function SectionDivider({ label }: { label: string }) {
 }
 
 const btnPrimary =
-  "h-10 w-full rounded-lg bg-[var(--cc-accent)] text-white hover:bg-[var(--cc-accent-hover)] font-semibold text-[14px]"
+  "h-11 w-full rounded-xl bg-[var(--cc-accent)] text-white hover:opacity-90 font-semibold text-sm"
 const btnOutline =
-  "h-10 w-full rounded-lg border-[var(--border)] bg-transparent text-[var(--cc-text-secondary)] hover:bg-[var(--cc-accent-soft)] text-[13px] font-medium"
+  "h-11 w-full rounded-xl border-[var(--border)] bg-transparent text-[var(--cc-text-secondary)] hover:bg-[var(--muted)]/40 text-sm font-medium"
 
 function normalizeCode(raw: string): string {
   return raw.replace(/\D/g, "").slice(0, 6)
@@ -70,10 +68,13 @@ async function holdCompleteLoginSplash(startedAt: number) {
 export function AuthProgressPanel({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-10 sm:py-14" aria-live="polite" aria-busy="true">
-      <CcBookLoader size="md" label={label} />
+      <div className="relative flex h-14 w-14 items-center justify-center">
+        <span className="absolute inset-0 rounded-full bg-[var(--cc-accent-soft)] animate-pulse" />
+        <Loader2 className="relative h-7 w-7 animate-spin text-[var(--cc-accent)]" />
+      </div>
       <div className="text-center space-y-1">
-        <p className="text-[14px] font-semibold text-[var(--cc-text)]">{label}</p>
-        <p className="text-[13px] text-[var(--cc-text-muted)]">This usually takes a moment…</p>
+        <p className="text-base font-semibold text-[var(--cc-text)]">{label}</p>
+        <p className="text-sm text-[var(--cc-text-muted)]">This usually takes a moment…</p>
       </div>
     </div>
   )
@@ -125,20 +126,16 @@ export function MfaLoginStep({ state, portalLabel = "CourseCollab", onComplete, 
     setAuthenticating(true)
     setError("")
     try {
-      const res = await fetch(
-        "/api/auth/mfa/verify",
-        withDesktopRefreshInit({
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            challengeToken: state.challengeToken,
-            code: useRecovery ? undefined : code,
-            recoveryCode: useRecovery ? recoveryCode : undefined,
-          }),
+      const res = await fetch("/api/auth/mfa/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          challengeToken: state.challengeToken,
+          code: useRecovery ? undefined : code,
+          recoveryCode: useRecovery ? recoveryCode : undefined,
         }),
-      )
-      captureRefreshTokenFromResponse(res)
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Invalid code")
       setCompletingLogin(true)
@@ -162,16 +159,12 @@ export function MfaLoginStep({ state, portalLabel = "CourseCollab", onComplete, 
     setAuthenticating(true)
     setError("")
     try {
-      const res = await fetch(
-        "/api/auth/mfa/enroll/confirm",
-        withDesktopRefreshInit({
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ challengeToken: state.challengeToken, code }),
-        }),
-      )
-      captureRefreshTokenFromResponse(res)
+      const res = await fetch("/api/auth/mfa/enroll/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ challengeToken: state.challengeToken, code }),
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Invalid code")
       if (Array.isArray(data.recoveryCodes) && data.recoveryCodes.length > 0) {
@@ -305,8 +298,8 @@ export function MfaLoginStep({ state, portalLabel = "CourseCollab", onComplete, 
       {state.requiresSetup ? (
         <>
           {preparingQr && !enroll ? (
-            <div className="flex flex-col items-center gap-3 py-6">
-              <CcBookLoader size="sm" label="Preparing QR code" />
+            <div className="flex flex-col items-center gap-2 py-6">
+              <Loader2 className="h-7 w-7 animate-spin text-[var(--cc-accent)]" />
               <p className="text-sm text-[var(--cc-text-muted)]">Preparing QR code…</p>
             </div>
           ) : null}
@@ -397,7 +390,7 @@ export function MfaLoginStep({ state, portalLabel = "CourseCollab", onComplete, 
             onKeyDown={(e) => {
               if (e.key === "Enter" && code.length === 6) runSubmit()
             }}
-            className="h-10 rounded-lg border-[var(--border)] bg-[var(--cc-surface)] text-center text-[16px] font-semibold tracking-[0.35em] tabular-nums"
+            className="h-11 rounded-xl border-[var(--border)] bg-[var(--cc-surface)] text-center text-lg font-semibold tracking-[0.35em] tabular-nums"
           />
           <p className="text-xs text-center text-[var(--cc-text-muted)]">
             {code.length === 6 ? "Verifying automatically…" : "Refreshes every 30 seconds"}
@@ -419,7 +412,7 @@ export function MfaLoginStep({ state, portalLabel = "CourseCollab", onComplete, 
               if (e.key === "Enter" && recoveryCode.trim()) runSubmit()
             }}
             placeholder="XXXXXX-XXXXXX"
-            className="h-10 rounded-lg border-[var(--border)] bg-[var(--cc-surface)] font-mono text-center tracking-wider"
+            className="h-11 rounded-xl border-[var(--border)] bg-[var(--cc-surface)] font-mono text-center tracking-wider"
           />
         </div>
       )}

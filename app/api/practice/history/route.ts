@@ -4,6 +4,8 @@ import { normalizePracticeScorePercent } from "@/lib/practice-score-display"
 import { checkPracticeHubAccess } from "@/lib/practice-hub-access-server"
 import { requireStudentPracticeCaller } from "@/lib/require-student-practice-auth"
 
+
+
 export const dynamic = "force-dynamic"
 
 export async function GET(request: NextRequest) {
@@ -18,32 +20,19 @@ export async function GET(request: NextRequest) {
     if (!hubAccess.allowed) return hubAccess.deniedResponse!
 
     const attempts = await sql`
-      SELECT
-        pa.id,
-        pa.topics,
-        pa.difficulty,
-        pa.total_questions,
-        pa.correct_answers,
-        pa.score_percentage,
-        pa.time_spent_seconds,
-        pa.completed_at,
-        pa.started_at,
-        COUNT(pans.id)::int AS answered_count,
-        CASE
-          WHEN pa.completed_at IS NOT NULL THEN 'completed'
-          ELSE 'in_progress'
-        END AS status
-      FROM practice_attempts pa
-      LEFT JOIN practice_answers pans ON pans.attempt_id = pa.id
-      WHERE pa.student_id = ${auth.studentDbId}
-        AND (
-          pa.completed_at IS NOT NULL
-          OR EXISTS (
-            SELECT 1 FROM practice_answers x WHERE x.attempt_id = pa.id LIMIT 1
-          )
-        )
-      GROUP BY pa.id
-      ORDER BY COALESCE(pa.completed_at, pa.started_at) DESC
+      SELECT 
+        id,
+        topics,
+        difficulty,
+        total_questions,
+        correct_answers,
+        score_percentage,
+        time_spent_seconds,
+        completed_at
+      FROM practice_attempts
+      WHERE student_id = ${auth.studentDbId}
+        AND completed_at IS NOT NULL
+      ORDER BY completed_at DESC
     `
 
     const normalized = (attempts as Array<Record<string, unknown>>).map((row) => ({

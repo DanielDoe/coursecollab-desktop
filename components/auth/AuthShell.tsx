@@ -44,7 +44,7 @@ export function AuthShell({
   return (
     <div
       className={cn(
-        "cc-brand-surface cc-brand-auth cc-desktop-welcome relative flex h-[100dvh] min-h-[100dvh] items-center justify-center overflow-y-auto bg-[var(--cc-background)] px-4 py-8 text-[var(--cc-text)]",
+        "cc-brand-surface cc-brand-auth cc-desktop-welcome relative flex min-h-[100dvh] flex-col items-center overflow-y-auto bg-[var(--cc-background)] px-4 py-6 text-[var(--cc-text)] sm:py-8",
         brandLocked && "cc-brand-surface cc-brand-auth",
         className,
       )}
@@ -52,7 +52,12 @@ export function AuthShell({
       <BrandSurfaceChromeSync />
       <div aria-hidden className="cc-desktop-aurora pointer-events-none absolute inset-0" />
 
-      <div className={cn("relative z-10 w-full", contentMaxWidth ?? desktopAuthLayout.contentColumn)}>
+      <div
+        className={cn(
+          "relative z-10 my-auto w-full shrink-0",
+          contentMaxWidth ?? desktopAuthLayout.contentColumn,
+        )}
+      >
         {showHeader ? (
           <div className="mb-5 flex flex-col items-center gap-1.5 text-center">
             <CourseCollabLogo
@@ -63,7 +68,7 @@ export function AuthShell({
               wordmarkClassName="text-[18px] font-semibold tracking-tight text-[var(--cc-text)]"
             />
             {tagline ? (
-              <p className="max-w-[18rem] text-[12px] leading-snug text-[var(--cc-text-muted)]">{tagline}</p>
+              <p className="max-w-[26rem] text-[12px] leading-snug text-[var(--cc-text-muted)]">{tagline}</p>
             ) : null}
           </div>
         ) : null}

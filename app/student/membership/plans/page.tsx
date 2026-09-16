@@ -203,6 +203,14 @@ export default function MembershipPlansPage() {
                         <span className="text-sm">CodeBench IDE</span>
                       </div>
                       <div className="flex items-start gap-2">
+                        {plan.features.codeBenchCora ? (
+                          <Check className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+                        ) : (
+                          <X className="h-4 w-4 text-slate-500 mt-0.5 shrink-0" />
+                        )}
+                        <span className="text-sm">Cora in CodeBench</span>
+                      </div>
+                      <div className="flex items-start gap-2">
                         {plan.features.earlyAccess ? (
                           <Check className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
                         ) : (

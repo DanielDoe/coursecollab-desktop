@@ -2,7 +2,7 @@
 
 Vite + React + Electron desktop shell. UI routes are bundled with Vite; API calls proxy to production (or a local Next.js API server during development).
 
-Web source is synced from `v0-coursecollabv3` (read-only).
+Desktop UI is maintained in this repo (Magnific shell, Electron, faculty CodeBench). Do not bulk-copy from the web app — it overwrites desktop-specific chrome.
 
 ## Layout
 
@@ -16,12 +16,6 @@ coursecollab-desktop/
 ├── index.html        Vite HTML entry
 ├── vite.config.ts
 └── package.json
-```
-
-## Sync from web
-
-```bash
-npm run sync:web
 ```
 
 ## Dev (browser first)
@@ -65,6 +59,24 @@ npm run build:desktop
 
 Output: `release/`
 
+### Over-the-air updates (macOS)
+
+Packaged apps poll the generic feed in `electron/updater.ts` (Vercel Blob). To ship a new OTA build:
+
+1. Bump `version` in `package.json` and edit `scripts/desktop-ota-release-notes.txt`.
+2. Build both Mac architectures and merge the manifest:
+   ```bash
+   npm run release:desktop:ota:mac
+   ```
+   (Or run `build:desktop:mac`, `build:desktop:mac:x64`, then `merge:desktop-ota-mac-manifest`.)
+3. Add `BLOB_READ_WRITE_TOKEN` to `.env.local` (Vercel Blob read/write token), then:
+   ```bash
+   npm run publish:desktop-ota
+   ```
+4. Verify: `curl -sS …/latest-mac.yml` shows the new version.
+
+Windows OTA uses `latest.yml` + `.exe` artifacts from `npm run build:desktop:win` (upload with the same publish script).
+
 ## Windows install and SmartScreen
 
 Windows installers are **unsigned** today. On first download, Microsoft Defender SmartScreen may show **"Windows protected your PC"** with **Unknown publisher**. This is expected for unsigned apps.
@@ -106,4 +118,3 @@ Authenticode certificates (OV/EV) or paid cloud signing remove the warning immed
 | `npm run dev:electron` | Electron only (Vite must already be running) |
 | `npm run build:renderer` | Production Vite bundle → `dist/` |
 | `npm run build:desktop` | Vite build + Electron packager |
-| `npm run sync:web` | Copy latest web app source |

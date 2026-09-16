@@ -34,7 +34,6 @@ export type FacultyDiscussionThread = {
 type FacultyCampDiscussionsProps = {
   trainingId?: number
   showTrainingLabel?: boolean
-  embedInDashboard?: boolean
 }
 
 function initials(name: string) {
@@ -65,7 +64,6 @@ function Avatar({ name, faculty }: { name: string; faculty?: boolean }) {
 export function FacultyCampDiscussions({
   trainingId,
   showTrainingLabel = false,
-  embedInDashboard = false,
 }: FacultyCampDiscussionsProps) {
   const { card, solid, quiet, danger } = facultyEmbedChrome("summer-camp")
   const [discussions, setDiscussions] = useState<FacultyDiscussionThread[]>([])
@@ -134,24 +132,18 @@ export function FacultyCampDiscussions({
 
   if (loading) {
     return (
-      <div className={cn("space-y-3", embedInDashboard && "flex min-h-0 flex-1 flex-col")}>
-        <Skeleton className="h-9 w-full shrink-0 rounded-xl" />
-        <div className={cn("space-y-3", embedInDashboard && "min-h-0 flex-1")}>
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-40 w-full rounded-2xl" />
-          ))}
-        </div>
+      <div className="space-y-3">
+        <Skeleton className="h-9 w-full rounded-xl" />
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} className="h-40 w-full rounded-2xl" />
+        ))}
       </div>
     )
   }
 
-  const emptyPanelClass = embedInDashboard
-    ? cn(card, "flex min-h-0 flex-1 flex-col items-center justify-center border-dashed px-4 py-10 text-center")
-    : cn(card, "p-8 text-center")
-
   return (
-    <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4"}>
-      <div className={cn("flex flex-wrap items-center justify-between gap-3", embedInDashboard && "shrink-0")}>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>
           {openCount > 0
             ? `${openCount} open conversation${openCount === 1 ? "" : "s"} need a reply`
@@ -175,17 +167,15 @@ export function FacultyCampDiscussions({
         </div>
       </div>
 
-      <div className={embedInDashboard ? "flex min-h-0 flex-1 flex-col" : undefined}>
       {discussions.length === 0 ? (
-        <div className={emptyPanelClass}>
+        <div className={cn(card, "p-8 text-center")}>
           <MessageCircle className={cn("mx-auto mb-2 h-8 w-8", PORTAL_TEXT_MUTED)} />
           <p className={cn("text-sm", PORTAL_TEXT_MUTED)}>
             No camper conversations yet. Questions from module pages appear here as threads.
           </p>
         </div>
       ) : (
-        <div className={cn(embedInDashboard && "min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 sm:pr-2")}>
-        {discussions.map((d) => {
+        discussions.map((d) => {
           const isOpen = d.status === "open"
           const draft = drafts[d.id] ?? ""
           const sending = sendingId === d.id
@@ -291,10 +281,8 @@ export function FacultyCampDiscussions({
               ) : null}
             </article>
           )
-        })}
-        </div>
+        })
       )}
-      </div>
     </div>
   )
 }

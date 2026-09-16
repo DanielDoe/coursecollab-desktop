@@ -412,13 +412,13 @@ export function portalBreadcrumbClass(theme: PortalModuleThemeTokens): string {
 
 /** Segmented view toggles (grid/list) — active pill must stay readable in dark mode */
 export function portalViewOrganizerContainerClass(): string {
-  return "flex items-center gap-0.5 p-0.5 rounded-full bg-[var(--sidebar-accent)]/50 shrink-0"
+  return "flex items-center gap-0.5 p-0.5 rounded-lg bg-[var(--sidebar-accent)]/50 shrink-0"
 }
 
 export function portalViewOrganizerActiveClass(theme: PortalModuleThemeTokens): string {
   // Soft fill + accent ink — never solid primary (icon vanishes on purple).
   return [
-    "rounded-full h-8 w-8 transition-all shadow-none",
+    "rounded-md h-8 w-8 transition-all shadow-none",
     theme.page.softBg,
     theme.page.iconText,
     // Override Button ghost hover:bg-muted / default primary-hover
@@ -428,7 +428,7 @@ export function portalViewOrganizerActiveClass(theme: PortalModuleThemeTokens): 
 
 export function portalViewOrganizerInactiveClass(): string {
   // Neutral muted hover — readable on Apple Lavender; icon stays dark.
-  return "rounded-full h-8 w-8 transition-all text-[var(--cc-text-secondary)] hover:!text-[var(--cc-text)] hover:!bg-[var(--muted)]"
+  return "rounded-md h-8 w-8 transition-all text-[var(--cc-text-secondary)] hover:!text-[var(--cc-text)] hover:!bg-[var(--muted)]"
 }
 
 /** Inline accent icon on dark cards (Clock, Bell, Sparkles, etc.) */

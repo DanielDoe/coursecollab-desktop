@@ -152,6 +152,23 @@ function goMenu(): Electron.MenuItemConstructorOptions {
   }
 }
 
+function viewMenu(): Electron.MenuItemConstructorOptions {
+  const submenu: Electron.MenuItemConstructorOptions[] = [
+    { role: 'reload' },
+    { role: 'forceReload' },
+    { type: 'separator' },
+    { role: 'resetZoom' },
+    { role: 'zoomIn' },
+    { role: 'zoomOut' },
+    { type: 'separator' },
+    { role: 'togglefullscreen' },
+  ]
+  if (!app.isPackaged) {
+    submenu.push({ type: 'separator' }, { role: 'toggleDevTools' })
+  }
+  return { label: 'View', submenu }
+}
+
 function helpMenu(): Electron.MenuItemConstructorOptions {
   return {
     role: 'help',
@@ -182,7 +199,7 @@ export function buildApplicationMenu(): Electron.Menu {
     fileMenu(isMac),
     { role: 'editMenu' },
     goMenu(),
-    { role: 'viewMenu' },
+    viewMenu(),
     { role: 'windowMenu' },
     helpMenu(),
   ]

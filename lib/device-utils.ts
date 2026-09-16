@@ -2,6 +2,8 @@
  * Device detection utilities
  */
 
+import { applyDesktopElectronAntiCheatPolicy } from "@/lib/desktop-anticheat-policy"
+
 function hasTouchSupport(): boolean {
   if (typeof window === "undefined" || typeof navigator === "undefined") return false
   return "ontouchstart" in window || navigator.maxTouchPoints > 0
@@ -117,8 +119,19 @@ export type BrowserAiAntiCheatFields = {
 
 /** Strip browser-AI enforcement on mobile/tablet clients. Safe to call during SSR (no-op). */
 export function applyBrowserAiPlatformPolicy<T extends BrowserAiAntiCheatFields>(config: T): T {
-  if (typeof window === "undefined" || isBrowserAiEnforcementPlatform()) {
-    return config
+  if (typeof window !== "undefined") {
+    const afterDesktop = applyDesktopElectronAntiCheatPolicy(config)
+    if (isBrowserAiEnforcementPlatform()) {
+      return afterDesktop
+    }
+    return {
+      ...afterDesktop,
+      trackGeminiWindow: false,
+      ...(afterDesktop.requireFullscreen !== undefined ? { requireFullscreen: false } : {}),
+    }
+  }
+  if (isBrowserAiEnforcementPlatform()) {
+    return applyDesktopElectronAntiCheatPolicy(config)
   }
   return {
     ...config,

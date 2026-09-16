@@ -147,6 +147,7 @@ export function runFirstRunSetupWindow(): Promise<void> {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
+        webviewTag: false,
       },
     })
 

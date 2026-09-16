@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Sun, Eye, EyeOff } from "lucide-react"
+import { Sun, Eye, EyeOff, LogIn, UserPlus, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,25 +14,9 @@ import { appendNativeAppQuery } from "@/lib/mobile-native-app"
 import { SUMMER_CAMP_DASHBOARD_BASE } from "@/lib/summer-camp/camper-nav"
 import { isSummerProgramRole, type SummerProgramRole } from "@/lib/summer-camp/program-roles"
 import { MfaLoginStep, parseMfaLoginResponse, type MfaLoginState } from "@/components/auth/MfaLoginStep"
-import { cn } from "@/lib/utils"
-import { DesktopAuthBackLink, DesktopAuthPageHeader, desktopAuth } from "@/components/auth/desktop-auth-primitives"
-import { DesktopWebSignupLink } from "@/components/auth/DesktopWebSignupLink"
-import { DESKTOP_WEB_SIGNUP_PATHS, isDesktopAuthLoginOnly } from "@/lib/desktop-auth-policy"
 
-export function SummerCamperAuthForm({
-  nativeApp = false,
-  variant = "default",
-  backHref,
-  backLabel = "Back",
-}: {
-  nativeApp?: boolean
-  variant?: "default" | "desktop"
-  backHref?: string
-  backLabel?: string
-}) {
+export function SummerCamperAuthForm({ nativeApp = false }: { nativeApp?: boolean }) {
   const router = useRouter()
-  const isDesktop = variant === "desktop"
-  const desktopLoginOnly = isDesktopAuthLoginOnly(variant)
   const [tab, setTab] = useState<"login" | "register">("login")
   const [email, setEmail] = useState("")
   const [fullName, setFullName] = useState("")
@@ -46,11 +30,6 @@ export function SummerCamperAuthForm({
 
   const [success, setSuccess] = useState("")
   const [mfaState, setMfaState] = useState<MfaLoginState | null>(null)
-  const inputClass = isDesktop
-    ? cn(desktopAuth.input, "mt-1 rounded-md border border-[var(--border)]")
-    : "mt-1 h-10 rounded-md border border-[var(--border)]"
-  const labelClass = isDesktop ? desktopAuth.label : undefined
-  const submitClass = isDesktop ? cn(desktopAuth.button, "rounded-md") : "h-10 w-full rounded-md"
 
   const finishLogin = (s: Record<string, unknown>) => {
     const role = String(s.student_program_role ?? "summer_student")
@@ -144,27 +123,16 @@ export function SummerCamperAuthForm({
   }
 
   return (
-    <div className={cn("w-full", isDesktop ? "max-w-none" : "max-w-md mx-auto")}>
-      {isDesktop ? (
-        <DesktopAuthPageHeader
-          icon={Sun}
-          iconClassName="bg-amber-500/15 text-amber-600 dark:text-amber-400"
-          title="Summer Camp"
-          subtitle="Sign in with your camp email"
-        />
-      ) : (
+    <div className="w-full max-w-md mx-auto">
       <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 mb-4 size-14">
+        <div className="inline-flex items-center justify-center size-14 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 mb-4">
           <Sun className="h-7 w-7" />
         </div>
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-          Summer Camp
-        </h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">Summer Camp</h1>
         <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
-          Sign in with your camp email
+          Sign in or create your summer program account
         </p>
       </div>
-      )}
 
       {error && (
         <Alert variant="destructive" className="mb-4">
@@ -177,116 +145,27 @@ export function SummerCamperAuthForm({
         </Alert>
       )}
 
-      {desktopLoginOnly ? (
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <Label htmlFor="loginEmail" className={labelClass}>Email</Label>
-            <Input
-              id="loginEmail"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="loginPassword" className={labelClass}>Password</Label>
-              <Link
-                href={
-                  nativeApp
-                    ? appendNativeAppQuery("/student/login/summer-camp/forgot-password")
-                    : "/student/login/summer-camp/forgot-password"
-                }
-                className={cn(desktopAuth.footerLink, "text-[13px] no-underline hover:underline")}
-              >
-                Forgot password?
-              </Link>
-            </div>
-            <div className="relative mt-1">
-              <Input
-                id="loginPassword"
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className={cn(inputClass, "pr-11")}
-              />
-              <button
-                type="button"
-                className="absolute right-1 top-1/2 -translate-y-1/2 flex size-9 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                onClick={() => setShowPassword(!showPassword)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-          <div className={desktopAuth.actionStack}>
-            <Button
-              type="submit"
-              className={submitClass}
-              disabled={loading}
-              style={isDesktop ? { background: "var(--cc-accent)" } : { background: "var(--cc-accent)" }}
-            >
-              {loading ? "Signing in…" : "Sign in"}
-            </Button>
-            {backHref ? <DesktopAuthBackLink href={backHref} label={backLabel} className="mt-0" /> : null}
-          </div>
-          <div className="border-t border-[var(--border)] pt-3">
-            <DesktopWebSignupLink
-              path={DESKTOP_WEB_SIGNUP_PATHS.summerCamp}
-              prompt="Need a camper account?"
-              label="Create account on web"
-            />
-          </div>
-        </form>
-      ) : (
       <Tabs value={tab} onValueChange={(v) => setTab(v as "login" | "register")}>
-        <TabsList
-          className={cn(
-            "grid w-full grid-cols-2 mb-6",
-            isDesktop && "h-10 rounded-[10px] border border-[var(--border)] bg-[var(--cc-surface)] p-1",
-          )}
-        >
-          <TabsTrigger value="login" className={cn(isDesktop && desktopAuth.segmentedTrigger)}>
-            Sign in
-          </TabsTrigger>
-          <TabsTrigger value="register" className={cn(isDesktop && desktopAuth.segmentedTrigger)}>
-            Create account
-          </TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsTrigger value="login">Sign in</TabsTrigger>
+          <TabsTrigger value="register">Create account</TabsTrigger>
         </TabsList>
 
         <TabsContent value="login">
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <Label htmlFor="loginEmail" className={labelClass}>Email</Label>
+              <Label htmlFor="loginEmail">Email</Label>
               <Input
                 id="loginEmail"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className={inputClass}
+                className="mt-1"
               />
             </div>
             <div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="loginPassword" className={labelClass}>Password</Label>
-                {isDesktop ? (
-                  <Link
-                    href={
-                      nativeApp
-                        ? appendNativeAppQuery("/student/login/summer-camp/forgot-password")
-                        : "/student/login/summer-camp/forgot-password"
-                    }
-                    className={cn(desktopAuth.footerLink, "text-[13px] no-underline hover:underline")}
-                  >
-                    Forgot password?
-                  </Link>
-                ) : null}
-              </div>
+              <Label htmlFor="loginPassword">Password</Label>
               <div className="relative mt-1">
                 <Input
                   id="loginPassword"
@@ -294,7 +173,7 @@ export function SummerCamperAuthForm({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className={cn(inputClass, "pr-11")}
+                  className="pr-11"
                 />
                 <button
                   type="button"
@@ -306,63 +185,50 @@ export function SummerCamperAuthForm({
                 </button>
               </div>
             </div>
-            <div className={desktopAuth.actionStack}>
-              <Button
-                type="submit"
-                className={submitClass}
-                disabled={loading}
-                style={isDesktop ? { background: "var(--cc-accent)" } : { background: "var(--cc-accent)" }}
-              >
-                {loading ? "Signing in…" : "Sign in"}
-              </Button>
-              {backHref ? <DesktopAuthBackLink href={backHref} label={backLabel} className="mt-0" /> : null}
-            </div>
-            {!isDesktop ? (
-            <p className="mt-3 text-center text-sm">
+            <Button type="submit" className="w-full" disabled={loading} style={{ background: "#582c83" }}>
+              <LogIn className="h-4 w-4 mr-2" />
+              {loading ? "Signing in…" : "Sign in"}
+            </Button>
+            <p className="text-center text-sm">
               <Link
                 href={
                   nativeApp
                     ? appendNativeAppQuery("/student/login/summer-camp/forgot-password")
                     : "/student/login/summer-camp/forgot-password"
                 }
-                className="text-[var(--cc-accent)] hover:underline"
+                className="text-violet-600 dark:text-violet-400 hover:underline"
               >
                 Forgot password?
               </Link>
             </p>
-            ) : null}
           </form>
         </TabsContent>
 
         <TabsContent value="register">
           <form onSubmit={handleRegister} className="space-y-4">
             <div>
-              <Label htmlFor="fullName" className={labelClass}>Full name</Label>
-              <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} required className={inputClass} />
+              <Label htmlFor="fullName">Full name</Label>
+              <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} required className="mt-1" />
             </div>
             <div>
-              <Label htmlFor="regEmail" className={labelClass}>Email</Label>
-              <Input id="regEmail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className={inputClass} />
+              <Label htmlFor="regEmail">Email</Label>
+              <Input id="regEmail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="mt-1" />
             </div>
             <div>
-              <Label htmlFor="school" className={labelClass}>School / University</Label>
-              <Input id="school" value={school} onChange={(e) => setSchool(e.target.value)} required className={inputClass} placeholder="e.g. Prairie View A&M University" />
+              <Label htmlFor="school">School / University</Label>
+              <Input id="school" value={school} onChange={(e) => setSchool(e.target.value)} required className="mt-1" placeholder="e.g. Prairie View A&M University" />
             </div>
             <div>
-              <Label className={labelClass}>Enrollment type</Label>
+              <Label>Enrollment type</Label>
               <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => setProgramRole("summer_student")}
-                  className={cn(
-                    "border p-3 text-left text-sm transition-colors",
-                    isDesktop ? "rounded-[10px] border-[var(--border)]" : "rounded-xl",
+                  className={`rounded-xl border p-3 text-left text-sm transition-colors ${
                     programRole === "summer_student"
-                      ? "border-[var(--cc-accent)] bg-[var(--cc-accent-soft)]"
-                      : isDesktop
-                        ? "bg-[var(--cc-surface)] hover:bg-[var(--cc-accent-soft)]/50"
-                        : "border-slate-200 dark:border-white/10",
-                  )}
+                      ? "border-violet-500 bg-violet-500/10"
+                      : "border-slate-200 dark:border-white/10"
+                  }`}
                 >
                   <span className="font-semibold block">Summer Student</span>
                   <span className="text-xs text-muted-foreground">Research training and coursework</span>
@@ -370,15 +236,11 @@ export function SummerCamperAuthForm({
                 <button
                   type="button"
                   onClick={() => setProgramRole("summer_camper")}
-                  className={cn(
-                    "border p-3 text-left text-sm transition-colors",
-                    isDesktop ? "rounded-[10px] border-[var(--border)]" : "rounded-xl",
+                  className={`rounded-xl border p-3 text-left text-sm transition-colors ${
                     programRole === "summer_camper"
-                      ? "border-[var(--cc-accent)] bg-[var(--cc-accent-soft)]"
-                      : isDesktop
-                        ? "bg-[var(--cc-surface)] hover:bg-[var(--cc-accent-soft)]/50"
-                        : "border-slate-200 dark:border-white/10",
-                  )}
+                      ? "border-violet-500 bg-violet-500/10"
+                      : "border-slate-200 dark:border-white/10"
+                  }`}
                 >
                   <span className="font-semibold block">Summer Camper</span>
                   <span className="text-xs text-muted-foreground">Same access — residential camp participant</span>
@@ -386,32 +248,32 @@ export function SummerCamperAuthForm({
               </div>
             </div>
             <div>
-              <Label htmlFor="regPassword" className={labelClass}>Password</Label>
-              <Input id="regPassword" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} className={inputClass} />
+              <Label htmlFor="regPassword">Password</Label>
+              <Input id="regPassword" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} className="mt-1" />
             </div>
             <div>
-              <Label htmlFor="confirmPassword" className={labelClass}>Confirm password</Label>
-              <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required className={inputClass} />
+              <Label htmlFor="confirmPassword">Confirm password</Label>
+              <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required className="mt-1" />
             </div>
-            <div className={desktopAuth.actionStack}>
-              <Button
-                type="submit"
-                className={submitClass}
-                disabled={loading}
-                style={isDesktop ? { background: "var(--cc-accent)" } : { background: "var(--cc-accent)" }}
-              >
-                {loading ? "Submitting…" : "Create account"}
-              </Button>
-              {backHref ? <DesktopAuthBackLink href={backHref} label={backLabel} className="mt-0" /> : null}
-            </div>
-            <p className={cn("mt-3 text-center text-[12px]", isDesktop ? desktopAuth.hint : "text-[var(--cc-text-muted)]")}>
+            <Button type="submit" className="w-full" disabled={loading} style={{ background: "#582c83" }}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              {loading ? "Submitting…" : "Create account"}
+            </Button>
+            <p className="text-xs text-slate-500 text-center">
               Summer campers and summer students use the same training platform. An admin may review your request before approval.
             </p>
           </form>
         </TabsContent>
       </Tabs>
-      )}
 
+      {!nativeApp ? (
+        <p className="text-center text-sm text-slate-500 mt-6">
+          <Link href="/" className="inline-flex items-center gap-1 text-violet-600 hover:underline">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to CourseCollab
+          </Link>
+        </p>
+      ) : null}
     </div>
   )
 }

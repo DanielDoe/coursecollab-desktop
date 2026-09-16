@@ -13,6 +13,7 @@ import { CareerMembersSection } from "@/components/landing/CareerMembersSection"
 import { AboutSection } from "@/components/landing/AboutSection"
 import { SolutionsSection } from "@/components/landing/SolutionsSection"
 import { PricingSection } from "@/components/landing/PricingSection"
+import { DownloadsSection } from "@/components/landing/DownloadsSection"
 import { LandingFooter } from "@/components/landing/LandingFooter"
 import { MobileCtaBar } from "@/components/landing/MobileCtaBar"
 import { LandingMotionProvider } from "@/components/landing/LandingMotionProvider"
@@ -66,6 +67,8 @@ export default function HomePage() {
           </DesktopOnly>
 
           <PricingSection />
+
+          <DownloadsSection />
         </main>
 
         <LandingFooter />

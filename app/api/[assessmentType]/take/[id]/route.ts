@@ -27,6 +27,11 @@ import {
   buildTakeQuizPayload,
   resolveQuizSettingsForCourse,
 } from "@/lib/resolve-assessment-settings"
+import {
+  assessmentPlatformGateResponse,
+  resolveAssessmentClientPlatform,
+} from "@/lib/assessment-platform-access.server"
+import { ensureQuizPlatformAccessColumn } from "@/lib/ensure-quiz-platform-access-column"
 
 /** JSON lines for Vercel/host logs — grep `assessment-take` */
 function logAssessmentTake(
@@ -104,6 +109,8 @@ export async function GET(
       hasLatLng: searchParams.has("lat") && searchParams.has("lng"),
     })
 
+    await ensureQuizPlatformAccessColumn()
+
     // All assessments are stored in quizzes table (rollover_enabled used for Trailblazer rollover)
     const assessments = await sql`
       SELECT * FROM quizzes
@@ -120,6 +127,14 @@ export async function GET(
     }
 
     const assessment = assessments[0]
+
+    const platformBlocked = await assessmentPlatformGateResponse(
+      Number(assessment.course_id),
+      (assessment.assessment_type as string | null | undefined) ?? assessmentType,
+      resolveAssessmentClientPlatform(request),
+      assessment.platform_access,
+    )
+    if (platformBlocked) return platformBlocked
 
     logAssessmentTake("quiz_loaded", {
       routeType: assessmentType,

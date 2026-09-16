@@ -31,6 +31,12 @@ import { InstructorQuizIssues } from "@/components/instructor-quiz-issues"
 import { AttemptOverrideManager } from "@/components/attempt-override-manager"
 import { ManageGeolocationPanel } from "@/components/manage-geolocation-panel"
 import { ManageWhoCanAccessPanel } from "@/components/manage-who-can-access-panel"
+import { ManagePlatformAccessPanel } from "@/components/manage-platform-access-panel"
+import {
+  DEFAULT_ASSESSMENT_PLATFORM_FLAGS,
+  parseAssessmentPlatformOverride,
+  type AssessmentPlatformFlags,
+} from "@/lib/assessment-platform-access"
 import { ManageRolloverPanel } from "@/components/manage-rollover-panel"
 import { GrantRolloverToStudentPanel } from "@/components/grant-rollover-to-student-panel"
 import { CourseAssessmentDefaultsBanner } from "@/components/instructor/CourseAssessmentDefaultsBanner"
@@ -465,6 +471,8 @@ export function EditQuizForm({
     restrict_access_to_students: assessmentType === 'final',
     allowed_student_ids: [] as number[],
     access_restriction_session_id: null as number | null,
+    inherit_platform_access: true,
+    platform_access: { ...DEFAULT_ASSESSMENT_PLATFORM_FLAGS } as AssessmentPlatformFlags,
     counts_toward_course_grade: true,
   })
   const [questions, setQuestions] = useState<Question[]>([])
@@ -610,6 +618,14 @@ export function EditQuizForm({
         restrict_access_to_students: Boolean(quizData.restrict_access_to_students),
         allowed_student_ids: normalizeAllowedStudentIds(quizData.allowed_student_ids),
         access_restriction_session_id: quizData.access_restriction_session_id ?? null,
+        inherit_platform_access:
+          parseAssessmentPlatformOverride(
+            (quizData as { platform_access?: unknown }).platform_access,
+          ) == null,
+        platform_access:
+          parseAssessmentPlatformOverride(
+            (quizData as { platform_access?: unknown }).platform_access,
+          ) ?? { ...DEFAULT_ASSESSMENT_PLATFORM_FLAGS },
         counts_toward_course_grade: parseCountsTowardCourseGrade(
           (quizData as { counts_toward_course_grade?: unknown }).counts_toward_course_grade,
         ),
@@ -1032,6 +1048,7 @@ export function EditQuizForm({
             : null,
           // Session + roster are optional while drafting — empty allowed_student_ids is valid until exam day.
           access_restriction_session_id: quizDataNow.access_restriction_session_id ?? null,
+          platform_access: quizDataNow.inherit_platform_access ? null : quizDataNow.platform_access,
           counts_toward_course_grade: quizDataNow.counts_toward_course_grade !== false,
           ...(isSingleSittingExam ? { retake_enabled: false, retake_limit: 0, rollover_enabled: false } : {}),
           ...(assessmentType === "final"
@@ -1415,6 +1432,21 @@ export function EditQuizForm({
                     assessmentLabel={assessmentLabel.toLowerCase()}
                     userType={userType as "instructor" | "admin"}
                     embedded
+                  />
+                )}
+
+                {(["quiz", "homework", "mid_semester", "final"].includes(assessmentType)) && (
+                  <ManagePlatformAccessPanel
+                    assessmentType={assessmentType}
+                    inherit={quizData.inherit_platform_access}
+                    flags={quizData.platform_access}
+                    courseAccess={courseAssessmentPolicy?.access.platform_access}
+                    onInheritChange={(v) =>
+                      setQuizData((prev) => ({ ...prev, inherit_platform_access: v }))
+                    }
+                    onFlagsChange={(next) =>
+                      setQuizData((prev) => ({ ...prev, platform_access: next }))
+                    }
                   />
                 )}
 

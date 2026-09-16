@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react"
 import type { LucideIcon } from "lucide-react"
-import { dashboardV2CardBodyClass, type DashboardV2ModuleScrollMode } from "@/lib/dashboard-v2-layout"
+import { dashboardV2CardBodyClass } from "@/lib/dashboard-v2-layout"
 import { cn } from "@/lib/utils"
 import { useFacultyModuleTheme } from "@/hooks/use-faculty-module-theme"
 import { portalAccentIconClass, portalIconBadgeClass } from "@/lib/portal-module-themes"
@@ -16,7 +16,6 @@ type InstructorPolicyShellProps = {
   showHeader?: boolean
   className?: string
   moduleId?: string
-  scrollMode?: DashboardV2ModuleScrollMode
 }
 
 export function InstructorPolicyShell({
@@ -27,21 +26,13 @@ export function InstructorPolicyShell({
   showHeader = true,
   className,
   moduleId,
-  scrollMode = "page",
 }: InstructorPolicyShellProps) {
   const theme = useFacultyModuleTheme(moduleId)
-  const isPanel = scrollMode === "panel"
 
   return (
-    <div
-      className={cn(
-        isPanel ? "flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-x-hidden" : dashboardV2CardBodyClass,
-        !isPanel && "space-y-4",
-        className,
-      )}
-    >
+    <div className={cn(dashboardV2CardBodyClass, "space-y-4", className)}>
       {showHeader ? (
-        <div className={cn("flex min-w-0 items-start gap-3", isPanel && "shrink-0")}>
+        <div className="flex min-w-0 items-start gap-3">
           <span className={portalIconBadgeClass(theme, "md")}>
             <Icon className={cn("h-5 w-5", portalAccentIconClass(theme))} />
           </span>
@@ -51,7 +42,7 @@ export function InstructorPolicyShell({
           </div>
         </div>
       ) : null}
-      <div className={cn("w-full min-w-0", isPanel && "flex min-h-0 flex-1 flex-col")}>{children}</div>
+      <div className="w-full min-w-0">{children}</div>
     </div>
   )
 }
