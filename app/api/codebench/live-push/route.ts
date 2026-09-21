@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "assignmentId is required." }, { status: 400 })
   }
 
-  const access = await validateStudentLiveSnapshotAccess(auth.studentDbId, assignmentId)
+  const access = await validateStudentLiveSnapshotAccess(request, auth.studentDbId, assignmentId)
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status })
   }

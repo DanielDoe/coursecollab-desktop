@@ -134,7 +134,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         option_c, 
         option_d, 
         option_e, 
-        correct_answer, 
         question_order, 
         time_limit, 
         question_type, 
@@ -155,6 +154,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         hasText: !!q.question_text,
       })
 
+      // SECURITY: never include answer-key fields (correct_answer, expected_answer,
+      // explanation, sample_answers, MCQ is_correct flags) — this payload is sent to
+      // students BEFORE they answer. Grading happens server-side on submit.
+      // See lib/assessment-core/render.ts formatQuestionForRenderer.
       return {
         id: Number(q.id),
         question_text: String(q.question_text || ""),
@@ -163,7 +166,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         option_c: String(q.option_c || ""),
         option_d: String(q.option_d || ""),
         option_e: String(q.option_e || ""),
-        correct_answer: String(q.correct_answer || ""),
         question_order: Number(q.question_order || 0),
         time_limit: q.time_limit ? Number(q.time_limit) : null,
         question_type: String(q.question_type || "mcq"),

@@ -44,7 +44,7 @@ export function AuthShell({
   return (
     <div
       className={cn(
-        "cc-brand-surface cc-brand-auth cc-desktop-welcome relative flex min-h-[100dvh] flex-col items-center overflow-y-auto bg-[var(--cc-background)] px-4 py-6 text-[var(--cc-text)] sm:py-8",
+        "cc-brand-surface cc-brand-auth cc-desktop-welcome relative flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[var(--cc-background)] text-[var(--cc-text)]",
         brandLocked && "cc-brand-surface cc-brand-auth",
         className,
       )}
@@ -52,9 +52,10 @@ export function AuthShell({
       <BrandSurfaceChromeSync />
       <div aria-hidden className="cc-desktop-aurora pointer-events-none absolute inset-0" />
 
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-4 [scrollbar-gutter:stable]">
       <div
         className={cn(
-          "relative z-10 my-auto w-full shrink-0",
+          "mx-auto flex min-h-full w-full flex-col justify-center py-6 sm:py-8",
           contentMaxWidth ?? desktopAuthLayout.contentColumn,
         )}
       >
@@ -74,6 +75,7 @@ export function AuthShell({
         ) : null}
 
         {children}
+      </div>
       </div>
     </div>
   )

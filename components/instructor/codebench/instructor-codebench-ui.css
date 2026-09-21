@@ -581,4 +581,34 @@ html.dark .instructor-live-session--expanded {
   .instructor-live-session__grid > section:last-child {
     flex: unset;
   }
+
+  .instructor-live-session__grid--run-open {
+    grid-template-columns: minmax(220px, 300px) minmax(0, 1fr) minmax(240px, 320px);
+  }
+}
+
+.instructor-live-session__grid--run-open {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(220px, 34%) minmax(0, 1fr) minmax(220px, 38%);
+  gap: 0.75rem;
+}
+
+@container codebench-panel (min-width: 34rem) {
+  .instructor-live-session__grid--run-open {
+    grid-template-columns: minmax(220px, 300px) minmax(0, 1fr) minmax(240px, 320px);
+    grid-template-rows: minmax(0, 1fr);
+  }
+}
+
+.instructor-live-session--expanded .instructor-live-session__grid--run-open {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr) minmax(280px, 360px);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.instructor-live-session__run-panel {
+  min-height: 0;
+  border-radius: 1rem;
+  border: 1px solid var(--border);
 }

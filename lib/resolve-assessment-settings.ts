@@ -14,6 +14,8 @@ import { getAssessmentPolicyForCourse } from "@/lib/assessment-policy-settings.s
 
 export type QuizSettingsRow = {
   course_id?: number | null
+  assessment_type?: string | null
+  title?: string | null
   time_per_question?: number | null
   retake_enabled?: boolean | null
   retake_limit?: number | null
@@ -175,6 +177,8 @@ export function antiCheatDbRowFromResolved(
   quiz: QuizSettingsRow,
 ) {
   return {
+    assessment_type: quiz.assessment_type ?? null,
+    title: quiz.title ?? null,
     strict_mode_enabled: resolved.strict_mode_enabled,
     block_copy_paste: resolved.block_copy_paste,
     track_tab_switches: resolved.track_tab_switches,

@@ -11,6 +11,8 @@ import { isCodeAnswerCorrupt } from "@/lib/code-answer-validation"
 import { isAnswerFinalized, isLockableQuizQuestionType } from "@/lib/quiz-answer-lock"
 import { requireAttemptOwnership, requireCallerStudentDbId } from "@/lib/student-api-auth"
 import { getAttemptStrictAnswerLockContext } from "@/lib/assessment-resume-integrity"
+import { ensureAttemptIntegritySchema } from "@/lib/ensure-attempt-integrity-schema"
+import { isAttemptDeadlineExpired } from "@/lib/attempt-deadline"
 
 export const dynamic = 'force-dynamic'
 export const runtime = "nodejs"
@@ -87,11 +89,22 @@ export async function POST(request: NextRequest) {
 
     // Get attempt to determine assessment type
     // Note: quiz_attempts table doesn't have assessment_type column, only quizzes table has it
+    await ensureAttemptIntegritySchema()
+
     const attemptResult = await sql`
       SELECT 
         a.id,
         a.saved_for_later_at,
-        q.assessment_type as quiz_assessment_type
+        a.completed_at,
+        a.deadline_at,
+        a.session_token,
+        a.tab_switch_count,
+        a.gemini_strikes_count,
+        q.assessment_type as quiz_assessment_type,
+        q.auto_submit_on_violations,
+        q.max_tab_switches,
+        q.track_gemini_window,
+        q.max_gemini_strikes
       FROM quiz_attempts a
       LEFT JOIN quizzes q ON a.quiz_id = q.id
       WHERE a.id = ${attemptId}
@@ -106,6 +119,72 @@ export async function POST(request: NextRequest) {
     }
 
     const attempt = attemptResult[0]
+
+    // SECURITY: finalized attempts accept no further answers.
+    if (attempt.completed_at) {
+      return NextResponse.json(
+        { error: "Attempt already submitted" },
+        { status: 409 }
+      )
+    }
+
+    // SECURITY: once server-persisted violation counts reach the configured threshold the
+    // attempt is pending auto-submission. Reject further answers so blocking the client-side
+    // finalize call (or closing the tab) cannot be used to keep working on the attempt.
+    const maxGeminiStrikes = Math.max(1, Number(attempt.max_gemini_strikes) || 5)
+    const maxTabSwitches = Math.max(1, Number(attempt.max_tab_switches) || 5)
+    const isViolationLocked =
+      (attempt.track_gemini_window === true &&
+        Number(attempt.gemini_strikes_count) >= maxGeminiStrikes) ||
+      (attempt.auto_submit_on_violations === true &&
+        Number(attempt.tab_switch_count) >= maxTabSwitches)
+    if (isViolationLocked) {
+      return NextResponse.json(
+        {
+          error: "Maximum violations reached. This attempt is locked pending submission.",
+          violationLocked: true,
+          code: "violation_locked",
+        },
+        { status: 423 }
+      )
+    }
+
+    // SECURITY: server-side sitting deadline — once the hard deadline (plus grace) has passed,
+    // no further answers are accepted even if the client timer was stalled or saves were blocked.
+    if (isAttemptDeadlineExpired(attempt.deadline_at)) {
+      return NextResponse.json(
+        {
+          error: "The assessment time limit has been reached. This attempt can only be submitted.",
+          code: "deadline_expired",
+        },
+        { status: 423 }
+      )
+    }
+
+    // SECURITY: single active session — the take API rotates session_token on every load, so a
+    // stale token means another window/device resumed this attempt. Reject the stale writer and
+    // log it for the instructor. (Legacy clients that send no token are allowed through.)
+    const clientSessionToken = request.headers.get("x-attempt-session")
+    if (clientSessionToken && attempt.session_token && clientSessionToken !== attempt.session_token) {
+      await sql`
+        UPDATE quiz_attempts
+        SET violation_log = COALESCE(violation_log, '[]'::jsonb) || ${JSON.stringify([
+          {
+            type: "concurrent_session",
+            details: "Answer save rejected from a superseded session (attempt was resumed in another window or device)",
+            timestamp: new Date().toISOString(),
+          },
+        ])}::jsonb
+        WHERE id = ${attemptId}
+      `
+      return NextResponse.json(
+        {
+          error: "This attempt was resumed in another window or device. Continue there.",
+          code: "session_superseded",
+        },
+        { status: 409 }
+      )
+    }
 
     // Look up question's time_limit to cap time_spent (students cannot exceed per-question limit)
     let timeSpentValue = timeSpentSeconds != null && timeSpentSeconds >= 0 ? timeSpentSeconds : null

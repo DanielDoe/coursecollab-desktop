@@ -24,6 +24,10 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { LiveTypingReplayPanel } from "@/components/codebench/LiveTypingReplayPanel"
+import {
+  LiveInstructorRunPanel,
+  type LiveInstructorRunPanelHandle,
+} from "@/components/instructor/codebench/LiveInstructorRunPanel"
 import { invalidateInstructorClassroomAssignmentsCache } from "@/hooks/use-instructor-classroom-assignments"
 import { notifyInstructorClassroomAssignmentsChanged } from "@/lib/instructor-classroom-assignments-changed"
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
@@ -204,6 +208,11 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
   const [expanded, setExpanded] = useState(false)
   const [filter, setFilter] = useState<RosterFilter>("all")
   const [pushing, setPushing] = useState(false)
+  const [runPanelOpen, setRunPanelOpen] = useState(false)
+  const [runLoading, setRunLoading] = useState(false)
+  const [displayCodeForRun, setDisplayCodeForRun] = useState("")
+  const runPanelRef = useRef<LiveInstructorRunPanelHandle | null>(null)
+  const pendingRunCodeRef = useRef<string | null>(null)
   const { toast } = useToast()
   const { confirm } = useAppConfirm()
   const payloadRef = useRef<LiveClassroomSessionPayload | null>(null)
@@ -214,6 +223,10 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
   useEffect(() => {
     payloadRef.current = payload
   }, [payload])
+
+  useEffect(() => {
+    pendingRunCodeRef.current = null
+  }, [selectedStudentId])
 
   useEffect(() => {
     if (!expanded) return
@@ -398,6 +411,36 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
         selectedStudent.code?.trim() || submittedCodeByStudent.get(selectedStudent.studentDbId) || "",
       ) || null
     : null
+
+  const resolveRunnableCode = useCallback(() => {
+    return stripCodebenchProbeComments((displayCodeForRun || selectedStudentCode || "").trim())
+  }, [displayCodeForRun, selectedStudentCode])
+
+  const handleTerminalReady = useCallback(() => {
+    const code = pendingRunCodeRef.current
+    if (!code) return
+    pendingRunCodeRef.current = null
+    void runPanelRef.current?.run(code)
+  }, [])
+
+  const handleOpenRunPanel = useCallback(() => {
+    const code = resolveRunnableCode()
+    if (!code) {
+      toast({
+        title: "No code to run",
+        description: "Wait for the student to type or pick a snapshot with code in the editor.",
+        variant: "destructive",
+      })
+      return
+    }
+    if (runPanelOpen) {
+      void runPanelRef.current?.run(code)
+      return
+    }
+    pendingRunCodeRef.current = code
+    setRunPanelOpen(true)
+  }, [resolveRunnableCode, runPanelOpen, toast])
+
   const selectedCodeSource =
     selectedStudent?.codeSource ??
     (selectedStudent?.snapshotUpdatedAt
@@ -549,7 +592,12 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
               Refresh issue: {error}
             </div>
           ) : null}
-          <div className="instructor-live-session__grid min-h-0 flex-1">
+          <div
+            className={cn(
+              "instructor-live-session__grid min-h-0 flex-1",
+              runPanelOpen && "instructor-live-session__grid--run-open",
+            )}
+          >
             <section className={cn(chrome.card, "flex min-h-0 min-w-0 flex-col overflow-hidden p-3")}>
               <div className="mb-2 shrink-0 space-y-2 px-1">
                 <div className="flex items-center justify-between gap-2">
@@ -644,15 +692,16 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
                       selectedStudent.status === "submitted" ||
                       selectedStudent.status === "review"
                     }
-                    replayVersion={
-                      selectedStudent.snapshotUpdatedAt ??
-                      selectedStudent.lastActivityAt ??
-                      (selectedStudentCode ? String(selectedStudent.studentDbId) : null)
-                    }
+                    replayVersion={`${selectedStudent.studentDbId}:${selectedStudent.typingReplay?.startTime ?? 0}`}
                     className="min-h-0 flex-1"
                     editable={!sessionClosed}
                     sending={pushing}
                     onSendToStudent={handleSendToStudent}
+                    onDisplayCodeChange={setDisplayCodeForRun}
+                    onRunStudentCode={handleOpenRunPanel}
+                    runStudentLoading={runLoading}
+                    runStudentDisabled={runLoading}
+                    studentCursor={selectedStudent.studentCursor}
                   />
                 </>
               ) : (
@@ -665,6 +714,20 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
                 </div>
               )}
             </section>
+
+            {runPanelOpen && selectedStudent ? (
+              <LiveInstructorRunPanel
+                ref={runPanelRef}
+                className="instructor-live-session__run-panel"
+                studentName={selectedStudent.fullName}
+                onBusyChange={setRunLoading}
+                onClose={() => {
+                  pendingRunCodeRef.current = null
+                  setRunPanelOpen(false)
+                }}
+                onTerminalReady={handleTerminalReady}
+              />
+            ) : null}
           </div>
         </>
       )}

@@ -260,19 +260,6 @@ export function PracticeHubDashboardV2() {
       return
     }
 
-    const unlocked = practiceTopicUnlockedCount(selectedTopicData)
-    if (selectedTopicData.completed >= unlocked && unlocked > 0) {
-      toast({
-        title: "Unlocked pool complete",
-        description:
-          unlocked < selectedTopicData.questionCount
-            ? `You've practiced all ${unlocked} unlocked questions in ${selectedTopic}. Upgrade to Trailblazer for the rest.`
-            : `You've already practiced all ${unlocked} questions in ${selectedTopic}. Try a different topic or difficulty.`,
-        variant: "destructive",
-      })
-      return
-    }
-
     const sessionCount = resolvePracticeSessionQuestionCount(
       selectedTopicData,
       practiceConfig.numQuestions,
@@ -301,13 +288,19 @@ export function PracticeHubDashboardV2() {
 
       const data = await response.json()
       if (response.ok) {
-        if (fullTopic && Array.isArray(data.questions) && data.questions.length < sessionCount) {
+        if (data.reviewOnly) {
+          toast({
+            title: "Reviewing completed topic",
+            description: "These questions are locked. Your previous answers and the correct answers are shown.",
+          })
+        } else if (fullTopic && Array.isArray(data.questions) && data.questions.length < sessionCount) {
           toast({
             title: "Fewer questions available",
             description: `Loaded ${data.questions.length} of ${sessionCount} requested — the unlocked pool may be nearly exhausted.`,
           })
         }
-        sessionStorage.setItem("practiceAttemptId", data.attemptId.toString())
+        sessionStorage.setItem("practiceReviewOnly", data.reviewOnly ? "1" : "0")
+        sessionStorage.setItem("practiceAttemptId", data.attemptId != null ? String(data.attemptId) : "0")
         sessionStorage.setItem("practiceQuestions", JSON.stringify(data.questions))
         router.push("/student/dashboard-v2/practice/quiz")
       } else {
@@ -344,6 +337,8 @@ export function PracticeHubDashboardV2() {
   const selectedTopicLocked = selectedTopicData
     ? isPracticeTopicLocked(selectedTopicData, canStartPractice)
     : !canStartPractice
+  const selectedPoolComplete =
+    selectedTopicData != null && selectedUnlocked > 0 && selectedTopicData.completed >= selectedUnlocked
 
   return (
     <PracticeHubBrowseShell
@@ -625,7 +620,7 @@ export function PracticeHubDashboardV2() {
               ) : (
                 <Zap className="mr-1.5 h-4 w-4" />
               )}
-              {generating ? "Generating…" : "Start"}
+              {generating ? "Generating…" : selectedPoolComplete ? "Review" : "Start"}
             </Button>
           )}
         </div>

@@ -33,7 +33,7 @@ const DEFAULT_GENERIC_UPDATE_FEED_URL =
 
 const MANUAL_DOWNLOAD_URL =
   process.env.DESKTOP_DOWNLOAD_PAGE_URL?.trim() ||
-  'https://github.com/DanielDoe/coursecollab-desktop/releases/latest'
+  'https://course-collab.com/#desktop-downloads'
 
 let status: DesktopUpdateStatus = {
   state: 'idle',
@@ -112,6 +112,9 @@ function friendlyUpdateError(
   const text = errorText(error)
   if (/\b404\b/.test(text) || /ENOTFOUND|ECONNREFUSED|net::/i.test(text)) {
     return 'Could not reach the update server. Check your connection and try again.'
+  }
+  if (/ERR_UPDATER_INVALID_VERSION|not a valid semver|Invalid Version/i.test(text)) {
+    return 'The update feed has an invalid version number. Install the latest build from the CourseCollab download page, or contact support.'
   }
   if (context === 'install' || isInstallSignatureError(text)) {
     return 'Automatic install failed. Download the latest installer from GitHub Releases and replace the app in Applications.'
@@ -306,7 +309,8 @@ export function registerUpdater(): void {
 
   configureFeed()
   autoUpdater.autoDownload = false
-  autoUpdater.autoInstallOnAppQuit = true
+  /** Never apply a downloaded update on quit — unsigned macOS Squirrel updates can remove the app if install fails. */
+  autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.allowDowngrade = false
 
   autoUpdater.on('checking-for-update', () => {

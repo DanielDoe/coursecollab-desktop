@@ -62,9 +62,18 @@ interface UseAntiCheatOptions {
   attemptId?: string
   /** Synchronous guard (e.g. solution file picker) — checked before config.suspended state updates. */
   isAntiCheatSuspended?: () => boolean
+  /**
+   * Server-persisted violation counts restored on resume. SECURITY: without these, refreshing
+   * the page resets counters to 0 and the auto-submit threshold can never be reached.
+   */
+  initialCounts?: {
+    tabSwitchCount?: number
+    geminiStrikes?: number
+    copyPasteAttempts?: number
+  }
 }
 
-export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, isAntiCheatSuspended }: UseAntiCheatOptions) {
+export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, isAntiCheatSuspended, initialCounts }: UseAntiCheatOptions) {
   const [state, setState] = useState<AntiCheatState>({
     tabSwitchCount: 0,
     copyPasteAttempts: 0,
@@ -111,6 +120,40 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
   const antiCheatPaused = useCallback(() => {
     return configRef.current.suspended === true || isAntiCheatSuspendedRef.current?.() === true
   }, [])
+
+  // SECURITY: seed counters from server-persisted counts (arrives async on resume).
+  // Counts only ever go up — never lower an in-session count from a stale fetch.
+  const seededInitialCountsRef = useRef(false)
+  useEffect(() => {
+    if (seededInitialCountsRef.current || !initialCounts) return
+    const restoredTabSwitches = Math.max(0, Math.floor(initialCounts.tabSwitchCount ?? 0))
+    const restoredGeminiStrikes = Math.max(0, Math.floor(initialCounts.geminiStrikes ?? 0))
+    const restoredCopyPaste = Math.max(0, Math.floor(initialCounts.copyPasteAttempts ?? 0))
+    if (restoredTabSwitches === 0 && restoredGeminiStrikes === 0 && restoredCopyPaste === 0) return
+
+    seededInitialCountsRef.current = true
+    setState((prev) => ({
+      ...prev,
+      tabSwitchCount: Math.max(prev.tabSwitchCount, restoredTabSwitches),
+      geminiStrikes: Math.max(prev.geminiStrikes, restoredGeminiStrikes),
+      copyPasteAttempts: Math.max(prev.copyPasteAttempts, restoredCopyPaste),
+    }))
+    tabSwitchCountRef.current = Math.max(tabSwitchCountRef.current, restoredTabSwitches)
+    geminiStrikesCountRef.current = Math.max(geminiStrikesCountRef.current, restoredGeminiStrikes)
+
+    // If the restored counts already meet the threshold, trigger the max-violations flow now —
+    // otherwise a student could refresh at N-1 strikes forever without consequence.
+    const cfg = configRef.current
+    if (!onMaxViolationsTriggeredRef.current) {
+      if (cfg.trackGeminiWindow && restoredGeminiStrikes >= cfg.maxGeminiStrikes) {
+        onMaxViolationsTriggeredRef.current = true
+        onMaxViolations?.("gemini_window", restoredGeminiStrikes)
+      } else if (cfg.trackTabSwitches && cfg.autoSubmitOnViolations && restoredTabSwitches >= cfg.maxTabSwitches) {
+        onMaxViolationsTriggeredRef.current = true
+        onMaxViolations?.("tab_switch", restoredTabSwitches)
+      }
+    }
+  }, [initialCounts, onMaxViolations])
 
   // Track last logged violation to prevent duplicate API calls
   const lastLoggedViolationRef = useRef<{ type: string; timestamp: number } | null>(null)
@@ -344,6 +387,28 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
       const key = e.key.toLowerCase()
       const hasModifier = e.ctrlKey || e.metaKey
 
+      // Select-all / find-in-page (harvest question text for external tools).
+      // Allowed inside inputs/textareas/contenteditable — students must be able
+      // to select text in their own answers.
+      if (hasModifier && !e.shiftKey && !e.altKey && (key === "a" || key === "f")) {
+        const target = e.target as HTMLElement | null
+        const isEditableTarget =
+          target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement ||
+          target?.isContentEditable === true
+        if (!isEditableTarget) {
+          e.preventDefault()
+          logViolation("copy_paste", `Blocked shortcut: ${e.metaKey ? "Cmd" : "Ctrl"}+${key.toUpperCase()}`)
+          showWarningModal(
+            "copy_paste",
+            key === "a"
+              ? "⚠️ Selecting the assessment content is disabled. This attempt has been logged."
+              : "⚠️ Find-in-page is disabled during this assessment. This attempt has been logged.",
+          )
+          return
+        }
+      }
+
       // Print or save the page (share quiz as PDF loop)
       if (hasModifier && (key === "p" || key === "s")) {
         e.preventDefault()
@@ -371,10 +436,23 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
       }
     }
 
+    // Override window.print with a no-op so scripts/menus can't open the print
+    // dialog at all — the violation is logged instead. Restored on cleanup.
+    const originalWindowPrint = window.print
+    window.print = () => {
+      if (antiCheatPaused()) return
+      logViolation("print_attempt", "Blocked window.print() call during assessment")
+      showWarningModal(
+        "copy_paste",
+        "⚠️ Printing or saving the assessment is disabled. This attempt has been logged.",
+      )
+    }
+
     window.addEventListener("beforeprint", handleBeforePrint)
     document.addEventListener("keydown", handleKeyDown, true)
 
     return () => {
+      window.print = originalWindowPrint
       window.removeEventListener("beforeprint", handleBeforePrint)
       document.removeEventListener("keydown", handleKeyDown, true)
     }

@@ -10,12 +10,16 @@ import {
 import { parseAssessmentSectionConfig } from "@/lib/assessment-sections"
 import { sanitizeAttemptTimerState } from "@/lib/sanitize-attempt-timer-state"
 import { requireAttemptOwnership, requireCallerStudentDbId } from "@/lib/student-api-auth"
+import { ensureAttemptIntegritySchema } from "@/lib/ensure-attempt-integrity-schema"
+import { isAttemptDeadlineExpired } from "@/lib/attempt-deadline"
 
 export const dynamic = "force-dynamic"
 
 async function loadAttemptTimerContext(attemptId: number) {
   const rows = await sql`
-    SELECT q.section_config, q.assessment_type, qq.id, qq.question_type, qq.question_order
+    SELECT q.section_config, q.assessment_type, qq.id, qq.question_type, qq.question_order,
+           qa.question_time_remaining AS stored_question_time,
+           qa.section_time_remaining AS stored_section_time
     FROM quiz_attempts qa
     INNER JOIN quizzes q ON q.id = qa.quiz_id
     INNER JOIN quiz_questions qq ON qq.quiz_id = q.id
@@ -33,7 +37,48 @@ async function loadAttemptTimerContext(attemptId: number) {
     sectionConfig,
     questions,
     assessmentType: rows[0].assessment_type as string | null,
+    storedQuestionTime: parseStoredTimerMap(rows[0].stored_question_time),
+    storedSectionTime: parseStoredTimerMap(rows[0].stored_section_time),
   }
+}
+
+function parseStoredTimerMap(raw: unknown): Record<string, number> {
+  if (!raw) return {}
+  const obj = typeof raw === "string" ? safeJsonParse(raw) : raw
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return {}
+  const out: Record<string, number> = {}
+  for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
+    const num = Number(val)
+    if (Number.isFinite(num) && num > 0) out[key] = num
+  }
+  return out
+}
+
+function safeJsonParse(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * SECURITY: Remaining time is monotonically non-increasing. A student could otherwise POST
+ * inflated questionTimeRemaining/sectionTimeRemaining, refresh, and resume with extra time.
+ * New keys (first save for a question/section) pass through; existing keys are clamped to
+ * min(new, stored).
+ */
+function clampTimerMapToStored(
+  next: Record<string, number> | undefined,
+  stored: Record<string, number>,
+): Record<string, number> | undefined {
+  if (!next) return next
+  const out: Record<string, number> = {}
+  for (const [key, val] of Object.entries(next)) {
+    const storedVal = stored[key]
+    out[key] = storedVal !== undefined ? Math.min(val, storedVal) : val
+  }
+  return out
 }
 
 export async function POST(request: NextRequest) {
@@ -67,6 +112,37 @@ export async function POST(request: NextRequest) {
 
     const ownership = await requireAttemptOwnership(request, Number(attemptId))
     if (!ownership.ok) return ownership.response
+
+    // SECURITY: attempt integrity — reject progress writes after the hard deadline and from
+    // superseded sessions (another window/device resumed the attempt). See save-answer route.
+    await ensureAttemptIntegritySchema()
+    const integrityRows = await sql`
+      SELECT deadline_at, session_token FROM quiz_attempts WHERE id = ${attemptId} LIMIT 1
+    `
+    const integrity = integrityRows[0]
+    if (integrity && isAttemptDeadlineExpired(integrity.deadline_at)) {
+      return NextResponse.json(
+        {
+          error: "The assessment time limit has been reached.",
+          code: "deadline_expired",
+        },
+        { status: 423 }
+      )
+    }
+    const clientSessionToken = request.headers.get("x-attempt-session")
+    if (
+      clientSessionToken &&
+      integrity?.session_token &&
+      clientSessionToken !== integrity.session_token
+    ) {
+      return NextResponse.json(
+        {
+          error: "This attempt was resumed in another window or device.",
+          code: "session_superseded",
+        },
+        { status: 409 }
+      )
+    }
 
     const hasIndex = typeof currentQuestionIndex === "number" && currentQuestionIndex >= 0
     const hasQuestionTime =
@@ -114,6 +190,14 @@ export async function POST(request: NextRequest) {
       )
       if (hasQuestionTime) sanitizedQuestionTime = sanitized.questionTimeRemaining
       if (hasSectionTime) sanitizedSectionTime = sanitized.sectionTimeRemaining
+
+      // SECURITY: never allow remaining time to increase vs. what the server already has.
+      if (hasQuestionTime) {
+        sanitizedQuestionTime = clampTimerMapToStored(sanitizedQuestionTime, ctx.storedQuestionTime)
+      }
+      if (hasSectionTime) {
+        sanitizedSectionTime = clampTimerMapToStored(sanitizedSectionTime, ctx.storedSectionTime)
+      }
     }
 
     if (hasIndex && hasQuestionTime && hasSectionTime) {

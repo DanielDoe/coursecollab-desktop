@@ -6,13 +6,18 @@ import { ensureCodebenchStudioEventsSchema } from "@/lib/codebench-studio-schema
 import { studioEventInCourseSql } from "@/lib/codebench-studio-course-scope"
 import { formatInstructorStudioEvent } from "@/lib/codebench-instructor-student-activity"
 import { studentInOfferingSqlFromRequest } from "@/lib/instructor-session-scope"
-import { classroomAssignmentSessionMatchesStudent } from "@/lib/classroom-submission-scope"
-import type { TypingReplay } from "@/lib/typing-replay"
+import { studentMatchesLiveAssignmentSession } from "@/lib/classroom-submission-scope"
+import { selectFaithfulTypingReplay } from "@/lib/codebench-live-replay"
 import type {
   LiveClassroomSessionPayload,
   LiveClassroomStudentRow,
   LiveStudentStatus,
 } from "@/lib/codebench-live-classroom-types"
+import {
+  mergeLiveRosterIdentities,
+  resolveInstructorLiveViewCode,
+  type LiveRosterIdentity,
+} from "@/lib/codebench-live-session-roster"
 
 export type {
   LiveClassroomSessionPayload,
@@ -139,13 +144,6 @@ function deriveStatus(input: {
   if (status === "rejected" || status === "needs_review") return "review"
   if (input.hasSubmission || status === "pending") return "submitted"
   return "not_started"
-}
-
-function parseTypingReplay(raw: unknown): TypingReplay | null {
-  if (!raw || typeof raw !== "object") return null
-  const replay = raw as TypingReplay
-  if (!Array.isArray(replay.events) || replay.events.length === 0) return null
-  return replay
 }
 
 function parseLiveEditorCursor(raw: unknown): LiveClassroomStudentRow["studentCursor"] {
@@ -304,7 +302,7 @@ export async function fetchLiveClassroomSession(
   ])
 
   const filteredStudents = studentRows.filter((row) =>
-    classroomAssignmentSessionMatchesStudent(assignmentSession, row.session_code),
+    studentMatchesLiveAssignmentSession(assignmentSession, row.session_code, row.section),
   )
 
   const snapshotByStudent = new Map<number, (typeof snapshotRows)[number]>()
@@ -322,6 +320,41 @@ export async function fetchLiveClassroomSession(
   }>) {
     snapshotByStudent.set(Number(row.student_id), row)
   }
+
+  // Normalize ids: DB drivers can return string ids and Set/Map lookups are type-sensitive —
+  // a string "42" here silently hid live students from the roster join path.
+  const enrolledIds = new Set(filteredStudents.map((row) => Number(row.student_db_id)))
+  const missingSnapshotIds = [...snapshotByStudent.keys()].filter((id) => Number.isFinite(id) && id > 0 && !enrolledIds.has(id))
+  let joinedFromSnapshots: LiveRosterIdentity[] = []
+  if (missingSnapshotIds.length > 0) {
+    const idList = missingSnapshotIds.map((id) => Math.trunc(id)).join(", ")
+    const joinerSelect = sql`
+      SELECT
+        s.id AS student_db_id,
+        s.student_id,
+        s.full_name,
+        COALESCE(NULLIF(TRIM(s.section), ''), NULLIF(TRIM(sess.code), '')) AS section,
+        sess.code AS session_code
+      FROM students s
+      LEFT JOIN sessions sess ON sess.id = s.session_id
+      WHERE s.id IN (${sql.unsafe(idList)})
+        AND s.deleted_at IS NULL
+    `
+    joinedFromSnapshots = ((await joinerSelect.catch(() =>
+      sql`
+        SELECT
+          s.id AS student_db_id,
+          s.student_id,
+          s.full_name,
+          COALESCE(NULLIF(TRIM(s.section), ''), NULLIF(TRIM(sess.code), '')) AS section,
+          sess.code AS session_code
+        FROM students s
+        LEFT JOIN sessions sess ON sess.id = s.session_id
+        WHERE s.id IN (${sql.unsafe(idList)})
+      `.catch(() => []),
+    )) as LiveRosterIdentity[])
+  }
+  const rosterStudents = mergeLiveRosterIdentities(filteredStudents, joinedFromSnapshots)
 
   const submissionByStudent = new Map<number, (typeof submissionRows)[number]>()
   for (const row of submissionRows as Array<{
@@ -358,9 +391,10 @@ export async function fetchLiveClassroomSession(
 
   const eventsByStudent = new Map<number, StudioEventRow[]>()
   for (const row of recentEvents as StudioEventRow[]) {
-    const list = eventsByStudent.get(row.student_db_id) ?? []
+    const studentDbId = Number(row.student_db_id)
+    const list = eventsByStudent.get(studentDbId) ?? []
     list.push(row)
-    eventsByStudent.set(row.student_db_id, list)
+    eventsByStudent.set(studentDbId, list)
   }
   for (const [studentDbId, list] of eventsByStudent) {
     list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
@@ -369,11 +403,12 @@ export async function fetchLiveClassroomSession(
 
   const now = Date.now()
 
-  const students: LiveClassroomStudentRow[] = filteredStudents.map((row) => {
-    const snapshot = snapshotByStudent.get(row.student_db_id)
-    const submission = submissionByStudent.get(row.student_db_id)
-    const classroom = classroomByStudent.get(row.student_db_id)
-    const events = eventsByStudent.get(row.student_db_id) ?? []
+  const students: LiveClassroomStudentRow[] = rosterStudents.map((row) => {
+    const studentDbId = Number(row.student_db_id)
+    const snapshot = snapshotByStudent.get(studentDbId)
+    const submission = submissionByStudent.get(studentDbId)
+    const classroom = classroomByStudent.get(studentDbId)
+    const events = eventsByStudent.get(studentDbId) ?? []
 
     const compileErrors = events.filter((e) => e.event_type === "compile_error").length
     const runs = events.filter((e) => e.event_type === "run").length
@@ -390,14 +425,15 @@ export async function fetchLiveClassroomSession(
 
     const lastActivityAt = maxIso([
       snapshot?.updated_at,
-      snapshot?.instructor_updated_at,
       submission?.submitted_at,
       classroom?.created_at,
       latestEvent?.created_at,
     ])
 
     const lastActivityMs = lastActivityAt ? now - new Date(lastActivityAt).getTime() : null
-    const snapshotFreshAt = maxIso([snapshot?.updated_at, snapshot?.instructor_updated_at])
+    // Faculty "live/coding" follows the student stream only — instructor_updated_at
+    // would otherwise keep an empty editor looking live after a help-edit.
+    const snapshotFreshAt = snapshot?.updated_at ?? null
     const snapshotAgeMs = snapshotFreshAt ? now - new Date(snapshotFreshAt).getTime() : null
 
     const status = deriveStatus({
@@ -410,21 +446,11 @@ export async function fetchLiveClassroomSession(
       snapshotAgeMs,
     })
 
-    const studentLive = firstNonEmptyCode(snapshot?.code)
-    const instructorLive = firstNonEmptyCode(snapshot?.instructor_code)
-    const instructorAt = snapshot?.instructor_updated_at
-      ? new Date(snapshot.instructor_updated_at).getTime()
-      : 0
-    const studentAt = snapshot?.updated_at ? new Date(snapshot.updated_at).getTime() : 0
-    const liveCode =
-      instructorLive && (!studentLive || instructorAt >= studentAt) ? instructorLive : studentLive
     const submittedCode = firstNonEmptyCode(submission?.code, classroom?.code)
-    const code = liveCode ?? submittedCode
-    const codeSource: LiveClassroomStudentRow["codeSource"] = liveCode
-      ? "live"
-      : submittedCode
-        ? "submitted"
-        : null
+    const { code, codeSource } = resolveInstructorLiveViewCode({
+      studentSnapshotCode: typeof snapshot?.code === "string" ? snapshot.code : null,
+      submittedCode,
+    })
 
     return {
       studentDbId: row.student_db_id,
@@ -440,7 +466,7 @@ export async function fetchLiveClassroomSession(
       codeSource,
       fileName: snapshot?.file_name ?? null,
       language: snapshot?.language ?? null,
-      typingReplay: parseTypingReplay(snapshot?.typing_replay),
+      typingReplay: selectFaithfulTypingReplay(snapshot?.typing_replay, code),
       studentCursor: parseLiveEditorCursor(snapshot?.student_cursor),
       instructorCursor: parseLiveEditorCursor(snapshot?.instructor_cursor),
       snapshotUpdatedAt: snapshotFreshAt,

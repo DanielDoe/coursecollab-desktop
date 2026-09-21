@@ -5,11 +5,12 @@ import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { isMobileDevice } from "@/lib/device-utils"
 import { isDesktopElectronAssessmentClient } from "@/lib/desktop-anticheat-policy"
+import { requestDocumentFullscreen } from "@/lib/document-fullscreen"
 import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 
 interface FullscreenRequirementProps {
   show: boolean
-  onEnterFullscreen: () => void
+  onEnterFullscreen?: () => void
 }
 
 export function FullscreenRequirement({
@@ -25,31 +26,15 @@ export function FullscreenRequirement({
   const desktopApp = isDesktopElectronAssessmentClient()
 
   const handleEnterFullscreen = async () => {
-    try {
-      const element = document.documentElement
-      
-      // Try all browser prefixes
-      if (element.requestFullscreen) {
-        await element.requestFullscreen()
-      } else if ((element as any).webkitRequestFullscreen) {
-        await (element as any).webkitRequestFullscreen()
-      } else if ((element as any).mozRequestFullscreen) {
-        await (element as any).mozRequestFullscreen()
-      } else if ((element as any).msRequestFullscreen) {
-        await (element as any).msRequestFullscreen()
-      } else {
-        await alert({
-          title: "Fullscreen not supported",
-          description: "Please use a modern browser that supports fullscreen mode.",
-        })
-      }
-    } catch (error) {
-      console.error("Failed to enter fullscreen:", error)
+    const entered = await requestDocumentFullscreen()
+    if (!entered) {
       await alert({
         title: "Could not enter fullscreen",
         description: "Please allow fullscreen permissions and try again.",
       })
+      return
     }
+    onEnterFullscreen?.()
   }
 
   return (

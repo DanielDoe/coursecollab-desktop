@@ -5,6 +5,7 @@ import { studentApiFetch } from "@/lib/auth"
 import type { StudentLiveClassroomSession } from "@/lib/codebench-live-classroom-types"
 import { LIVE_STUDENT_SESSIONS_POLL_MS } from "@/lib/codebench-live-timing"
 import { useImmediateLivePoll } from "@/hooks/use-immediate-live-poll"
+import { appendStudentCatalogScopeToUrl } from "@/lib/student-catalog-scope-client"
 
 type State = {
   sessions: StudentLiveClassroomSession[]
@@ -30,7 +31,9 @@ export function useStudentLiveClassroomSessions(studentId: string | null) {
     if (!silent) setState((current) => ({ ...current, loading: true, error: null }))
     try {
       const response = await studentApiFetch(
-        `/api/codebench/live-sessions?studentId=${encodeURIComponent(studentId)}`,
+        appendStudentCatalogScopeToUrl(
+          `/api/codebench/live-sessions?studentId=${encodeURIComponent(studentId)}`,
+        ),
       )
       if (response.status === 404 || response.status === 405) {
         setState({ sessions: [], loading: false, error: null, listSupported: false })
@@ -49,7 +52,7 @@ export function useStudentLiveClassroomSessions(studentId: string | null) {
       })
     } catch (error) {
       setState((current) => ({
-        sessions: silent ? current.sessions : [],
+        sessions: current.sessions,
         loading: false,
         listSupported: current.listSupported,
         error: error instanceof Error ? error.message : "Failed to load live sessions",

@@ -1,5 +1,3 @@
-import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
-
 /**
  * CourseCollab desktop (Electron) assessment integrity model:
  *
@@ -16,7 +14,10 @@ import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
  */
 
 export function isDesktopElectronAssessmentClient(): boolean {
-  return isDesktopAppShell()
+  if (typeof window === "undefined") return false
+  // Vite stamps the desktop shell even when the bundle is opened in Chrome.
+  // Browser-tool exemptions and kiosk only apply inside a real Electron window.
+  return window.courseCollabDesktop?.isDesktopShell === true
 }
 
 export function applyDesktopElectronAntiCheatPolicy<
@@ -30,15 +31,17 @@ export function applyDesktopElectronAntiCheatPolicy<
   if (!isDesktopElectronAssessmentClient()) return config
 
   const enforcementActive =
-    config.strictModeEnabled === true ||
-    config.requireFullscreen === true ||
-    config.trackTabSwitches === true
+    config.requireFullscreen === true || config.trackTabSwitches === true
 
   return {
     ...config,
     trackGeminiWindow: false,
     // App-switch detection replaces browser tab switches on desktop.
-    ...(enforcementActive ? { trackTabSwitches: true as const } : {}),
+    // Native kiosk + renderer fullscreen stay on for the whole attempt
+    // unless a superpower turned those flags off.
+    ...(enforcementActive
+      ? { trackTabSwitches: true as const, requireFullscreen: true as const }
+      : {}),
   }
 }
 

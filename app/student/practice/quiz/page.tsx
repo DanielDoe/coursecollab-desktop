@@ -75,6 +75,10 @@ interface Question {
   question_media?: unknown
   subquestions?: unknown
   solution_upload_config?: unknown
+  alreadyAttempted?: boolean
+  priorAnswer?: string | string[]
+  priorIsCorrect?: boolean
+  answerReview?: PracticeAnswerReview
 }
 
 function isSelfContainedQuestionType(type: string): boolean {
@@ -88,6 +92,15 @@ function questionTypeHint(type: string): string {
   if (t === "circuit_submission") return "Upload your worked solution"
   if (t === "multi_part") return "Answer each part below"
   return "Select one answer"
+}
+
+function isPracticeItemLocked(
+  question: Pick<Question, "id" | "alreadyAttempted"> | undefined,
+  reviewOnly: boolean,
+  lockedQuestions: Set<number>,
+): boolean {
+  if (!question) return true
+  return reviewOnly || question.alreadyAttempted === true || lockedQuestions.has(question.id)
 }
 
 export default function PracticeQuizPage({ embedded = false }: { embedded?: boolean }) {
@@ -125,8 +138,10 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
   const [hubPolicy, setHubPolicy] = useState<PracticeHubPolicy>(DEFAULT_PRACTICE_HUB_POLICY)
   const [hydrating, setHydrating] = useState(true)
   const [coraDrawerOpen, setCoraDrawerOpen] = useState(false)
+  const [reviewOnly, setReviewOnly] = useState(false)
 
   useEffect(() => {
+    let cancelled = false
     const studentData = getStudentData()
     if (!studentData || !studentData.databaseId) {
       router.push("/student/login")
@@ -138,6 +153,9 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
 
     const courseId = getStudentCourseIdFromSession()
     const courseQs = courseId != null ? `&courseId=${courseId}` : ""
+    const sessionQs = studentData.section
+      ? `&session=${encodeURIComponent(studentData.section)}`
+      : ""
     void studentApiFetch(`/api/practice/config?studentId=${dbId}${courseQs}`)
       .then((r) => r.json())
       .then((data) => {
@@ -166,11 +184,12 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
       .catch(() => {})
 
     const storedAttemptId = sessionStorage.getItem("practiceAttemptId")
+    const storedReviewOnly = sessionStorage.getItem("practiceReviewOnly") === "1"
     const storedQuestions =
       sessionStorage.getItem("practiceQuestions") ??
       (storedAttemptId ? sessionStorage.getItem(`practiceQuestions:${storedAttemptId}`) : null)
 
-    if (!storedAttemptId || !storedQuestions) {
+    if (!storedQuestions || (!storedAttemptId && !storedReviewOnly)) {
       setHydrating(false)
       toast({
         title: "No practice session found",
@@ -181,50 +200,121 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
       return
     }
 
-    setAttemptId(Number.parseInt(storedAttemptId))
-    try {
-      const parsedQuestions = JSON.parse(storedQuestions)
-      setQuestions(parsedQuestions)
+    const attemptNum =
+      storedAttemptId && storedAttemptId !== "0" ? Number.parseInt(storedAttemptId, 10) : null
+    if (attemptNum && Number.isFinite(attemptNum)) {
+      setAttemptId(attemptNum)
+    }
+    setReviewOnly(storedReviewOnly)
 
-      void studentApiFetch(`/api/practice/attempt/${storedAttemptId}/state`)
-        .then(async (response) => {
-          if (!response.ok) return
-          const data = await response.json()
-          if (!Array.isArray(data.answers) || data.answers.length === 0) return
+    void (async () => {
+      try {
+        const parsedQuestions = JSON.parse(storedQuestions) as Question[]
+        const restoredAnswers: Record<number, string | string[]> = {}
+        const restoredAnswered = new Set<number>()
+        const restoredLocked = new Set<number>()
+        const restoredReviews: Record<number, PracticeAnswerReview> = {}
 
-          const restoredAnswers: Record<number, string | string[]> = {}
-          const restoredAnswered = new Set<number>()
-          const restoredLocked = new Set<number>()
+        const lockQuestion = (
+          questionId: number,
+          priorAnswer?: string | string[] | null,
+          answerReview?: PracticeAnswerReview | null,
+        ) => {
+          restoredAnswered.add(questionId)
+          restoredLocked.add(questionId)
+          if (priorAnswer != null) restoredAnswers[questionId] = priorAnswer
+          if (answerReview) restoredReviews[questionId] = answerReview
+        }
 
-          for (const row of data.answers as Array<{
-            questionId: number
-            studentAnswer: string | string[]
-          }>) {
-            restoredAnswers[row.questionId] = row.studentAnswer
-            restoredAnswered.add(row.questionId)
-            restoredLocked.add(row.questionId)
-          }
+        for (const q of parsedQuestions) {
+          if (!q.alreadyAttempted && !q.answerReview) continue
+          lockQuestion(q.id, q.priorAnswer, q.answerReview)
+        }
 
-          setAnswers(restoredAnswers)
-          setAnsweredQuestions(restoredAnswered)
-          setLockedQuestions(restoredLocked)
+        const questionIds = parsedQuestions
+          .map((q) => Number(q.id))
+          .filter((id) => Number.isFinite(id) && id > 0)
 
-          if (data.completedAt) {
-            sessionStorage.removeItem("practiceAttemptId")
-            sessionStorage.removeItem("practiceQuestions")
-            router.push(`/student/practice/results/${storedAttemptId}`)
-          }
+        const hydrateFromPriors =
+          questionIds.length === 0
+            ? Promise.resolve()
+            : studentApiFetch(
+                `/api/practice/prior-answers?studentId=${dbId}&questionIds=${questionIds.join(",")}${courseQs}${sessionQs}`,
+              )
+                .then(async (response) => {
+                  if (!response.ok) return
+                  const data = await response.json()
+                  const rows = Array.isArray(data.answers) ? data.answers : []
+                  for (const row of rows as Array<{
+                    questionId?: number
+                    priorAnswer?: string | string[]
+                    answerReview?: PracticeAnswerReview | null
+                  }>) {
+                    const questionId = Number(row.questionId)
+                    if (!Number.isFinite(questionId) || questionId < 1) continue
+                    lockQuestion(questionId, row.priorAnswer, row.answerReview)
+                  }
+                })
+                .catch(() => {})
+
+        const hydrateFromAttempt =
+          storedReviewOnly || !attemptNum || !Number.isFinite(attemptNum)
+            ? Promise.resolve()
+            : studentApiFetch(`/api/practice/attempt/${attemptNum}/state`)
+                .then(async (response) => {
+                  if (!response.ok) return
+                  const data = await response.json()
+                  if (data.completedAt) {
+                    sessionStorage.removeItem("practiceAttemptId")
+                    sessionStorage.removeItem("practiceQuestions")
+                    sessionStorage.removeItem("practiceReviewOnly")
+                    router.push(`/student/practice/results/${attemptNum}`)
+                    return
+                  }
+                  if (!Array.isArray(data.answers)) return
+                  for (const row of data.answers as Array<{
+                    questionId: number
+                    studentAnswer: string | string[]
+                  }>) {
+                    lockQuestion(row.questionId, row.studentAnswer)
+                  }
+                })
+                .catch(() => {})
+
+        await Promise.all([hydrateFromPriors, hydrateFromAttempt])
+        if (cancelled) return
+
+        setQuestions(
+          parsedQuestions.map((q) =>
+            restoredLocked.has(q.id)
+              ? {
+                  ...q,
+                  alreadyAttempted: true,
+                  priorAnswer: restoredAnswers[q.id] ?? q.priorAnswer,
+                  answerReview: restoredReviews[q.id] ?? q.answerReview,
+                }
+              : q,
+          ),
+        )
+        setAnswers((prev) => ({ ...prev, ...restoredAnswers }))
+        setAnsweredQuestions((prev) => new Set([...prev, ...restoredAnswered]))
+        setLockedQuestions((prev) => new Set([...prev, ...restoredLocked]))
+        setAnswerReviews((prev) => ({ ...prev, ...restoredReviews }))
+      } catch {
+        if (cancelled) return
+        toast({
+          title: "Could not load practice session",
+          description: "Please start a new practice session",
+          variant: "destructive",
         })
-        .catch(() => {})
-    } catch {
-      toast({
-        title: "Could not load practice session",
-        description: "Please start a new practice session",
-        variant: "destructive",
-      })
-      router.push(practiceHref)
-    } finally {
-      setHydrating(false)
+        router.push(practiceHref)
+      } finally {
+        if (!cancelled) setHydrating(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
     }
   }, [router, toast, practiceHref])
 
@@ -275,7 +365,7 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
       setIsSubmittingAnswer(false)
       setAiFeedback(null)
     }
-  }, [currentIndex, questions, answerReviews])
+  }, [currentIndex, questions, answerReviews, hydrating])
 
   const currentQuestion = questions[currentIndex]
   const progress = ((currentIndex + 1) / questions.length) * 100
@@ -300,6 +390,7 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
   }, [answers, code, currentQuestion, selectedAnswer, selectedMultiAnswers])
 
   const handleAnswer = (value: string | string[]) => {
+    if (isPracticeItemLocked(currentQuestion, reviewOnly, lockedQuestions)) return
     setAnswers((prev) => ({
       ...prev,
       [currentQuestion.id]: value,
@@ -331,6 +422,7 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
   }
 
   const handleCodeChange = (value: string | undefined) => {
+    if (isPracticeItemLocked(currentQuestion, reviewOnly, lockedQuestions)) return
     if (value !== undefined) {
       setCode(value)
     }
@@ -338,6 +430,13 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
 
   const submitAnswer = async () => {
     if (!currentQuestion || isSubmittingAnswer) return
+    if (isPracticeItemLocked(currentQuestion, reviewOnly, lockedQuestions)) {
+      toast({
+        title: "Already attempted",
+        description: "This question is locked. Review your previous answer below.",
+      })
+      return
+    }
 
     const qType = currentQuestion.question_type.toLowerCase()
     let answerToSubmit: string | string[] =
@@ -478,6 +577,28 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
 
       const evalData = await response.json()
       console.log("[Practice Quiz] Evaluation response:", evalData)
+
+      if (response.status === 409 || evalData.alreadyAttempted === true) {
+        setAnsweredQuestions((prev) => new Set(prev).add(currentQuestion.id))
+        setLockedQuestions((prev) => new Set(prev).add(currentQuestion.id))
+        if (evalData.priorAnswer != null) {
+          setAnswers((prev) => ({ ...prev, [currentQuestion.id]: evalData.priorAnswer }))
+        }
+        setIsCorrect(Boolean(evalData.isCorrect))
+        setShowFeedback(true)
+        if (evalData.answerReview) {
+          setAnswerReviews((prev) => ({
+            ...prev,
+            [currentQuestion.id]: evalData.answerReview as PracticeAnswerReview,
+          }))
+        }
+        toast({
+          title: "Already attempted",
+          description: "This question was already answered. Your previous result is shown below.",
+        })
+        setIsSubmittingAnswer(false)
+        return
+      }
 
       if (!response.ok) {
         throw new Error(evalData.error || "Failed to evaluate answer")
@@ -654,6 +775,13 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
   }
 
   const handleSubmit = async () => {
+    if (reviewOnly || !attemptId) {
+      sessionStorage.removeItem("practiceAttemptId")
+      sessionStorage.removeItem("practiceQuestions")
+      sessionStorage.removeItem("practiceReviewOnly")
+      router.push(practiceHref)
+      return
+    }
     if (answeredQuestions.size === 0) {
       toast({
         title: "No answers submitted",
@@ -700,6 +828,7 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
       // Clear session storage
       sessionStorage.removeItem("practiceAttemptId")
       sessionStorage.removeItem("practiceQuestions")
+      sessionStorage.removeItem("practiceReviewOnly")
 
       // Redirect to practice hub with success message
       router.push(`/student/practice/results/${attemptId}`)
@@ -954,6 +1083,15 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
           <Progress value={(answeredQuestions.size / questions.length) * 100} className="h-2" />
         </div>
 
+        {reviewOnly || currentQuestion.alreadyAttempted || (lockedQuestions.has(currentQuestion.id) && answerReviews[currentQuestion.id]) ? (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-800/70 dark:bg-amber-950/40 dark:text-amber-100">
+            <p className="font-semibold">Already attempted</p>
+            <p className="mt-0.5 text-amber-900/90 dark:text-amber-100/90">
+              You already answered this question. It is locked and your previous result is shown below.
+            </p>
+          </div>
+        ) : null}
+
         {/* Question Card */}
         <Card className="border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 backdrop-blur-sm rounded-2xl shadow-sm dark:shadow-slate-950/40 transition-all duration-300">
           <CardHeader>
@@ -1108,7 +1246,7 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
                   disabled={submitting}
                   className="h-9 rounded-full bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-500 text-slate-900"
                 >
-                  {submitting ? "Submitting..." : "Complete Practice"}
+                  {submitting ? "Submitting..." : reviewOnly ? "Back to Practice Hub" : "Complete Practice"}
                   <CheckCircle2 className="h-4 w-4 ml-2" />
                 </Button>
               ) : (

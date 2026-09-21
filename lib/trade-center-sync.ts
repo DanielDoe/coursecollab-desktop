@@ -103,13 +103,29 @@ export async function syncActivityPoints(
           };
           const hubResult = await sql`
       SELECT
-        COUNT(*)::int AS attempt_count,
-        AVG(score_percentage)::float AS avg_score
-      FROM practice_attempts
-      WHERE student_id = ${studentId}
-        AND completed_at IS NOT NULL
-        AND completed_at >= ${weekStartDate}::date
-        AND completed_at < ${weekEndExclusive}::date
+        COUNT(DISTINCT pat.id)::int AS attempt_count,
+        AVG(pat.score_percentage)::float AS avg_score
+      FROM practice_attempts pat
+      WHERE pat.student_id = ${studentId}
+        AND pat.completed_at IS NOT NULL
+        AND pat.completed_at >= ${weekStartDate}::date
+        AND pat.completed_at < ${weekEndExclusive}::date
+        AND EXISTS (
+          SELECT 1
+          FROM practice_answers pa
+          WHERE pa.attempt_id = pat.id
+            AND NOT EXISTS (
+              SELECT 1
+              FROM practice_answers older
+              JOIN practice_attempts opat ON opat.id = older.attempt_id
+              WHERE opat.student_id = ${studentId}
+                AND older.bank_question_id = pa.bank_question_id
+                AND (
+                  older.answered_at < pa.answered_at
+                  OR (older.answered_at IS NOT DISTINCT FROM pa.answered_at AND older.id < pa.id)
+                )
+            )
+        )
     `;
 
           hubAttempts = Number(hubResult[0]?.attempt_count) || 0;
@@ -118,13 +134,29 @@ export async function syncActivityPoints(
       } catch {
         const hubResult = await sql`
       SELECT
-        COUNT(*)::int AS attempt_count,
-        AVG(score_percentage)::float AS avg_score
-      FROM practice_attempts
-      WHERE student_id = ${studentId}
-        AND completed_at IS NOT NULL
-        AND completed_at >= ${weekStartDate}::date
-        AND completed_at < ${weekEndExclusive}::date
+        COUNT(DISTINCT pat.id)::int AS attempt_count,
+        AVG(pat.score_percentage)::float AS avg_score
+      FROM practice_attempts pat
+      WHERE pat.student_id = ${studentId}
+        AND pat.completed_at IS NOT NULL
+        AND pat.completed_at >= ${weekStartDate}::date
+        AND pat.completed_at < ${weekEndExclusive}::date
+        AND EXISTS (
+          SELECT 1
+          FROM practice_answers pa
+          WHERE pa.attempt_id = pat.id
+            AND NOT EXISTS (
+              SELECT 1
+              FROM practice_answers older
+              JOIN practice_attempts opat ON opat.id = older.attempt_id
+              WHERE opat.student_id = ${studentId}
+                AND older.bank_question_id = pa.bank_question_id
+                AND (
+                  older.answered_at < pa.answered_at
+                  OR (older.answered_at IS NOT DISTINCT FROM pa.answered_at AND older.id < pa.id)
+                )
+            )
+        )
     `;
         hubAttempts = Number(hubResult[0]?.attempt_count) || 0;
         hubAvgScore = Number(hubResult[0]?.avg_score) || 0;

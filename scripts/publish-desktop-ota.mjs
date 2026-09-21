@@ -88,6 +88,8 @@ function collectOtaUploadFiles(version) {
   const binaries = names.filter((n) => {
     if (!n.startsWith(`CourseCollab-${version}-`)) return false
     if (n.endsWith(".blockmap")) return false
+    // Fat dual-arch NSIS is not used by electron-updater; arch-specific .exe are.
+    if (/^CourseCollab-.+-win\.exe$/i.test(n)) return false
     return /\.(zip|exe)$/i.test(n)
   })
 

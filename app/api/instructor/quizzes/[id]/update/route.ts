@@ -12,6 +12,7 @@ import { syncQuizQuestionsOnUpdate } from "@/lib/sync-quiz-questions-on-update"
 import { parseClientAvailabilityToUtcIso, utcIsoToDbTimestamp } from "@/lib/timezone"
 import { ensureQuizPlatformAccessColumn } from "@/lib/ensure-quiz-platform-access-column"
 import { quizPlatformAccessSqlValue } from "@/lib/assessment-platform-access"
+import { isHomeworkAssessment } from "@/lib/antiCheatConfig"
 
 
 export const dynamic = 'force-dynamic'
@@ -105,15 +106,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const retakeEnabledEff = isSingleSittingExam ? false : bool(retake_enabled)
     const retakeLimitEff = isSingleSittingExam ? null : retake_limit === 0 ? null : retake_limit
     const rolloverEnabledEff = isSingleSittingExam ? false : bool(rollover_enabled)
-    const strictEff = bool(strict_mode_enabled)
-    const blockCpEff = bool(block_copy_paste)
-    const trackTabsEff = bool(track_tab_switches)
+    const homeworkExempt = isHomeworkAssessment(assessmentTypeDb)
+    const strictEff = homeworkExempt ? false : bool(strict_mode_enabled)
+    const blockCpEff = homeworkExempt ? false : bool(block_copy_paste)
+    const trackTabsEff = homeworkExempt ? false : bool(track_tab_switches)
     const trackMouseEff = bool(track_mouse_movement)
-    const warnTabEff = bool(warn_on_tab_switch)
-    const autoViolEff = bool(auto_submit_on_violations)
-    const trackGemEff = bool(track_gemini_window)
+    const warnTabEff = homeworkExempt ? false : bool(warn_on_tab_switch)
+    const autoViolEff = homeworkExempt ? false : bool(auto_submit_on_violations)
+    const trackGemEff = homeworkExempt ? false : bool(track_gemini_window)
     const keystrokeEff = bool(keystroke_playback_enforced)
-    const requireFsEff = bool(require_fullscreen)
+    const requireFsEff = homeworkExempt ? false : bool(require_fullscreen)
     const maxTabsEff = Number(max_tab_switches) || 5
     const maxGemEff = Number(max_gemini_strikes) || 5
 

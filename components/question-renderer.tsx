@@ -773,6 +773,10 @@ export const QuestionRenderer = memo(function QuestionRenderer({
     onDetected: handleGeminiDetected,
     isDetectionPaused: isAntiCheatSuspended,
     requireFullscreen: !isPracticeHub,
+    // Browser-AI heuristics are owned by the parent quiz/exam taker. Running them here too
+    // double-counted strikes and ignored the quiz's trackGeminiWindow config (and fired inside
+    // the Electron shell where no browser AI side-panel can exist). Keep only the fullscreen lock.
+    skipBrowserAiHeuristics: true,
   })
 
 

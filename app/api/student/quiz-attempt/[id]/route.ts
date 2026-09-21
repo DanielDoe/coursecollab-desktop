@@ -4,6 +4,7 @@ import { getResumeGraceMinutes, isWithinResumeGrace } from "@/lib/quiz-resume-ut
 import { hasSaveAndFinishLaterAccess } from "@/lib/retake-access"
 import { normalizeSuperpowerListFromUnknown } from "@/lib/superpowers-json"
 import { ensureSectionTimerSchema } from "@/lib/ensure-section-timer-schema"
+import { ensureAttemptIntegritySchema } from "@/lib/ensure-attempt-integrity-schema"
 import { ensureSectionQuestionSelectionSchema } from "@/lib/ensure-section-question-selection-schema"
 import { parseSectionQuestionSelections } from "@/lib/section-pick-scoring"
 import { parseAssessmentSectionConfig } from "@/lib/assessment-sections"
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     await ensureSectionTimerSchema()
     await ensureSectionQuestionSelectionSchema()
+    await ensureAttemptIntegritySchema()
     const { id: quizId } = await params
 
     const { searchParams } = new URL(request.url)
@@ -47,7 +49,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const attemptIdNum = attemptIdParam ? parseInt(String(attemptIdParam), 10) : NaN
     if (attemptIdParam && !isNaN(attemptIdNum)) {
       attempts = await sql`
-        SELECT id, attempt_number, completed_at, started_at, question_time_remaining, section_time_remaining, section_question_selections, current_question_index, saved_for_later_at, remaining_time, superpowers, COALESCE(violation_log, '[]'::jsonb) as violation_log
+        SELECT id, attempt_number, completed_at, started_at, question_time_remaining, section_time_remaining, section_question_selections, current_question_index, saved_for_later_at, remaining_time, superpowers, COALESCE(violation_log, '[]'::jsonb) as violation_log, tab_switch_count, gemini_strikes_count, copy_paste_attempts, deadline_at
         FROM quiz_attempts
         WHERE id = ${attemptIdNum} AND student_id = ${studentDatabaseId} AND quiz_id = ${quizId}
           AND deleted_at IS NULL
@@ -55,7 +57,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       `
     } else {
       attempts = await sql`
-        SELECT id, attempt_number, completed_at, started_at, question_time_remaining, section_time_remaining, section_question_selections, current_question_index, saved_for_later_at, remaining_time, superpowers, COALESCE(violation_log, '[]'::jsonb) as violation_log
+        SELECT id, attempt_number, completed_at, started_at, question_time_remaining, section_time_remaining, section_question_selections, current_question_index, saved_for_later_at, remaining_time, superpowers, COALESCE(violation_log, '[]'::jsonb) as violation_log, tab_switch_count, gemini_strikes_count, copy_paste_attempts, deadline_at
         FROM quiz_attempts
         WHERE student_id = ${studentDatabaseId} AND quiz_id = ${quizId}
           AND deleted_at IS NULL
@@ -327,6 +329,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       submittedQuestionIds: strictAnswerLock ? lockedQuestionIds : submittedQuestionIds,
       lockedQuestionIds,
       answeredQuestionIds,
+      // SECURITY: violation counts are server-persisted; the client seeds its anti-cheat
+      // counters from these so a refresh cannot reset progress toward the auto-submit threshold.
+      deadlineAt: (attempt as { deadline_at?: Date | string | null }).deadline_at
+        ? new Date((attempt as { deadline_at?: Date | string }).deadline_at as Date | string).toISOString()
+        : null,
+      tabSwitchCount: Number((attempt as { tab_switch_count?: unknown }).tab_switch_count) || 0,
+      geminiStrikes: Number((attempt as { gemini_strikes_count?: unknown }).gemini_strikes_count) || 0,
+      copyPasteAttempts: Number((attempt as { copy_paste_attempts?: unknown }).copy_paste_attempts) || 0,
       canRestart: restartPolicy.canRestart,
       restartBlockedReason: restartPolicy.blockedReason ?? null,
     }

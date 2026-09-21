@@ -92,7 +92,7 @@ export async function openDesktopUpdateDownloadPage(): Promise<boolean> {
   if (!canUseDesktopUpdates() || !window.courseCollabDesktop?.openUpdateDownloadPage) {
     if (typeof window !== "undefined") {
       void window.courseCollabDesktop?.openExternal?.(
-        "https://github.com/DanielDoe/coursecollab-desktop/releases/latest",
+        "https://course-collab.com/#desktop-downloads",
       )
       return true
     }

@@ -174,13 +174,28 @@ export async function listPracticeTopicsWithProgress(
     SELECT
       qb.topic AS name,
       COUNT(DISTINCT qb.id)::int AS question_count,
-      COALESCE(stp.questions_completed, 0) AS completed,
-      COALESCE(stp.questions_correct, 0) AS correct,
-      COALESCE(stp.accuracy, 0) AS accuracy,
-      stp.last_practiced
+      COUNT(DISTINCT latest.bank_question_id)::int AS completed,
+      COUNT(DISTINCT CASE WHEN latest.is_correct THEN latest.bank_question_id END)::int AS correct,
+      CASE
+        WHEN COUNT(DISTINCT latest.bank_question_id) > 0
+        THEN ROUND(
+          COUNT(DISTINCT CASE WHEN latest.is_correct THEN latest.bank_question_id END)::NUMERIC
+          / COUNT(DISTINCT latest.bank_question_id) * 100
+        )
+        ELSE 0
+      END AS accuracy,
+      MAX(latest.answered_at) AS last_practiced
     FROM question_bank qb
-    LEFT JOIN student_topic_progress stp
-      ON qb.topic = stp.topic AND stp.student_id = ${studentDbId}
+    LEFT JOIN (
+      SELECT DISTINCT ON (pa.bank_question_id)
+        pa.bank_question_id,
+        pa.is_correct,
+        pa.answered_at
+      FROM practice_answers pa
+      JOIN practice_attempts pat ON pat.id = pa.attempt_id
+      WHERE pat.student_id = ${studentDbId}
+      ORDER BY pa.bank_question_id, pa.answered_at DESC NULLS LAST, pa.id DESC
+    ) latest ON latest.bank_question_id = qb.id
     WHERE qb.deleted_at IS NULL
       AND (${qbScope})
       AND qb.topic IS NOT NULL
@@ -196,7 +211,7 @@ export async function listPracticeTopicsWithProgress(
             OR TRIM(pqa.session::text) = ANY(${variants}::text[])
           )
       )
-    GROUP BY qb.topic, stp.questions_completed, stp.questions_correct, stp.accuracy, stp.last_practiced
+    GROUP BY qb.topic
     ORDER BY qb.topic ASC
   `
   return rows.filter((row) => !hidden.has(String(row.name ?? "").trim()))

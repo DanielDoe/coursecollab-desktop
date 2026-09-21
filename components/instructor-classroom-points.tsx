@@ -236,6 +236,7 @@ export function InstructorClassroomPoints({
   const [approving, setApproving] = useState<number | null>(null);
   const [sessionFilter, setSessionFilter] = useState(defaultFacultySessionFilter);
   const [searchQuery, setSearchQuery] = useState("");
+  const [assignmentSearch, setAssignmentSearch] = useState("");
   const [showAwardDialog, setShowAwardDialog] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [instructorId, setInstructorId] = useState<number | null>(null);
@@ -323,17 +324,29 @@ export function InstructorClassroomPoints({
 
   useEffect(() => {
     setSessionFilter(defaultFacultySessionFilter());
+    setAssignmentSearch("");
   }, [courseScopeVersion]);
+
+  const filteredSubmissions = useMemo(() => {
+    const q = assignmentSearch.trim().toLowerCase();
+    if (!q) return submissions;
+    return submissions.filter((s) => {
+      const haystack = [s.title, s.description, s.session, s.submission_kind]
+        .map((value) => String(value ?? "").toLowerCase())
+        .join(" ");
+      return haystack.includes(q);
+    });
+  }, [assignmentSearch, submissions]);
 
   useEffect(() => {
     const totalPages =
-      submissions.length === 0
+      filteredSubmissions.length === 0
         ? 1
-        : Math.ceil(submissions.length / submissionsPerPage);
+        : Math.ceil(filteredSubmissions.length / submissionsPerPage);
     if (submissionsPage > totalPages) {
       setSubmissionsPage(1);
     }
-  }, [submissions, submissionsPerPage, submissionsPage]);
+  }, [filteredSubmissions, submissionsPerPage, submissionsPage]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -1240,11 +1253,11 @@ export function InstructorClassroomPoints({
   ).length;
   const totalSubmissionsPages = Math.max(
     1,
-    Math.ceil(submissions.length / submissionsPerPage),
+    Math.ceil(filteredSubmissions.length / submissionsPerPage),
   );
   const submissionsStartIndex = (submissionsPage - 1) * submissionsPerPage;
   const submissionsEndIndex = submissionsStartIndex + submissionsPerPage;
-  const paginatedSubmissions = submissions.slice(submissionsStartIndex, submissionsEndIndex);
+  const paginatedSubmissions = filteredSubmissions.slice(submissionsStartIndex, submissionsEndIndex);
 
   // Pagination handlers for submissions
   const handleSubmissionsPrevPage = () => {
@@ -1329,6 +1342,17 @@ export function InstructorClassroomPoints({
         <FacultyIntegratedToolbar
           className={toolbarClass}
           moduleId="classroom-points"
+          search={assignmentSearch}
+          onSearchChange={(value) => {
+            setAssignmentSearch(value);
+            setSubmissionsPage(1);
+          }}
+          onSearchClear={() => {
+            setAssignmentSearch("");
+            setSubmissionsPage(1);
+          }}
+          searchPlaceholder="Search questions to start from…"
+          searchResetToken={courseScopeVersion}
           filters={
             <>
               {sessionFilterControl}
@@ -1401,7 +1425,7 @@ export function InstructorClassroomPoints({
       ) : null}
       {submissions.length > 0 && (
         <div className={cn(isTabbedLayout ? "flex min-h-0 flex-1 flex-col overflow-hidden gap-3" : "space-y-3")}>
-          {submissions.length > submissionsPerPage ? (
+          {filteredSubmissions.length > submissionsPerPage ? (
             <div className="flex justify-end">
               <p className={cn("text-xs tabular-nums", PORTAL_TEXT_MUTED)}>
                 Page {submissionsPage} of {totalSubmissionsPages}
@@ -1411,7 +1435,9 @@ export function InstructorClassroomPoints({
           <div className={cn(chrome.card, "divide-y divide-[var(--border)] overflow-hidden", panelScroll)}>
                 {paginatedSubmissions.length === 0 ? (
                   <p className={cn("py-8 text-center text-sm", PORTAL_TEXT_MUTED)}>
-                    No submissions match this filter
+                    {assignmentSearch.trim()
+                      ? `No questions match “${assignmentSearch.trim()}”`
+                      : "No submissions match this filter"}
                   </p>
                 ) : (
                   paginatedSubmissions.map((submission, index) => {
@@ -1504,7 +1530,7 @@ export function InstructorClassroomPoints({
                   )}
                 </div>
                 
-          {submissions.length > submissionsPerPage && (
+          {filteredSubmissions.length > submissionsPerPage && (
             <div className="flex items-center justify-between gap-2 border-t border-[var(--border)]/60 pt-3">
               <Button variant="outline" size="sm" onClick={handleSubmissionsPrevPage} disabled={submissionsPage === 1} className={cn("h-8 gap-1", chrome.quiet)}>
                 <ChevronLeft className="h-4 w-4" />

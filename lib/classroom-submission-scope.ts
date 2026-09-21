@@ -1,6 +1,9 @@
 import { getSQL } from "@/lib/db"
 
-export { classroomAssignmentSessionMatchesStudent } from "@/lib/classroom-assignment-session-match"
+export {
+  classroomAssignmentSessionMatchesStudent,
+  studentMatchesLiveAssignmentSession,
+} from "@/lib/classroom-assignment-session-match"
 
 function sql() {
   return getSQL()
@@ -21,6 +24,41 @@ export function sqlSubmissionCourseScope(courseId: number) {
 /** SQL fragment for list when filtering by session code (alias `cps`). Exact match only. */
 export function sqlSubmissionSessionFilter(session: string) {
   return sql()` AND TRIM(cps.session) = TRIM(${session}) `
+}
+
+/**
+ * SQL fragment: classroom_point_submissions row (alias `cps`) belongs to the student's enrolled section.
+ * Prefers `students.session_id` → `sessions.code` over denormalized section text.
+ */
+export function sqlSubmissionEnrollmentSessionFilter(input: {
+  courseId: number
+  sessionId: number | null
+  sessionCode: string | null
+}) {
+  const sessionId =
+    input.sessionId != null && Number.isFinite(Number(input.sessionId))
+      ? Math.trunc(Number(input.sessionId))
+      : null
+  const courseId = Math.trunc(Number(input.courseId))
+  if (!Number.isFinite(courseId) || courseId < 1) {
+    return sql()` AND (FALSE) `
+  }
+  if (sessionId != null) {
+    return sql()`
+      AND cps.session IS NOT NULL
+      AND EXISTS (
+        SELECT 1 FROM sessions enroll_sess
+        WHERE enroll_sess.id = ${sessionId}
+          AND enroll_sess.course_id = ${courseId}
+          AND TRIM(enroll_sess.code) = TRIM(cps.session)
+      )
+    `
+  }
+  const sessionCode = String(input.sessionCode ?? "").trim()
+  if (!sessionCode) {
+    return sql()` AND (FALSE) `
+  }
+  return sqlSubmissionSessionFilter(sessionCode)
 }
 
 export async function sessionBelongsToCourse(

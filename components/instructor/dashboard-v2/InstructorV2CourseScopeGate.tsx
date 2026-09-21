@@ -4,7 +4,6 @@ import { useEffect, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import {
   fetchFacultyCourseOptions,
-  applyFacultySkipCourseScope,
   isFacultyCourseScopeSkipped,
   reconcileFacultySelectedCourse,
 } from "@/lib/faculty-course-session-sync"
@@ -50,9 +49,12 @@ export function InstructorV2CourseScopeGate({ children }: { children: ReactNode 
         }
         if (!valid) {
           if (courses.length === 0) {
-            const skipped = applyFacultySkipCourseScope(parsed)
-            localStorage.setItem("instructorSession", JSON.stringify(skipped))
-            window.dispatchEvent(new Event("instructor-session-updated"))
+            const hasCourse =
+              parsed.selectedCourseId != null && String(parsed.selectedCourseId).trim() !== ""
+            if (!hasCourse && !isFacultyCourseScopeSkipped(parsed)) {
+              router.replace("/faculty/select-course")
+              return
+            }
           } else {
             router.replace("/faculty/select-course")
             return

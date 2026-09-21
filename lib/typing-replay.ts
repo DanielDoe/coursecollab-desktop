@@ -229,3 +229,66 @@ export function getDocumentAtTime(
   }
   return doc
 }
+
+/** Sliding window for live classroom keystroke logs. Trim must rebase `initialDocument`. */
+export const MAX_LIVE_REPLAY_EVENTS = 800
+
+export function normalizeTypingReplay(raw: unknown): TypingReplay | null {
+  if (!raw || typeof raw !== "object") return null
+  const replay = raw as {
+    startTime?: unknown
+    events?: unknown
+    initialDocument?: unknown
+  }
+  if (!Array.isArray(replay.events) || replay.events.length === 0) return null
+  const events: TypingReplayEvent[] = []
+  for (const item of replay.events) {
+    if (!item || typeof item !== "object") continue
+    const event = item as {
+      t?: unknown
+      op?: unknown
+      offset?: unknown
+      text?: unknown
+      len?: unknown
+    }
+    if (event.op !== "i" && event.op !== "d") continue
+    if (typeof event.t !== "number" || !Number.isFinite(event.t)) continue
+    if (typeof event.offset !== "number" || !Number.isFinite(event.offset)) continue
+    events.push({
+      t: Math.max(0, event.t),
+      op: event.op,
+      offset: Math.max(0, Math.trunc(event.offset)),
+      text: typeof event.text === "string" ? event.text : "",
+      len: typeof event.len === "number" && Number.isFinite(event.len) ? Math.max(0, Math.trunc(event.len)) : undefined,
+    })
+  }
+  if (events.length === 0) return null
+  return {
+    startTime: typeof replay.startTime === "number" && Number.isFinite(replay.startTime) ? replay.startTime : 0,
+    initialDocument: typeof replay.initialDocument === "string" ? replay.initialDocument : "",
+    events,
+  }
+}
+
+/**
+ * Drop the oldest events without breaking playback: apply them into `initialDocument`
+ * so the remaining inserts/deletes still reconstruct the same file.
+ */
+export function trimTypingReplay(
+  replay: TypingReplay,
+  maxEvents = MAX_LIVE_REPLAY_EVENTS,
+): TypingReplay {
+  if (replay.events.length <= maxEvents) return replay
+  const dropped = replay.events.slice(0, replay.events.length - maxEvents)
+  const kept = replay.events.slice(-maxEvents)
+  const initialDocument = getDocumentAtTime(
+    { ...replay, events: dropped },
+    Number.POSITIVE_INFINITY,
+  )
+  const t0 = kept[0]?.t ?? 0
+  return {
+    startTime: replay.startTime + t0,
+    initialDocument,
+    events: kept.map((event) => ({ ...event, t: Math.max(0, event.t - t0) })),
+  }
+}

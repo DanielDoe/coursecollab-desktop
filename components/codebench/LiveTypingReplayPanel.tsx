@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Circle,
   Keyboard,
+  Loader2,
   Pause,
   Play,
   Radio,
@@ -25,6 +26,7 @@ import {
   getTimeSpentMs,
   type TypingReplay,
 } from "@/lib/typing-replay"
+import { replayReconstructsTo, resolveLiveReplayDisplayCode } from "@/lib/codebench-live-replay"
 import { cn } from "@/lib/utils"
 
 const SPEEDS = [0.5, 1, 2, 4] as const
@@ -42,6 +44,11 @@ type Props = {
   editable?: boolean
   sending?: boolean
   onSendToStudent?: (code: string) => void | Promise<void>
+  onDisplayCodeChange?: (code: string) => void
+  onRunStudentCode?: () => void
+  runStudentLoading?: boolean
+  runStudentDisabled?: boolean
+  studentCursor?: { line: number; column: number } | null
 }
 
 function formatDuration(ms: number) {
@@ -103,11 +110,15 @@ export function LiveTypingReplayPanel({
   isLive = false,
   codeSource = null,
   hasGradedSubmission = false,
-  replayVersion = null,
   className,
   editable = false,
   sending = false,
   onSendToStudent,
+  onDisplayCodeChange,
+  onRunStudentCode,
+  runStudentLoading = false,
+  runStudentDisabled = false,
+  studentCursor = null,
 }: Props) {
   const { isDark } = useAppearance()
   const [isPlaying, setIsPlaying] = useState(false)
@@ -122,12 +133,6 @@ export function LiveTypingReplayPanel({
   const canEdit = editable && editing
 
   useEffect(() => {
-    if (editing) return
-    setFollowLive(true)
-    setIsPlaying(false)
-  }, [editing, replayVersion])
-
-  useEffect(() => {
     const node = editorHostRef.current
     if (!node) return
     const measure = () => {
@@ -139,12 +144,19 @@ export function LiveTypingReplayPanel({
     return () => observer.disconnect()
   }, [])
 
-  const hasReplay = Boolean(replay?.events?.length)
+  const hasReplay = Boolean(replay?.events?.length) && replayReconstructsTo(replay, liveCode)
   const totalMs = hasReplay ? Math.max(...replay!.events.map((e) => e.t), 0) + 500 : 0
-  const timeSpentMs = getTimeSpentMs(replay)
+  const timeSpentMs = getTimeSpentMs(hasReplay ? replay : null)
 
-  const replayDoc = hasReplay ? getDocumentAtTime(replay, currentMs) : null
-  const streamedCode = followLive && isLive && liveCode != null ? liveCode : replayDoc ?? liveCode ?? ""
+  const showReplayFrames = hasReplay && !followLive && !editing
+  const isAtEnd = hasReplay && currentMs >= totalMs
+  const replayDoc = showReplayFrames ? getDocumentAtTime(replay, currentMs) : null
+  const streamedCode = resolveLiveReplayDisplayCode({
+    liveCode,
+    replayDoc,
+    showReplayFrames,
+    isAtEnd,
+  })
   const displayCode = editing ? draft! : streamedCode
   const hasCode = displayCode.trim().length > 0
   const showEditor = hasCode || editable
@@ -152,6 +164,10 @@ export function LiveTypingReplayPanel({
   const charCount = displayCode.length
   const displayLanguage = language?.trim() || "C++"
   const displayFile = fileName?.trim() || "main.cpp"
+
+  useEffect(() => {
+    onDisplayCodeChange?.(displayCode)
+  }, [displayCode, onDisplayCodeChange])
 
   useEffect(() => {
     if (isLive && followLive) {
@@ -205,8 +221,9 @@ export function LiveTypingReplayPanel({
   }, [hasReplay, isPlaying, tick])
 
   const handlePlayPause = () => {
+    const restartFromStart = followLive || currentMs >= totalMs
     setFollowLive(false)
-    if (currentMs >= totalMs) setCurrentMs(0)
+    if (restartFromStart) setCurrentMs(0)
     setIsPlaying((p) => !p)
   }
 
@@ -252,6 +269,11 @@ export function LiveTypingReplayPanel({
                 Submitted
               </Badge>
             ) : null}
+            {studentCursor && isLive && !editing ? (
+              <span className="text-[10px] tabular-nums text-[var(--cc-text-muted)]">
+                Ln {studentCursor.line}, Col {studentCursor.column}
+              </span>
+            ) : null}
             <div className="live-replay-studio__actions">
               {editable && isLive && !editing ? (
                 <Button
@@ -289,7 +311,7 @@ export function LiveTypingReplayPanel({
                     {sending || syncState === "sending" ? "Sending…" : "Send to student"}
                   </Button>
                 </>
-              ) : hasReplay && isLive ? (
+              ) : hasReplay && !followLive ? (
                 <Button
                   type="button"
                   size="sm"
@@ -347,81 +369,107 @@ export function LiveTypingReplayPanel({
         </div>
       </div>
 
-      {hasReplay ? (
+      {hasReplay || onRunStudentCode ? (
         <div className="live-replay-studio__controls space-y-2 rounded-xl border border-[var(--border)] bg-[var(--muted)]/20 p-2.5">
-          <div className="flex items-center gap-2">
-            <Slider
-              value={[currentMs]}
-              max={totalMs}
-              step={100}
-              onValueChange={(v) => {
-                setFollowLive(false)
-                setCurrentMs(v[0])
-                if (isPlaying) setIsPlaying(false)
-              }}
-              className="flex-1"
-            />
-            <span className="w-20 text-right text-xs tabular-nums text-[var(--cc-text-muted)]">
-              {Math.round(currentMs / 1000)}s / {Math.round(totalMs / 1000)}s
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Button type="button" variant="outline" size="sm" className="h-8 w-8 p-0" onClick={handlePlayPause}>
-              {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={() => {
-                setFollowLive(false)
-                setCurrentMs(0)
-                setIsPlaying(false)
-              }}
-            >
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={() => {
-                setFollowLive(false)
-                setCurrentMs(Math.max(0, currentMs - 500))
-                setIsPlaying(false)
-              }}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={() => {
-                setFollowLive(false)
-                setCurrentMs(Math.min(totalMs, currentMs + 500))
-                if (isPlaying && currentMs + 500 >= totalMs) setIsPlaying(false)
-              }}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <div className="ml-1 flex gap-1 border-l border-[var(--border)] pl-2">
-              {SPEEDS.map((s, i) => (
-                <Button
-                  key={s}
-                  type="button"
-                  variant={speedIndex === i ? "default" : "ghost"}
-                  size="sm"
-                  className="h-8 min-w-9 px-2 text-[11px]"
-                  onClick={() => setSpeedIndex(i)}
-                >
-                  {s}x
-                </Button>
-              ))}
+          {hasReplay ? (
+            <div className="flex items-center gap-2">
+              <Slider
+                value={[currentMs]}
+                max={totalMs}
+                step={100}
+                onValueChange={(v) => {
+                  setFollowLive(false)
+                  setCurrentMs(v[0])
+                  if (isPlaying) setIsPlaying(false)
+                }}
+                className="flex-1"
+              />
+              <span className="w-20 text-right text-xs tabular-nums text-[var(--cc-text-muted)]">
+                {Math.round(currentMs / 1000)}s / {Math.round(totalMs / 1000)}s
+              </span>
             </div>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {onRunStudentCode ? (
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 gap-1.5 px-3 text-[11px]"
+                onClick={onRunStudentCode}
+                disabled={runStudentDisabled || runStudentLoading || !hasCode}
+                title="Run what you see in the editor (C++) in the panel on the right"
+              >
+                {runStudentLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Play className="h-3.5 w-3.5" />
+                )}
+                Run student code
+              </Button>
+            ) : null}
+            {onRunStudentCode && hasReplay ? (
+              <div className="mx-0.5 h-6 w-px shrink-0 bg-[var(--border)]" aria-hidden />
+            ) : null}
+            {hasReplay ? (
+              <>
+                <Button type="button" variant="outline" size="sm" className="h-8 w-8 p-0" onClick={handlePlayPause}>
+                  {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => {
+                    setFollowLive(false)
+                    setCurrentMs(0)
+                    setIsPlaying(false)
+                  }}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => {
+                    setFollowLive(false)
+                    setCurrentMs(Math.max(0, currentMs - 500))
+                    setIsPlaying(false)
+                  }}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => {
+                    setFollowLive(false)
+                    setCurrentMs(Math.min(totalMs, currentMs + 500))
+                    if (isPlaying && currentMs + 500 >= totalMs) setIsPlaying(false)
+                  }}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <div className="ml-1 flex gap-1 border-l border-[var(--border)] pl-2">
+                  {SPEEDS.map((s, i) => (
+                    <Button
+                      key={s}
+                      type="button"
+                      variant={speedIndex === i ? "default" : "ghost"}
+                      size="sm"
+                      className="h-8 min-w-9 px-2 text-[11px]"
+                      onClick={() => setSpeedIndex(i)}
+                    >
+                      {s}x
+                    </Button>
+                  ))}
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
       ) : null}

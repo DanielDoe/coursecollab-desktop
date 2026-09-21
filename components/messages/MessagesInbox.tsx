@@ -51,6 +51,7 @@ import { PresenceAvatar } from "@/components/presence/PresenceAvatar"
 import { PresenceStatusPicker } from "@/components/presence/PresenceStatusPicker"
 import { RoleWithLastSeen } from "@/components/presence/LastSeenLabel"
 import { usePresenceTracking } from "@/components/presence/usePresence"
+import { unsentAuditLabel } from "@/lib/direct-messages/message-lifecycle"
 import type { ParticipantKind } from "@/lib/direct-messages/types"
 import type {
   MessageRecipient,
@@ -113,6 +114,18 @@ function messagePlainText(body: string): string {
 }
 
 function MessageBody({ message, isMine }: { message: ThreadMessage; isMine: boolean }) {
+  if (message.unsent) {
+    return (
+      <p
+        className={cn(
+          "text-xs italic leading-snug",
+          isMine ? "text-white/85" : "text-slate-500 dark:text-slate-400",
+        )}
+      >
+        {unsentAuditLabel(Boolean(message.unsentByMe), message.senderName)}
+      </p>
+    )
+  }
   const plain = messagePlainText(message.body)
   const html = plain && looksLikeHtml(message.body) ? sanitizeMessageHtml(message.body) : null
   const hasAttachments = message.attachments.length > 0
@@ -177,6 +190,7 @@ export function MessagesInbox({
   const [draftHtml, setDraftHtml] = useState("")
   const [draftAttachments, setDraftAttachments] = useState<MessageAttachmentDraft[]>([])
   const [sending, setSending] = useState(false)
+  const [unsendingId, setUnsendingId] = useState<number | null>(null)
   const [reactingId, setReactingId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [threadSearch, setThreadSearch] = useState("")
@@ -484,6 +498,44 @@ export function MessagesInbox({
       )
     } finally {
       setSending(false)
+    }
+  }
+
+  async function handleUnsend(messageId: number) {
+    if (!thread) return
+    setUnsendingId(messageId)
+    setError(null)
+    try {
+      const res = await messageApiFetch(
+        `/api/messages/threads/${thread.id}/messages/${messageId}?mode=unsend`,
+        { method: "DELETE" },
+      )
+      const data = (await res.json()) as { error?: string }
+      if (!res.ok) throw new Error(data.error || "Could not undo send")
+      setThread((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          messages: prev.messages.map((m) =>
+            Number(m.id) === messageId
+              ? {
+                  ...m,
+                  body: "",
+                  unsent: true,
+                  unsentByMe: true,
+                  canUnsend: false,
+                  canEdit: false,
+                  attachments: [],
+                }
+              : m,
+          ),
+        }
+      })
+      await loadThreads()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not undo send")
+    } finally {
+      setUnsendingId(null)
     }
   }
 
@@ -1008,6 +1060,16 @@ export function MessagesInbox({
                           <MessageBody message={m} isMine={m.isMine} />
                         </div>
                       </MessageReactionBar>
+                      {m.canUnsend ? (
+                        <button
+                          type="button"
+                          className="mt-1 text-[11px] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                          onClick={() => void handleUnsend(Number(m.id))}
+                          disabled={unsendingId === Number(m.id)}
+                        >
+                          {unsendingId === Number(m.id) ? "Undoing…" : "Undo send"}
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 ))}

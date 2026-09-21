@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server"
 import { sql } from "@/lib/db"
 import { getOpenLiveClassroomSession } from "@/lib/codebench-live-classroom"
-import { classroomAssignmentSessionMatchesStudent } from "@/lib/classroom-submission-scope"
+import { studentMatchesLiveAssignmentSession } from "@/lib/classroom-submission-scope"
 import { ensureCodebenchLiveSnapshotsSchema } from "@/lib/codebench-live-session-schema"
 import {
   readInstructorSessionScopeFromRequest,
@@ -85,20 +85,27 @@ export async function pushInstructorLiveCode(input: {
     academicTermId: scope.academicTermId,
   })
   const studentRows = await sql`
-    SELECT s.id, sess.code AS session_code
+    SELECT
+      s.id,
+      sess.code AS session_code,
+      s.section
     FROM students s
-    JOIN sessions sess ON sess.id = s.session_id
+    LEFT JOIN sessions sess ON sess.id = s.session_id
     WHERE s.id = ${input.studentDbId}
       AND s.deleted_at IS NULL
       AND ${sql.unsafe(scopeWhere)}
     LIMIT 1
   `.catch(() => [])
 
-  const student = studentRows[0] as { id: number; session_code?: string | null } | undefined
+  const student = studentRows[0] as {
+    id: number
+    session_code?: string | null
+    section?: string | null
+  } | undefined
   if (!student) {
     return { ok: false, status: 404, error: "Student not found in this live classroom." }
   }
-  if (!classroomAssignmentSessionMatchesStudent(assignmentSession, student.session_code ?? null)) {
+  if (!studentMatchesLiveAssignmentSession(assignmentSession, student.session_code, student.section)) {
     return { ok: false, status: 403, error: "This student is not in the assignment section." }
   }
 
@@ -127,7 +134,10 @@ export async function pushInstructorLiveCode(input: {
       ${input.courseId},
       ${language},
       ${fileName},
-      ${code},
+      -- BUGFIX: never seed the STUDENT code column with the instructor buffer. A push before
+      -- the student typed created a roster row that showed instructor code as student work
+      -- and could fight the student's own snapshot restore.
+      '',
       ${code},
       1,
       NOW(),

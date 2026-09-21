@@ -240,7 +240,7 @@ export function SectionConfigEditor({
                     if (mode === "per_question") {
                       updateSectionField(idx, {
                         timer_mode: "per_question",
-                        allow_backtracking: false,
+                        allow_backtracking: true,
                         auto_submit_on_expire: true,
                         timers: { ...OBJECTIVE_QUESTION_TIMER_SECONDS, ...section.timers },
                         total_time_seconds: undefined,

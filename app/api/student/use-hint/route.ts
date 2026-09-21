@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 
 import { createNotification } from "@/lib/create-notification"
+import { getQuizQuestionByIdResolved } from "@/lib/resolve-quiz-question-from-bank"
 
 
 export const dynamic = 'force-dynamic'
@@ -15,39 +16,50 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // Record hint usage
-    await sql`
+    // Record hint usage. RETURNING tells us whether this is a NEW usage —
+    // the penalty and notification must only apply once per question, so a
+    // re-fetch of the hint text (e.g. after a page refresh) is free.
+    const inserted = await sql`
       INSERT INTO hint_usage (attempt_id, question_id, hint_penalty, used_at)
       VALUES (${attemptId}, ${questionId}, ${hintPenalty}, NOW())
       ON CONFLICT (attempt_id, question_id) 
       DO NOTHING
+      RETURNING attempt_id
     `
+    const isNewHintUsage = inserted.length > 0
 
-    // Apply penalty to the attempt score
-    await sql`
-      UPDATE quiz_attempts
-      SET score = GREATEST(0, score - ${hintPenalty})
-      WHERE id = ${attemptId}
-    `
+    if (isNewHintUsage) {
+      // Apply penalty to the attempt score
+      await sql`
+        UPDATE quiz_attempts
+        SET score = GREATEST(0, score - ${hintPenalty})
+        WHERE id = ${attemptId}
+      `
 
-    const attemptInfo = await sql`
-      SELECT qa.student_id, q.title as quiz_title
-      FROM quiz_attempts qa
-      JOIN quizzes q ON qa.quiz_id = q.id
-      WHERE qa.id = ${attemptId}
-    `
+      const attemptInfo = await sql`
+        SELECT qa.student_id, q.title as quiz_title
+        FROM quiz_attempts qa
+        JOIN quizzes q ON qa.quiz_id = q.id
+        WHERE qa.id = ${attemptId}
+      `
 
-    if (attemptInfo.length > 0) {
-      await createNotification({
-        studentId: attemptInfo[0].student_id,
-        type: "quiz",
-        title: "Hint Used 💡",
-        message: `You used a hint on "${attemptInfo[0].quiz_title}". ${hintPenalty} points have been deducted from your score.`,
-        link: `/student/quiz/${attemptId}`,
-      })
+      if (attemptInfo.length > 0) {
+        await createNotification({
+          studentId: attemptInfo[0].student_id,
+          type: "quiz",
+          title: "Hint Used 💡",
+          message: `You used a hint on "${attemptInfo[0].quiz_title}". ${hintPenalty} points have been deducted from your score.`,
+          link: `/student/quiz/${attemptId}`,
+        })
+      }
     }
 
-    return NextResponse.json({ success: true })
+    // SECURITY: hint text is withheld from take payloads and only revealed
+    // here, AFTER the usage/penalty has been recorded.
+    const question = await getQuizQuestionByIdResolved(Number(questionId))
+    const hintText = typeof question?.hint === "string" ? question.hint : null
+
+    return NextResponse.json({ success: true, hint: hintText })
   } catch (error) {
     console.error("[v0] Failed to record hint usage:", error)
     return NextResponse.json({ error: "Failed to record hint usage" }, { status: 500 })

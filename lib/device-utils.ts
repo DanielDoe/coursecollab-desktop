@@ -48,11 +48,13 @@ export function isTabletDevice(): boolean {
   const tabletRegex = /ipad|android(?!.*mobile)|tablet/i
   const isTabletUserAgent = tabletRegex.test(userAgent)
 
-  // Tablets in landscape can exceed 1024px (iPad Pro 12.9")
+  // Tablets in landscape can exceed 1024px (iPad Pro 12.9").
+  // Do not treat desktop Chromium/Electron (trackpads often report maxTouchPoints > 0)
+  // as tablets — that previously stripped fullscreen and browser-AI enforcement.
   const isTabletWidth =
     window.innerWidth >= 768 && window.innerWidth <= 1366 && hasTouchSupport()
 
-  return isTabletUserAgent || isTabletWidth
+  return isTabletUserAgent || (isTabletWidth && isTouchPrimaryDevice())
 }
 
 /**
@@ -124,18 +126,21 @@ export function applyBrowserAiPlatformPolicy<T extends BrowserAiAntiCheatFields>
     if (isBrowserAiEnforcementPlatform()) {
       return afterDesktop
     }
+    // Phones/tablets: no Gemini heuristics and no fullscreen prompts.
+    if (isPhoneOrTabletDevice()) {
+      return {
+        ...afterDesktop,
+        trackGeminiWindow: false,
+        ...(afterDesktop.requireFullscreen !== undefined ? { requireFullscreen: false } : {}),
+      }
+    }
+    // Desktop that failed Gemini heuristics (narrow window, incidental touch):
+    // keep fullscreen lock; only skip side-panel detection.
     return {
       ...afterDesktop,
       trackGeminiWindow: false,
-      ...(afterDesktop.requireFullscreen !== undefined ? { requireFullscreen: false } : {}),
     }
   }
-  if (isBrowserAiEnforcementPlatform()) {
-    return applyDesktopElectronAntiCheatPolicy(config)
-  }
-  return {
-    ...config,
-    trackGeminiWindow: false,
-    ...(config.requireFullscreen !== undefined ? { requireFullscreen: false } : {}),
-  }
+  // SSR: do not strip fullscreen — the client pass applies the real platform policy.
+  return applyDesktopElectronAntiCheatPolicy(config)
 }

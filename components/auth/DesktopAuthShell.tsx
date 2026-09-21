@@ -36,14 +36,15 @@ export function DesktopAuthShell({
   return (
     <div
       className={cn(
-        "cc-brand-surface cc-brand-auth cc-desktop-welcome relative flex h-[100dvh] min-h-[100dvh] items-center justify-center overflow-y-auto bg-[var(--cc-background)] px-4 py-8 text-[var(--cc-text)]",
+        "cc-brand-surface cc-brand-auth cc-desktop-welcome relative flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[var(--cc-background)] text-[var(--cc-text)]",
         className,
       )}
     >
       <BrandSurfaceChromeSync />
       <div aria-hidden className="cc-desktop-aurora pointer-events-none absolute inset-0" />
 
-      <div className="relative z-10 flex w-full flex-col items-center">
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-4 [scrollbar-gutter:stable]">
+      <div className="mx-auto flex min-h-full w-full flex-col items-center justify-center py-8">
         <div
           className={cn(
             "w-full",
@@ -90,6 +91,7 @@ export function DesktopAuthShell({
             </div>
           ) : null}
         </div>
+      </div>
       </div>
     </div>
   )

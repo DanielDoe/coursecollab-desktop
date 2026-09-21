@@ -10,6 +10,11 @@ import {
   type CodebenchLanguageId,
 } from "@/lib/codebench-languages"
 import { classroomAssignmentIsOpen } from "@/lib/classroom-submission-availability"
+import {
+  classifyCodebenchCourseTopic,
+  groupRowsByCodebenchTopic,
+  type CodebenchCourseTopic,
+} from "@/lib/codebench-course-topics"
 
 export type ClassroomAssignmentRow = {
   id: number
@@ -101,20 +106,36 @@ export function groupClassroomAssignmentsBySession(rows: ClassroomAssignmentRow[
   return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
 }
 
-export function classroomAssignmentTopic(row: ClassroomAssignmentRow): string {
-  const text = extractClassroomQuestionText(row).toLowerCase()
-  if (/loop|for\s|while/.test(text)) return "Loops"
-  if (/if\s|else|conditional|switch/.test(text)) return "Conditionals"
-  if (/array|vector|list/.test(text)) return "Arrays"
-  if (/function|void\s|return/.test(text)) return "Functions"
-  if (/circuit|thevenin|norton|voltage|current|ohm/.test(text)) return "Circuits"
-  if (/pointer|reference/.test(text)) return "Pointers"
-  return submissionKindLabel(row)
+function questionConfigTopicHint(config: unknown): string | null {
+  if (config == null || config === "") return null
+  try {
+    const obj =
+      typeof config === "string" ? (JSON.parse(config) as Record<string, unknown>) : (config as Record<string, unknown>)
+    if (!obj || typeof obj !== "object") return null
+    for (const key of ["topic", "unit", "module", "chapter"]) {
+      const value = obj[key]
+      if (typeof value === "string" && value.trim()) return value.trim()
+    }
+  } catch {
+    return null
+  }
+  return null
 }
 
-function submissionKindLabel(row: ClassroomAssignmentRow): string {
-  return String(row.submission_kind ?? CLASSROOM_SUBMISSION_KIND_CODE).toLowerCase() ===
-    CLASSROOM_SUBMISSION_KIND_SOLUTION
-    ? "Worked solutions"
-    : "Coding assignments"
+export function classroomAssignmentTopicMeta(row: ClassroomAssignmentRow): CodebenchCourseTopic {
+  return classifyCodebenchCourseTopic(
+    questionConfigTopicHint(row.question_config),
+    row.title,
+    extractClassroomQuestionText(row),
+  )
+}
+
+export function classroomAssignmentTopic(row: ClassroomAssignmentRow): string {
+  return classroomAssignmentTopicMeta(row).label
+}
+
+export function groupClassroomAssignmentsByTopic(
+  rows: ClassroomAssignmentRow[],
+): Array<[CodebenchCourseTopic, ClassroomAssignmentRow[]]> {
+  return groupRowsByCodebenchTopic(rows, classroomAssignmentTopicMeta)
 }

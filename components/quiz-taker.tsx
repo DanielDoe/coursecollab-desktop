@@ -57,13 +57,16 @@ import {
   shouldActivateAntiCheat,
   getAntiCheatSettings,
   isQuizLevelAntiCheatActive,
+  applyStrictModeIntegrityDefaults,
+  applyUnconfiguredQuizIntegrityDefaults,
 } from "@/lib/antiCheatConfig"
+import { applySuperpowerOverrides } from "@/lib/superpowers-apply"
 import { SUPERPOWER_CONFIG } from "@/lib/superpowers-constants"
 import type { MembershipTier } from "@/lib/membership-constants"
 import { useBrowserAIBlocker } from "@/hooks/use-browser-ai-blocker"
 import { useAIProtection } from "@/hooks/use-ai-protection"
 import { useGeminiDetector } from "@/hooks/use-gemini-detector"
-import { isMacOSDesktop, isBrowserAiEnforcementPlatform, applyBrowserAiPlatformPolicy } from "@/lib/device-utils"
+import { isMacOSDesktop, isBrowserAiEnforcementPlatform, applyBrowserAiPlatformPolicy, isPhoneOrTabletDevice } from "@/lib/device-utils"
 import { isDesktopElectronAssessmentClient } from "@/lib/desktop-anticheat-policy"
 import { isDesktopNativeAssessmentLockdownActive } from "@/lib/desktop-assessment-lockdown-active"
 import { useDesktopAssessmentLockdown } from "@/hooks/use-desktop-assessment-lockdown"
@@ -101,7 +104,6 @@ import {
   syncExamSharedSectionTimers,
   usesExamSharedTimer,
   usesPerQuestionCountdown,
-  sectionAllowsBacktracking,
   usesSectionCountdown,
   formatTimerMmSs,
 } from "@/lib/assessment-timer"
@@ -321,6 +323,8 @@ interface Question {
   question_type: string
   requires_code?: boolean
   hint?: string
+  /** Take payloads omit hint text (fetched via /api/student/use-hint) and set this flag instead. */
+  has_hint?: boolean
   hint_penalty?: number
   expected_answer?: string
   explanation?: string
@@ -595,6 +599,8 @@ export function QuizTaker({
 
   const [usedHints, setUsedHints] = useState<Set<number>>(new Set())
   const [showHint, setShowHint] = useState(false)
+  /** Hint text fetched from /api/student/use-hint, keyed by question id (take payloads omit hint text). */
+  const [hintTextByQuestionId, setHintTextByQuestionId] = useState<Record<number, string>>({})
 
   const [attemptCount, setAttemptCount] = useState<Record<number, number>>({})
   const [aiFeedback, setAiFeedback] = useState<any>(null)
@@ -726,8 +732,9 @@ export function QuizTaker({
         currentQuestionIndex,
         sectionsRef.current,
         parsedSectionConfigRef.current,
+        effectiveType,
       ),
-    [currentQuestionIndex],
+    [currentQuestionIndex, effectiveType],
   )
 
   const getCircuitAnswerJson = useCallback(
@@ -926,12 +933,14 @@ export function QuizTaker({
                       (questionType === 'code_problem' && currentQuestion.question_text?.toLowerCase().includes('matlab')) ||
                       antiCheatExempt
       
-      const quizAc = (quiz as any).antiCheatConfig as Record<string, unknown> | undefined
-      const quizLevelActive = isQuizLevelAntiCheatActive(
-        quizAc as Parameters<typeof isQuizLevelAntiCheatActive>[0],
+      const quizAc = applyUnconfiguredQuizIntegrityDefaults(
+        (quiz as any).antiCheatConfig ?? {},
+        assessmentType,
+        quiz.title,
       )
+      const quizLevelActive = isQuizLevelAntiCheatActive(quizAc)
 
-      if (!shouldActivate || isMatlab || !quizLevelActive) {
+      if (!shouldActivate || isMatlab) {
         // Disable anti-cheat for exempt questions (e.g., code_write_plot for MATLAB)
         setAntiCheatConfig(prev => ({
           ...prev,
@@ -943,36 +952,43 @@ export function QuizTaker({
           autoSubmitOnViolations: false,
           maxTabSwitches: Infinity,
           trackGeminiWindow: false,
-          maxGeminiStrikes: Infinity
+          maxGeminiStrikes: Infinity,
+          requireFullscreen: false,
         }))
         setAntiCheatEnabled(false)
       } else {
-        // Re-enable anti-cheat for non-exempt questions using quiz-level settings only
-        const quizTrackGemini = Boolean(quizAc?.trackGeminiWindow)
-        const quizMaxGeminiStrikes = Number(quizAc?.maxGeminiStrikes) || settings.maxGeminiStrikes || 5
-        const quizBlockCopyPaste = Boolean(quizAc?.blockCopyPaste)
-        const quizMaxTabSwitches = Number(quizAc?.maxTabSwitches) || settings.tabSwitchLimit
-        const quizTrackTabSwitches = Boolean(quizAc?.trackTabSwitches)
-        const quizWarnOnTabSwitch = Boolean(quizAc?.warnOnTabSwitch)
-        const quizAutoSubmit = Boolean(quizAc?.autoSubmitOnViolations)
-        const quizStrictMode = Boolean(quizAc?.strictModeEnabled)
+        const withSuperpowers = applySuperpowerOverrides(quizAc, {
+          superpowers: Array.isArray((quiz as any)?.activeSuperpowers)
+            ? (quiz as any).activeSuperpowers
+            : [],
+        })
+        const quizMaxGeminiStrikes = Number(withSuperpowers.maxGeminiStrikes) || settings.maxGeminiStrikes || 5
+        const quizMaxTabSwitches = Number(withSuperpowers.maxTabSwitches) || settings.tabSwitchLimit
         
         setAntiCheatConfig(prev => applyBrowserAiPlatformPolicy({
           ...prev,
-          strictModeEnabled: quizStrictMode,
-          blockCopyPaste: quizBlockCopyPaste,
-          trackTabSwitches: antiCheatDisabledForTesting ? false : quizTrackTabSwitches,
-          warnOnTabSwitch: quizWarnOnTabSwitch,
-          autoSubmitOnViolations: antiCheatDisabledForTesting ? false : quizAutoSubmit,
+          strictModeEnabled: Boolean(withSuperpowers.strictModeEnabled || quizLevelActive),
+          blockCopyPaste: Boolean(withSuperpowers.blockCopyPaste),
+          trackTabSwitches: antiCheatDisabledForTesting ? false : Boolean(withSuperpowers.trackTabSwitches),
+          warnOnTabSwitch: Boolean(withSuperpowers.warnOnTabSwitch),
+          autoSubmitOnViolations: antiCheatDisabledForTesting ? false : Boolean(withSuperpowers.autoSubmitOnViolations),
           maxTabSwitches: quizMaxTabSwitches,
-          trackGeminiWindow: antiCheatDisabledForTesting ? false : quizTrackGemini,
+          trackGeminiWindow: antiCheatDisabledForTesting ? false : Boolean(withSuperpowers.trackGeminiWindow),
           maxGeminiStrikes: quizMaxGeminiStrikes,
-          requireFullscreen: antiCheatDisabledForTesting ? false : Boolean(quizAc?.requireFullscreen),
+          requireFullscreen: antiCheatDisabledForTesting ? false : Boolean(withSuperpowers.requireFullscreen),
         }))
         setAntiCheatEnabled(true)
       }
     }
-  }, [currentQuestionIndex, quiz])
+  }, [currentQuestionIndex, quiz, assessmentType, antiCheatDisabledForTesting])
+
+  // SECURITY: violation counts restored from the server on attempt load — refreshing the page
+  // must not reset progress toward the auto-submit threshold.
+  const [restoredViolationCounts, setRestoredViolationCounts] = useState<{
+    tabSwitchCount: number
+    geminiStrikes: number
+    copyPasteAttempts: number
+  } | null>(null)
 
   // Ref to access latest anti-cheat config in callbacks (avoids stale closures)
   const antiCheatConfigRef = useRef(antiCheatConfig)
@@ -1011,6 +1027,45 @@ export function QuizTaker({
     return seconds
   }, [quiz, questionUsesPerQuestionTimer, getSectionConfigAt, currentQuestionIndex, courseTimer])
 
+  // SECURITY: single-active-session token issued by the take API. Sent on attempt writes so
+  // the server can reject a superseded window/device (the newest take fetch owns the attempt).
+  const attemptSessionTokenRef = useRef<string | null>(null)
+  const isSessionSupersededRef = useRef(false)
+  const serverDeadlineExpiredRef = useRef(false)
+  const [serverIntegrityStop, setServerIntegrityStop] = useState<
+    "deadline_expired" | "session_superseded" | null
+  >(null)
+
+  const attemptApiHeaders = useCallback((): Record<string, string> => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" }
+    if (attemptSessionTokenRef.current) {
+      headers["x-attempt-session"] = attemptSessionTokenRef.current
+    }
+    return headers
+  }, [])
+
+  /** Shared handling for server-side integrity rejections (hard deadline / superseded session). */
+  const handleAttemptWriteRejection = useCallback(
+    (status: number, payload: { code?: string }): boolean => {
+      if (status === 423 && payload.code === "deadline_expired") {
+        if (!serverDeadlineExpiredRef.current) {
+          serverDeadlineExpiredRef.current = true
+          setServerIntegrityStop("deadline_expired")
+        }
+        return true
+      }
+      if (status === 409 && payload.code === "session_superseded") {
+        if (!isSessionSupersededRef.current) {
+          isSessionSupersededRef.current = true
+          setServerIntegrityStop("session_superseded")
+        }
+        return true
+      }
+      return false
+    },
+    [],
+  )
+
   /**
    * Auto-save function for immediate persistence
    * Lightweight save that doesn't evaluate answers
@@ -1048,17 +1103,21 @@ export function QuizTaker({
 
       const response = await studentApiFetch("/api/student/save-answer", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: attemptApiHeaders(),
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(timeoutDuration),
       })
 
       if (!response.ok) {
-        let payload: { locked?: boolean; error?: string } = {}
+        let payload: { locked?: boolean; error?: string; code?: string } = {}
         try {
           payload = await response.json()
         } catch {
           /* ignore */
+        }
+        // Server-side integrity stop (deadline expired / session superseded) — handled globally.
+        if (handleAttemptWriteRejection(response.status, payload)) {
+          return
         }
         if (response.status === 409 && payload.locked) {
           setSavedAnswers((prev) => new Set(prev).add(questionId))
@@ -1273,9 +1332,12 @@ export function QuizTaker({
       }
 
       // 2️⃣ Finalize attempt - ALWAYS proceed even if 0 answers (violations can occur before any answers)
+      // SECURITY: keepalive lets the request complete even if the student closes the tab
+      // to escape the violation auto-submit.
       const res = await studentApiFetch("/api/student/finalize-attempt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        keepalive: true,
         body: JSON.stringify({
           attemptId,
           autoSubmitted: true,
@@ -1353,7 +1415,7 @@ export function QuizTaker({
         if (timeSpentSec != null && timeSpentSec >= 0) body.timeSpentSeconds = timeSpentSec
         studentApiFetch("/api/student/save-answer", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: attemptApiHeaders(),
           body: JSON.stringify(body),
         }).catch(() => {})
       }
@@ -1386,7 +1448,7 @@ export function QuizTaker({
       if (p) {
         const body: Record<string, unknown> = { attemptId: p.attemptId, questionId: p.questionId, answer: p.answer, questionType: p.questionType, autoSave: true }
         if ((p as { timeSpentSeconds?: number }).timeSpentSeconds != null) body.timeSpentSeconds = (p as { timeSpentSeconds?: number }).timeSpentSeconds
-        studentApiFetch("/api/student/save-answer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), keepalive: true }).catch(() => {})
+        studentApiFetch("/api/student/save-answer", { method: "POST", headers: attemptApiHeaders(), body: JSON.stringify(body), keepalive: true }).catch(() => {})
       }
     }
     document.addEventListener("visibilitychange", handleVisibilityChange)
@@ -1400,6 +1462,7 @@ export function QuizTaker({
   const { state: antiCheatState, closeWarning, logViolation, incrementGeminiStrike } = useAntiCheat({
     config: activeAntiCheatConfig,
     isAntiCheatSuspended: isSolutionUploadAntiCheatPaused,
+    initialCounts: restoredViolationCounts ?? undefined,
     onViolation: () => {
       // Violation detected
     },
@@ -1469,6 +1532,30 @@ export function QuizTaker({
     },
     attemptId: attemptId?.toString(),
   })
+
+  // SECURITY: react to server-side integrity stops. A hard-deadline expiry auto-submits the
+  // saved work; a superseded session (attempt resumed in another window/device) freezes this
+  // window with a notice — the newest window continues normally.
+  useEffect(() => {
+    if (!serverIntegrityStop) return
+    if (serverIntegrityStop === "deadline_expired") {
+      toast({
+        title: "Time is up",
+        description: "The assessment time limit has been reached. Your saved answers are being submitted.",
+        variant: "destructive",
+        duration: 6000,
+      })
+      finalizeQuizWithViolation("Time limit exceeded (server deadline reached)")
+    } else {
+      toast({
+        title: "Attempt opened elsewhere",
+        description:
+          "This attempt was resumed in another window or device, so this window can no longer save answers. Continue in the newest window.",
+        variant: "destructive",
+        duration: 10000,
+      })
+    }
+  }, [serverIntegrityStop, finalizeQuizWithViolation, toast])
 
   // Track Gemini detection state for blocking
   const [isGeminiBlocking, setIsGeminiBlocking] = useState(false)
@@ -1594,12 +1681,16 @@ export function QuizTaker({
       !loading &&
       !isSolutionUploadAntiCheatPaused() &&
       ((antiCheatConfig.trackGeminiWindow && isBrowserAiEnforcementPlatform()) ||
+        (antiCheatConfig.requireFullscreen === true && !isPhoneOrTabletDevice()) ||
         (isDesktopElectronAssessmentClient() && antiCheatConfig.requireFullscreen === true)),
     onDetected: handleGeminiDetected,
     onCleared: handleGeminiCleared,
     requireFullscreen: antiCheatDisabledForTesting ? false : antiCheatConfig.requireFullscreen,
     isDetectionPaused: isSolutionUploadAntiCheatPaused,
-    skipBrowserAiHeuristics: isDesktopElectronAssessmentClient(),
+    // Skip browser-AI heuristics when: Electron shell (no browser panels exist) OR the quiz has
+    // Gemini tracking disabled (the hook may still be enabled purely for the fullscreen lock —
+    // detections in that mode would blur the quiz without ever showing a dismissible warning).
+    skipBrowserAiHeuristics: isDesktopElectronAssessmentClient() || !antiCheatConfig.trackGeminiWindow,
   })
 
   const handleManualGeminiDismiss = useCallback(() => {
@@ -1668,8 +1759,10 @@ export function QuizTaker({
     // Update ref for use in callbacks
     geminiCurrentlyDetectedRef.current = geminiCurrentlyDetected
     
-    // If Gemini is detected, keep the quiz blocked unless the student just dismissed
-    if (geminiCurrentlyDetected && !isSolutionUploadAntiCheatPaused()) {
+    // If Gemini is detected, keep the quiz blocked unless the student just dismissed.
+    // Never block when Gemini tracking is disabled for this quiz — blocking without tracking
+    // would blur the quiz without a warning modal or strikes (invisible lockout).
+    if (geminiCurrentlyDetected && antiCheatConfigRef.current.trackGeminiWindow && !isSolutionUploadAntiCheatPaused()) {
       const justDismissed = Date.now() - lastPopUpDismissedTimeRef.current < 8000
       if (justDismissed) {
         return
@@ -1940,13 +2033,17 @@ export function QuizTaker({
   // const autoSaveIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleUseHint = async (questionId: number, hintPenalty: number) => {
-    if (!attemptId || usedHints.has(questionId)) return
+    if (!attemptId) return
+    const alreadyUsed = usedHints.has(questionId)
+    // Allow a re-fetch when the hint was used but the text is missing locally
+    // (e.g. after a refresh) — the server records usage/penalty only once.
+    if (alreadyUsed && hintTextByQuestionId[questionId] != null) return
 
     setShowHint(true)
     setUsedHints((prev) => new Set(prev).add(questionId))
 
     try {
-      await studentApiFetch("/api/student/use-hint", {
+      const response = await studentApiFetch("/api/student/use-hint", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1956,11 +2053,22 @@ export function QuizTaker({
         }),
       })
 
-      toast({
-        title: "Hint Revealed",
-        description: `A penalty of ${hintPenalty} point(s) has been applied.`,
-        variant: "default",
-      })
+      // SECURITY: hint text is not in the take payload — the server reveals it
+      // here, after the usage/penalty has been recorded.
+      if (response.ok) {
+        const data = await response.json().catch(() => null)
+        if (data && typeof data.hint === "string" && data.hint.trim().length > 0) {
+          setHintTextByQuestionId((prev) => ({ ...prev, [questionId]: data.hint }))
+        }
+      }
+
+      if (!alreadyUsed) {
+        toast({
+          title: "Hint Revealed",
+          description: `A penalty of ${hintPenalty} point(s) has been applied.`,
+          variant: "default",
+        })
+      }
     } catch (error) {
       // Failed to use hint
     }
@@ -2213,7 +2321,7 @@ export function QuizTaker({
       if (!attemptId || isQuizFinalized) return
       studentApiFetch("/api/student/quiz-progress", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: attemptApiHeaders(),
         body: JSON.stringify({ attemptId, sectionQuestionSelections: next }),
       }).catch(() => {})
     },
@@ -2279,7 +2387,7 @@ export function QuizTaker({
     )
     await studentApiFetch("/api/student/quiz-progress", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: attemptApiHeaders(),
       body: JSON.stringify({
         attemptId,
         currentQuestionIndex,
@@ -2305,7 +2413,7 @@ export function QuizTaker({
       lastSavedIndexRef.current = currentQuestionIndex
       studentApiFetch("/api/student/quiz-progress", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: attemptApiHeaders(),
         body: JSON.stringify(payload),
       }).catch(() => {})
       return
@@ -2315,7 +2423,7 @@ export function QuizTaker({
       progressSaveRef.current = null
       studentApiFetch("/api/student/quiz-progress", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: attemptApiHeaders(),
         body: JSON.stringify(payload),
       }).catch(() => {})
     }, 800)
@@ -2333,7 +2441,7 @@ export function QuizTaker({
       const { questionTimeRemaining: qtr, sectionTimeRemaining: str } = getSanitizedTimerPayload()
       studentApiFetch("/api/student/quiz-progress", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: attemptApiHeaders(),
         body: JSON.stringify({
           attemptId: aid,
           currentQuestionIndex: idx,
@@ -3048,15 +3156,20 @@ export function QuizTaker({
         track_tab_switches: data.quiz?.track_tab_switches ?? quizData.track_tab_switches ?? false,
         track_gemini_window: data.quiz?.track_gemini_window ?? quizData.track_gemini_window ?? false,
         max_gemini_strikes: data.quiz?.max_gemini_strikes ?? quizData.max_gemini_strikes ?? 5,
-        antiCheatConfig: data.quiz?.antiCheatConfig || {
+        antiCheatConfig: data.quiz?.antiCheatConfig || applyStrictModeIntegrityDefaults({
+          strictModeEnabled: Boolean(data.quiz?.strict_mode_enabled),
+          blockCopyPaste: Boolean(data.quiz?.block_copy_paste),
+          trackTabSwitches: Boolean(data.quiz?.track_tab_switches),
+          trackMouseMovement: Boolean(data.quiz?.track_mouse_movement),
+          warnOnTabSwitch: Boolean(data.quiz?.warn_on_tab_switch),
           autoSubmitOnViolations: data.quiz?.auto_submit_on_violations !== null && data.quiz?.auto_submit_on_violations !== undefined
-            ? data.quiz.auto_submit_on_violations
+            ? Boolean(data.quiz.auto_submit_on_violations)
             : true,
           maxTabSwitches: data.quiz?.max_tab_switches ?? 5,
-          trackTabSwitches: data.quiz?.track_tab_switches ?? false,
-          trackGeminiWindow: data.quiz?.track_gemini_window ?? false,
+          trackGeminiWindow: Boolean(data.quiz?.track_gemini_window),
           maxGeminiStrikes: data.quiz?.max_gemini_strikes ?? 5,
-        }
+          requireFullscreen: data.quiz?.require_fullscreen === true,
+        })
       }
       
       setQuiz(finalQuizData)
@@ -3074,7 +3187,7 @@ export function QuizTaker({
         )
       } else if (data.quiz) {
         // Fallback: construct config from quiz data fields
-        const quizConfig = {
+        const quizConfig = applyStrictModeIntegrityDefaults({
           strictModeEnabled: data.quiz.strict_mode_enabled || false,
           blockCopyPaste: data.quiz.block_copy_paste || false,
           trackTabSwitches: antiCheatDisabledForTesting ? false : data.quiz.track_tab_switches || false,
@@ -3092,7 +3205,7 @@ export function QuizTaker({
             ? false
             : data.quiz.require_fullscreen === true,
           keystrokePlaybackEnforced: data.quiz.keystroke_playback_enforced !== false,
-        }
+        })
         setAntiCheatConfig(prev => applyBrowserAiPlatformPolicy({ ...prev, ...quizConfig }))
       }
       
@@ -3104,6 +3217,11 @@ export function QuizTaker({
       })
 
       if (quizData && quizData.id) {
+        // SECURITY: adopt the session token issued by the take API (newest window owns the attempt)
+        if (typeof data.attemptSessionToken === "string" && data.attemptSessionToken) {
+          attemptSessionTokenRef.current = data.attemptSessionToken
+          isSessionSupersededRef.current = false
+        }
         const attemptIdFromTake = data.attemptId
         const attemptUrl = attemptIdFromTake
           ? `/api/student/quiz-attempt/${quizData.id}?studentId=${studentDatabaseId}&attemptId=${attemptIdFromTake}`
@@ -3176,6 +3294,19 @@ export function QuizTaker({
           }
           if (attemptData.usedHintQuestionIds) {
             setUsedHints(new Set(attemptData.usedHintQuestionIds))
+          }
+          // SECURITY: seed anti-cheat counters from server-persisted counts so a refresh
+          // cannot reset violation progress (see useAntiCheat initialCounts).
+          if (
+            typeof attemptData.tabSwitchCount === "number" ||
+            typeof attemptData.geminiStrikes === "number" ||
+            typeof attemptData.copyPasteAttempts === "number"
+          ) {
+            setRestoredViolationCounts({
+              tabSwitchCount: Number(attemptData.tabSwitchCount) || 0,
+              geminiStrikes: Number(attemptData.geminiStrikes) || 0,
+              copyPasteAttempts: Number(attemptData.copyPasteAttempts) || 0,
+            })
           }
           // Initialize attempt count from existing data
           if (attemptData.questionAttemptCounts) {
@@ -3582,7 +3713,7 @@ export function QuizTaker({
           const timeSpent = capTimeSpent(currentQuestion.id, raw)
           await studentApiFetch("/api/student/save-answer", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: attemptApiHeaders(),
             body: JSON.stringify({
               attemptId,
               questionId: currentQuestion.id,
@@ -5273,7 +5404,7 @@ export function QuizTaker({
         })
         studentApiFetch("/api/student/save-answer", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: attemptApiHeaders(),
           body: JSON.stringify({
             attemptId,
             questionId,
@@ -5337,7 +5468,7 @@ export function QuizTaker({
         try {
           const res = await studentApiFetch("/api/student/save-answer", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: attemptApiHeaders(),
             body: JSON.stringify(fallbackPayload),
             signal: AbortSignal.timeout(FALLBACK_TIMEOUT_MS),
           })
@@ -5456,11 +5587,6 @@ export function QuizTaker({
     if (isQuizFinalized || isLockedDueToViolations) return
     if (index < 0 || index >= quiz!.questions.length) return
     if (!canNavigateToIndex(index)) {
-      toast({
-        title: "Navigation locked",
-        description: "You cannot return to previous questions in this section.",
-        variant: "default",
-      })
       return
     }
     
@@ -7635,10 +7761,7 @@ export function QuizTaker({
     : 0
   const examSharedTimerActive =
     showSectionTimer && usesExamSharedTimer(parsedSectionConfigRef.current)
-  const allowBackNav =
-    currentQuestionIndex > 0 &&
-    sectionAllowsBacktracking(currentSectionConfig) &&
-    canNavigateToIndex(currentQuestionIndex - 1)
+  const allowBackNav = currentQuestionIndex > 0 && canNavigateToIndex(currentQuestionIndex - 1)
   const timerProgress = questionTimeLimit > 0 ? (timeLeft / questionTimeLimit) * 100 : 0
   const hasQuestionTimerDisplay = showQuestionTimer && !showSectionTimer
   const hasSectionTimerDisplay = showSectionTimer && !examSharedTimerActive
@@ -7748,7 +7871,13 @@ export function QuizTaker({
   const shouldLockQuestion =
     isQuestionLocked || (isLockableType && isQuestionSubmitted)
 
-  const hasHint = currentQuestion.hint && currentQuestion.hint.trim().length > 0
+  // Prefer fetched hint text (take payloads omit the text and set `has_hint`);
+  // fall back to question.hint when present (preview/instructor/review payloads).
+  const currentHintText =
+    hintTextByQuestionId[currentQuestion.id] ?? currentQuestion.hint ?? null
+  const hasHint =
+    currentQuestion.has_hint === true ||
+    Boolean(currentQuestion.hint && currentQuestion.hint.trim().length > 0)
   const hintUsed = usedHints.has(currentQuestion.id)
 
   const isFillInType = ["fill_blank", "code_output", "trace_output", "fill_code", "trace_logic"].includes(
@@ -7822,6 +7951,9 @@ export function QuizTaker({
           size="sm"
           onClick={() => {
             if (!hintUsed) {
+              handleUseHint(currentQuestion.id, currentQuestion.hint_penalty || 0.25)
+            } else if (!showHint && currentHintText == null) {
+              // Hint used but text missing locally (e.g. after refresh) — re-fetch it.
               handleUseHint(currentQuestion.id, currentQuestion.hint_penalty || 0.25)
             } else {
               setShowHint(!showHint)
@@ -8320,7 +8452,7 @@ export function QuizTaker({
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm sm:text-base text-amber-900 dark:text-amber-100 mb-1 sm:mb-2">💡 Hint:</p>
-                            <p className="text-xs sm:text-sm md:text-base text-amber-800 dark:text-amber-200 break-words">{currentQuestion.hint}</p>
+                            <p className="text-xs sm:text-sm md:text-base text-amber-800 dark:text-amber-200 break-words">{currentHintText}</p>
                             <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 sm:mt-3">
                               Note: {currentQuestion.hint_penalty || 0.25} point(s) deducted for using this hint.
                             </p>
@@ -9296,7 +9428,7 @@ export function QuizTaker({
               questionText: currentQuestion.question_text,
               title: `Question ${currentQuestionIndex + 1}`,
               questionType: currentQuestion.question_type,
-              hint: currentQuestion.hint ?? null,
+              hint: hintTextByQuestionId[currentQuestion.id] ?? currentQuestion.hint ?? null,
               questionId: currentQuestion.id,
               bankQuestionId: currentQuestion.bank_question_id,
               quizId: quiz.id,
@@ -9308,8 +9440,10 @@ export function QuizTaker({
       </div>
 
       {/* Anti-Cheat Warning Modal - only show if anti-cheat is enabled */}
-      {/* CRITICAL: Show warning when either showWarning is true OR when blocking (to prevent blank blur screen) */}
-      {antiCheatEnabled && (antiCheatState.showWarning || (isGeminiBlocking && quizStarted && antiCheatConfig.trackGeminiWindow)) && (
+      {/* CRITICAL: Show warning when either showWarning is true OR when blocking (to prevent blank blur screen). */}
+      {/* Never gate the blocking modal on trackGeminiWindow — if the quiz is blocked, the student */}
+      {/* must always see the modal with its manual-dismiss button (no invisible lockouts). */}
+      {antiCheatEnabled && (antiCheatState.showWarning || (isGeminiBlocking && quizStarted)) && (
       <AntiCheatWarning
         show={true}
         message={
@@ -9347,22 +9481,6 @@ export function QuizTaker({
       {/* Fullscreen Requirement Modal - shows when fullscreen is required but not active (macOS) */}
       <FullscreenRequirement
         show={isBlockedByFullscreen}
-        onEnterFullscreen={async () => {
-          try {
-            const element = document.documentElement
-            if (element.requestFullscreen) {
-              await element.requestFullscreen()
-            } else if ((element as any).webkitRequestFullscreen) {
-              await (element as any).webkitRequestFullscreen()
-            } else if ((element as any).mozRequestFullscreen) {
-              await (element as any).mozRequestFullscreen()
-            } else if ((element as any).msRequestFullscreen) {
-              await (element as any).msRequestFullscreen()
-            }
-          } catch (error) {
-            console.error("Failed to enter fullscreen:", error)
-          }
-        }}
       />
 
       {/* Location requirement - when geo is required and student is outside allowed area */}

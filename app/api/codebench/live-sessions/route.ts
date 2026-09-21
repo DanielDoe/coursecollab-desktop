@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
 import { listStudentOpenLiveSessions } from "@/lib/codebench-live-classroom"
-import { resolveStudentCourseContextByDbId } from "@/lib/student-course-scope"
+import { resolveStudentCourseContextForRequest } from "@/lib/student-course-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -11,13 +11,14 @@ export async function GET(request: NextRequest) {
   if (!auth.ok) return auth.response
 
   try {
-    const ctx = await resolveStudentCourseContextByDbId(auth.studentDbId)
+    const ctx = await resolveStudentCourseContextForRequest(request, auth.studentDbId)
     if (!ctx?.courseId) {
       return NextResponse.json({ sessions: [] })
     }
 
     const sessions = await listStudentOpenLiveSessions({
       courseId: ctx.courseId,
+      sessionId: ctx.sessionId,
       sessionCode: ctx.sessionCode,
     })
     return NextResponse.json({ sessions })

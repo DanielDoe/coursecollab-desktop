@@ -132,6 +132,121 @@ export function isQuizLevelAntiCheatActive(
   )
 }
 
+/**
+ * Strict Mode is the instructor master switch ("all features below are active").
+ * Turning it on must actually enable tab tracking, copy/paste blocking, AI-tool
+ * detection, violation auto-submit, and fullscreen — not only DevTools shortcuts.
+ */
+export function applyStrictModeIntegrityDefaults<
+  T extends {
+    strictModeEnabled?: boolean
+    blockCopyPaste?: boolean
+    trackTabSwitches?: boolean
+    warnOnTabSwitch?: boolean
+    autoSubmitOnViolations?: boolean
+    trackGeminiWindow?: boolean
+    requireFullscreen?: boolean
+  },
+>(config: T): T {
+  if (!config.strictModeEnabled) return config
+  return {
+    ...config,
+    blockCopyPaste: true,
+    trackTabSwitches: true,
+    warnOnTabSwitch: true,
+    autoSubmitOnViolations: true,
+    trackGeminiWindow: true,
+    requireFullscreen: true,
+  }
+}
+
+const STRICT_INTEGRITY_ASSESSMENT_TYPES = new Set([
+  "quiz",
+  "mid_semester",
+  "mid-semester",
+  "midsem",
+  "final",
+  "finals",
+])
+
+export function isHomeworkAssessment(assessmentType?: string | null): boolean {
+  return String(assessmentType ?? "").toLowerCase().trim() === "homework"
+}
+
+/** Quizzes, mid-semesters, and finals. Unspecified rows are treated as quizzes. */
+export function isStrictIntegrityAssessment(assessmentType?: string | null): boolean {
+  const t = String(assessmentType ?? "").toLowerCase().trim()
+  if (!t) return true
+  return STRICT_INTEGRITY_ASSESSMENT_TYPES.has(t)
+}
+
+/** @deprecated Use isStrictIntegrityAssessment. Homework is not a strict type. */
+export function isGradedIntegrityAssessment(assessmentType?: string | null): boolean {
+  return isStrictIntegrityAssessment(assessmentType)
+}
+
+const HOMEWORK_INTEGRITY_OFF = {
+  strictModeEnabled: false,
+  blockCopyPaste: false,
+  trackTabSwitches: false,
+  warnOnTabSwitch: false,
+  autoSubmitOnViolations: false,
+  trackGeminiWindow: false,
+  requireFullscreen: false,
+} as const
+
+/** Homework never runs Strict Mode, even if DB flags were left on. */
+export function applyHomeworkIntegrityExemption<
+  T extends {
+    strictModeEnabled?: boolean
+    blockCopyPaste?: boolean
+    trackTabSwitches?: boolean
+    warnOnTabSwitch?: boolean
+    autoSubmitOnViolations?: boolean
+    trackGeminiWindow?: boolean
+    requireFullscreen?: boolean
+  },
+>(config: T, assessmentType?: string | null): T {
+  if (!isHomeworkAssessment(assessmentType)) return config
+  return { ...config, ...HOMEWORK_INTEGRITY_OFF }
+}
+
+/**
+ * Create-form / older quizzes persist every integrity flag as false, which previously
+ * disabled enforcement entirely. Quizzes, mid-semesters, and finals with no flags on
+ * still get the standard suite. Homework is always exempt. Superpowers can relax exams.
+ */
+export function applyUnconfiguredQuizIntegrityDefaults<
+  T extends {
+    strictModeEnabled?: boolean
+    blockCopyPaste?: boolean
+    trackTabSwitches?: boolean
+    warnOnTabSwitch?: boolean
+    autoSubmitOnViolations?: boolean
+    trackGeminiWindow?: boolean
+    requireFullscreen?: boolean
+  },
+>(config: T, assessmentType?: string | null, title?: string | null): T {
+  if (isHomeworkAssessment(assessmentType)) {
+    return applyHomeworkIntegrityExemption(config, assessmentType)
+  }
+  if (!isStrictIntegrityAssessment(assessmentType)) return config
+  if (/\bno anti-cheat\b/i.test(String(title ?? ""))) return config
+  if (isQuizLevelAntiCheatActive(config)) {
+    return { ...config, requireFullscreen: true }
+  }
+  return {
+    ...config,
+    strictModeEnabled: true,
+    blockCopyPaste: true,
+    trackTabSwitches: true,
+    warnOnTabSwitch: true,
+    autoSubmitOnViolations: true,
+    trackGeminiWindow: true,
+    requireFullscreen: true,
+  }
+}
+
 /** Resolve track_gemini_window from DB row — never infer true when strict mode is off. */
 export function resolveTrackGeminiWindowFromDb(row: {
   track_gemini_window?: boolean | null
@@ -142,6 +257,8 @@ export function resolveTrackGeminiWindowFromDb(row: {
 }
 
 export function buildQuizAntiCheatConfigFromDb(assessment: {
+  assessment_type?: string | null
+  title?: string | null
   strict_mode_enabled?: boolean | null
   block_copy_paste?: boolean | null
   track_tab_switches?: boolean | null
@@ -155,18 +272,25 @@ export function buildQuizAntiCheatConfigFromDb(assessment: {
   keystroke_playback_enforced?: boolean | null
 }) {
   const strictModeEnabled = Boolean(assessment.strict_mode_enabled)
-  return {
-    strictModeEnabled,
-    blockCopyPaste: Boolean(assessment.block_copy_paste),
-    trackTabSwitches: Boolean(assessment.track_tab_switches),
-    trackMouseMovement: Boolean(assessment.track_mouse_movement),
-    warnOnTabSwitch: Boolean(assessment.warn_on_tab_switch),
-    maxTabSwitches: Number(assessment.max_tab_switches) || 5,
-    autoSubmitOnViolations: Boolean(assessment.auto_submit_on_violations),
-    trackGeminiWindow: resolveTrackGeminiWindowFromDb(assessment),
-    maxGeminiStrikes: Number(assessment.max_gemini_strikes) || 5,
-    requireFullscreen: assessment.require_fullscreen === true,
-    keystrokePlaybackEnforced: assessment.keystroke_playback_enforced !== false,
-  }
+  return applyHomeworkIntegrityExemption(
+    applyUnconfiguredQuizIntegrityDefaults(
+      applyStrictModeIntegrityDefaults({
+        strictModeEnabled,
+        blockCopyPaste: Boolean(assessment.block_copy_paste),
+        trackTabSwitches: Boolean(assessment.track_tab_switches),
+        trackMouseMovement: Boolean(assessment.track_mouse_movement),
+        warnOnTabSwitch: Boolean(assessment.warn_on_tab_switch),
+        maxTabSwitches: Number(assessment.max_tab_switches) || 5,
+        autoSubmitOnViolations: Boolean(assessment.auto_submit_on_violations),
+        trackGeminiWindow: resolveTrackGeminiWindowFromDb(assessment),
+        maxGeminiStrikes: Number(assessment.max_gemini_strikes) || 5,
+        requireFullscreen: assessment.require_fullscreen === true,
+        keystrokePlaybackEnforced: assessment.keystroke_playback_enforced !== false,
+      }),
+      assessment.assessment_type,
+      assessment.title,
+    ),
+    assessment.assessment_type,
+  )
 }
 

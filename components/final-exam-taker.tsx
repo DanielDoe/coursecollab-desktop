@@ -30,8 +30,9 @@ import { AntiCheatWarning } from "@/components/anti-cheat-warning"
 import { shouldActivateAntiCheat, getAntiCheatSettings } from "@/lib/antiCheatConfig"
 import type { SectionConfig } from "@/lib/assessment-sections"
 import { useGeminiDetector } from "@/hooks/use-gemini-detector"
-import { isBrowserAiEnforcementPlatform, applyBrowserAiPlatformPolicy } from "@/lib/device-utils"
+import { isBrowserAiEnforcementPlatform, applyBrowserAiPlatformPolicy, isPhoneOrTabletDevice } from "@/lib/device-utils"
 import { isDesktopElectronAssessmentClient } from "@/lib/desktop-anticheat-policy"
+import { isDocumentFullscreen, requestDocumentFullscreen, subscribeDocumentFullscreen } from "@/lib/document-fullscreen"
 import confetti from "canvas-confetti"
 
 interface FinalExamTakerProps {
@@ -172,15 +173,22 @@ export function FinalExamTaker({ examId, assessmentType = "final" }: FinalExamTa
   }, [])
 
   // Gemini detection - desktop Windows/macOS only
-  useGeminiDetector({
+  const { clearDetection } = useGeminiDetector({
     enabled:
       (antiCheatConfig.trackGeminiWindow && isBrowserAiEnforcementPlatform()) ||
+      (antiCheatConfig.requireFullscreen === true && !isPhoneOrTabletDevice()) ||
       (isDesktopElectronAssessmentClient() && antiCheatConfig.requireFullscreen === true),
     onDetected: handleGeminiDetected,
     onCleared: handleGeminiCleared,
     requireFullscreen: antiCheatConfig.requireFullscreen,
     skipBrowserAiHeuristics: isDesktopElectronAssessmentClient(),
   })
+
+  // Manual dismiss for stuck detections (detector re-fires if the tool is still open).
+  const handleManualGeminiDismiss = useCallback(() => {
+    clearDetection()
+    setGeminiDetected(false)
+  }, [clearDetection])
 
   const { state: antiCheatState, closeWarning } = useAntiCheat({
     config: antiCheatConfig,
@@ -199,22 +207,13 @@ export function FinalExamTaker({ examId, assessmentType = "final" }: FinalExamTa
 
   // Request fullscreen
   const requestFullscreen = useCallback(async () => {
-    try {
-      const element = containerRef.current || document.documentElement
-      if (element.requestFullscreen) {
-        await element.requestFullscreen()
-      } else if ((element as any).webkitRequestFullscreen) {
-        await (element as any).webkitRequestFullscreen()
-      } else if ((element as any).mozRequestFullScreen) {
-        await (element as any).mozRequestFullScreen()
-      } else if ((element as any).msRequestFullscreen) {
-        await (element as any).msRequestFullscreen()
-      }
-      setIsFullscreen(true)
-      setFullscreenLocked(true)
-    } catch (error) {
+    const entered = await requestDocumentFullscreen(containerRef.current)
+    if (!entered) {
       setShowFullscreenWarning(true)
+      return
     }
+    setIsFullscreen(true)
+    setFullscreenLocked(true)
   }, [])
 
   // Exit fullscreen (only if not locked)
@@ -247,12 +246,7 @@ export function FinalExamTaker({ examId, assessmentType = "final" }: FinalExamTa
   // Monitor fullscreen changes
   useEffect(() => {
     const handleFullscreenChange = () => {
-      const isCurrentlyFullscreen = !!(
-        document.fullscreenElement ||
-        (document as any).webkitFullscreenElement ||
-        (document as any).mozFullScreenElement ||
-        (document as any).msFullscreenElement
-      )
+      const isCurrentlyFullscreen = isDocumentFullscreen()
       setIsFullscreen(isCurrentlyFullscreen)
 
       if (examStarted && fullscreenLocked && !isCurrentlyFullscreen) {
@@ -266,17 +260,7 @@ export function FinalExamTaker({ examId, assessmentType = "final" }: FinalExamTa
       }
     }
 
-    document.addEventListener("fullscreenchange", handleFullscreenChange)
-    document.addEventListener("webkitfullscreenchange", handleFullscreenChange)
-    document.addEventListener("mozfullscreenchange", handleFullscreenChange)
-    document.addEventListener("MSFullscreenChange", handleFullscreenChange)
-
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange)
-      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange)
-      document.removeEventListener("mozfullscreenchange", handleFullscreenChange)
-      document.removeEventListener("MSFullscreenChange", handleFullscreenChange)
-    }
+    return subscribeDocumentFullscreen(handleFullscreenChange)
   }, [examStarted, fullscreenLocked, requestFullscreen, toast])
 
   // Timer countdown
@@ -647,6 +631,14 @@ export function FinalExamTaker({ examId, assessmentType = "final" }: FinalExamTa
                   Please close any browser AI side-panels (like Gemini) before starting. 
                   Entering fullscreen mode will automatically close them.
                 </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleManualGeminiDismiss}
+                  className="mt-3 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40"
+                >
+                  I&apos;ve closed the AI tool — re-check
+                </Button>
               </div>
             )}
             
@@ -757,12 +749,17 @@ export function FinalExamTaker({ examId, assessmentType = "final" }: FinalExamTa
         />
       </div>
 
-      {/* Anti-cheat warning */}
+      {/* Anti-cheat warning — non-blocking, but always keep a manual dismiss path
+          (clear detection + close) so the student can never be soft-locked. */}
       <AntiCheatWarning
         show={antiCheatState.showWarning}
         type={antiCheatState.warningType}
         message={antiCheatState.warningMessage}
         onClose={closeWarning}
+        onManualDismiss={() => {
+          handleManualGeminiDismiss()
+          closeWarning()
+        }}
       />
 
       {/* Fullscreen warning */}

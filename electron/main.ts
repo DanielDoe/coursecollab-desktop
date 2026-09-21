@@ -40,6 +40,7 @@ import {
   isAssessmentLockdownActive,
   registerAssessmentLockdownIpc,
 } from './assessment-lockdown'
+import { scheduleWindowsShortcutRepair } from './windows-shortcut-repair'
 
 loadEnv({ path: join(__dirname, '../.env') })
 
@@ -225,6 +226,7 @@ app.whenReady().then(async () => {
   registerCodebenchIpc()
   registerFirstRunSetupIpc()
   registerUpdater()
+  scheduleWindowsShortcutRepair()
   registerNotificationHandlers()
   loadNotificationPreferences()
   syncLaunchAtLoginPreference()

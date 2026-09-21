@@ -47,6 +47,15 @@ import {
   type StudentClassroomQuestionView,
 } from "@/components/codebench/StudentClassroomQuestionDrawer"
 import type { StudentLiveClassroomSession } from "@/lib/codebench-live-classroom-types"
+import {
+  assignmentHasOpenLiveSession,
+  LIVE_JOIN_GRACE_MS,
+  shouldReplaceLiveEditorBuffer,
+  shouldRestoreLiveStudentCode,
+  shouldTreatLiveSessionAsEnded,
+  studentLiveSnapshotShouldRun,
+} from "@/lib/codebench-live-student-ui"
+import { applyLiveEditorText, monacoCodeFromChange, readLiveEditorValue } from "@/lib/codebench-live-editor-apply"
 import { extractClassroomQuestionText } from "@/lib/codebench-instructor-classroom"
 import { isFileDirty } from "@/lib/codebench-ide-workspace"
 import { registerCodebenchMonacoThemes, codebenchEditorOptions } from "@/lib/codebench-monaco-themes"
@@ -173,7 +182,7 @@ export default function CodeBenchPage({
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [submissionSuccessData, setSubmissionSuccessData] = useState<{ score: number; pointsAwarded: number; isAssignment?: boolean } | null>(null)
   const [editorRef, setEditorRef] = useState<any>(null)
-  const { sessions: liveSessions, listSupported } = useStudentLiveClassroomSessions(studentId)
+  const { sessions: liveSessions, listSupported, loading: liveSessionsLoading } = useStudentLiveClassroomSessions(studentId)
   const liveAssignmentIds = useMemo(
     () => new Set(liveSessions.map((session) => String(session.assignmentId))),
     [liveSessions],
@@ -190,70 +199,40 @@ export default function CodeBenchPage({
     }
     return next
   }, [])
+  const liveJoinGraceUntilRef = useRef(0)
+  const liveMissCountRef = useRef(0)
+  const markLiveJoinGrace = useCallback(() => {
+    liveJoinGraceUntilRef.current = Date.now() + LIVE_JOIN_GRACE_MS
+    liveMissCountRef.current = 0
+  }, [])
   const liveSnapshotEnabled = Boolean(
     liveSharing &&
       studentId &&
       classroomSubmissionId &&
-      (listSupported !== true || liveAssignmentIds.has(classroomSubmissionId)),
+      studentLiveSnapshotShouldRun({
+        liveSharing,
+        studentId,
+        classroomSubmissionId,
+        listSupported,
+        sessions: liveSessions,
+        joinGraceUntilMs: liveJoinGraceUntilRef.current,
+      }),
   )
   const lastInstructorToastAtRef = useRef(0)
-  const noteExternalApplyRef = useRef<(ms?: number) => void>(() => {})
+  const noteExternalApplyRef = useRef<(ms?: number, nextDocument?: string) => void>(() => {})
+  const liveEditorCodeRef = useRef(code)
+  liveEditorCodeRef.current = code
+  const liveEditorOriginRef = useRef<"idle" | "editor" | "external">("idle")
   const applyInstructorCode = useCallback(
     (nextCode: string, meta?: { restore?: boolean }) => {
-      const current =
-        (typeof editorRef?.getValue === "function" ? editorRef.getValue() : null) ?? code
+      const current = readLiveEditorValue(editorRef, liveEditorCodeRef.current)
       if (current === nextCode) return
+      if (meta?.restore && !shouldRestoreLiveStudentCode(current, nextCode, languageId)) return
+      if (!meta?.restore && !shouldReplaceLiveEditorBuffer(current, nextCode, languageId)) return
 
-      noteExternalApplyRef.current(400)
-
-      let selection: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number } | null =
-        null
-      try {
-        const sel = editorRef?.getSelection?.()
-        if (sel) {
-          selection = {
-            startLineNumber: sel.startLineNumber,
-            startColumn: sel.startColumn,
-            endLineNumber: sel.endLineNumber,
-            endColumn: sel.endColumn,
-          }
-        }
-      } catch {
-        /* editor not ready */
-      }
-
-      setCode(nextCode)
-      try {
-        if (editorRef?.getValue?.() !== nextCode) {
-          editorRef?.setValue?.(nextCode)
-        }
-        const restoreSelection = () => {
-          if (!selection || !editorRef?.setSelection || !editorRef?.getModel) return
-          const model = editorRef.getModel()
-          const lineCount = model?.getLineCount?.() ?? 1
-          const startLine = Math.min(selection.startLineNumber, lineCount)
-          const endLine = Math.min(selection.endLineNumber, lineCount)
-          const startCol = Math.min(
-            selection.startColumn,
-            (model?.getLineMaxColumn?.(startLine) as number | undefined) ?? selection.startColumn,
-          )
-          const endCol = Math.min(
-            selection.endColumn,
-            (model?.getLineMaxColumn?.(endLine) as number | undefined) ?? selection.endColumn,
-          )
-          editorRef.setSelection({
-            startLineNumber: startLine,
-            startColumn: startCol,
-            endLineNumber: endLine,
-            endColumn: endCol,
-          })
-          editorRef.revealPositionInCenter?.({ lineNumber: endLine, column: endCol })
-        }
-        restoreSelection()
-        window.requestAnimationFrame(restoreSelection)
-      } catch {
-        // Monaco may not be mounted yet; React value={code} will apply.
-      }
+      liveEditorOriginRef.current = "external"
+      noteExternalApplyRef.current(400, nextCode)
+      applyLiveEditorText(editorRef, nextCode, setCode)
       if (!meta?.restore && Date.now() - lastInstructorToastAtRef.current > 8000) {
         lastInstructorToastAtRef.current = Date.now()
         toast({
@@ -262,15 +241,21 @@ export default function CodeBenchPage({
         })
       }
     },
-    [code, editorRef, setCode, toast],
+    [editorRef, languageId, setCode, toast],
   )
-  useCodebenchLiveInstructorPush({
-    studentId,
-    assignmentId: classroomSubmissionId || null,
-    enabled: liveSnapshotEnabled,
-    onApply: applyInstructorCode,
-  })
-  const { noteExternalApply } = useCodebenchLiveSnapshot({
+  useEffect(() => {
+    if (!editorRef) return
+    if (liveEditorOriginRef.current === "editor" || liveEditorOriginRef.current === "external") {
+      liveEditorOriginRef.current = "idle"
+      return
+    }
+    const current = readLiveEditorValue(editorRef, liveEditorCodeRef.current)
+    if (current === code) return
+    if (!shouldReplaceLiveEditorBuffer(current, code, languageId)) return
+    noteExternalApplyRef.current(400, code)
+    applyLiveEditorText(editorRef, code, () => {})
+  }, [code, editorRef, languageId])
+  const { noteExternalApply, restoreReady } = useCodebenchLiveSnapshot({
     studentId,
     assignmentId: classroomSubmissionId || null,
     code,
@@ -278,6 +263,13 @@ export default function CodeBenchPage({
     fileName: ide.activeFile?.name ?? null,
     editorRef,
     enabled: liveSnapshotEnabled,
+    onRestore: (saved) => applyInstructorCode(saved, { restore: true }),
+  })
+  useCodebenchLiveInstructorPush({
+    studentId,
+    assignmentId: classroomSubmissionId || null,
+    enabled: liveSnapshotEnabled && restoreReady,
+    onApply: applyInstructorCode,
   })
   noteExternalApplyRef.current = noteExternalApply
   const [replaySteps, setReplaySteps] = useState<CodeReplayStep[]>([])
@@ -456,12 +448,13 @@ export default function CodeBenchPage({
                 expires_at: null,
                 is_active: true,
               }) || liveSession?.questionText || row.description || row.title || ""
+            if (cancelled) return
             setClassroomQuestion({
               title: String(row.title ?? liveSession?.title ?? "Live classroom"),
               questionText,
               description: row.description ?? null,
               session: row.session ?? liveSession?.session ?? null,
-              isLive: true,
+              isLive: Boolean(liveSession),
               questionConfig: row.question_config,
             })
             return
@@ -508,6 +501,7 @@ export default function CodeBenchPage({
 
   const bindLiveAssignment = useCallback((session: StudentLiveClassroomSession) => {
     const id = String(session.assignmentId)
+    markLiveJoinGrace()
     setPinnedAssignmentId(id)
     setClassroomSubmissionId(id)
     setAssignmentSelectionConfirmed(true)
@@ -523,7 +517,7 @@ export default function CodeBenchPage({
       if (current.some((row: { id: string | number }) => String(row.id) === id)) return current
       return [{ id: session.assignmentId, title: session.title, submission_kind: "code" }, ...current]
     })
-  }, [])
+  }, [markLiveJoinGrace])
 
   const leaveLiveAssignment = useCallback(
     (session?: StudentLiveClassroomSession) => {
@@ -564,8 +558,20 @@ export default function CodeBenchPage({
     setPinnedAssignmentId(next)
     setClassroomSubmissionId(next)
     setAssignmentSelectionConfirmed(true)
-    if (fromProp) setLiveSharing(true)
-  }, [initialAssignmentId, searchParams])
+    if (fromProp) {
+      markLiveJoinGrace()
+      // Only turn sharing ON from a listed session. Never clear it here — a
+      // transient empty/alias-missed list poll used to drop joined students
+      // off the faculty roster.
+      if (listSupported === true) {
+        if (assignmentHasOpenLiveSession(liveSessions, next)) {
+          setLiveSharing(true)
+        }
+      } else if (listSupported !== false) {
+        setLiveSharing(true)
+      }
+    }
+  }, [initialAssignmentId, liveSessions, listSupported, markLiveJoinGrace, searchParams])
 
   useEffect(() => {
     const onJoin = (event: Event) => {
@@ -578,6 +584,7 @@ export default function CodeBenchPage({
         bindLiveAssignment(match)
         return
       }
+      markLiveJoinGrace()
       setPinnedAssignmentId(assignmentId)
       setClassroomSubmissionId(assignmentId)
       setAssignmentSelectionConfirmed(true)
@@ -585,7 +592,7 @@ export default function CodeBenchPage({
     }
     window.addEventListener("codebench-join-live-session", onJoin)
     return () => window.removeEventListener("codebench-join-live-session", onJoin)
-  }, [bindLiveAssignment, liveSessions])
+  }, [bindLiveAssignment, liveSessions, markLiveJoinGrace])
 
   useEffect(() => {
     const onLeave = () => setLiveSharing(false)
@@ -594,15 +601,31 @@ export default function CodeBenchPage({
   }, [])
 
   useEffect(() => {
-    if (!liveSharing || listSupported !== true) return
-    if (classroomSubmissionId && liveAssignmentIds.has(classroomSubmissionId)) return
+    const result = shouldTreatLiveSessionAsEnded({
+      isJoined: liveSharing,
+      listSupported,
+      loading: liveSessionsLoading,
+      joinGraceUntilMs: liveJoinGraceUntilRef.current,
+      assignmentId: classroomSubmissionId,
+      sessions: liveSessions,
+      missCount: liveMissCountRef.current,
+    })
+    liveMissCountRef.current = result.nextMissCount
+    if (!result.ended) return
     setLiveSharing(false)
+    setClassroomQuestion((current) =>
+      current?.isLive ? null : current,
+    )
     window.dispatchEvent(
       new CustomEvent("codebench-leave-live-session", {
         detail: { assignmentId: classroomSubmissionId },
       }),
     )
-  }, [classroomSubmissionId, listSupported, liveAssignmentIds, liveSharing])
+    toast({
+      title: "Live classroom ended",
+      description: "Your instructor closed this session.",
+    })
+  }, [classroomSubmissionId, listSupported, liveSessions, liveSessionsLoading, liveSharing, toast])
 
   useEffect(() => {
     setClassroomSubmissions((current) => mergeLiveAssignments(current))
@@ -2187,8 +2210,13 @@ export default function CodeBenchPage({
                   key={`${ide.activeFile?.id ?? "file"}-${editorKey}`}
                   height="100%"
                   language={currentLanguage.monacoLanguage}
-                  value={code}
-                  onChange={(value) => setCode(value || "")}
+                  defaultValue={code}
+                  onChange={(value) => {
+                    const next = monacoCodeFromChange(value)
+                    if (next == null) return
+                    liveEditorOriginRef.current = "editor"
+                    setCode(next)
+                  }}
                   theme={editorTheme}
                   beforeMount={(monaco) => {
                     registerCodebenchMonacoThemes(monaco)

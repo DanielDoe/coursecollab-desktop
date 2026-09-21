@@ -21,6 +21,9 @@ import {
   attemptResolveErrorResponse,
   resolveAttemptForTake,
 } from "@/lib/resolve-attempt-for-take"
+import { randomUUID } from "crypto"
+import { ensureAttemptIntegritySchema } from "@/lib/ensure-attempt-integrity-schema"
+import { computeAttemptDeadlineSeconds } from "@/lib/attempt-deadline"
 import { requireStudentIdParamMatchesCaller } from "@/lib/student-api-auth"
 import {
   antiCheatDbRowFromResolved,
@@ -525,6 +528,63 @@ export async function GET(
       // Superpowers columns may not exist if migration not run
     }
 
+    // SECURITY: attempt integrity — arm the server-side sitting deadline (once per sitting;
+    // save-and-finish-later clears it to pause the clock) and rotate the single-active-session
+    // token so the newest window/device owns the attempt. Never block taking on this.
+    let attemptSessionToken: string | null = null
+    let deadlineAtIso: string | null = null
+    try {
+      await ensureAttemptIntegritySchema()
+      attemptSessionToken = randomUUID()
+      const integrityRows = await sql`
+        SELECT deadline_at FROM quiz_attempts WHERE id = ${attempt.id} LIMIT 1
+      `
+      const existingDeadline = integrityRows[0]?.deadline_at ?? null
+      if (existingDeadline) {
+        await sql`
+          UPDATE quiz_attempts SET session_token = ${attemptSessionToken}
+          WHERE id = ${attempt.id} AND completed_at IS NULL
+        `
+        deadlineAtIso = new Date(existingDeadline).toISOString()
+      } else {
+        const totalSeconds = computeAttemptDeadlineSeconds({
+          questions: questions.map((q: any) => ({
+            id: Number(q.id),
+            question_type: q.question_type ?? null,
+            question_order: q.question_order ?? null,
+            time_limit: q.time_limit ?? null,
+          })),
+          sectionConfigRaw: assessment.section_config,
+          assessmentType: actualAssessmentType,
+          quizTimePerQuestion: assessment.time_per_question,
+          extraTimePerQuestion,
+        })
+        if (totalSeconds != null) {
+          const armed = await sql`
+            UPDATE quiz_attempts
+            SET deadline_at = NOW() + make_interval(secs => ${totalSeconds}),
+                session_token = ${attemptSessionToken}
+            WHERE id = ${attempt.id} AND completed_at IS NULL
+            RETURNING deadline_at
+          `
+          deadlineAtIso = armed[0]?.deadline_at ? new Date(armed[0].deadline_at).toISOString() : null
+        } else {
+          await sql`
+            UPDATE quiz_attempts SET session_token = ${attemptSessionToken}
+            WHERE id = ${attempt.id} AND completed_at IS NULL
+          `
+        }
+      }
+      logAssessmentTake("attempt_integrity_armed", {
+        quizId: assessmentId,
+        attemptId: attempt.id,
+        deadlineAt: deadlineAtIso,
+        hadExistingDeadline: Boolean(existingDeadline),
+      })
+    } catch (integrityError) {
+      console.error(`[${assessmentType} Take] Failed to arm attempt integrity:`, integrityError)
+    }
+
     // Build response data - ensure questions array is always present
     const saveLaterAccess = await hasSaveAndFinishLaterAccess(studentDatabaseId)
 
@@ -536,6 +596,7 @@ export async function GET(
           title: assessment.title,
           description: assessment.description,
           course_id: assessment.course_id,
+          assessment_type: assessment.assessment_type,
           time_per_question: assessment.time_per_question,
           retake_enabled: assessment.retake_enabled,
           retake_limit: assessment.retake_limit,
@@ -571,7 +632,9 @@ export async function GET(
         },
       ),
       questions: Array.isArray(formattedQuestions) ? formattedQuestions : [], // Ensure it's always an array
-      attemptId: attempt.id
+      attemptId: attempt.id,
+      attemptSessionToken,
+      deadlineAt: deadlineAtIso,
     }
     
     // Double-check questions before sending

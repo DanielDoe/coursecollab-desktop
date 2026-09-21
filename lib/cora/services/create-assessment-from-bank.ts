@@ -8,6 +8,7 @@ import { minimalBankLinkedQuizQuestionFields } from "@/lib/resolve-quiz-question
 import { getDefaultTimeLimit } from "@/lib/config/quizSettings"
 import { parseClientAvailabilityToUtcIso, utcIsoToDbTimestamp } from "@/lib/timezone"
 import { instructorCanAccessCourse } from "@/lib/instructor-actor-scope"
+import { applyDefaultIntegrityFlagsForNewAssessment } from "@/lib/apply-assessment-integrity-defaults"
 
 const DEFAULT_TIME_LIMITS: Record<string, number> = {
   true_false: 30,
@@ -138,6 +139,7 @@ export async function createAssessmentFromBank(
   ) as unknown as { id: number }[]
 
   const quizId = Number(quiz.id)
+  await applyDefaultIntegrityFlagsForNewAssessment(quizId, assessmentType)
 
   try {
     const selectedQuestions = (await sql`

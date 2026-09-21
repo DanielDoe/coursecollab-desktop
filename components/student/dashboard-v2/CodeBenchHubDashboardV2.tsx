@@ -38,6 +38,7 @@ import { CodebenchStudioCoach } from "@/components/codebench/CodebenchStudioCoac
 import { DailyChallengeCard } from "@/components/codebench/DailyChallengeCard"
 import { StudentLiveClassroomBanner } from "@/components/codebench/StudentLiveClassroomBanner"
 import { useStudentLiveClassroomSessions } from "@/hooks/use-student-live-classroom-sessions"
+import { LIVE_JOIN_GRACE_MS, shouldTreatLiveSessionAsEnded } from "@/lib/codebench-live-student-ui"
 import type { StudentLiveClassroomSession } from "@/lib/codebench-live-classroom-types"
 import { CodebenchChallengeCoraDrawer } from "@/components/codebench/CodebenchChallengeCoraDrawer"
 import {
@@ -176,7 +177,13 @@ export function CodeBenchHubDashboardV2() {
   const [editorInstanceKey, setEditorInstanceKey] = useState("editor")
   const [coraDrawerOpen, setCoraDrawerOpen] = useState(false)
   const pullStartY = useRef<number | null>(null)
-  const { sessions: liveSessions } = useStudentLiveClassroomSessions(studentId)
+  const { sessions: liveSessions, listSupported, loading: liveSessionsLoading } = useStudentLiveClassroomSessions(studentId)
+  const liveJoinGraceUntilRef = useRef(0)
+  const liveMissCountRef = useRef(0)
+  const markLiveJoinGrace = useCallback(() => {
+    liveJoinGraceUntilRef.current = Date.now() + LIVE_JOIN_GRACE_MS
+    liveMissCountRef.current = 0
+  }, [])
 
   useEffect(() => {
     try {
@@ -212,6 +219,7 @@ export function CodeBenchHubDashboardV2() {
         (event as CustomEvent<{ assignmentId?: string | number }>).detail?.assignmentId ?? "",
       ).trim()
       if (!assignmentId) return
+      markLiveJoinGrace()
       setLiveJoin((current) =>
         current?.assignmentId === assignmentId ? current : { assignmentId, nonce: Date.now() },
       )
@@ -223,7 +231,26 @@ export function CodeBenchHubDashboardV2() {
       window.removeEventListener("codebench-join-live-session", onJoin)
       window.removeEventListener("codebench-leave-live-session", onLeave)
     }
-  }, [])
+  }, [markLiveJoinGrace])
+
+  useEffect(() => {
+    const result = shouldTreatLiveSessionAsEnded({
+      isJoined: Boolean(liveJoin),
+      listSupported,
+      loading: liveSessionsLoading,
+      joinGraceUntilMs: liveJoinGraceUntilRef.current,
+      assignmentId: liveJoin?.assignmentId,
+      sessions: liveSessions,
+      missCount: liveMissCountRef.current,
+    })
+    liveMissCountRef.current = result.nextMissCount
+    if (!result.ended || !liveJoin) return
+    const assignmentId = liveJoin.assignmentId
+    setLiveJoin(null)
+    window.dispatchEvent(
+      new CustomEvent("codebench-leave-live-session", { detail: { assignmentId } }),
+    )
+  }, [liveJoin, liveSessions, liveSessionsLoading, listSupported])
 
   const loadDailyChallenge = useCallback(async (studentIdValue: string) => {
     setChallengeLoading(true)
@@ -483,9 +510,13 @@ export function CodeBenchHubDashboardV2() {
 
   const joinLiveSession = (session: StudentLiveClassroomSession) => {
     const assignmentId = String(session.assignmentId)
-    const nonce = Date.now()
-    setLiveJoin({ assignmentId, nonce })
-    setEditorInstanceKey(`live-${assignmentId}-${nonce}`)
+    markLiveJoinGrace()
+    setLiveJoin((current) =>
+      current?.assignmentId === assignmentId ? current : { assignmentId, nonce: Date.now() },
+    )
+    setEditorInstanceKey((current) =>
+      current === `live-${assignmentId}` ? current : `live-${assignmentId}`,
+    )
     setEditorTool(null)
     setBrowseView("editor")
     window.dispatchEvent(

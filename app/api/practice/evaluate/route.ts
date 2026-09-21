@@ -21,6 +21,7 @@ import {
 } from "@/lib/practice-evaluate-context"
 import type { PracticeHubPolicy } from "@/lib/practice-hub-policy-settings"
 import { requirePracticeAttemptOwnership } from "@/lib/require-student-practice-auth"
+import { buildPracticePriorReview, getLatestPracticeAnswerForQuestion } from "@/lib/practice-prior-attempts"
 
 
 export const dynamic = 'force-dynamic'
@@ -69,6 +70,33 @@ export async function POST(request: NextRequest) {
     const auth = await requirePracticeAttemptOwnership(request, ownedAttemptId)
     if (!auth.ok) return auth.response
     
+    const prior = await getLatestPracticeAnswerForQuestion(auth.studentDbId, Number(questionId))
+    if (prior) {
+      const [question] = await sql`
+        SELECT id, question_text, question_type, hint, difficulty, topic, options, correct_answer,
+          question_media, subquestions, solution_upload_config, explanation
+        FROM question_bank
+        WHERE id = ${Number(questionId)}
+        LIMIT 1
+      `
+      const answerReview = question
+        ? buildPracticePriorReview(question as Record<string, unknown>, prior.studentAnswer, prior.isCorrect)
+        : null
+      return NextResponse.json(
+        {
+          error: "This question was already attempted. Review your previous answer below.",
+          alreadyAttempted: true,
+          isCorrect: prior.isCorrect,
+          xpEarned: 0,
+          pointsEarned: 0,
+          points: 0,
+          priorAnswer: prior.studentAnswer,
+          answerReview,
+        },
+        { status: 409 },
+      )
+    }
+
     console.log("[Practice Evaluation] Received data:", { questionId, attemptId, responseTimeMs, xpEarned, difficulty })
 
     const evalCtx = await loadPracticeEvaluateContext(attemptId, questionId)
@@ -95,7 +123,8 @@ export async function POST(request: NextRequest) {
         subquestions,
         solution_upload_config,
         topic,
-        difficulty
+        difficulty,
+        explanation
       FROM question_bank
       WHERE id = ${questionId}
     `

@@ -18,11 +18,25 @@
     ClearErrors
     CreateDirectory "$INSTDIR\resources"
     FileOpen $2 "$INSTDIR\resources\install-instance.json" w
-    IfErrors cc_setup_done
+    IfErrors cc_shortcuts
     FileWrite $2 '{"id":"'
     FileWrite $2 $1
     FileWrite $2 '"}'
     FileClose $2
+
+  ; Working directory MUST be $INSTDIR before CreateShortCut. Without SetOutPath,
+  ; the .lnk "Start in" folder is the installer temp dir and Windows shows
+  ; "Missing Shortcut / searching for CourseCollab.exe" on Finish or desktop click.
+  ; Do not pass empty "" extra args — NSIS can shift those and drop the target path.
+  ; Launch the exe directly so Finish / silent OTA never ExecShell a stale .lnk.
+  cc_shortcuts:
+    SetOutPath "$INSTDIR"
+    StrCpy $0 "$INSTDIR\CourseCollab.exe"
+    IfFileExists "$0" 0 cc_setup_done
+    CreateDirectory "$SMPROGRAMS\CourseCollab"
+    CreateShortCut "$SMPROGRAMS\CourseCollab\CourseCollab.lnk" "$0"
+    CreateShortCut "$DESKTOP\CourseCollab.lnk" "$0"
+    StrCpy $launchLink "$0"
   cc_setup_done:
   Pop $2
   Pop $1

@@ -1,5 +1,5 @@
-- Code Library: edit and delete classroom assignments from cards; create and manage teaching snippets (local library).
-- Live Classroom: new live-session create flow, assignment persistence after end live, clearer action buttons.
-- Student CodeBench: question drawer when joining live classroom (matches instructor teach drawer).
-- Toolchain setup: verify compilers on app update only, not every CodeBench open.
-- UI: persistent CourseCollab header in instructor and student sidebars; CodeBench modal accent cleanup.
+- Practice Hub: already-answered questions stay locked with prior/correct review; topic progress counts unique questions, not retries.
+- Practice Hub: a fully practiced topic opens as Review instead of blocking.
+- Instructor CodeBench: topic filters, grouping, and pagination on Code Library and Live Classroom.
+- Live Classroom: joined students stay on the roster; typing no longer jumps the caret or gets overwritten by a stale snapshot.
+- Windows: desktop and Start Menu shortcuts point at CourseCollab.exe in the install folder.

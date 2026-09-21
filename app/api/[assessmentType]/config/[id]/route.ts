@@ -7,6 +7,7 @@ import {
 } from "@/lib/superpowers-json"
 import type { SuperpowerId } from "@/lib/superpowers-constants"
 import { buildQuizAntiCheatConfigFromDb } from "@/lib/antiCheatConfig"
+import { antiCheatDbRowFromResolved, resolveQuizSettingsForCourse } from "@/lib/resolve-assessment-settings"
 import { parseAssessmentSectionConfig, type SectionConfig } from "@/lib/assessment-sections"
 import { getStudentPickSectionSummaries } from "@/lib/section-pick-scoring"
 
@@ -43,7 +44,9 @@ export async function GET(
         geo_lng,
         geo_radius_meters,
         assessment_type,
+        title,
         section_config,
+        course_id,
         enable_superpowers,
         allowed_superpowers,
         strict_mode_enabled,
@@ -106,11 +109,28 @@ export async function GET(
       }
     }
 
+    const resolvedSettings = await resolveQuizSettingsForCourse({
+      course_id: assessment.course_id,
+      strict_mode_enabled: assessment.strict_mode_enabled,
+      block_copy_paste: assessment.block_copy_paste,
+      track_tab_switches: assessment.track_tab_switches,
+      track_mouse_movement: assessment.track_mouse_movement,
+      warn_on_tab_switch: assessment.warn_on_tab_switch,
+      max_tab_switches: assessment.max_tab_switches,
+      auto_submit_on_violations: assessment.auto_submit_on_violations,
+      track_gemini_window: assessment.track_gemini_window,
+      max_gemini_strikes: assessment.max_gemini_strikes,
+      require_fullscreen: assessment.require_fullscreen,
+      keystroke_playback_enforced: assessment.keystroke_playback_enforced,
+    })
+
     return NextResponse.json({
       geo_required: requiresGeo && geoConfigured,
       enable_superpowers: enableSuperpowers,
       allowed_superpowers: allowedSuperpowers,
-      antiCheatConfig: buildQuizAntiCheatConfigFromDb(assessment),
+      antiCheatConfig: buildQuizAntiCheatConfigFromDb(
+        antiCheatDbRowFromResolved(resolvedSettings, assessment),
+      ),
       section_config: sectionConfig,
       student_pick_sections: studentPickSections,
       section_pool_sizes: sectionPoolSizes,

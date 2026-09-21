@@ -19,11 +19,10 @@ export function isDesktopNativeAssessmentLockdownActive(input: {
   if (input.disabledForTesting || !input.quizStarted || input.loading) return false
   if (!input.antiCheatEnabled || input.config.suspended) return false
 
-  // Any enforced desktop proctoring flag → native kiosk for the attempt.
+  // Kiosk when leaving the app or fullscreen is actually being enforced.
+  // Strict Mode alone is not enough — superpowers can disable tab/fullscreen tracking.
   return (
-    input.config.strictModeEnabled === true ||
     input.config.trackTabSwitches === true ||
-    input.config.requireFullscreen === true ||
-    input.config.blockCopyPaste === true
+    input.config.requireFullscreen === true
   )
 }

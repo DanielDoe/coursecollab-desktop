@@ -4,6 +4,7 @@ import { minimalBankLinkedQuizQuestionFields } from "@/lib/resolve-quiz-question
 import { getDefaultTimeLimit } from "@/lib/config/quizSettings"
 import { parseClientAvailabilityToUtcIso, utcIsoToDbTimestamp } from "@/lib/timezone"
 import { requireInstructorCourse } from "@/lib/instructor-course-scope"
+import { applyDefaultIntegrityFlagsForNewAssessment } from "@/lib/apply-assessment-integrity-defaults"
 
 
 
@@ -169,6 +170,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("[v0] Quiz created with ID:", quiz.id)
+    await applyDefaultIntegrityFlagsForNewAssessment(quiz.id, assessment_type || "quiz")
 
     if (!question_ids || question_ids.length === 0) {
       console.log("[v0] No questions selected")

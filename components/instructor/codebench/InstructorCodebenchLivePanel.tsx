@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ArrowUpRight, Code2, Loader2, Plus, Radio, RefreshCw } from "lucide-react"
 import {
   ClassroomAssignmentAvailabilityFields,
@@ -23,14 +23,24 @@ import {
 } from "@/lib/instructor-classroom-assignments-changed"
 import { useInstructorDashboardV2 } from "@/components/instructor/dashboard-v2/InstructorDashboardV2Context"
 import { defaultFacultySessionFilter } from "@/hooks/use-instructor-scope-key"
+import { getInstructorData } from "@/lib/auth"
+import { FacultyIntegratedToolbar } from "@/components/instructor/dashboard-v2/FacultyIntegratedToolbar"
 import { useInstructorLiveClassroomSessions } from "@/hooks/use-instructor-live-classroom-sessions"
 import {
   classroomAssignmentToHandoff,
   classroomAssignmentTopic,
+  classroomAssignmentTopicMeta,
   extractClassroomQuestionText,
-  groupClassroomAssignmentsBySession,
+  groupClassroomAssignmentsByTopic,
   type InstructorClassroomHandoff,
 } from "@/lib/codebench-instructor-classroom"
+import { codebenchTopicsPresent } from "@/lib/codebench-course-topics"
+import { CodebenchTopicFilterSelect } from "@/components/instructor/codebench/CodebenchTopicFilterSelect"
+import {
+  CODEBENCH_LIVE_PAGE_SIZE,
+  CodebenchListPagination,
+  paginateCodebenchList,
+} from "@/components/instructor/codebench/CodebenchListPagination"
 import {
   createInstructorCodingChallenge,
   emptyLiveClassroomAssignmentForm,
@@ -74,6 +84,10 @@ export function InstructorCodebenchLivePanel({
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [startLiveAfterCreate, setStartLiveAfterCreate] = useState(true)
+  const [questionSearch, setQuestionSearch] = useState("")
+  const [topicFilter, setTopicFilter] = useState("all")
+  const [page, setPage] = useState(1)
+  const listRef = useRef<HTMLDivElement>(null)
   const [sessionOptions, setSessionOptions] = useState<string[]>(["all"])
   const [formValues, setFormValues] = useState<ClassroomAssignmentFormValues>(() =>
     emptyLiveClassroomAssignmentForm(sessionFilter !== "all" ? sessionFilter : null),
@@ -81,7 +95,13 @@ export function InstructorCodebenchLivePanel({
 
   useEffect(() => {
     setFormValues(emptyLiveClassroomAssignmentForm(sessionFilter !== "all" ? sessionFilter : null))
+    setTopicFilter("all")
+    setPage(1)
   }, [courseScopeVersion, sessionFilter])
+
+  useEffect(() => {
+    setPage(1)
+  }, [questionSearch, topicFilter])
 
   useEffect(() => {
     void (async () => {
@@ -122,10 +142,58 @@ export function InstructorCodebenchLivePanel({
     [submissions],
   )
 
-  const grouped = useMemo(
-    () => groupClassroomAssignmentsBySession(activeCodeChallenges),
+  const topicOptions = useMemo(
+    () => codebenchTopicsPresent(activeCodeChallenges, classroomAssignmentTopicMeta),
     [activeCodeChallenges],
   )
+
+  useEffect(() => {
+    if (topicFilter !== "all" && !topicOptions.some((topic) => topic.id === topicFilter)) {
+      setTopicFilter("all")
+    }
+  }, [topicFilter, topicOptions])
+
+  const visibleCodeChallenges = useMemo(() => {
+    const q = questionSearch.trim().toLowerCase()
+    return activeCodeChallenges.filter((row) => {
+      if (topicFilter !== "all" && classroomAssignmentTopicMeta(row).id !== topicFilter) return false
+      if (!q) return true
+      const haystack = [
+        row.title,
+        extractClassroomQuestionText(row),
+        String(row.session ?? ""),
+        classroomAssignmentTopic(row),
+      ]
+        .join(" ")
+        .toLowerCase()
+      return haystack.includes(q)
+    })
+  }, [activeCodeChallenges, questionSearch, topicFilter])
+
+  const grouped = useMemo(
+    () => groupClassroomAssignmentsByTopic(visibleCodeChallenges),
+    [visibleCodeChallenges],
+  )
+
+  const paging = useMemo(
+    () =>
+      paginateCodebenchList(
+        grouped.flatMap(([, rows]) => rows),
+        page,
+        CODEBENCH_LIVE_PAGE_SIZE,
+      ),
+    [grouped, page],
+  )
+
+  const pageGrouped = useMemo(
+    () => groupClassroomAssignmentsByTopic(paging.rows),
+    [paging.rows],
+  )
+
+  const goToPage = useCallback((next: number) => {
+    setPage(next)
+    listRef.current?.scrollTo({ top: 0, behavior: "smooth" })
+  }, [])
 
   const liveAssignmentIds = useMemo(
     () => new Set(openSessions.map((session) => session.assignmentId)),
@@ -139,6 +207,15 @@ export function InstructorCodebenchLivePanel({
 
   const handleStart = useCallback(
     async (handoff: InstructorClassroomHandoff) => {
+      const instructor = getInstructorData()
+      if (!instructor?.selectedCourseId) {
+        toast({
+          title: "Select a course first",
+          description: "Pick your course in the top bar so students in that section can see the live classroom.",
+          variant: "destructive",
+        })
+        return
+      }
       setStartingId(handoff.submissionId)
       try {
         const response = await instructorApiFetch("/api/instructor/codebench/live-session", {
@@ -219,47 +296,74 @@ export function InstructorCodebenchLivePanel({
     }
   }, [formValues, handleStart, reload, reloadSessions, sessionFilter, startLiveAfterCreate, toast])
 
-  return (
-    <div className="instructor-challenges-panel flex min-h-0 w-full flex-col gap-4 pr-1">
-      <div className={cn(chrome.card, "space-y-3 p-4 sm:p-5")}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 space-y-2">
-            <div className="flex items-center gap-2">
-              <Radio className="h-4 w-4 shrink-0 text-[var(--cc-accent)]" />
-              <h2 className={cn("text-base font-semibold", PORTAL_TEXT)}>Live Coding Classroom</h2>
-            </div>
-            <p className={cn("max-w-2xl text-sm leading-relaxed", PORTAL_TEXT_MUTED)}>
-              Create a live session or start one from an existing coding challenge. Students join from CodeBench while
-              you monitor keystrokes, compile output, and submissions.
-            </p>
-          </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={handleRefresh} disabled={loading || sessionsLoading}>
-              {loading || sessionsLoading ? (
-                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-1 h-3.5 w-3.5" />
-              )}
-              Refresh
-            </Button>
-            <Button type="button" size="sm" onClick={() => setShowCreate((value) => !value)}>
-              <Plus className="mr-1 h-3.5 w-3.5" />
-              {showCreate ? "Cancel" : "New live session"}
-            </Button>
-          </div>
-        </div>
+  const instructor = getInstructorData()
+  const scopeChip = [instructor?.selectedCourseCode, instructor?.selectedSessionCode]
+    .filter(Boolean)
+    .join(" · ")
 
-        <ol className={cn("instructor-steps-grid text-xs", PORTAL_TEXT_MUTED)}>
-          <li className="rounded-lg border border-[var(--border)] bg-[var(--muted)]/30 px-3 py-2">
-            <span className="font-semibold text-[var(--cc-text)]">1. Set up</span> — create or pick a coding assignment
-          </li>
-          <li className="rounded-lg border border-[var(--border)] bg-[var(--muted)]/30 px-3 py-2">
-            <span className="font-semibold text-[var(--cc-text)]">2. Start live</span> — students see a join banner in CodeBench
-          </li>
-          <li className="rounded-lg border border-[var(--border)] bg-[var(--muted)]/30 px-3 py-2">
-            <span className="font-semibold text-[var(--cc-text)]">3. Monitor</span> — watch live code and keystroke replay
-          </li>
-        </ol>
+  return (
+    <div className="instructor-challenges-panel flex min-h-0 w-full flex-1 flex-col gap-4 pr-1">
+      <div className={cn(chrome.card, "space-y-3 p-4 sm:p-5")}>
+        <div className="space-y-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Radio className="h-4 w-4 shrink-0 text-[var(--cc-accent)]" />
+            <h2 className={cn("text-base font-semibold", PORTAL_TEXT)}>Live Coding Classroom</h2>
+            {scopeChip ? (
+              <Badge variant="outline" className="text-[10px]">
+                {scopeChip}
+              </Badge>
+            ) : (
+              <Badge variant="destructive" className="text-[10px]">
+                No course selected
+              </Badge>
+            )}
+          </div>
+          <p className={cn("w-full text-sm leading-relaxed", PORTAL_TEXT_MUTED)}>
+            Create a live session or start one from an existing coding challenge. Students join from CodeBench while
+            you monitor keystrokes, compile output, and submissions.
+          </p>
+          <FacultyIntegratedToolbar
+              moduleId="codebench-live"
+              embedded
+              searchFill
+              className="w-full min-w-0"
+              search={questionSearch}
+              onSearchChange={setQuestionSearch}
+              onSearchClear={() => setQuestionSearch("")}
+              searchPlaceholder="Search questions…"
+              searchResetToken={courseScopeVersion}
+              filters={
+                <CodebenchTopicFilterSelect
+                  value={topicFilter}
+                  onChange={setTopicFilter}
+                  topics={topicOptions}
+                  className="w-[10rem] max-w-[10rem]"
+                />
+              }
+              trailing={
+                <>
+                  <Button type="button" size="sm" variant="outline" onClick={handleRefresh} disabled={loading || sessionsLoading}>
+                    {loading || sessionsLoading ? (
+                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                    )}
+                    Refresh
+                  </Button>
+                  <Button type="button" size="sm" onClick={() => setShowCreate((value) => !value)}>
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    {showCreate ? "Cancel" : "New live session"}
+                  </Button>
+                </>
+              }
+            />
+          {questionSearch.trim() || topicFilter !== "all" ? (
+            <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>
+              {visibleCodeChallenges.length} matching{" "}
+              {visibleCodeChallenges.length === 1 ? "question" : "questions"}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       {showCreate ? (
@@ -321,33 +425,55 @@ export function InstructorCodebenchLivePanel({
         </div>
       ) : grouped.length === 0 ? (
         <div className={cn(chrome.card, "space-y-3 p-6 text-center")}>
-          <p className={cn("text-sm font-medium", PORTAL_TEXT)}>No live-ready coding assignments</p>
-          <p className={cn("text-xs leading-relaxed", PORTAL_TEXT_MUTED)}>
-            Create a live session here, or publish a challenge under Challenges / Classroom Points first.
+          <p className={cn("text-sm font-medium", PORTAL_TEXT)}>
+            {questionSearch.trim() || topicFilter !== "all"
+              ? "No questions match that filter"
+              : "No live-ready coding assignments"}
           </p>
-          <div className="flex flex-wrap justify-center gap-2">
-            <Button type="button" size="sm" onClick={() => setShowCreate(true)}>
-              <Plus className="mr-1 h-3.5 w-3.5" />
-              New live session
+          <p className={cn("text-xs leading-relaxed", PORTAL_TEXT_MUTED)}>
+            {questionSearch.trim() || topicFilter !== "all"
+              ? "Try a different title, prompt, or topic."
+              : "Create a live session here, or publish a challenge under Challenges / Classroom Points first."}
+          </p>
+          {questionSearch.trim() || topicFilter !== "all" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setQuestionSearch("")
+                setTopicFilter("all")
+              }}
+            >
+              Clear filters
             </Button>
-            {onOpenChallenges ? (
-              <Button type="button" size="sm" variant="outline" onClick={onOpenChallenges}>
-                Open Challenges
+          ) : (
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button type="button" size="sm" onClick={() => setShowCreate(true)}>
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                New live session
               </Button>
-            ) : null}
-            <Button type="button" size="sm" variant="outline" asChild>
-              <Link href="/faculty/dashboard/assessments/classroom-points">
-                Classroom Points
-                <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
-              </Link>
-            </Button>
-          </div>
+              {onOpenChallenges ? (
+                <Button type="button" size="sm" variant="outline" onClick={onOpenChallenges}>
+                  Open Challenges
+                </Button>
+              ) : null}
+              <Button type="button" size="sm" variant="outline" asChild>
+                <Link href="/faculty/dashboard/assessments/classroom-points">
+                  Classroom Points
+                  <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
-        grouped.map(([session, rows]) => (
-          <section key={session} className="space-y-2">
+        <>
+          <div ref={listRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+            {pageGrouped.map(([topic, rows]) => (
+          <section key={topic.id} className="space-y-2">
             <div className="flex items-center gap-2">
-              <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>{session}</h3>
+              <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>{topic.label}</h3>
               <Badge variant="outline" className="text-[10px]">
                 {rows.filter((row) => liveAssignmentIds.has(row.id)).length || rows.length}{" "}
                 {rows.some((row) => liveAssignmentIds.has(row.id)) ? "live" : "ready"}
@@ -427,7 +553,15 @@ export function InstructorCodebenchLivePanel({
               })}
             </div>
           </section>
-        ))
+            ))}
+          </div>
+          <CodebenchListPagination
+            page={paging.page}
+            pageSize={CODEBENCH_LIVE_PAGE_SIZE}
+            totalItems={paging.total}
+            onPageChange={goToPage}
+          />
+        </>
       )}
     </div>
   )

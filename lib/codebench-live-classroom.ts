@@ -1,6 +1,6 @@
 import { sql } from "@/lib/db"
 import { CLASSROOM_SUBMISSION_KIND_CODE } from "@/lib/classroom-solution-submission"
-import { classroomAssignmentSessionMatchesStudent } from "@/lib/classroom-submission-scope"
+import { sqlSubmissionEnrollmentSessionFilter, studentMatchesLiveAssignmentSession } from "@/lib/classroom-submission-scope"
 import { extractClassroomQuestionText, type ClassroomAssignmentRow } from "@/lib/codebench-instructor-classroom"
 import { ensureCodebenchLiveSessionsSchema } from "@/lib/codebench-live-session-schema"
 import type { OpenLiveClassroomSession, StudentLiveClassroomSession } from "@/lib/codebench-live-classroom-types"
@@ -70,8 +70,20 @@ export async function getOpenLiveClassroomSession(
 
 export async function listOpenLiveClassroomSessions(
   courseId: number,
+  enrollmentScope?: {
+    sessionId: number | null
+    sessionCode: string | null
+  },
 ): Promise<OpenLiveClassroomSession[]> {
   await ensureCodebenchLiveSessionsSchema()
+  const sessionClause =
+    enrollmentScope != null
+      ? sqlSubmissionEnrollmentSessionFilter({
+          courseId,
+          sessionId: enrollmentScope.sessionId,
+          sessionCode: enrollmentScope.sessionCode,
+        })
+      : sql``
   const rows = await sql`
     SELECT
       ls.id,
@@ -88,18 +100,34 @@ export async function listOpenLiveClassroomSessions(
     JOIN classroom_point_submissions cps ON cps.id = ls.assignment_id
     WHERE ls.ended_at IS NULL
       AND ls.course_id = ${courseId}
+      ${sessionClause}
     ORDER BY ls.started_at DESC
-  `.catch(() => [])
+  `
   return (rows as LiveSessionRow[]).map(toOpenSession)
 }
 
 export async function listStudentOpenLiveSessions(input: {
   courseId: number
+  sessionId: number | null
   sessionCode: string | null
 }): Promise<StudentLiveClassroomSession[]> {
+  let enrolledSession = input.sessionCode?.trim() || ""
+  if (!enrolledSession && input.sessionId != null) {
+    const rows = await sql`
+      SELECT code FROM sessions WHERE id = ${input.sessionId} LIMIT 1
+    `.catch(() => [])
+    enrolledSession = String((rows[0] as { code?: string } | undefined)?.code ?? "").trim()
+  }
+  if (input.sessionId == null && !enrolledSession) {
+    return []
+  }
+
+  // List every open session in the course, then apply alias-aware matching in JS.
+  // The SQL enrollment filter is exact-code only and previously hid live classrooms
+  // after section renames (E1304P01 vs ELEG1304P01) or blank "open to all" sessions.
   const sessions = await listOpenLiveClassroomSessions(input.courseId)
   return sessions
-    .filter((session) => classroomAssignmentSessionMatchesStudent(session.session, input.sessionCode))
+    .filter((session) => studentMatchesLiveAssignmentSession(session.session, enrolledSession, enrolledSession))
     .map(({ sessionId, assignmentId, title, questionText, session, startedAt }) => ({
       sessionId,
       assignmentId,

@@ -30,7 +30,7 @@ function AuthAnimatedRoutes({ location, direction, reduceMotion }: AuthAnimatedR
       exit="exit"
       transition={reduceMotion ? { duration: 0 } : routeTransitionTiming}
       data-auth-route-pane
-      className="relative z-10 min-h-[100dvh] w-full will-change-transform"
+      className="relative z-10 flex h-full min-h-0 w-full flex-col overflow-hidden"
     >
       <Routes location={location}>
         <Route path="/" element={<DesktopRedirect />} />
@@ -62,7 +62,7 @@ function AppRoutes() {
   }
 
   return (
-    <div className="cc-auth-route-shell relative min-h-[100dvh] overflow-x-clip bg-[var(--cc-background)]">
+    <div className="cc-auth-route-shell relative h-[100dvh] overflow-hidden bg-[var(--cc-background)]">
       <AnimatePresence mode="popLayout" initial={false} custom={direction}>
         <AuthAnimatedRoutes
           key={location.pathname + location.search}

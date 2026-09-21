@@ -2,24 +2,11 @@
 
 import { useEffect, useRef } from "react"
 import { isDesktopElectronAssessmentClient } from "@/lib/desktop-anticheat-policy"
+import { isDocumentFullscreen, requestDocumentFullscreen } from "@/lib/document-fullscreen"
 
 async function requestRendererFullscreen(): Promise<void> {
-  if (typeof document === "undefined") return
-  const el = document.documentElement
-  const already =
-    document.fullscreenElement ||
-    (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement
-  if (already) return
-
-  try {
-    if (el.requestFullscreen) {
-      await el.requestFullscreen()
-    } else if ((el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen) {
-      await (el as HTMLElement & { webkitRequestFullscreen: () => Promise<void> }).webkitRequestFullscreen()
-    }
-  } catch {
-    /* Native kiosk is primary; HTML5 fullscreen is supplemental. */
-  }
+  if (isDocumentFullscreen()) return
+  await requestDocumentFullscreen()
 }
 
 async function exitRendererFullscreen(): Promise<void> {
@@ -75,7 +62,7 @@ export function useDesktopAssessmentLockdown(active: boolean): void {
 
     const onFullscreenChange = () => {
       if (!enteredRef.current) return
-      if (!document.fullscreenElement) {
+      if (!isDocumentFullscreen()) {
         void requestRendererFullscreen()
       }
     }

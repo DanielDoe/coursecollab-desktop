@@ -622,17 +622,6 @@ export default function PracticeHubPage({ embedded }: { embedded?: boolean }) {
       return
     }
 
-    // Check if there are new questions available
-    const selectedTopicData = topics.find(t => t.name === selectedTopic)
-    if (selectedTopicData && selectedTopicData.completed >= selectedTopicData.questionCount) {
-      toast({
-        title: "No New Questions Available",
-        description: `You've already practiced all ${selectedTopicData.questionCount} questions in ${selectedTopic}. Try a different topic or difficulty level.`,
-        variant: "destructive",
-      })
-      return
-    }
-
     setGenerating(true)
 
     try {
@@ -651,7 +640,14 @@ export default function PracticeHubPage({ embedded }: { embedded?: boolean }) {
       const data = await response.json()
 
       if (response.ok) {
-        sessionStorage.setItem("practiceAttemptId", data.attemptId.toString())
+        if (data.reviewOnly) {
+          toast({
+            title: "Reviewing completed topic",
+            description: "These questions are locked. Your previous answers and the correct answers are shown.",
+          })
+        }
+        sessionStorage.setItem("practiceReviewOnly", data.reviewOnly ? "1" : "0")
+        sessionStorage.setItem("practiceAttemptId", data.attemptId != null ? String(data.attemptId) : "0")
         sessionStorage.setItem("practiceQuestions", JSON.stringify(data.questions))
         router.push("/student/practice/quiz")
       } else {
@@ -989,7 +985,11 @@ export default function PracticeHubPage({ embedded }: { embedded?: boolean }) {
                             ) : (
                               <>
                           <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-                          Start Practice
+                          {topics.find((t) => t.name === selectedTopic) &&
+                          (topics.find((t) => t.name === selectedTopic)?.completed ?? 0) >=
+                            (topics.find((t) => t.name === selectedTopic)?.questionCount ?? 1)
+                            ? "Review Topic"
+                            : "Start Practice"}
                               </>
                             )}
                           </Button>

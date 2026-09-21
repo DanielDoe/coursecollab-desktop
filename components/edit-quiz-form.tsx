@@ -55,7 +55,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { isQuestionTypeExempt } from "@/lib/antiCheatConfig"
+import { isQuestionTypeExempt, isHomeworkAssessment, isStrictIntegrityAssessment } from "@/lib/antiCheatConfig"
 import { AI_EVALUATION_MODES, getDefaultEvaluationMode, type AIEvaluationMode, type EvaluationModeConfig } from "@/lib/config/ai-evaluation-modes"
 import {
   AssessmentAiModelPicker,
@@ -343,6 +343,8 @@ export function EditQuizForm({
                             urlAssessmentType
   const assessmentType = propAssessmentType || normalizedUrlType || assessmentContext?.type || "quiz"
   const isSingleSittingExam = assessmentType === "mid_semester" || assessmentType === "final"
+  const homeworkIntegrityExempt = isHomeworkAssessment(assessmentType)
+  const strictIntegrityDefault = isStrictIntegrityAssessment(assessmentType)
   const assessmentLabel = assessmentContext?.label || (
     assessmentType === 'homework' ? 'Homework' :
     assessmentType === 'mid_semester' ? 'Mid-Semester Exam' :
@@ -438,18 +440,18 @@ export function EditQuizForm({
     review_before_retake: false,
     forfeit_retake_on_report_view: true,
     lock_student_results_review: false,
-    // Default anti-cheat to enabled for final exams, disabled for others
-    strict_mode_enabled: assessmentType === 'final' ? true : false,
-    block_copy_paste: assessmentType === 'final' ? true : false,
-    track_tab_switches: assessmentType === 'final' ? true : false,
+    // Quizzes, mid-semesters, and finals start in Strict Mode. Homework is exempt.
+    strict_mode_enabled: strictIntegrityDefault,
+    block_copy_paste: strictIntegrityDefault,
+    track_tab_switches: strictIntegrityDefault,
     track_mouse_movement: assessmentType === 'final',
-    warn_on_tab_switch: assessmentType === 'final' ? true : false,
+    warn_on_tab_switch: strictIntegrityDefault,
     max_tab_switches: 5,
-    auto_submit_on_violations: assessmentType === 'final' ? true : false,
-    track_gemini_window: assessmentType === 'final' ? true : false,
+    auto_submit_on_violations: strictIntegrityDefault,
+    track_gemini_window: strictIntegrityDefault,
     max_gemini_strikes: 5,
     keystroke_playback_enforced: true,
-    require_fullscreen: false,
+    require_fullscreen: strictIntegrityDefault,
     beta_only: false,
     max_concurrent_students: null, // NULL means unlimited
     geo_required: false,
@@ -562,20 +564,20 @@ export function EditQuizForm({
         review_before_retake: parseDbBool(quizData.review_before_retake),
         forfeit_retake_on_report_view: quizData.forfeit_retake_on_report_view ?? true,
         lock_student_results_review: parseDbBool(quizData.lock_student_results_review),
-        // Default anti-cheat to enabled for final exams if not set in database
-        strict_mode_enabled: quizData.strict_mode_enabled ?? (assessmentType === 'final'),
-        block_copy_paste: quizData.block_copy_paste ?? (assessmentType === 'final'),
-        track_tab_switches: quizData.track_tab_switches ?? (assessmentType === 'final'),
+        // Quizzes / mid-semesters / finals default to Strict Mode when the row is unset.
+        strict_mode_enabled: quizData.strict_mode_enabled ?? strictIntegrityDefault,
+        block_copy_paste: quizData.block_copy_paste ?? strictIntegrityDefault,
+        track_tab_switches: quizData.track_tab_switches ?? strictIntegrityDefault,
         track_mouse_movement: quizData.track_mouse_movement ?? (assessmentType === 'final'),
-        warn_on_tab_switch: quizData.warn_on_tab_switch ?? (assessmentType === 'final'),
+        warn_on_tab_switch: quizData.warn_on_tab_switch ?? strictIntegrityDefault,
         max_tab_switches: quizData.max_tab_switches || 5,
-        auto_submit_on_violations: quizData.auto_submit_on_violations ?? (assessmentType === 'final'),
-        track_gemini_window: quizData.track_gemini_window ?? (assessmentType === 'final'),
+        auto_submit_on_violations: quizData.auto_submit_on_violations ?? strictIntegrityDefault,
+        track_gemini_window: quizData.track_gemini_window ?? strictIntegrityDefault,
         max_gemini_strikes: quizData.max_gemini_strikes || 5,
         keystroke_playback_enforced: parseDbBool(
           (quizData as { keystroke_playback_enforced?: unknown }).keystroke_playback_enforced,
         ),
-        require_fullscreen: quizData.require_fullscreen ?? false,
+        require_fullscreen: quizData.require_fullscreen ?? strictIntegrityDefault,
         beta_only: Boolean(quizData.beta_only), // Explicitly convert to boolean (handles null, undefined, 0, 1, etc.)
         max_concurrent_students: quizData.max_concurrent_students ?? null,
         geo_required: Boolean(quizData.geo_required),
@@ -1000,17 +1002,17 @@ export function EditQuizForm({
           review_before_retake: quizDataNow.review_before_retake,
           forfeit_retake_on_report_view: quizDataNow.forfeit_retake_on_report_view ?? true,
           lock_student_results_review: quizDataNow.lock_student_results_review,
-          strict_mode_enabled: quizDataNow.strict_mode_enabled,
-          block_copy_paste: quizDataNow.block_copy_paste,
-          track_tab_switches: quizDataNow.track_tab_switches,
+          strict_mode_enabled: homeworkIntegrityExempt ? false : quizDataNow.strict_mode_enabled,
+          block_copy_paste: homeworkIntegrityExempt ? false : quizDataNow.block_copy_paste,
+          track_tab_switches: homeworkIntegrityExempt ? false : quizDataNow.track_tab_switches,
           track_mouse_movement: quizDataNow.track_mouse_movement,
-          warn_on_tab_switch: quizDataNow.warn_on_tab_switch,
+          warn_on_tab_switch: homeworkIntegrityExempt ? false : quizDataNow.warn_on_tab_switch,
           max_tab_switches: quizDataNow.max_tab_switches,
-          auto_submit_on_violations: quizDataNow.auto_submit_on_violations,
-          track_gemini_window: quizDataNow.track_gemini_window,
+          auto_submit_on_violations: homeworkIntegrityExempt ? false : quizDataNow.auto_submit_on_violations,
+          track_gemini_window: homeworkIntegrityExempt ? false : quizDataNow.track_gemini_window,
           max_gemini_strikes: quizDataNow.max_gemini_strikes,
           keystroke_playback_enforced: quizDataNow.keystroke_playback_enforced ?? true,
-          require_fullscreen: quizDataNow.require_fullscreen ?? false,
+          require_fullscreen: homeworkIntegrityExempt ? false : (quizDataNow.require_fullscreen ?? false),
           beta_only: quizDataNow.beta_only,
           max_concurrent_students: quizDataNow.max_concurrent_students,
           geo_required: quizDataNow.geo_required,
@@ -1473,10 +1475,15 @@ export function EditQuizForm({
                   <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/30 rounded-xl border border-slate-200 dark:border-slate-700/50">
                     <div>
                       <h4 className="font-semibold text-slate-900 dark:text-slate-100">Require Fullscreen</h4>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Students must enter fullscreen before starting. Turn off for testing/screenshots.</p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                        {homeworkIntegrityExempt
+                          ? "Homework is exempt from fullscreen lock."
+                          : "Students must stay in fullscreen on desktop and web. Strict Mode turns this on automatically."}
+                      </p>
                     </div>
                     <Switch
-                      checked={quizData.require_fullscreen ?? false}
+                      checked={homeworkIntegrityExempt ? false : (quizData.require_fullscreen ?? false)}
+                      disabled={homeworkIntegrityExempt}
                       onCheckedChange={(v) => setQuizData((prev) => ({ ...prev, require_fullscreen: v }))}
                       className="data-[state=checked]:bg-blue-600 shrink-0"
                     />
@@ -2751,14 +2758,32 @@ export function EditQuizForm({
                     <div className="flex items-center justify-between">
                       <span>Strict Mode</span>
                       <Switch
-                        checked={quizData.strict_mode_enabled}
+                        checked={homeworkIntegrityExempt ? false : quizData.strict_mode_enabled}
+                        disabled={homeworkIntegrityExempt}
                         onCheckedChange={(checked) =>
-                          setQuizData((prev) => ({ ...prev, strict_mode_enabled: checked }))
+                          setQuizData((prev) => ({
+                            ...prev,
+                            strict_mode_enabled: checked,
+                            ...(checked
+                              ? {
+                                  block_copy_paste: true,
+                                  track_tab_switches: true,
+                                  warn_on_tab_switch: true,
+                                  auto_submit_on_violations: true,
+                                  track_gemini_window: true,
+                                  require_fullscreen: true,
+                                }
+                              : {}),
+                          }))
                         }
                       />
                     </div>
                     <p className="text-sm font-normal text-purple-600 dark:text-purple-400 mt-1">
-                      {quizData.strict_mode_enabled ? "Enabled - All features below are active" : "Disabled - Configure and enable features below"}
+                      {homeworkIntegrityExempt
+                        ? "Homework is exempt — fullscreen, tab tracking, and browser-tool locks stay off"
+                        : quizData.strict_mode_enabled
+                        ? "Enabled — fullscreen, tab tracking, copy/paste block, browser-tool lock, and auto-submit are on"
+                        : "Disabled — turn on individual features below, or enable Strict Mode to activate all of them"}
                     </p>
                   </div>
                 </CardTitle>

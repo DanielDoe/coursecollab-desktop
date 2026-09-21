@@ -27,6 +27,8 @@ export type FacultyIntegratedToolbarProps = {
   trailing?: ReactNode
   /** Icon-only search until focused; expands inline without hiding other controls. */
   searchCompact?: boolean
+  /** Search grows to fill remaining row width. */
+  searchFill?: boolean
   /** Flat controls row when nested inside CardWrapper / embed shell */
   embedded?: boolean
   className?: string
@@ -37,12 +39,14 @@ const FacultyToolbarSearchField = memo(function FacultyToolbarSearchField({
   initialValue,
   placeholder,
   searchCompact,
+  searchFill,
   onSearchChange,
   onSearchClear,
 }: {
   initialValue: string
   placeholder: string
   searchCompact: boolean
+  searchFill: boolean
   onSearchChange: (value: string) => void
   onSearchClear?: () => void
 }) {
@@ -89,8 +93,12 @@ const FacultyToolbarSearchField = memo(function FacultyToolbarSearchField({
   return (
     <div
       className={cn(
-        "relative shrink-0 transition-[width] duration-200 ease-out motion-reduce:transition-none",
-        collapsed ? "w-9" : "w-[min(100%,14rem)] sm:w-[min(100%,18rem)] flex-1 min-w-[8.5rem] max-w-md",
+        "relative transition-[width] duration-200 ease-out motion-reduce:transition-none",
+        collapsed
+          ? "w-9 shrink-0"
+          : searchFill
+            ? "min-w-[7.5rem] w-full flex-1"
+            : "w-[min(100%,14rem)] sm:w-[min(100%,18rem)] shrink-0 flex-1 min-w-[8.5rem] max-w-md",
       )}
     >
       <Search
@@ -157,6 +165,7 @@ export function FacultyIntegratedToolbar({
   chips,
   trailing,
   searchCompact = false,
+  searchFill = false,
   embedded = false,
   className,
 }: FacultyIntegratedToolbarProps) {
@@ -184,6 +193,7 @@ export function FacultyIntegratedToolbar({
               initialValue={search ?? ""}
               placeholder={searchPlaceholder}
               searchCompact={searchCompact}
+              searchFill={searchFill}
               onSearchChange={onSearchChange}
               onSearchClear={onSearchClear}
             />

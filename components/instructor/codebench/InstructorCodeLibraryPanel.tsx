@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Award,
   BookOpen,
@@ -30,18 +30,27 @@ import {
 import {
   classroomAssignmentToHandoff,
   classroomAssignmentTopic,
+  classroomAssignmentTopicMeta,
   extractClassroomQuestionText,
-  groupClassroomAssignmentsBySession,
+  groupClassroomAssignmentsByTopic,
   type ClassroomAssignmentRow,
   type InstructorClassroomHandoff,
 } from "@/lib/codebench-instructor-classroom"
+import {
+  classifyCodebenchCourseTopic,
+  codebenchTopicsPresent,
+  groupRowsByCodebenchTopic,
+} from "@/lib/codebench-course-topics"
+import { CodebenchTopicFilterSelect } from "@/components/instructor/codebench/CodebenchTopicFilterSelect"
+import {
+  CODEBENCH_LIBRARY_PAGE_SIZE,
+  CodebenchListPagination,
+  paginateCodebenchList,
+} from "@/components/instructor/codebench/CodebenchListPagination"
 import { useInstructorClassroomAssignments } from "@/hooks/use-instructor-classroom-assignments"
 import { useInstructorDashboardV2 } from "@/components/instructor/dashboard-v2/InstructorDashboardV2Context"
 import { defaultFacultySessionFilter } from "@/hooks/use-instructor-scope-key"
-import {
-  CLASSROOM_SUBMISSION_KIND_CODE,
-  CLASSROOM_SUBMISSION_KIND_SOLUTION,
-} from "@/lib/classroom-solution-submission"
+import { CLASSROOM_SUBMISSION_KIND_CODE } from "@/lib/classroom-solution-submission"
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 import { PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
 import { buildInstructorAuthorizedApiHeaders, instructorApiFetch } from "@/lib/instructor-api-headers"
@@ -88,7 +97,6 @@ function ClassroomAssignmentCard({
 }) {
   const chrome = facultyEmbedChrome("codebench")
   const handoff = classroomAssignmentToHandoff(row)
-  const isCode = handoff.submissionKind === CLASSROOM_SUBMISSION_KIND_CODE
   const preview = questionPreview(extractClassroomQuestionText(row))
 
   return (
@@ -98,22 +106,12 @@ function ClassroomAssignmentCard({
           <p className={cn("text-sm font-semibold leading-snug", PORTAL_TEXT)}>{row.title}</p>
           <p className={cn("line-clamp-3 text-xs leading-relaxed", PORTAL_TEXT_MUTED)}>{preview}</p>
         </div>
-        <div
-          className={cn(
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-            isCode
-              ? "bg-[color-mix(in_srgb,var(--cc-accent)_12%,var(--card))] text-[var(--cc-accent)]"
-              : "bg-[color-mix(in_srgb,var(--cc-warning)_14%,var(--card))] text-[var(--cc-warning,#d97706)]",
-          )}
-        >
-          {isCode ? <Code2 className="h-4 w-4" /> : <PenLine className="h-4 w-4" />}
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--cc-accent)_12%,var(--card))] text-[var(--cc-accent)]">
+          <Code2 className="h-4 w-4" />
         </div>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        <Badge variant="secondary" className="text-[10px]">
-          {isCode ? "Coding" : "Solution"}
-        </Badge>
         <Badge variant="outline" className="text-[10px]">
           {classroomAssignmentTopic(row)}
         </Badge>
@@ -141,7 +139,7 @@ function ClassroomAssignmentCard({
       <div className="mt-auto flex w-full flex-wrap items-center gap-2">
         <Button type="button" size="sm" onClick={() => onOpen(handoff)}>
           <FolderOpen className="mr-1 h-3.5 w-3.5" />
-          {isCode ? "Teach in IDE" : "Open prompt in IDE"}
+          Teach in IDE
         </Button>
         <InstructorClassroomAssignmentActions
           submission={row}
@@ -161,8 +159,10 @@ export function InstructorCodeLibraryPanel({ onOpenInIde, onOpenClassroomInIde }
   const [source, setSource] = useState<LibrarySource>("classroom")
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState<InstructorLibraryCategory | "all">("all")
-  const [kindFilter, setKindFilter] = useState<"all" | "code" | "solution">("all")
-  const [sessionFilter, setSessionFilter] = useState<string>(defaultFacultySessionFilter)
+  const [topicFilter, setTopicFilter] = useState("all")
+  const [page, setPage] = useState(1)
+  const listRef = useRef<HTMLDivElement>(null)
+  const sessionFilter = useMemo(() => defaultFacultySessionFilter(), [courseScopeVersion])
   const [libraryRevision, setLibraryRevision] = useState(0)
   const [editDialogSessions, setEditDialogSessions] = useState<string[]>(["all"])
   const [teachingDialogOpen, setTeachingDialogOpen] = useState(false)
@@ -199,61 +199,124 @@ export function InstructorCodeLibraryPanel({ onOpenInIde, onOpenClassroomInIde }
   }, [courseScopeVersion])
 
   useEffect(() => {
-    setSessionFilter(defaultFacultySessionFilter())
+    setTopicFilter("all")
+    setPage(1)
   }, [courseScopeVersion])
 
-  const filterSessionOptions = useMemo(() => {
-    const set = new Set<string>()
-    for (const row of submissions) {
-      if (row.session?.trim()) set.add(row.session.trim())
+  useEffect(() => {
+    setPage(1)
+  }, [query, topicFilter, source, category])
+
+  const codingAssignments = useMemo(
+    () =>
+      submissions.filter(
+        (row) =>
+          String(row.submission_kind ?? CLASSROOM_SUBMISSION_KIND_CODE).toLowerCase() ===
+          CLASSROOM_SUBMISSION_KIND_CODE,
+      ),
+    [submissions],
+  )
+
+  const classroomTopicOptions = useMemo(
+    () => codebenchTopicsPresent(codingAssignments, classroomAssignmentTopicMeta),
+    [codingAssignments],
+  )
+
+  const teachingTopicOf = useCallback(
+    (item: InstructorLibraryItem) =>
+      classifyCodebenchCourseTopic(item.topic, item.title, item.description, item.tags.join(" ")),
+    [],
+  )
+
+  const teachingTopicOptions = useMemo(
+    () => codebenchTopicsPresent(items, teachingTopicOf),
+    [items, teachingTopicOf],
+  )
+
+  const topicOptions = source === "classroom" ? classroomTopicOptions : teachingTopicOptions
+
+  useEffect(() => {
+    if (topicFilter !== "all" && !topicOptions.some((topic) => topic.id === topicFilter)) {
+      setTopicFilter("all")
     }
-    return Array.from(set).sort()
-  }, [submissions])
+  }, [topicFilter, topicOptions])
 
   const filteredClassroom = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return submissions.filter((row) => {
-      const kind = String(row.submission_kind ?? CLASSROOM_SUBMISSION_KIND_CODE).toLowerCase()
-      if (kindFilter === "code" && kind !== CLASSROOM_SUBMISSION_KIND_CODE) return false
-      if (kindFilter === "solution" && kind !== CLASSROOM_SUBMISSION_KIND_SOLUTION) return false
+    return codingAssignments.filter((row) => {
+      if (topicFilter !== "all" && classroomAssignmentTopicMeta(row).id !== topicFilter) return false
       if (!q) return true
       const question = extractClassroomQuestionText(row).toLowerCase()
+      const topic = classroomAssignmentTopic(row).toLowerCase()
       return (
         row.title.toLowerCase().includes(q) ||
         question.includes(q) ||
+        topic.includes(q) ||
         (row.session ?? "").toLowerCase().includes(q)
       )
     })
-  }, [kindFilter, query, submissions])
+  }, [codingAssignments, query, topicFilter])
 
   const classroomGrouped = useMemo(
-    () => groupClassroomAssignmentsBySession(filteredClassroom),
+    () => groupClassroomAssignmentsByTopic(filteredClassroom),
     [filteredClassroom],
+  )
+
+  const classroomPaging = useMemo(
+    () =>
+      paginateCodebenchList(
+        classroomGrouped.flatMap(([, rows]) => rows),
+        page,
+        CODEBENCH_LIBRARY_PAGE_SIZE,
+      ),
+    [classroomGrouped, page],
+  )
+
+  const classroomPageGrouped = useMemo(
+    () => groupClassroomAssignmentsByTopic(classroomPaging.rows),
+    [classroomPaging.rows],
   )
 
   const filteredTeaching = useMemo(() => {
     const q = query.trim().toLowerCase()
     return items.filter((item) => {
       if (category !== "all" && item.category !== category) return false
+      const topic = teachingTopicOf(item)
+      if (topicFilter !== "all" && topic.id !== topicFilter) return false
       if (!q) return true
       return (
         item.title.toLowerCase().includes(q) ||
+        topic.label.toLowerCase().includes(q) ||
         item.topic.toLowerCase().includes(q) ||
         item.tags.some((tag) => tag.toLowerCase().includes(q))
       )
     })
-  }, [category, items, query])
+  }, [category, items, query, teachingTopicOf, topicFilter])
 
-  const teachingGrouped = useMemo(() => {
-    const map = new Map<string, InstructorLibraryItem[]>()
-    for (const item of filteredTeaching) {
-      const key = item.topic || "General"
-      const list = map.get(key) ?? []
-      list.push(item)
-      map.set(key, list)
-    }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
-  }, [filteredTeaching])
+  const teachingGrouped = useMemo(
+    () => groupRowsByCodebenchTopic(filteredTeaching, teachingTopicOf),
+    [filteredTeaching, teachingTopicOf],
+  )
+
+  const teachingPaging = useMemo(
+    () =>
+      paginateCodebenchList(
+        teachingGrouped.flatMap(([, topicItems]) => topicItems),
+        page,
+        CODEBENCH_LIBRARY_PAGE_SIZE,
+      ),
+    [page, teachingGrouped],
+  )
+
+  const teachingPageGrouped = useMemo(
+    () => groupRowsByCodebenchTopic(teachingPaging.rows, teachingTopicOf),
+    [teachingPaging.rows, teachingTopicOf],
+  )
+
+  const goToPage = useCallback((next: number) => {
+    setPage(next)
+    listRef.current?.scrollTo({ top: 0, behavior: "smooth" })
+  }, [])
 
   const confirmDeleteTeachingItem = useCallback(async () => {
     if (!deleteTeachingItem) return
@@ -370,52 +433,43 @@ export function InstructorCodeLibraryPanel({ onOpenInIde, onOpenClassroomInIde }
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder={source === "classroom" ? "Search assignments, prompts, sections…" : "Search title, topic, or tags"}
+              placeholder={source === "classroom" ? "Search assignments, prompts, topics…" : "Search title, topic, or tags"}
               className="pl-8"
             />
           </div>
           {source === "classroom" ? (
+            <CodebenchTopicFilterSelect
+              value={topicFilter}
+              onChange={setTopicFilter}
+              topics={topicOptions}
+              className="w-full max-w-none @[28rem]/codebench-panel:w-auto @[28rem]/codebench-panel:max-w-[14rem]"
+            />
+          ) : (
             <>
               <select
-                value={kindFilter}
-                onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)}
+                value={category}
+                onChange={(event) => setCategory(event.target.value as InstructorLibraryCategory | "all")}
                 className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--card)] px-2 text-sm @[28rem]/codebench-panel:w-auto"
               >
-                <option value="all">All types</option>
-                <option value="code">Coding only</option>
-                <option value="solution">Solutions only</option>
-              </select>
-              <select
-                value={sessionFilter}
-                onChange={(event) => setSessionFilter(event.target.value)}
-                className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--card)] px-2 text-sm @[28rem]/codebench-panel:w-auto"
-              >
-                <option value="all">All sections</option>
-                {filterSessionOptions.map((session) => (
-                  <option key={session} value={session}>
-                    {session}
+                <option value="all">All categories</option>
+                {INSTRUCTOR_LIBRARY_CATEGORIES.map((entry) => (
+                  <option key={entry} value={entry}>
+                    {INSTRUCTOR_LIBRARY_CATEGORY_LABELS[entry]}
                   </option>
                 ))}
               </select>
+              <CodebenchTopicFilterSelect
+                value={topicFilter}
+                onChange={setTopicFilter}
+                topics={topicOptions}
+                className="w-full max-w-none @[28rem]/codebench-panel:w-auto @[28rem]/codebench-panel:max-w-[14rem]"
+              />
             </>
-          ) : (
-            <select
-              value={category}
-              onChange={(event) => setCategory(event.target.value as InstructorLibraryCategory | "all")}
-              className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--card)] px-2 text-sm @[28rem]/codebench-panel:w-auto"
-            >
-              <option value="all">All categories</option>
-              {INSTRUCTOR_LIBRARY_CATEGORIES.map((entry) => (
-                <option key={entry} value={entry}>
-                  {INSTRUCTOR_LIBRARY_CATEGORY_LABELS[entry]}
-                </option>
-              ))}
-            </select>
           )}
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+      <div ref={listRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
         {source === "classroom" ? (
           loading ? (
             <div className={cn(chrome.card, "flex items-center justify-center gap-2 p-8 text-sm", PORTAL_TEXT_MUTED)}>
@@ -430,15 +484,15 @@ export function InstructorCodeLibraryPanel({ onOpenInIde, onOpenClassroomInIde }
                 Try again
               </Button>
             </div>
-          ) : classroomGrouped.length === 0 ? (
+          ) : classroomPageGrouped.length === 0 ? (
             <div className={cn(chrome.card, "p-6 text-center text-sm", PORTAL_TEXT_MUTED)}>
-              No classroom assignments match your filters. Create assignments in Classroom Points, then return here to teach live.
+              No coding assignments match your filters. Create coding questions in Classroom Points, then return here to teach live.
             </div>
           ) : (
-            classroomGrouped.map(([session, rows]) => (
-              <section key={session} className="space-y-2">
+            classroomPageGrouped.map(([topic, rows]) => (
+              <section key={topic.id} className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>{session}</h3>
+                  <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>{topic.label}</h3>
                   <Badge variant="outline" className="text-[10px]">
                     {rows.length} assignment{rows.length === 1 ? "" : "s"}
                   </Badge>
@@ -457,7 +511,7 @@ export function InstructorCodeLibraryPanel({ onOpenInIde, onOpenClassroomInIde }
               </section>
             ))
           )
-        ) : teachingGrouped.length === 0 ? (
+        ) : teachingPageGrouped.length === 0 ? (
           <div className={cn(chrome.card, "space-y-3 p-6 text-center text-sm", PORTAL_TEXT_MUTED)}>
             <p>No teaching library items match your filters.</p>
             <Button
@@ -473,9 +527,9 @@ export function InstructorCodeLibraryPanel({ onOpenInIde, onOpenClassroomInIde }
             </Button>
           </div>
         ) : (
-          teachingGrouped.map(([topic, topicItems]) => (
-            <section key={topic} className="space-y-2">
-              <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>{topic}</h3>
+          teachingPageGrouped.map(([topic, topicItems]) => (
+            <section key={topic.id} className="space-y-2">
+              <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>{topic.label}</h3>
               <div className="instructor-library-grid">
                 {topicItems.map((item) => (
                   <article key={item.id} className={cn(chrome.card, "instructor-lift-card flex flex-col gap-3 p-4")}>
@@ -550,6 +604,23 @@ export function InstructorCodeLibraryPanel({ onOpenInIde, onOpenClassroomInIde }
           ))
         )}
       </div>
+
+      {!loading && !error && source === "classroom" ? (
+        <CodebenchListPagination
+          page={classroomPaging.page}
+          pageSize={CODEBENCH_LIBRARY_PAGE_SIZE}
+          totalItems={classroomPaging.total}
+          onPageChange={goToPage}
+        />
+      ) : null}
+      {source === "teaching" ? (
+        <CodebenchListPagination
+          page={teachingPaging.page}
+          pageSize={CODEBENCH_LIBRARY_PAGE_SIZE}
+          totalItems={teachingPaging.total}
+          onPageChange={goToPage}
+        />
+      ) : null}
 
       <InstructorTeachingLibraryItemDialog
         open={teachingDialogOpen}

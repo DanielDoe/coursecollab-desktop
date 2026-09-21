@@ -3,6 +3,7 @@ import { sql } from "@/lib/db"
 import { requireInstructorCourse } from "@/lib/instructor-course-scope"
 import { getAssessmentPolicyForCourse } from "@/lib/assessment-policy-settings.server"
 import { parseClientAvailabilityToUtcIso, utcIsoToDbTimestamp } from "@/lib/timezone"
+import { applyDefaultIntegrityFlagsForNewAssessment } from "@/lib/apply-assessment-integrity-defaults"
 
 export const dynamic = "force-dynamic"
 
@@ -77,6 +78,7 @@ export async function POST(request: NextRequest) {
     `
 
     const quizId = quizResult[0].id
+    await applyDefaultIntegrityFlagsForNewAssessment(quizId, "quiz")
 
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i]

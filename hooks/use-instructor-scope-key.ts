@@ -48,9 +48,13 @@ export function useInstructorScopeKey(): string {
     refresh()
     window.addEventListener("storage", refresh)
     window.addEventListener("instructor-scope-changed", refresh)
+    window.addEventListener("instructor-session-updated", refresh)
+    window.addEventListener("instructor-course-scope-changed", refresh)
     return () => {
       window.removeEventListener("storage", refresh)
       window.removeEventListener("instructor-scope-changed", refresh)
+      window.removeEventListener("instructor-session-updated", refresh)
+      window.removeEventListener("instructor-course-scope-changed", refresh)
     }
   }, [refresh])
 

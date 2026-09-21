@@ -11,6 +11,8 @@ import { motion } from "framer-motion"
 import { StudentHeader } from "@/components/student-header"
 import { useGeminiDetector } from "@/hooks/use-gemini-detector"
 import { isPhoneOrTabletDevice, isBrowserAiEnforcementPlatform } from "@/lib/device-utils"
+import { isDocumentFullscreen, requestDocumentFullscreen, subscribeDocumentFullscreen } from "@/lib/document-fullscreen"
+import { isDesktopElectronAssessmentClient } from "@/lib/desktop-anticheat-policy"
 import { SuperpowersSelector } from "@/components/superpowers-selector"
 import type { SuperpowerId } from "@/lib/superpowers-constants"
 import type { MembershipTier } from "@/lib/membership-constants"
@@ -74,8 +76,12 @@ export function QuizInstructions({ quizId, onStart, antiCheatConfig, geoRequired
     setCanStart(false)
   }, [])
 
+  // Electron desktop shell has no browser AI side-panels — kiosk mode and
+  // app-switch tracking cover it, so never surface browser-AI detection there.
   const trackGeminiOnThisDevice =
-    (antiCheatConfig?.trackGeminiWindow ?? false) && isBrowserAiEnforcementPlatform()
+    (antiCheatConfig?.trackGeminiWindow ?? false) &&
+    isBrowserAiEnforcementPlatform() &&
+    !isDesktopElectronAssessmentClient()
 
   // When student selects No Tab Tracking superpower, skip fullscreen (they need to switch tabs)
   const baseRequireFullscreen = antiCheatConfig?.requireFullscreen ?? false
@@ -85,11 +91,7 @@ export function QuizInstructions({ quizId, onStart, antiCheatConfig, geoRequired
   const handleGeminiCleared = useCallback(() => {
     setGeminiDetected(false)
     // Update canStart based on fullscreen (if required), location when geoRequired, and superpowers when enabled
-    const isFullscreenActive =
-      document.fullscreenElement !== null ||
-      (document as any).webkitFullscreenElement !== null ||
-      (document as any).mozFullScreenElement !== null ||
-      (document as any).msFullscreenElement !== null
+    const isFullscreenActive = isDocumentFullscreen()
     const locationOk = !geoRequired || locationVerified
     const fullscreenOk = !requireFullscreen || isFullscreenActive
     if (configLoaded && fullscreenOk && locationOk && (!enableSuperpowers || superpowersValid)) {
@@ -158,11 +160,7 @@ export function QuizInstructions({ quizId, onStart, antiCheatConfig, geoRequired
   // Check fullscreen status and update canStart accordingly
   useEffect(() => {
     const checkFullscreen = () => {
-      const isFullscreenActive =
-        document.fullscreenElement !== null ||
-        (document as any).webkitFullscreenElement !== null ||
-        (document as any).mozFullScreenElement !== null ||
-        (document as any).msFullscreenElement !== null
+      const isFullscreenActive = isDocumentFullscreen()
 
       setIsFullscreen(isFullscreenActive)
 
@@ -175,56 +173,27 @@ export function QuizInstructions({ quizId, onStart, antiCheatConfig, geoRequired
 
     checkFullscreen()
 
-    // Listen for fullscreen changes (only when fullscreen is required)
     if (requireFullscreen) {
-      document.addEventListener("fullscreenchange", checkFullscreen)
-      document.addEventListener("webkitfullscreenchange", checkFullscreen)
-      document.addEventListener("mozfullscreenchange", checkFullscreen)
-      document.addEventListener("MSFullscreenChange", checkFullscreen)
-      return () => {
-        document.removeEventListener("fullscreenchange", checkFullscreen)
-        document.removeEventListener("webkitfullscreenchange", checkFullscreen)
-        document.removeEventListener("mozfullscreenchange", checkFullscreen)
-        document.removeEventListener("MSFullscreenChange", checkFullscreen)
-      }
+      return subscribeDocumentFullscreen(checkFullscreen)
     }
   }, [geminiDetected, geoRequired, locationVerified, requireFullscreen, enableSuperpowers, superpowersValid, configLoaded, trackGeminiOnThisDevice])
 
   const requestFullscreen = async () => {
-    try {
-      const element = document.documentElement
-
-      if (element.requestFullscreen) {
-        await element.requestFullscreen()
-      } else if ((element as any).webkitRequestFullscreen) {
-        // Safari
-        await (element as any).webkitRequestFullscreen()
-      } else if ((element as any).mozRequestFullScreen) {
-        // Firefox
-        await (element as any).mozRequestFullScreen()
-      } else if ((element as any).msRequestFullscreen) {
-        // IE/Edge
-        await (element as any).msRequestFullscreen()
-      } else {
-        setFullscreenError("Fullscreen is not supported in your browser. Please use a modern browser.")
-        return
-      }
-
-      // Fullscreen request succeeded - Gemini side-panel will be forced closed
-      setIsFullscreen(true)
-      // Note: geminiDetected will be cleared by the detector's onCleared callback
-      // or we can clear it here as fullscreen forces panels closed
-      setGeminiDetected(false)
-      setFullscreenError(null)
-      // canStart also requires location when geoRequired - useEffect will update
-      if (!geoRequired || locationVerified) {
-        setCanStart(true)
-      }
-    } catch (error) {
-      setFullscreenError(
-        "Failed to enter fullscreen mode. Please allow fullscreen permissions and try again."
-      )
+    const entered = await requestDocumentFullscreen()
+    if (!entered) {
+      setIsFullscreen(false)
       setCanStart(false)
+      setFullscreenError(
+        "Failed to enter fullscreen mode. Please allow fullscreen permissions and try again.",
+      )
+      return
+    }
+
+    setIsFullscreen(true)
+    setGeminiDetected(false)
+    setFullscreenError(null)
+    if (!geoRequired || locationVerified) {
+      setCanStart(true)
     }
   }
 
@@ -507,7 +476,9 @@ export function QuizInstructions({ quizId, onStart, antiCheatConfig, geoRequired
               </div>
               
               <p className="text-xs text-indigo-700 dark:text-indigo-300 mb-4 leading-relaxed">
-                Enter fullscreen mode to ensure exam integrity. This automatically closes browser side-panels and AI tools.
+                {isDesktopElectronAssessmentClient()
+                  ? "Enter fullscreen before you start. If you leave fullscreen, the assessment is blocked until you return — browser AI tools are not used as violations in the desktop app."
+                  : "Enter fullscreen before you start. This closes browser side-panels and AI tools. If you leave fullscreen, the assessment is blocked until you return."}
               </p>
               
               {!isFullscreen && (

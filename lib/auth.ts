@@ -34,6 +34,7 @@ interface SessionData {
     courseTitle: string
     section?: string
     studentRowId?: number
+    sessionId?: number | null
     academicTermId?: number | null
     academicTermLabel?: string | null
   }>
@@ -166,6 +167,7 @@ function setStudentSession(data: {
     courseTitle: string
     section?: string
     studentRowId?: number
+    sessionId?: number | null
     academicTermId?: number | null
     academicTermLabel?: string | null
   }>

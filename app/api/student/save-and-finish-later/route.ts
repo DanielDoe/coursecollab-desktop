@@ -4,7 +4,32 @@ import { hasSaveAndFinishLaterAccess, getSaveAndFinishLaterLimit } from "@/lib/r
 import { ensureSectionTimerSchema } from "@/lib/ensure-section-timer-schema"
 import { sanitizeAttemptTimerState } from "@/lib/sanitize-attempt-timer-state"
 import { parseAssessmentSectionConfig } from "@/lib/assessment-sections"
+import { requireAttemptOwnership, requireCallerStudentDbId } from "@/lib/student-api-auth"
 export const dynamic = "force-dynamic"
+
+/** SECURITY: remaining time may only decrease — see quiz-progress route for rationale. */
+function clampTimerMapToStored(
+  next: Record<string, number>,
+  storedRaw: unknown,
+): Record<string, number> {
+  let stored: Record<string, unknown> = {}
+  if (storedRaw && typeof storedRaw === "object" && !Array.isArray(storedRaw)) {
+    stored = storedRaw as Record<string, unknown>
+  } else if (typeof storedRaw === "string") {
+    try {
+      const parsed = JSON.parse(storedRaw)
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) stored = parsed
+    } catch {
+      // Ignore malformed stored state — treat as empty.
+    }
+  }
+  const out: Record<string, number> = {}
+  for (const [key, val] of Object.entries(next)) {
+    const storedVal = Number(stored[key])
+    out[key] = Number.isFinite(storedVal) && storedVal > 0 ? Math.min(val, storedVal) : val
+  }
+  return out
+}
 
 /**
  * POST /api/student/save-and-finish-later
@@ -16,6 +41,9 @@ export const dynamic = "force-dynamic"
  */
 export async function POST(request: NextRequest) {
   try {
+    const caller = await requireCallerStudentDbId(request)
+    if (!caller.ok) return caller.response
+
     const body = await request.json().catch(() => ({}))
     const {
       attemptId,
@@ -34,9 +62,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid attemptId" }, { status: 400 })
     }
 
+    // SECURITY: the caller must own this attempt (previously unchecked).
+    const ownership = await requireAttemptOwnership(request, attemptIdNum)
+    if (!ownership.ok) return ownership.response
+
     // Get attempt and verify student
     const attemptRows = await sql`
-      SELECT id, student_id, quiz_id, completed_at, saved_for_later_at
+      SELECT id, student_id, quiz_id, completed_at, saved_for_later_at,
+             question_time_remaining, section_time_remaining
       FROM quiz_attempts
       WHERE id = ${attemptIdNum} AND deleted_at IS NULL
       LIMIT 1
@@ -136,18 +169,30 @@ export async function POST(request: NextRequest) {
           { fillMissingToFull: false },
           assessmentType,
         )
-        questionTimeJson = JSON.stringify(sanitized.questionTimeRemaining)
-        sectionTimeJson = JSON.stringify(sanitized.sectionTimeRemaining)
+        questionTimeJson = JSON.stringify(
+          clampTimerMapToStored(sanitized.questionTimeRemaining, attempt.question_time_remaining),
+        )
+        sectionTimeJson = JSON.stringify(
+          clampTimerMapToStored(sanitized.sectionTimeRemaining, attempt.section_time_remaining),
+        )
       }
     }
+
+    // Save-and-finish-later legitimately pauses the sitting clock: clear the server-side hard
+    // deadline. The take route re-arms it from the (monotonically clamped) remaining budget
+    // when the student resumes.
+    const { ensureAttemptIntegritySchema } = await import("@/lib/ensure-attempt-integrity-schema")
+    await ensureAttemptIntegritySchema()
 
     await sql`
       UPDATE quiz_attempts
       SET 
         saved_for_later_at = NOW(),
         last_saved_at = NOW(),
+        deadline_at = NULL,
         current_question_index = COALESCE(${idx}, current_question_index),
-        remaining_time = COALESCE(${rem}, remaining_time),
+        -- SECURITY: remaining time may only decrease (LEAST ignores NULLs in Postgres)
+        remaining_time = LEAST(COALESCE(${rem}, remaining_time), remaining_time),
         question_time_remaining = COALESCE(${questionTimeJson}::jsonb, question_time_remaining),
         section_time_remaining = COALESCE(${sectionTimeJson}::jsonb, section_time_remaining)
       WHERE id = ${attemptIdNum} AND completed_at IS NULL

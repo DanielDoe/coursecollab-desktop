@@ -5,7 +5,8 @@ import {
   submissionBelongsToCourse,
 } from "@/lib/classroom-submission-scope"
 import { getOpenLiveClassroomSession } from "@/lib/codebench-live-classroom"
-import { resolveStudentCourseContextByDbId } from "@/lib/student-course-scope"
+import { resolveStudentCourseContextForRequest } from "@/lib/student-course-scope"
+import type { NextRequest } from "next/server"
 
 export type LiveSnapshotAssignment = {
   id: number
@@ -15,6 +16,7 @@ export type LiveSnapshotAssignment = {
 }
 
 export async function validateStudentLiveSnapshotAccess(
+  request: NextRequest,
   studentDbId: number,
   assignmentId: number,
 ): Promise<
@@ -58,10 +60,29 @@ export async function validateStudentLiveSnapshotAccess(
     return { ok: false, status: 410, error: "No live session is open for this assignment." }
   }
 
-  const ctx = await resolveStudentCourseContextByDbId(studentDbId)
-  const enrolledSession = ctx?.sessionCode?.trim() || null
-  if (!classroomAssignmentSessionMatchesStudent(assignment.session, enrolledSession)) {
-    return { ok: false, status: 403, error: "This assignment is not available for your section." }
+  const ctx = await resolveStudentCourseContextForRequest(request, studentDbId)
+
+  // Live classroom section gate. A null/blank assignment session means the assignment is open
+  // to every section. The comparison must be alias-aware (legacy vs canonical codes, e.g.
+  // E1301P01 vs ELEG1301P01) — the instructor roster uses the same matcher, and the previous
+  // strict TRIM-equality SQL check 403'd joining students who then never appeared as live.
+  const assignmentSession =
+    typeof assignment.session === "string" ? assignment.session.trim() : ""
+  if (assignmentSession) {
+    let enrolledSessionCode = ctx?.sessionCode?.trim() || null
+    if (!enrolledSessionCode && ctx?.sessionId != null) {
+      const sectionRows = await sql`
+        SELECT code FROM sessions WHERE id = ${ctx.sessionId} LIMIT 1
+      `.catch(() => [])
+      const code = (sectionRows[0] as { code?: string | null } | undefined)?.code
+      enrolledSessionCode = typeof code === "string" && code.trim() ? code.trim() : null
+    }
+    if (
+      !enrolledSessionCode ||
+      !classroomAssignmentSessionMatchesStudent(assignmentSession, enrolledSessionCode)
+    ) {
+      return { ok: false, status: 403, error: "This assignment is not available for your section." }
+    }
   }
 
   const courseId = ctx?.courseId ?? null

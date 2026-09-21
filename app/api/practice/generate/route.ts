@@ -16,6 +16,13 @@ import {
   unlockedQuestionCountForTier,
 } from "@/lib/practice-tier-access"
 import { buildStudentPracticeQuestionBankScopeSqlFragment } from "@/lib/student-practice-scope"
+import {
+  buildPracticePriorReview,
+  listPracticedQuestionIds,
+  loadLatestPracticeAnswersForQuestionIds,
+  loadPracticedQuestionsForTopics,
+  toSafePracticeQuestionPayload,
+} from "@/lib/practice-prior-attempts"
 export const dynamic = 'force-dynamic'
 // Mark as dynamic to prevent build-time database initialization
 
@@ -148,20 +155,9 @@ export async function POST(request: NextRequest) {
 
     // First, get all questions the student has already practiced
     console.log("[Practice Generate] Fetching practiced questions...")
-    let practicedQuestionIds = []
+    let practicedQuestionIds: number[] = []
     try {
-      const practicedQuestions = await sql`
-        SELECT DISTINCT pa.bank_question_id
-        FROM practice_answers pa
-        JOIN practice_attempts pat ON pa.attempt_id = pat.id
-        INNER JOIN question_bank qb ON qb.id = pa.bank_question_id
-        WHERE pat.student_id = ${studentDbId}
-          AND (${practicedQbScope})
-          AND qb.deleted_at IS NULL
-      `
-      console.log("[Practice Generate] Practiced questions result:", practicedQuestions)
-
-      practicedQuestionIds = practicedQuestions.map(q => q.bank_question_id)
+      practicedQuestionIds = await listPracticedQuestionIds(studentDbId)
       console.log(`[Practice Generate] Student ${studentDbId} has already practiced ${practicedQuestionIds.length} questions:`, practicedQuestionIds)
     } catch (practicedError) {
       console.error("[Practice Generate] Error fetching practiced questions:", practicedError)
@@ -172,19 +168,27 @@ export async function POST(request: NextRequest) {
       diffFilter: string | null,
       limit: number,
       excludeIds: number[] = [],
+      includePracticed = false,
     ) => {
       if (limit <= 0) return []
-      const exclude = excludeIds.length > 0 ? excludeIds : [-1]
+      const exclude = Array.from(
+        new Set(
+          [...(includePracticed ? [] : practicedQuestionIds), ...excludeIds]
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id)),
+        ),
+      )
+      const excludeList = exclude.length > 0 ? exclude : [-1]
       if (diffFilter) {
         return sql`
           SELECT id, question_text, question_type, hint, difficulty, topic, options, correct_answer,
-            question_media, subquestions, solution_upload_config
+            question_media, subquestions, solution_upload_config, explanation
           FROM question_bank
           WHERE topic = ANY(${topics})
             AND difficulty = ${diffFilter}
             AND (${qbScope})
             AND deleted_at IS NULL
-            AND id <> ALL(${exclude}::int[])
+            AND id <> ALL(${excludeList}::int[])
             AND NOT EXISTS (
               SELECT 1
               FROM practice_question_availability pqa
@@ -202,12 +206,12 @@ export async function POST(request: NextRequest) {
       }
       return sql`
         SELECT id, question_text, question_type, hint, difficulty, topic, options, correct_answer,
-          question_media, subquestions, solution_upload_config
+          question_media, subquestions, solution_upload_config, explanation
         FROM question_bank
         WHERE topic = ANY(${topics})
           AND (${qbScope})
           AND deleted_at IS NULL
-          AND id <> ALL(${exclude}::int[])
+          AND id <> ALL(${excludeList}::int[])
           AND NOT EXISTS (
             SELECT 1
             FROM practice_question_availability pqa
@@ -249,7 +253,13 @@ export async function POST(request: NextRequest) {
       return current
     }
 
-    const countAvailableInTopics = async (diffFilter: string | null = null): Promise<number> => {
+    const practicedExclude = practicedQuestionIds.length > 0 ? practicedQuestionIds : [-1]
+
+    const countAvailableInTopics = async (
+      diffFilter: string | null = null,
+      includePracticed = false,
+    ): Promise<number> => {
+      const idExclude = includePracticed ? [-1] : practicedExclude
       if (diffFilter) {
         const rows = await sql`
           SELECT COUNT(*)::int AS total
@@ -258,6 +268,7 @@ export async function POST(request: NextRequest) {
             AND difficulty = ${diffFilter}
             AND (${qbScope})
             AND deleted_at IS NULL
+            AND id <> ALL(${idExclude}::int[])
             AND NOT EXISTS (
               SELECT 1
               FROM practice_question_availability pqa
@@ -278,6 +289,7 @@ export async function POST(request: NextRequest) {
         WHERE topic = ANY(${topics})
           AND (${qbScope})
           AND deleted_at IS NULL
+          AND id <> ALL(${idExclude}::int[])
           AND NOT EXISTS (
             SELECT 1
             FROM practice_question_availability pqa
@@ -290,7 +302,7 @@ export async function POST(request: NextRequest) {
               )
           )
       `
-      return Number(rows[0]?.total ?? 0)
+        return Number(rows[0]?.total ?? 0)
     }
 
     const isFullTopicTier = membershipTier === "Explorer" || membershipTier === "Trailblazer"
@@ -298,9 +310,9 @@ export async function POST(request: NextRequest) {
     const diffKey =
       difficulty && difficulty !== "mixed" ? String(difficulty).toLowerCase() : null
 
-    let availableInTopics = await countAvailableInTopics(diffKey)
+    let availableInTopics = await countAvailableInTopics(diffKey, wantsFullTopic)
     if (availableInTopics <= 0 && diffKey) {
-      availableInTopics = await countAvailableInTopics(null)
+      availableInTopics = await countAvailableInTopics(null, wantsFullTopic)
     }
     if (availableInTopics > 0) {
       questionCount = Math.min(questionCount, availableInTopics)
@@ -312,7 +324,7 @@ export async function POST(request: NextRequest) {
     let questions
     try {
       if (wantsFullTopic) {
-        questions = await fetchQuestions(diffKey, questionCount)
+        questions = await fetchQuestions(diffKey, questionCount, [], true)
       } else if (!difficulty || difficulty === "mixed") {
         questions = await fetchQuestions(null, questionCount)
       } else {
@@ -327,10 +339,71 @@ export async function POST(request: NextRequest) {
     }
 
     if (questions.length === 0) {
-      const message = practicedQuestionIds.length > 0 
-        ? "No new questions available for selected topics. You've already practiced all available questions in this topic. Try a different topic or difficulty level."
-        : "No questions found for selected topics"
-      return NextResponse.json({ error: message }, { status: 404 })
+      if (practicedQuestionIds.length === 0) {
+        return NextResponse.json({ error: "No questions found for selected topics" }, { status: 404 })
+      }
+      const priorRows = await loadPracticedQuestionsForTopics({
+        studentDbId,
+        topics,
+        qbScope: practicedQbScope,
+      })
+      const reviewQuestions = priorRows
+        .map(({ question, studentAnswer, isCorrect }) => {
+          const formatted = formatQuestionBankRowForRenderer(question)
+          const answerReview = buildPracticePriorReview(question, studentAnswer, isCorrect)
+          return toSafePracticeQuestionPayload(formatted as Record<string, unknown> | null, {
+            locked: false,
+            alreadyAttempted: true,
+            priorAnswer: studentAnswer,
+            priorIsCorrect: isCorrect,
+            answerReview,
+          })
+        })
+        .filter(Boolean)
+      if (reviewQuestions.length === 0) {
+        return NextResponse.json(
+          { error: "You've already practiced all available questions in this topic." },
+          { status: 404 },
+        )
+      }
+      return NextResponse.json({
+        attemptId: null,
+        reviewOnly: true,
+        access: practiceAccessForStudentClient(membershipTier, hubPolicy),
+        unlockedCount: reviewQuestions.length,
+        totalCount: reviewQuestions.length,
+        questions: reviewQuestions,
+      })
+    }
+
+    const questionIds = (questions as Array<{ id?: unknown }>)
+      .map((q) => Number(q.id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+    const priorRows = await loadLatestPracticeAnswersForQuestionIds(studentDbId, questionIds)
+    const priorById = new Map(priorRows.map((row) => [row.questionId, row]))
+    const unansweredCount = questionIds.filter((id) => !priorById.has(id)).length
+
+    if (unansweredCount === 0 && priorRows.length > 0) {
+      const reviewQuestions = priorRows
+        .map(({ question, studentAnswer, isCorrect, answerReview }) => {
+          const formatted = formatQuestionBankRowForRenderer(question)
+          return toSafePracticeQuestionPayload(formatted as Record<string, unknown> | null, {
+            locked: false,
+            alreadyAttempted: true,
+            priorAnswer: studentAnswer,
+            priorIsCorrect: isCorrect,
+            answerReview,
+          })
+        })
+        .filter(Boolean)
+      return NextResponse.json({
+        attemptId: null,
+        reviewOnly: true,
+        access: practiceAccessForStudentClient(membershipTier, hubPolicy),
+        unlockedCount: reviewQuestions.length,
+        totalCount: reviewQuestions.length,
+        questions: reviewQuestions,
+      })
     }
 
     // Create practice attempt
@@ -396,17 +469,14 @@ export async function POST(request: NextRequest) {
       )
         .map((q) => {
           const formatted = formatQuestionBankRowForRenderer(q)
-          if (!formatted) return null
-          const {
-            correct_answer: _correctAnswer,
-            correctLetters: _correctLetters,
-            correctTexts: _correctTexts,
-            ...safe
-          } = formatted as typeof formatted & {
-            correctLetters?: unknown
-            correctTexts?: unknown
-          }
-          return { ...safe, locked: q.locked }
+          const prior = priorById.get(Number(q.id))
+          return toSafePracticeQuestionPayload(formatted as Record<string, unknown> | null, {
+            locked: q.locked,
+            alreadyAttempted: Boolean(prior),
+            priorAnswer: prior?.studentAnswer ?? null,
+            priorIsCorrect: prior?.isCorrect ?? null,
+            answerReview: prior?.answerReview ?? null,
+          })
         })
         .filter(Boolean),
     })

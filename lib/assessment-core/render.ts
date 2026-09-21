@@ -120,6 +120,11 @@ export async function prepareQuestionsForRendering(
  *
  * Pass `{ includeAnswerKey: true }` ONLY from post-submission review/results
  * paths, where revealing the key is the point.
+ *
+ * SECURITY: hint TEXT is likewise withheld by default — students could read it
+ * in the network tab without paying the hint penalty. Take payloads carry a
+ * `has_hint` boolean so the UI can render the hint button; the text itself is
+ * returned by `/api/student/use-hint` only after the penalty is recorded.
  */
 export function formatQuestionForRenderer(
   question: any,
@@ -145,7 +150,8 @@ export function formatQuestionForRenderer(
       time_limit: resolved.time_limit,
       points: resolved.points || 1,
       max_points: resolved.max_points || resolved.points || 1,
-      hint: resolved.hint,
+      ...(options?.includeAnswerKey ? { hint: resolved.hint } : {}),
+      has_hint: Boolean(resolved.hint && String(resolved.hint).trim().length > 0),
       hint_penalty: resolved.hint_penalty || 0,
       requires_code: resolved.requires_code || false,
       anti_cheat_exempt: resolved.anti_cheat_exempt || false,

@@ -197,11 +197,8 @@ export function isSectionTimerSection(section: SectionConfig | null | undefined)
   return resolveSectionTimerMode(section) === "section_timer"
 }
 
-export function sectionAllowsBacktracking(section: SectionConfig | null | undefined): boolean {
-  if (!section) return true
-  if (typeof section.allow_backtracking === "boolean") return section.allow_backtracking
-  if (isPerQuestionTimerSection(section)) return false
-  if (isSectionTimerSection(section)) return true
+/** Navigation is always allowed; edit lock is per-question (answered / timer), not section config. */
+export function sectionAllowsBacktracking(_section: SectionConfig | null | undefined): boolean {
   return true
 }
 
@@ -356,19 +353,17 @@ export function getSectionConfigForQuestionIndex(
   return parsedConfig[sec.sectionIndex] ?? null
 }
 
-/** Whether navigation to targetIndex is allowed from currentIndex (respects allow_backtracking). */
+/**
+ * Students may move to any question. Edit lock is answered-or-timer-expired only —
+ * not a section-wide backtracking flag (quizzes, midterms, finals, homework).
+ */
 export function canNavigateToQuestionIndex(
-  targetIndex: number,
-  currentIndex: number,
-  sections: QuestionSection[],
-  parsedConfig: SectionConfig[] | null,
+  _targetIndex: number,
+  _currentIndex: number,
+  _sections: QuestionSection[],
+  _parsedConfig: SectionConfig[] | null,
+  _assessmentType?: string | null,
 ): boolean {
-  if (targetIndex >= currentIndex) return true
-  for (let i = targetIndex; i < currentIndex; i++) {
-    if (!sectionAllowsBacktracking(getSectionConfigForQuestionIndex(i, sections, parsedConfig))) {
-      return false
-    }
-  }
   return true
 }
 
@@ -398,7 +393,7 @@ export function withObjectiveSectionTimers(section: SectionConfig): SectionConfi
   return {
     ...section,
     timer_mode: "per_question",
-    allow_backtracking: false,
+    allow_backtracking: true,
     auto_submit_on_expire: true,
     timers: { ...section.timers, ...PRESET_OBJECTIVE_SECTION_TIMERS },
   }

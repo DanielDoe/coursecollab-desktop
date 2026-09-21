@@ -116,7 +116,7 @@ export const DEFAULT_ASSESSMENT_TIMER_POLICY: AssessmentTimerPolicy = {
 
 export const DEFAULT_ASSESSMENT_SECTION_POLICY: AssessmentSectionPolicy = {
   objective_timer_mode: "per_question",
-  objective_allow_backtracking: false,
+  objective_allow_backtracking: true,
   objective_auto_submit_on_expire: true,
   circuit_timer_mode: "section_timer",
   circuit_allow_backtracking: true,
@@ -139,7 +139,7 @@ export const DEFAULT_ASSESSMENT_ANTI_CHEAT_POLICY: AssessmentAntiCheatPolicy = {
   max_tab_switches_default: 3,
   warn_on_tab_switch_default: true,
   auto_submit_on_violations_default: true,
-  require_fullscreen_default: false,
+  require_fullscreen_default: true,
   track_gemini_window_default: true,
   max_gemini_strikes_default: 0,
   keystroke_playback_enforced_default: true,

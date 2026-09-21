@@ -615,7 +615,10 @@ export function FacultyAuthForm({
             key="course"
             {...stepMotion}
             transition={{ duration: 0.32, ease: [0.32, 0.72, 0, 1] }}
-            className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
+            className={cn(
+              "flex flex-col gap-4",
+              isDesktop && "min-h-0 flex-1 overflow-hidden",
+            )}
           >
             <div className="shrink-0 space-y-1 text-center">
               <h3 className="text-lg font-bold text-[var(--cc-text)]">Select a course</h3>
@@ -632,10 +635,9 @@ export function FacultyAuthForm({
 
             <div
               className={cn(
-                "min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]",
-                isDesktop
-                  ? "max-h-[min(15rem,34dvh)] rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--cc-background)_50%,var(--cc-surface))] p-3 [scrollbar-gutter:stable]"
-                  : "flex-1",
+                "min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable]",
+                "max-h-[min(18rem,42dvh)] rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--cc-background)_50%,var(--cc-surface))] p-3",
+                isDesktop && "max-h-[min(15rem,34dvh)]",
               )}
             >
               <div className="space-y-2.5">
