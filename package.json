@@ -1,6 +1,6 @@
 {
   "name": "coursecollab-desktop",
-  "version": "0.1.23",
+  "version": "0.1.24",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
@@ -455,12 +455,20 @@
         "to": "icon.png"
       },
       {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      },
+      {
         "from": "build/tray-icon.png",
         "to": "tray-icon.png"
       },
       {
         "from": "build/tray-icon-win.png",
         "to": "tray-icon-win.png"
+      },
+      {
+        "from": "build/tray-icon-win@2x.png",
+        "to": "tray-icon-win@2x.png"
       },
       {
         "from": "build/tray-icon-win-tile.png",
@@ -518,6 +526,7 @@
     "win": {
       "icon": "build/icon.ico",
       "executableName": "CourseCollab",
+      "signAndEditExecutable": true,
       "signExecutable": false,
       "target": [
         "nsis",

@@ -34,8 +34,8 @@
     StrCpy $0 "$INSTDIR\CourseCollab.exe"
     IfFileExists "$0" 0 cc_setup_done
     CreateDirectory "$SMPROGRAMS\CourseCollab"
-    CreateShortCut "$SMPROGRAMS\CourseCollab\CourseCollab.lnk" "$0"
-    CreateShortCut "$DESKTOP\CourseCollab.lnk" "$0"
+    CreateShortCut "$SMPROGRAMS\CourseCollab\CourseCollab.lnk" "$0" "" "$0" 0
+    CreateShortCut "$DESKTOP\CourseCollab.lnk" "$0" "" "$0" 0
     StrCpy $launchLink "$0"
   cc_setup_done:
   Pop $2

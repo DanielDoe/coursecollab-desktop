@@ -58,6 +58,7 @@ function contentType(fileName) {
   if (fileName.endsWith(".yml")) return "text/yaml; charset=utf-8"
   if (fileName.endsWith(".zip")) return "application/zip"
   if (fileName.endsWith(".exe")) return "application/vnd.microsoft.portable-executable"
+  if (fileName.endsWith(".AppImage")) return "application/x-executable"
   if (fileName.endsWith(".blockmap")) return "application/octet-stream"
   return "application/octet-stream"
 }
@@ -70,7 +71,7 @@ function collectOtaUploadFiles(version) {
 
   const names = fs.readdirSync(RELEASE_DIR)
   const manifestCandidates = names.filter((n) =>
-    /^latest(-mac|-mac-arm64|-linux|-win)?\.yml$/i.test(n),
+    /^latest(-mac|-mac-arm64|-linux|-linux-arm64|-win)?\.yml$/i.test(n),
   )
   const manifests = manifestCandidates.filter((n) => {
     const text = fs.readFileSync(path.join(RELEASE_DIR, n), "utf8")
@@ -90,7 +91,7 @@ function collectOtaUploadFiles(version) {
     if (n.endsWith(".blockmap")) return false
     // Fat dual-arch NSIS is not used by electron-updater; arch-specific .exe are.
     if (/^CourseCollab-.+-win\.exe$/i.test(n)) return false
-    return /\.(zip|exe)$/i.test(n)
+    return /\.(zip|exe|AppImage)$/i.test(n)
   })
 
   const files = [...new Set([...manifests, ...binaries])].sort()
@@ -101,7 +102,7 @@ function collectOtaUploadFiles(version) {
   }
   if (!binaries.length) {
     throw new Error(
-      `No CourseCollab-${version}-*.zip/.exe in release/. Version in package.json must match built artifacts.`,
+      `No CourseCollab-${version}-*.zip/.exe/.AppImage in release/. Version in package.json must match built artifacts.`,
     )
   }
   return files.map((name) => ({

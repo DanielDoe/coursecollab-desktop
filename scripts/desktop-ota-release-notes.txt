@@ -1,3 +1,4 @@
+- Windows: restore the CourseCollab app and tray icons (taskbar, shortcuts, and notification area).
 - Practice Hub: already-answered questions stay locked with prior/correct review; topic progress counts unique questions, not retries.
 - Practice Hub: a fully practiced topic opens as Review instead of blocking.
 - Instructor CodeBench: topic filters, grouping, and pagination on Code Library and Live Classroom.

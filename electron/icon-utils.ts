@@ -6,10 +6,12 @@ const TRAY_SIZE = process.platform === 'darwin' ? 22 : process.platform === 'win
 
 function iconCandidates(): string[] {
   const resources = typeof process.resourcesPath === 'string' ? process.resourcesPath : ''
-  return [
+  const ico = resources ? join(resources, 'icon.ico') : ''
+  const rest = [
     resources ? join(resources, 'icon.png') : '',
     resources ? join(resources, 'tray-icon-win.png') : '',
     resources ? join(resources, 'tray-icon.png') : '',
+    join(__dirname, '../build/icon.ico'),
     join(__dirname, '../build/icon.png'),
     join(__dirname, '../public/brand/course-collab-mark-1024.png'),
     join(__dirname, '../public/brand/course-collab-mark-512.png'),
@@ -17,17 +19,24 @@ function iconCandidates(): string[] {
     join(__dirname, '../public/icon.png'),
     join(__dirname, '../build/icon.png'),
     join(__dirname, '../public/icon.svg'),
-  ].filter(Boolean)
+  ]
+  if (process.platform === 'win32') {
+    return [ico, ...rest].filter(Boolean)
+  }
+  return rest.filter(Boolean)
 }
 
 function trayCandidates(): string[] {
   const resources = typeof process.resourcesPath === 'string' ? process.resourcesPath : ''
-  // Windows must not use the macOS white template tray-icon.png — it vanishes on light taskbars.
+  // Windows tray needs a real ICO / full-bleed tile. The macOS white template vanishes
+  // on light taskbars, and a padded Mac-dock PNG looks empty at 16–32px.
   if (process.platform === 'win32') {
     return [
+      resources ? join(resources, 'icon.ico') : '',
       resources ? join(resources, 'tray-icon-win.png') : '',
       resources ? join(resources, 'tray-icon-win-tile.png') : '',
       resources ? join(resources, 'icon.png') : '',
+      join(__dirname, '../build/icon.ico'),
       join(__dirname, '../build/tray-icon-win.png'),
       join(__dirname, '../build/tray-icon-win-tile.png'),
       join(__dirname, '../build/icon.png'),
@@ -74,8 +83,12 @@ export function resolveAppIconPath(): string | undefined {
   return iconCandidates().find((candidate) => existsSync(candidate))
 }
 
+export function resolveTrayIconPath(): string | undefined {
+  return trayCandidates().find((candidate) => existsSync(candidate))
+}
+
 export function resolveTrayIcon(): Electron.NativeImage {
-  const trayPath = trayCandidates().find((candidate) => existsSync(candidate))
+  const trayPath = resolveTrayIconPath()
   const icon = loadIconFromCandidates(trayCandidates(), TRAY_SIZE) ?? fallbackIcon(TRAY_SIZE)
   if (process.platform === 'darwin' && trayPath?.includes('tray-icon')) {
     icon.setTemplateImage(true)

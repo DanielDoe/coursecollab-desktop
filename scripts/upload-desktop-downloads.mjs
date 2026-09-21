@@ -62,7 +62,10 @@ function collectInstallerFiles(version) {
   const names = fs.readdirSync(RELEASE_DIR)
   const installers = names.filter((n) => {
     if (!n.startsWith(`CourseCollab-${version}-`)) return false
-    return /\.(dmg|exe|AppImage)$/i.test(n)
+    if (!/\.(dmg|exe|AppImage)$/i.test(n)) return false
+    // Fat dual-arch NSIS is too large for a reliable blob upload; landing uses arch-specific .exe.
+    if (/^CourseCollab-.+-win\.exe$/i.test(n)) return false
+    return true
   })
   if (!installers.length) {
     throw new Error(`No CourseCollab-${version}-* installers in release/`)

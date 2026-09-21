@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { app, BrowserWindow, ipcMain } from 'electron'
-import { resolveAppIcon } from './icon-utils'
+import { resolveAppIcon, resolveAppIconPath } from './icon-utils'
 import { installLanguageEnvironments, scanLanguageEnvironments } from './codebench/language-setup'
 import {
   SETUP_VERSION,
@@ -141,7 +141,7 @@ export function runFirstRunSetupWindow(): Promise<void> {
       show: false,
       backgroundColor: '#f4f5f8',
       title: 'CourseCollab Setup',
-      icon: resolveAppIcon(),
+      icon: resolveAppIconPath() ?? resolveAppIcon(),
       webPreferences: {
         preload: join(__dirname, 'preload.js'),
         contextIsolation: true,

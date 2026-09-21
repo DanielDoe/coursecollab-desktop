@@ -1,7 +1,7 @@
 import { Menu, Tray, app, type BrowserWindow } from 'electron'
 import { focusDesktopWindow, navigateDesktopPath, setDesktopWindowGetter } from './desktop-window'
 import { setAppQuitting } from './app-state'
-import { resolveTrayIcon } from './icon-utils'
+import { resolveTrayIcon, resolveTrayIconPath } from './icon-utils'
 import { getTrayPreviewItems } from './notification-store'
 import {
   getNotificationPreferences,
@@ -203,7 +203,10 @@ export function createDesktopTray(options: {
   onPreferencesChange = options.onPreferencesUpdated ?? null
   onDesktopUpdateStatusChange(() => refreshTrayMenu())
 
-  tray = new Tray(resolveTrayIcon())
+  const trayPath = resolveTrayIconPath()
+  tray = new Tray(
+    process.platform === 'win32' && trayPath ? trayPath : resolveTrayIcon(),
+  )
   tray.setToolTip('CourseCollab — Desktop')
   tray.setContextMenu(buildTrayMenu())
 

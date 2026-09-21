@@ -34,11 +34,15 @@ foreach ($lnk in $paths) {
   $folder = Split-Path -LiteralPath $lnk
   if (-not (Test-Path -LiteralPath $folder)) { New-Item -ItemType Directory -Path $folder -Force | Out-Null }
   $sc = $wsh.CreateShortcut($lnk)
-  $needsSave = (-not (Test-Path -LiteralPath $lnk)) -or ($sc.TargetPath -ne $exe)
+  $icon = $exe + ',0'
+  $needsSave = (-not (Test-Path -LiteralPath $lnk)) -or
+    ($sc.TargetPath -ne $exe) -or
+    ($sc.WorkingDirectory -ne $dir) -or
+    ($sc.IconLocation -ne $icon)
   if ($needsSave) {
     $sc.TargetPath = $exe
     $sc.WorkingDirectory = $dir
-    $sc.IconLocation = $exe + ',0'
+    $sc.IconLocation = $icon
     $sc.Description = 'CourseCollab'
     $sc.Save()
   }

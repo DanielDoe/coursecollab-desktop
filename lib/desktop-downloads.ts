@@ -1,6 +1,6 @@
 /** Desktop & mobile app download metadata for the public landing page. */
 
-export const DESKTOP_APP_VERSION = "0.1.23"
+export const DESKTOP_APP_VERSION = "0.1.24"
 
 export type DesktopOs = "mac" | "windows" | "linux"
 export type DesktopArch = "arm64" | "x64"
@@ -117,7 +117,7 @@ export const DESKTOP_DOWNLOADS: DesktopDownload[] = [
     filename: `CourseCollab-${DESKTOP_APP_VERSION}-linux-arm64.AppImage`,
     format: "AppImage",
     url: DESKTOP_DOWNLOAD_URLS["linux-arm64"],
-    sizeLabel: "342 MB",
+    sizeLabel: "343 MB",
   },
 ]
 

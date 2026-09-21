@@ -26,7 +26,7 @@ import {
   shouldRunFirstRunSetup,
 } from './first-run-setup'
 import { registerUpdater } from './updater'
-import { applyNativeAppIcon, resolveAppIcon } from './icon-utils'
+import { applyNativeAppIcon, resolveAppIcon, resolveAppIconPath } from './icon-utils'
 import { setDesktopWindowGetter } from './desktop-window'
 import { installApplicationMenu } from './menu'
 import { readLastDesktopRoute, writeLastDesktopRoute } from './last-route'
@@ -123,7 +123,7 @@ function createWindow() {
     show: false,
     backgroundColor: '#f8f7fc',
     title: 'CourseCollab',
-    icon: resolveAppIcon(),
+    icon: resolveAppIconPath() ?? resolveAppIcon(),
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
