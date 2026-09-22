@@ -150,6 +150,7 @@ async function main() {
       contentType: contentType(item.name),
       addRandomSuffix: false,
       allowOverwrite: true,
+      ...(item.name.endsWith(".yml") ? { cacheControlMaxAge: 60 } : {}),
     })
     console.log("ok")
     console.log(`  ${result.url}`)
