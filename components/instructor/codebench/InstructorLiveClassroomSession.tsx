@@ -30,6 +30,10 @@ import {
   LiveInstructorRunPanel,
   type LiveInstructorRunPanelHandle,
 } from "@/components/instructor/codebench/LiveInstructorRunPanel"
+import {
+  InstructorClassroomQuestionButton,
+  InstructorClassroomQuestionDrawer,
+} from "@/components/instructor/codebench/InstructorClassroomQuestionDrawer"
 import { invalidateInstructorClassroomAssignmentsCache } from "@/hooks/use-instructor-classroom-assignments"
 import { notifyInstructorClassroomAssignmentsChanged } from "@/lib/instructor-classroom-assignments-changed"
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
@@ -48,6 +52,7 @@ import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 import { useToast } from "@/hooks/use-toast"
 import { useImmediateLivePoll } from "@/hooks/use-immediate-live-poll"
 import {
+  LIVE_INSTRUCTOR_CODE_POLL_MS,
   LIVE_INSTRUCTOR_SESSION_POLL_MS,
   liveInstructorSelectedKey,
 } from "@/lib/codebench-live-timing"
@@ -228,6 +233,75 @@ function StudentRowButton({
   )
 }
 
+type FocusedLiveCode = {
+  code: string
+  language: string | null
+  fileName: string | null
+  studentCursor: { line: number; column: number } | null
+  updatedAt: string | null
+}
+
+function snapshotMs(value: string | null | undefined): number | null {
+  if (!value) return null
+  const ms = new Date(value).getTime()
+  return Number.isFinite(ms) ? ms : null
+}
+
+/** A slow roster response must not paint over code that already arrived on the fast path. */
+function keepFresherLiveCode(
+  incoming: LiveClassroomSessionPayload,
+  previous: LiveClassroomSessionPayload | null,
+): LiveClassroomSessionPayload {
+  if (!previous) return incoming
+  const prior = new Map(previous.students.map((student) => [student.studentDbId, student]))
+  return {
+    ...incoming,
+    students: incoming.students.map((student) => {
+      const older = prior.get(student.studentDbId)
+      const olderMs = snapshotMs(older?.snapshotUpdatedAt)
+      const incomingMs = snapshotMs(student.snapshotUpdatedAt)
+      if (!older || olderMs == null || incomingMs == null || olderMs <= incomingMs) return student
+      return {
+        ...student,
+        code: older.code,
+        codeSource: older.codeSource ?? student.codeSource,
+        language: older.language ?? student.language,
+        fileName: older.fileName ?? student.fileName,
+        studentCursor: older.studentCursor,
+        snapshotUpdatedAt: older.snapshotUpdatedAt,
+      }
+    }),
+  }
+}
+
+function withFocusedLiveCode(
+  payload: LiveClassroomSessionPayload,
+  studentDbId: number,
+  next: FocusedLiveCode,
+): LiveClassroomSessionPayload | null {
+  const index = payload.students.findIndex((student) => student.studentDbId === studentDbId)
+  if (index < 0) return null
+  const current = payload.students[index]
+  if (!next.code.trim() && (current.code?.trim().length ?? 0) > 0) return null
+  const sameCode = (current.code ?? "") === next.code
+  const sameAt = (current.snapshotUpdatedAt ?? null) === (next.updatedAt ?? null)
+  const sameCursor =
+    (current.studentCursor?.line ?? null) === (next.studentCursor?.line ?? null) &&
+    (current.studentCursor?.column ?? null) === (next.studentCursor?.column ?? null)
+  if (sameCode && sameAt && sameCursor) return null
+  const students = payload.students.slice()
+  students[index] = {
+    ...current,
+    code: next.code,
+    codeSource: next.code.trim() ? "live" : current.codeSource,
+    language: next.language ?? current.language,
+    fileName: next.fileName ?? current.fileName,
+    studentCursor: next.studentCursor ?? current.studentCursor,
+    snapshotUpdatedAt: next.updatedAt ?? current.snapshotUpdatedAt,
+  }
+  return { ...payload, students }
+}
+
 export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }: Props) {
   const scopeKey = useInstructorScopeKey()
   const chrome = facultyEmbedChrome("codebench")
@@ -245,6 +319,7 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
   const [refreshing, setRefreshing] = useState(false)
   const [ending, setEnding] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [questionOpen, setQuestionOpen] = useState(false)
   const [filter, setFilter] = useState<RosterFilter>("all")
   const [studentQuery, setStudentQuery] = useState("")
   const [pushing, setPushing] = useState(false)
@@ -271,7 +346,8 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
   useEffect(() => {
     if (!expanded) return
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setExpanded(false)
+      if (event.key !== "Escape" || questionOpen) return
+      setExpanded(false)
     }
     window.addEventListener("keydown", onKey)
     const prevOverflow = document.body.style.overflow
@@ -280,7 +356,7 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
       window.removeEventListener("keydown", onKey)
       document.body.style.overflow = prevOverflow
     }
-  }, [expanded])
+  }, [expanded, questionOpen])
 
   useEffect(() => {
     let cancelled = false
@@ -345,7 +421,7 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
       )
       const parsed = await readInstructorApiJson<LiveClassroomSessionPayload>(res, "Live classroom session")
       if (!parsed.ok) throw new Error(parsed.error)
-      setPayload(parsed.data)
+      setPayload((prev) => keepFresherLiveCode(parsed.data, prev))
       setError(null)
       setSelectedStudentId((prev) => {
         if (prev != null && parsed.data.students.some((s) => s.studentDbId === prev)) return prev
@@ -368,6 +444,46 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
   }, [load])
 
   useImmediateLivePoll(() => void load(true, false), LIVE_INSTRUCTOR_SESSION_POLL_MS)
+
+  const liveCodeMissingRef = useRef(false)
+  const liveCodeBusyRef = useRef(false)
+
+  const pollFocusedCode = useCallback(async () => {
+    if (liveCodeMissingRef.current || liveCodeBusyRef.current) return
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return
+    const studentId = selectedStudentIdRef.current
+    if (studentId == null || !payloadRef.current) return
+    liveCodeBusyRef.current = true
+    try {
+      const res = await instructorApiFetch(
+        `/api/instructor/codebench/live-code?assignmentId=${encodeURIComponent(String(handoff.submissionId))}&studentId=${encodeURIComponent(String(studentId))}`,
+      )
+      if (res.status === 404) {
+        liveCodeMissingRef.current = true
+        window.setTimeout(() => {
+          liveCodeMissingRef.current = false
+        }, 15000)
+        return
+      }
+      const parsed = await readInstructorApiJson<FocusedLiveCode>(res, "Live code")
+      if (!parsed.ok || selectedStudentIdRef.current !== studentId) return
+      setPayload((prev) => (prev ? withFocusedLiveCode(prev, studentId, parsed.data) ?? prev : prev))
+    } catch {
+      /* The roster poll still refreshes code if this read fails. */
+    } finally {
+      liveCodeBusyRef.current = false
+    }
+  }, [handoff.submissionId])
+
+  useEffect(() => {
+    liveCodeMissingRef.current = false
+  }, [handoff.submissionId])
+
+  useImmediateLivePoll(
+    () => void pollFocusedCode(),
+    LIVE_INSTRUCTOR_CODE_POLL_MS,
+    selectedStudentId != null,
+  )
 
   useEffect(() => {
     if (selectedStudentId == null) return
@@ -632,6 +748,10 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
             >
               {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
             </Button>
+            <InstructorClassroomQuestionButton
+              open={questionOpen}
+              onClick={() => setQuestionOpen((value) => !value)}
+            />
             <Button
               type="button"
               size="sm"
@@ -839,6 +959,12 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
           </div>
         </>
       )}
+
+      <InstructorClassroomQuestionDrawer
+        open={questionOpen}
+        onClose={() => setQuestionOpen(false)}
+        assignment={handoff}
+      />
     </div>
   )
 }

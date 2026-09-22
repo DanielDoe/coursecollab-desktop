@@ -108,7 +108,8 @@ export function useCodebenchLiveSnapshot({
     const latestCode = stripCodebenchProbeComments(
       readEditorCode(editorRefStable.current, codeRef.current),
     )
-    if (!force && latestCode === lastPostedCodeRef.current) return
+    const unchanged = latestCode === lastPostedCodeRef.current
+    if (!force && unchanged) return
     if (!force && !latestCode.trim()) return
 
     const now = Date.now()
@@ -132,6 +133,7 @@ export function useCodebenchLiveSnapshot({
           fileName,
           studentCursor: readEditorCursor(editorRefStable.current),
           typingReplay: sendReplay ? replayToSend : undefined,
+          intent: unchanged && !sendReplay ? "presence" : "code",
         }),
         keepalive: true,
       })
