@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { BookOpenCheck, Calendar, Clock, Code2, PenLine, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,48 @@ type Props = {
   open: boolean
   onClose: () => void
   assignment: InstructorClassroomHandoff | null
+}
+
+export function useInstructorClassroomQuestionDrawer() {
+  const [assignment, setAssignment] = useState<InstructorClassroomHandoff | null>(null)
+  const [open, setOpen] = useState(false)
+
+  const toggle = useCallback((next: InstructorClassroomHandoff) => {
+    setOpen((isOpen) => {
+      if (isOpen && assignment?.submissionId === next.submissionId) return false
+      return true
+    })
+    setAssignment(next)
+  }, [assignment])
+
+  const close = useCallback(() => setOpen(false), [])
+
+  return { assignment, open, toggle, close }
+}
+
+export function InstructorClassroomQuestionButton({
+  open = false,
+  onClick,
+  className,
+}: {
+  open?: boolean
+  onClick: () => void
+  className?: string
+}) {
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant={open ? "secondary" : "outline"}
+      className={cn("h-8 min-w-0 overflow-hidden px-2", className)}
+      onClick={onClick}
+      aria-pressed={open}
+      title="Show the assignment question"
+    >
+      <BookOpenCheck className="mr-1 h-3.5 w-3.5 shrink-0" />
+      <span className="truncate">Question</span>
+    </Button>
+  )
 }
 
 function formatDueLabel(value: string | null) {
