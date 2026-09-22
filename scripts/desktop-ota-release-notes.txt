@@ -1,5 +1,1 @@
-- Quizzes, homework, midterms, and finals use one countdown for the whole assessment. Students manage that time themselves.
-- Instructor CodeBench: the live roster updates when someone joins, leaves, finishes, or is marked correct. Typing no longer reshuffles the list.
-- Joined students show a gold badge, separate from correct and approved.
-- Challenges, Student Activity, and Insights use the same page controls as Live Classroom.
-- Updates: an installing screen stays up, then CourseCollab restarts when the update is in place. macOS no longer quits before the new version is installed.
+- Live Classroom: the instructor sees the selected student's code as they type. The roster still updates only when someone joins, leaves, finishes, or is marked correct.
