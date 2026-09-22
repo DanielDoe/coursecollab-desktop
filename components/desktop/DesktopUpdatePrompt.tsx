@@ -18,7 +18,9 @@ import {
   downloadDesktopUpdate,
   getDesktopUpdateStatus,
   installDesktopUpdate,
+  moveDesktopAppToApplications,
   normalizeDesktopUpdateStatus,
+  openDesktopUpdateDownloadPage,
   shouldPromptDesktopUpdate,
   subscribeDesktopUpdateStatus,
   type DesktopUpdateStatus,
@@ -34,7 +36,9 @@ export function DesktopUpdatePrompt() {
     setStatus(normalized)
     if (
       normalized.state === "downloading" ||
+      normalized.state === "installing" ||
       normalized.state === "ready" ||
+      normalized.needsApplicationsFolder ||
       shouldPromptDesktopUpdate(normalized)
     ) {
       setOpen(true)
@@ -85,38 +89,77 @@ export function DesktopUpdatePrompt() {
     })()
   }
 
+  const locked = status.state === "downloading" || status.state === "installing"
+
   const title =
-    status.state === "ready"
-      ? "Update ready to install"
+    status.state === "installing"
+      ? "Installing update"
       : status.state === "downloading"
         ? "Downloading update"
-        : "Update available"
+        : status.state === "error"
+          ? status.needsApplicationsFolder
+            ? "Move CourseCollab to Applications"
+            : "Update failed"
+          : status.state === "ready"
+            ? "Update ready to install"
+            : "Update available"
 
   const description =
-    status.state === "ready"
-      ? (status.message ?? `Version ${status.version ?? ""} will install after you restart.`)
+    status.state === "installing"
+      ? (status.message ??
+        `Installing version ${status.version ?? "the update"}. CourseCollab will restart when it is in place.`)
       : status.state === "downloading"
         ? "Please keep CourseCollab open until the download finishes."
-        : (status.message ??
-          `Version ${status.version ?? "a newer build"} is available (you are on ${status.currentVersion}).`)
+        : status.state === "ready"
+          ? (status.message ?? `Version ${status.version ?? ""} will install after you restart.`)
+          : status.state === "error"
+            ? (status.message ?? "The update could not be installed.")
+            : (status.message ??
+              `Version ${status.version ?? "a newer build"} is available (you are on ${status.currentVersion}).`)
 
-  const primaryLabel =
-    status.state === "ready"
-      ? "Restart and install"
-      : status.state === "downloading"
-        ? "Downloading…"
-        : "Download update"
+  const primaryLabel = status.state === "ready" ? "Restart and install" : "Download update"
+
+  const onMoveToApplications = () => {
+    if (busy) return
+    setBusy(true)
+    void moveDesktopAppToApplications()
+      .then((result) => {
+        if (!result.ok) {
+          setStatus((current) =>
+            current
+              ? {
+                  ...current,
+                  message: result.message ?? "Could not move CourseCollab into Applications.",
+                }
+              : current,
+          )
+        }
+      })
+      .finally(() => setBusy(false))
+  }
 
   return (
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
+        if (!nextOpen && locked) return
+        if (!nextOpen && status.state === "error") {
+          setOpen(false)
+          return
+        }
         if (!nextOpen) onRemindLater()
       }}
     >
       <DialogContent
         className={cn(CC_MODAL_SURFACE, "sm:max-w-md")}
         data-desktop-update-dialog=""
+        showCloseButton={!locked}
+        onEscapeKeyDown={(event) => {
+          if (locked) event.preventDefault()
+        }}
+        onPointerDownOutside={(event) => {
+          if (locked) event.preventDefault()
+        }}
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
@@ -124,7 +167,7 @@ export function DesktopUpdatePrompt() {
             {description}
           </DialogDescription>
         </DialogHeader>
-        {status.releaseNotes && status.state !== "downloading" ? (
+        {status.releaseNotes && !locked && status.state !== "error" ? (
           <pre
             className={cn(
               "max-h-40 overflow-y-auto whitespace-pre-wrap rounded-md border border-[var(--border)] p-3 text-xs",
@@ -145,13 +188,45 @@ export function DesktopUpdatePrompt() {
             <Progress value={status.percent ?? 0} className="h-2" />
           </div>
         ) : null}
-        <DialogFooter className="gap-2 sm:gap-0">
-          {status.state !== "downloading" && status.state !== "ready" ? (
+        {status.state === "installing" ? (
+          <div className="space-y-2" aria-live="polite" aria-busy="true">
+            <span className="text-sm font-medium text-[var(--cc-text)]">Installing</span>
+            <Progress value={100} className="h-2 animate-pulse" />
+            <p className="text-sm text-[var(--cc-text-secondary,var(--cc-text))]">
+              Leave CourseCollab open. It restarts on its own when the update is in place.
+            </p>
+          </div>
+        ) : null}
+        {locked ? null : (
+        <DialogFooter className="gap-3 sm:gap-3">
+          {status.state === "available" ? (
             <Button type="button" variant="ghost" onClick={onRemindLater} disabled={busy}>
               Remind me later
             </Button>
           ) : null}
-          {status.state !== "downloading" ? (
+          {status.state === "error" ? (
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
+              Close
+            </Button>
+          ) : null}
+          {status.state === "error" && !status.needsApplicationsFolder ? (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                void openDesktopUpdateDownloadPage()
+              }}
+              disabled={busy}
+            >
+              Download installer
+            </Button>
+          ) : null}
+          {status.state === "error" && status.needsApplicationsFolder ? (
+            <Button type="button" onClick={onMoveToApplications} disabled={busy}>
+              Move to Applications
+            </Button>
+          ) : null}
+          {status.state === "available" || status.state === "ready" ? (
             <Button
               type="button"
               onClick={onPrimary}
@@ -161,6 +236,7 @@ export function DesktopUpdatePrompt() {
             </Button>
           ) : null}
         </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   )

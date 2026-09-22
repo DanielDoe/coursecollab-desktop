@@ -11,10 +11,12 @@ import {
   Minimize2,
   Radio,
   RefreshCw,
+  Search,
   Users,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -58,7 +60,7 @@ type Props = {
 
 const LIVE_WINDOW_MS = 3 * 60 * 1000
 
-type RosterFilter = "all" | "attention" | "coding" | "submitted" | "approved"
+type RosterFilter = "all" | "attention" | "coding" | "joined" | "submitted" | "approved"
 
 function formatWhen(value: string | null): string {
   if (!value) return "—"
@@ -77,6 +79,8 @@ function statusTone(status: LiveStudentStatus) {
       return "border-red-500/35 bg-red-500/10 text-red-700 dark:text-red-300"
     case "needs_help":
       return "border-amber-500/35 bg-amber-500/10 text-amber-800 dark:text-amber-300"
+    case "joined":
+      return "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300"
     case "coding":
       return "border-[color-mix(in_srgb,var(--cc-accent)_35%,transparent)] bg-[color-mix(in_srgb,var(--cc-accent)_10%,var(--card))] text-[var(--cc-accent)]"
     case "review":
@@ -116,10 +120,45 @@ function statusIcon(status: LiveStudentStatus) {
   }
 }
 
+function rosterBucket(status: LiveStudentStatus): "attention" | "present" | "finished" | "approved" | "absent" {
+  switch (status) {
+    case "needs_help":
+    case "error":
+      return "attention"
+    case "coding":
+    case "joined":
+      return "present"
+    case "submitted":
+    case "review":
+      return "finished"
+    case "approved":
+      return "approved"
+    default:
+      return "absent"
+  }
+}
+
+function rosterRank(bucket: ReturnType<typeof rosterBucket>): number {
+  switch (bucket) {
+    case "attention":
+      return 0
+    case "present":
+      return 1
+    case "finished":
+      return 2
+    case "approved":
+      return 3
+    default:
+      return 4
+  }
+}
+
 function matchesFilter(row: LiveClassroomStudentRow, filter: RosterFilter): boolean {
   switch (filter) {
     case "attention":
       return row.status === "needs_help" || row.status === "error"
+    case "joined":
+      return row.status === "joined"
     case "coding":
       return row.status === "coding"
     case "submitted":
@@ -134,13 +173,19 @@ function matchesFilter(row: LiveClassroomStudentRow, filter: RosterFilter): bool
 function StudentRowButton({
   row,
   selected,
+  shownAt,
+  faceStatus,
+  faceLabel,
   onSelect,
 }: {
   row: LiveClassroomStudentRow
   selected: boolean
+  shownAt: string | null
+  faceStatus: LiveStudentStatus
+  faceLabel: string
   onSelect: () => void
 }) {
-  const Icon = statusIcon(row.status)
+  const Icon = statusIcon(faceStatus)
   return (
     <button
       type="button"
@@ -152,20 +197,20 @@ function StudentRowButton({
           : "border-[var(--border)] bg-[var(--card)] hover:bg-[var(--muted)]/40",
       )}
     >
-      <div className={cn("mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md", statusTone(row.status))}>
+      <div className={cn("mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md", statusTone(faceStatus))}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <p className="truncate text-sm font-medium text-[var(--cc-text)]">{row.fullName}</p>
           <span className="shrink-0 text-[10px] tabular-nums text-[var(--cc-text-muted)]">
-            {formatWhen(row.lastActivityAt)}
+            {formatWhen(shownAt)}
           </span>
         </div>
         <p className="text-xs text-[var(--cc-text-muted)]">{row.studentId}</p>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <Badge variant="outline" className={cn("text-[10px]", statusTone(row.status))}>
-            {row.statusLabel}
+          <Badge variant="outline" className={cn("text-[10px]", statusTone(faceStatus))}>
+            {faceLabel}
           </Badge>
           {row.compileErrors > 0 ? (
             <Badge variant="outline" className="text-[10px] text-red-600 dark:text-red-300">
@@ -178,12 +223,6 @@ function StudentRowButton({
             </Badge>
           ) : null}
         </div>
-        {row.latestEventTitle ? (
-          <p className="mt-1 line-clamp-1 text-[11px] text-[var(--cc-text-muted)]">
-            {row.latestEventTitle}
-            {row.latestEventDetail ? ` · ${row.latestEventDetail}` : ""}
-          </p>
-        ) : null}
       </div>
     </button>
   )
@@ -207,6 +246,7 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
   const [ending, setEnding] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [filter, setFilter] = useState<RosterFilter>("all")
+  const [studentQuery, setStudentQuery] = useState("")
   const [pushing, setPushing] = useState(false)
   const [runPanelOpen, setRunPanelOpen] = useState(false)
   const [runLoading, setRunLoading] = useState(false)
@@ -290,13 +330,18 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
     }
   }, [handoff.session, handoff.submissionId, handoff.title, scopeKey])
 
+  const selectedStudentIdRef = useRef(selectedStudentId)
+  selectedStudentIdRef.current = selectedStudentId
+
   const load = useCallback(async (silent = false, showRefresh = false) => {
     if (!silent) setLoading(true)
     else if (showRefresh) setRefreshing(true)
     if (!silent) setError(null)
     try {
+      const focus = selectedStudentIdRef.current
+      const focusQs = focus != null ? `&studentId=${encodeURIComponent(String(focus))}` : ""
       const res = await instructorApiFetch(
-        `/api/instructor/codebench/live-session?assignmentId=${encodeURIComponent(String(handoff.submissionId))}`,
+        `/api/instructor/codebench/live-session?assignmentId=${encodeURIComponent(String(handoff.submissionId))}${focusQs}`,
       )
       const parsed = await readInstructorApiJson<LiveClassroomSessionPayload>(res, "Live classroom session")
       if (!parsed.ok) throw new Error(parsed.error)
@@ -331,7 +376,8 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
     } catch {
       /* quota / private mode */
     }
-  }, [handoff.submissionId, selectedStudentId])
+    void load(true, false)
+  }, [handoff.submissionId, load, selectedStudentId])
 
   const handleEndSession = useCallback(async () => {
     const confirmed = await confirm({
@@ -361,10 +407,53 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
     }
   }, [confirm, handoff.submissionId, onBack])
 
-  const filteredStudents = useMemo(
-    () => payload?.students.filter((row) => matchesFilter(row, filter)) ?? [],
-    [filter, payload?.students],
-  )
+  const rosterClockRef = useRef(new Map<number, { bucket: string; at: string | null }>())
+
+  const filteredStudents = useMemo(() => {
+    const rows = payload?.students ?? []
+    const clocks = rosterClockRef.current
+    const seen = new Set<number>()
+    for (const row of rows) {
+      seen.add(row.studentDbId)
+      const bucket = rosterBucket(row.status)
+      const prev = clocks.get(row.studentDbId)
+      if (!prev || prev.bucket !== bucket) {
+        clocks.set(row.studentDbId, { bucket, at: row.lastActivityAt })
+      }
+    }
+    for (const id of clocks.keys()) {
+      if (!seen.has(id)) clocks.delete(id)
+    }
+    const query = studentQuery.trim().toLowerCase()
+    return [...rows]
+      .sort((a, b) => {
+        const diff = rosterRank(rosterBucket(a.status)) - rosterRank(rosterBucket(b.status))
+        if (diff !== 0) return diff
+        return a.fullName.localeCompare(b.fullName, undefined, { sensitivity: "base" })
+      })
+      .filter((row) => {
+        if (!matchesFilter(row, filter)) return false
+        if (!query) return true
+        return (
+          row.fullName.toLowerCase().includes(query) ||
+          row.studentId.toLowerCase().includes(query) ||
+          (row.section ?? "").toLowerCase().includes(query)
+        )
+      })
+      .map((row) => {
+        const bucket = rosterBucket(row.status)
+        const face =
+          bucket === "present"
+            ? { status: "joined" as const, label: "Joined" }
+            : { status: row.status, label: row.statusLabel }
+        return {
+          row,
+          shownAt: clocks.get(row.studentDbId)?.at ?? row.lastActivityAt,
+          faceStatus: face.status,
+          faceLabel: face.label,
+        }
+      })
+  }, [filter, payload?.students, studentQuery])
 
   const selectedStudent = useMemo(
     () => payload?.students.find((s) => s.studentDbId === selectedStudentId) ?? null,
@@ -462,6 +551,7 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
       count: (payload?.summary.needsHelp ?? 0) + (payload?.summary.errors ?? 0),
     },
     { id: "coding", label: "Coding", count: payload?.summary.coding },
+    { id: "joined", label: "Joined", count: payload?.summary.joined },
     { id: "submitted", label: "Submitted", count: (payload?.summary.submitted ?? 0) + (payload?.summary.review ?? 0) },
     { id: "approved", label: "Done", count: payload?.summary.approved },
   ]
@@ -569,6 +659,7 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
         {summary ? (
           <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] tabular-nums", PORTAL_TEXT_MUTED)}>
             <span>{summary.totalStudents} students</span>
+            <span className="text-sky-700 dark:text-sky-300">{summary.joined} joined</span>
             <span className="text-[var(--cc-accent)]">{summary.coding} coding</span>
             <span className="text-red-600 dark:text-red-300">{summary.errors} errors</span>
             <span className="text-amber-700 dark:text-amber-300">{summary.needsHelp} help</span>
@@ -604,6 +695,16 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
                   <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>Students</h3>
                   <span className={cn("text-xs", PORTAL_TEXT_MUTED)}>{filteredStudents.length}</span>
                 </div>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--cc-text-muted)]" />
+                  <Input
+                    value={studentQuery}
+                    onChange={(event) => setStudentQuery(event.target.value)}
+                    placeholder="Search students"
+                    aria-label="Search students"
+                    className="h-8 pl-8 text-xs"
+                  />
+                </div>
                 <div className="flex flex-wrap gap-1">
                   {filterButtons.map((item) => (
                     <Button
@@ -622,17 +723,24 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
               </div>
               <div className="instructor-live-session__roster-list scrollbar-themed min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1">
                 {filteredStudents.length ? (
-                  filteredStudents.map((row) => (
+                  filteredStudents.map((entry) => ( /* roster row */
                     <StudentRowButton
-                      key={row.studentDbId}
-                      row={row}
-                      selected={row.studentDbId === selectedStudentId}
-                      onSelect={() => setSelectedStudentId(row.studentDbId)}
+                      key={entry.row.studentDbId}
+                      row={entry.row}
+                      shownAt={entry.shownAt}
+                      faceStatus={entry.faceStatus}
+                      faceLabel={entry.faceLabel}
+                      selected={entry.row.studentDbId === selectedStudentId}
+                      onSelect={() => setSelectedStudentId(entry.row.studentDbId)}
                     />
                   ))
                 ) : (
                   <p className={cn("px-2 py-6 text-center text-sm", PORTAL_TEXT_MUTED)}>
-                    {filter === "all" ? "No students in this section yet." : "No students match this filter."}
+                    {studentQuery.trim()
+                      ? "No students match that search."
+                      : filter === "all"
+                        ? "No students in this section yet."
+                        : "No students match this filter."}
                   </p>
                 )}
               </div>

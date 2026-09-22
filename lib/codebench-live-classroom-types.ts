@@ -7,6 +7,7 @@ export type LiveEditorCursor = {
 
 export type LiveStudentStatus =
   | "not_started"
+  | "joined"
   | "coding"
   | "error"
   | "needs_help"
@@ -55,6 +56,7 @@ export type LiveClassroomSessionPayload = {
     needsHelp: number
     submitted: number
     approved: number
+    joined: number
     notStarted: number
     review: number
   }

@@ -17,9 +17,14 @@ export type LiveMonacoEditor = {
   setPosition?: (position: LiveMonacoPosition) => void
   revealPosition?: (position: LiveMonacoPosition) => void
   revealPositionInCenterIfOutsideViewport?: (position: LiveMonacoPosition) => void
+  getSelections?: () => LiveMonacoRange[] | null
+  getScrollTop?: () => number
+  setScrollTop?: (scrollTop: number) => void
+  hasTextFocus?: () => boolean
   executeEdits?: (
     source: string,
     edits: Array<{ range: LiveMonacoRange; text: string; forceMoveMarkers?: boolean }>,
+    endCursorState?: unknown,
   ) => boolean
   getModel?: () => {
     getLineCount?: () => number
@@ -59,13 +64,41 @@ export function clampLiveEditorPosition(
   }
 }
 
-function writeLiveEditorText(editor: LiveMonacoEditor, nextCode: string): boolean {
+function selectionFromPosition(position: LiveMonacoPosition): LiveMonacoRange {
+  return {
+    startLineNumber: position.lineNumber,
+    startColumn: position.column,
+    endLineNumber: position.lineNumber,
+    endColumn: position.column,
+    selectionStartLineNumber: position.lineNumber,
+    selectionStartColumn: position.column,
+    positionLineNumber: position.lineNumber,
+    positionColumn: position.column,
+  } as LiveMonacoRange
+}
+
+function writeLiveEditorText(
+  editor: LiveMonacoEditor,
+  nextCode: string,
+  previousPosition: LiveMonacoPosition | null,
+): boolean {
   const model = editor?.getModel?.()
   const range = model?.getFullModelRange?.()
   if (range && editor?.executeEdits) {
-    editor.executeEdits("live-classroom", [
-      { range, text: nextCode, forceMoveMarkers: false },
-    ])
+    const selections = editor.getSelections?.()
+    const endCursorState =
+      selections && selections.length > 0
+        ? selections
+        : previousPosition
+          ? [selectionFromPosition(previousPosition)]
+          : undefined
+    // endCursorState is applied after the edit. Omitting it lets Monaco park
+    // the caret at the end of the replaced buffer.
+    editor.executeEdits(
+      "live-classroom",
+      [{ range, text: nextCode, forceMoveMarkers: false }],
+      endCursorState,
+    )
     return true
   }
   // Do not fall back to setValue — it throws the caret to the end of the file
@@ -90,24 +123,22 @@ export function applyLiveEditorText(
   }
 
   let previousPosition: LiveMonacoPosition | null = null
+  let scrollTop = 0
   try {
     previousPosition = editor?.getPosition?.() ?? null
+    scrollTop = editor?.getScrollTop?.() ?? 0
   } catch {
     previousPosition = null
   }
 
   try {
-    const wrote = writeLiveEditorText(editor, nextCode)
+    const wrote = writeLiveEditorText(editor, nextCode, previousPosition)
     if (wrote) {
       const nextPosition = clampLiveEditorPosition(editor, previousPosition)
       if (nextPosition && editor?.setPosition) {
         editor.setPosition(nextPosition)
-        if (editor.revealPositionInCenterIfOutsideViewport) {
-          editor.revealPositionInCenterIfOutsideViewport(nextPosition)
-        } else {
-          editor.revealPosition?.(nextPosition)
-        }
       }
+      editor?.setScrollTop?.(scrollTop)
     }
   } catch {
     /* Monaco may not be mounted yet. */

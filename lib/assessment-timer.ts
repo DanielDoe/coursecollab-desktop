@@ -4,13 +4,38 @@
 
 import type { QuestionSection, SectionConfig } from "@/lib/assessment-sections"
 
-/** Homework is practice-oriented — due dates apply, not per-question/section countdowns. */
+/**
+ * Homework still shows worked feedback during the sitting.
+ * The sitting clock itself is one exam-wide pool (see isExamWideAssessmentType).
+ */
 export function isUntimedAssessmentType(assessmentType: string | null | undefined): boolean {
   const t = String(assessmentType ?? "")
     .trim()
     .toLowerCase()
     .replace(/-/g, "_")
   return t === "homework" || t === "homeworks"
+}
+
+/** Quiz, homework, mid-semester, and final sittings share one countdown. */
+export function isExamWideAssessmentType(assessmentType: string | null | undefined): boolean {
+  const t = String(assessmentType ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, "_")
+  return (
+    t === "quiz" ||
+    t === "quizzes" ||
+    t === "homework" ||
+    t === "homeworks" ||
+    t === "mid_semester" ||
+    t === "midsem" ||
+    t === "midsemester" ||
+    t === "midterm" ||
+    t === "mid_term" ||
+    t === "final" ||
+    t === "finals" ||
+    t === "final_exam"
+  )
 }
 import { getDefaultTimeLimit } from "@/lib/config/quizSettings"
 import { isUntimedMultiPartQuestion } from "@/lib/multi-part-time-limit"
@@ -164,6 +189,58 @@ export function clearExamSharedTimerConfig(sections: SectionConfig[]): SectionCo
   return sections.map(({ exam_shared_timer_seconds: _removed, ...section }) => section)
 }
 
+/** Quiz and homework default to 60 minutes; mid-semester and finals default to 90. */
+export function defaultExamWideTimerSeconds(assessmentType: string | null | undefined): number {
+  const t = String(assessmentType ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, "_")
+  if (
+    t === "final" ||
+    t === "finals" ||
+    t === "final_exam" ||
+    t === "mid_semester" ||
+    t === "midsem" ||
+    t === "midsemester" ||
+    t === "midterm" ||
+    t === "mid_term"
+  ) {
+    return DEFAULT_EXAM_SHARED_TIMER_SECONDS
+  }
+  return DEFAULT_SECTION_TIMER_SECONDS
+}
+
+/**
+ * Force one pooled countdown for quiz, homework, mid-semester, and final.
+ * Keeps an existing exam-wide total when one is already stored.
+ */
+export function coerceExamWideSectionConfig(
+  sections: SectionConfig[] | null | undefined,
+  assessmentType: string | null | undefined,
+  options?: { totalSeconds?: number | null },
+): SectionConfig[] | null {
+  if (!isExamWideAssessmentType(assessmentType)) return sections ?? null
+  const base =
+    sections && sections.length > 0
+      ? sections
+      : [
+          {
+            title: "Assessment",
+            question_types: ["mcq", "true_false", "select_all"],
+            weight_percent: 100,
+          },
+        ]
+  const override = Number(options?.totalSeconds)
+  const existing = getExamSharedTimerSeconds(base)
+  const seconds =
+    Number.isFinite(override) && override > 0
+      ? override
+      : existing != null && existing > 0
+        ? existing
+        : defaultExamWideTimerSeconds(assessmentType)
+  return applyExamSharedTimerConfig(base, seconds)
+}
+
 /** Hybrid Section II pooled time when paired with a strict objective Section I. */
 export const HYBRID_CIRCUIT_SECTION_POOLED_SECONDS = DEFAULT_SECTION_TIMER_SECONDS
 
@@ -310,6 +387,7 @@ export function usesPerQuestionCountdown(
   allSections?: SectionConfig[] | null,
   assessmentType?: string | null,
 ): boolean {
+  if (isExamWideAssessmentType(assessmentType)) return false
   if (isUntimedAssessmentType(assessmentType)) return false
   if (usesExamSharedTimer(allSections)) return false
 
@@ -328,6 +406,7 @@ export function usesSectionCountdown(
   section: SectionConfig | null | undefined,
   assessmentType?: string | null,
 ): boolean {
+  if (isExamWideAssessmentType(assessmentType)) return true
   if (isUntimedAssessmentType(assessmentType)) return false
   return isSectionTimerSection(section)
 }

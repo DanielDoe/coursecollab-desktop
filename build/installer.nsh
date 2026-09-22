@@ -36,6 +36,13 @@
     CreateDirectory "$SMPROGRAMS\CourseCollab"
     CreateShortCut "$SMPROGRAMS\CourseCollab\CourseCollab.lnk" "$0" "" "$0" 0
     CreateShortCut "$DESKTOP\CourseCollab.lnk" "$0" "" "$0" 0
+    ; Recreating the .lnk wipes AppUserModelID. Without it, Windows taskbar
+    ; ignores the exe icon and shows the Electron default.
+    WinShell::SetLnkAUMI "$SMPROGRAMS\CourseCollab\CourseCollab.lnk" "${APP_ID}"
+    WinShell::SetLnkAUMI "$DESKTOP\CourseCollab.lnk" "${APP_ID}"
+    WinShell::SetLnkAUMI "$newStartMenuLink" "${APP_ID}"
+    WinShell::SetLnkAUMI "$newDesktopLink" "${APP_ID}"
+    System::Call 'Shell32::SHChangeNotify(i 0x8000000, i 0, i 0, i 0)'
     StrCpy $launchLink "$0"
   cc_setup_done:
   Pop $2

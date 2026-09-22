@@ -5,15 +5,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Plus, Trash2, GripVertical } from "lucide-react"
-import type { SectionConfig, SectionTimerMode, SectionScoringMode } from "@/lib/assessment-sections"
+import type { SectionConfig, SectionScoringMode } from "@/lib/assessment-sections"
 import {
-  DEFAULT_EXAM_SHARED_TIMER_SECONDS,
-  DEFAULT_SECTION_TIMER_SECONDS,
-  OBJECTIVE_QUESTION_TIMER_SECONDS,
   applyExamSharedTimerConfig,
-  clearExamSharedTimerConfig,
+  defaultExamWideTimerSeconds,
   formatTimerMmSs,
-  getAssessmentTimerStrategy,
   getExamSharedTimerSeconds,
 } from "@/lib/assessment-timer"
 
@@ -45,12 +41,14 @@ interface SectionConfigEditorProps {
   sections: SectionConfig[]
   onChange: (sections: SectionConfig[]) => void
   disabled?: boolean
+  assessmentType?: string
 }
 
 export function SectionConfigEditor({
   sections,
   onChange,
   disabled = false,
+  assessmentType = "quiz",
 }: SectionConfigEditorProps) {
   const addSection = () => {
     const nextNum = sections.length + 1
@@ -109,20 +107,11 @@ export function SectionConfigEditor({
 
   const totalWeight = sections.reduce((s, x) => s + (Number(x.weight_percent) || 0), 0)
   const weightValid = Math.abs(totalWeight - 100) < 0.01
-  const timerStrategy = getAssessmentTimerStrategy(sections)
   const examSharedSeconds =
-    getExamSharedTimerSeconds(sections) ?? DEFAULT_EXAM_SHARED_TIMER_SECONDS
-
-  const setTimerStrategy = (strategy: "mixed" | "exam_shared") => {
-    if (strategy === "exam_shared") {
-      onChange(applyExamSharedTimerConfig(sections, examSharedSeconds))
-      return
-    }
-    onChange(clearExamSharedTimerConfig(sections))
-  }
+    getExamSharedTimerSeconds(sections) ?? defaultExamWideTimerSeconds(assessmentType)
 
   const setExamSharedMinutes = (minutes: number) => {
-    const mins = Math.max(1, Math.floor(Number(minutes) || 90))
+    const mins = Math.max(1, Math.floor(Number(minutes) || Math.round(examSharedSeconds / 60)))
     onChange(applyExamSharedTimerConfig(sections, mins * 60))
   }
 
@@ -144,37 +133,23 @@ export function SectionConfigEditor({
               Assessment timer
             </Label>
             <p className="text-xs text-slate-600 dark:text-slate-400">
-              Choose one countdown for the whole exam, or configure timers independently per section below.
+              Students get one countdown for the whole assessment and decide how to spend it. MCQ, true/false, and select-all are not timed separately.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1">
-              <Label className="text-xs text-slate-500">Timer strategy</Label>
-              <select
-                value={timerStrategy}
-                onChange={(e) => setTimerStrategy(e.target.value as "mixed" | "exam_shared")}
+              <Label className="text-xs text-slate-500">Total time (minutes)</Label>
+              <Input
+                type="number"
+                min={1}
+                value={Math.round(examSharedSeconds / 60)}
+                onChange={(e) => setExamSharedMinutes(Number(e.target.value))}
                 disabled={disabled}
-                className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 text-sm"
-              >
-                <option value="mixed">Per section (mixed modes)</option>
-                <option value="exam_shared">One timer for entire assessment</option>
-              </select>
+              />
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Shared pool: {formatTimerMmSs(examSharedSeconds)} across all sections.
+              </p>
             </div>
-            {timerStrategy === "exam_shared" && (
-              <div className="space-y-1">
-                <Label className="text-xs text-slate-500">Total time (minutes)</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={Math.round(examSharedSeconds / 60)}
-                  onChange={(e) => setExamSharedMinutes(Number(e.target.value))}
-                  disabled={disabled}
-                />
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Shared pool: {formatTimerMmSs(examSharedSeconds)} across all sections. Per-question timers are off.
-                </p>
-              </div>
-            )}
           </div>
         </div>
         {sections.map((section, idx) => (
@@ -216,102 +191,9 @@ export function SectionConfigEditor({
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
-            {timerStrategy === "exam_shared" ? (
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                Uses the exam-wide {Math.round(examSharedSeconds / 60)}-minute pool ({formatTimerMmSs(examSharedSeconds)}).
-              </p>
-            ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="space-y-1">
-                <Label className="text-xs text-slate-500">Timer mode</Label>
-                <select
-                  value={section.timer_mode ?? ""}
-                  onChange={(e) => {
-                    const mode = e.target.value as SectionTimerMode | ""
-                    if (!mode) {
-                      updateSectionField(idx, {
-                        timer_mode: undefined,
-                        allow_backtracking: undefined,
-                        total_time_seconds: undefined,
-                        timers: undefined,
-                      })
-                      return
-                    }
-                    if (mode === "per_question") {
-                      updateSectionField(idx, {
-                        timer_mode: "per_question",
-                        allow_backtracking: true,
-                        auto_submit_on_expire: true,
-                        timers: { ...OBJECTIVE_QUESTION_TIMER_SECONDS, ...section.timers },
-                        total_time_seconds: undefined,
-                      })
-                    } else {
-                      updateSectionField(idx, {
-                        timer_mode: "section_timer",
-                        allow_backtracking: true,
-                        auto_submit_on_expire: true,
-                        total_time_seconds: section.total_time_seconds ?? DEFAULT_SECTION_TIMER_SECONDS,
-                      })
-                    }
-                  }}
-                  disabled={disabled}
-                  className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 text-sm"
-                >
-                  <option value="">Legacy (auto-detect)</option>
-                  <option value="per_question">Per question (objective)</option>
-                  <option value="section_timer">Section timer (circuit)</option>
-                </select>
-              </div>
-              {section.timer_mode === "section_timer" && (
-                <div className="space-y-1">
-                  <Label className="text-xs text-slate-500">Section time (seconds)</Label>
-                  <Input
-                    type="number"
-                    min={60}
-                    value={section.total_time_seconds ?? DEFAULT_SECTION_TIMER_SECONDS}
-                    onChange={(e) =>
-                      updateSectionField(idx, {
-                        total_time_seconds: Math.max(60, Number(e.target.value) || DEFAULT_SECTION_TIMER_SECONDS),
-                      })
-                    }
-                    disabled={disabled}
-                  />
-                </div>
-              )}
-              {section.timer_mode === "per_question" && (
-                <>
-                  {(["mcq", "true_false", "select_all"] as const).map((key) => (
-                    <div key={key} className="space-y-1">
-                      <Label className="text-xs text-slate-500">{key} (sec)</Label>
-                      <Input
-                        type="number"
-                        min={10}
-                        value={section.timers?.[key] ?? OBJECTIVE_QUESTION_TIMER_SECONDS[key]}
-                        onChange={(e) =>
-                          updateSectionField(idx, {
-                            timers: {
-                              ...section.timers,
-                              [key]: Math.max(10, Number(e.target.value) || OBJECTIVE_QUESTION_TIMER_SECONDS[key]),
-                            },
-                          })
-                        }
-                        disabled={disabled}
-                      />
-                    </div>
-                  ))}
-                </>
-              )}
-              <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 self-end pb-2">
-                <input
-                  type="checkbox"
-                  checked={section.allow_backtracking ?? section.timer_mode !== "per_question"}
-                  onChange={(e) => updateSectionField(idx, { allow_backtracking: e.target.checked })}
-                  disabled={disabled}
-                />
-                Allow backtracking
-              </label>
-            </div>
-            )}
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Uses the exam-wide {Math.round(examSharedSeconds / 60)}-minute pool ({formatTimerMmSs(examSharedSeconds)}).
+            </p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 border-t border-slate-200/80 dark:border-slate-600/80 pt-3">
               <div className="space-y-1">
                 <Label className="text-xs text-slate-500">Section scoring mode</Label>

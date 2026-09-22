@@ -102,6 +102,7 @@ import {
   resolveQuestionTimeLimitSeconds,
   resolveSectionTotalTimeSeconds,
   syncExamSharedSectionTimers,
+  coerceExamWideSectionConfig,
   usesExamSharedTimer,
   usesPerQuestionCountdown,
   usesSectionCountdown,
@@ -646,10 +647,13 @@ export function QuizTaker({
   const effectiveLabel = assessmentContext?.label || "Quiz"
 
   const parsedSectionConfig = useMemo(() => {
-    const parsed = parseAssessmentSectionConfig(quiz?.section_config)
+    const parsed = coerceExamWideSectionConfig(
+      parseAssessmentSectionConfig(quiz?.section_config),
+      effectiveType,
+    )
     parsedSectionConfigRef.current = parsed
     return parsed
-  }, [quiz?.section_config])
+  }, [quiz?.section_config, effectiveType])
 
   const sections = useMemo((): QuestionSection[] => {
     if (!quiz?.questions?.length) {

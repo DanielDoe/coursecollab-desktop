@@ -76,7 +76,8 @@ import {
 } from "@/lib/assessment-sections"
 import {
   applyExamSharedTimerConfig,
-  DEFAULT_EXAM_SHARED_TIMER_SECONDS,
+  coerceExamWideSectionConfig,
+  defaultExamWideTimerSeconds,
   getExamSharedTimerSeconds,
 } from "@/lib/assessment-timer"
 import { SUPERPOWER_IDS, SUPERPOWER_CONFIG, type SuperpowerId } from "@/lib/superpowers-constants"
@@ -1037,7 +1038,7 @@ export function EditQuizForm({
             Math.abs(
               quizDataNow.section_config.reduce((s, x) => s + (Number(x.weight_percent) || 0), 0) - 100,
             ) < 0.01
-              ? quizDataNow.section_config
+              ? coerceExamWideSectionConfig(quizDataNow.section_config, assessmentType)
               : null,
           enable_superpowers: Boolean(quizDataNow.enable_superpowers),
           allowed_superpowers:
@@ -1313,8 +1314,8 @@ export function EditQuizForm({
                         Timing
                       </Label>
                       <p className="text-sm text-slate-600 dark:text-slate-300 rounded-lg border border-emerald-200/80 dark:border-emerald-800/50 bg-emerald-50/60 dark:bg-emerald-950/30 px-4 py-3 leading-snug">
-                        Homework is untimed — students work at their own pace for practice and learning.
-                        Use the Availability Schedule below to set when it opens and when it is due.
+                        Homework uses one countdown for the whole assignment. Set the total under Sections.
+                        Students decide how to spend that time. Availability still controls when it opens and when it is due.
                       </p>
                     </>
                   ) : (
@@ -1341,9 +1342,7 @@ export function EditQuizForm({
                         </span>
                       </div>
                       <p className={eHint}>
-                        {getExamSharedTimerSeconds(quizData.section_config) != null
-                          ? "Exam-wide timer is set under Sections — this default applies only when sections use per-question mode."
-                          : "Override per question in Time Settings tab"}
+                        Students share one clock for the whole assessment. Set that total under Sections. This per-question default is not the sitting timer.
                       </p>
                     </>
                   )}
@@ -2331,13 +2330,14 @@ export function EditQuizForm({
                             ...quizData,
                             section_config:
                               quizData.section_config.length > 0
-                                ? quizData.section_config
-                                : assessmentType === "final"
-                                  ? applyExamSharedTimerConfig(
-                                      DEFAULT_FINAL_SECTION_CONFIG,
-                                      DEFAULT_EXAM_SHARED_TIMER_SECONDS,
-                                    )
-                                  : [...DEFAULT_SECTION_CONFIG],
+                                ? coerceExamWideSectionConfig(quizData.section_config, assessmentType) ??
+                                  quizData.section_config
+                                : applyExamSharedTimerConfig(
+                                    assessmentType === "final"
+                                      ? DEFAULT_FINAL_SECTION_CONFIG
+                                      : [...DEFAULT_SECTION_CONFIG],
+                                    defaultExamWideTimerSeconds(assessmentType),
+                                  ),
                           })
                         } else {
                           setQuizData({ ...quizData, section_config: [] })
@@ -2352,6 +2352,7 @@ export function EditQuizForm({
                 <CardContent className="pt-0 space-y-4">
                   <SectionConfigEditor
                     sections={quizData.section_config}
+                    assessmentType={assessmentType}
                     onChange={(sections) => setQuizData({ ...quizData, section_config: sections })}
                     disabled={saving}
                   />
@@ -2435,23 +2436,17 @@ export function EditQuizForm({
                               : "text-sm text-orange-700 dark:text-orange-300 mt-1"
                           }
                         >
-                          {getExamSharedTimerSeconds(quizData.section_config) != null ? (
-                            <>
-                              Entire assessment uses one shared pool of{" "}
-                              <span className="font-semibold">
-                                {Math.round((getExamSharedTimerSeconds(quizData.section_config) ?? 0) / 60)} minutes
-                              </span>
-                              . Per-question overrides below are ignored while exam-wide timing is on (change it under Sections).
-                            </>
-                          ) : (
-                            <>
-                              Default time:{" "}
-                              <span className="font-semibold">
-                                {Number.isFinite(Number(quizData.time_per_question)) ? quizData.time_per_question : 60} seconds
-                              </span>{" "}
-                              per question. Override individual questions below or leave empty to use default.
-                            </>
-                          )}
+                          <>
+                            Entire assessment uses one shared pool of{" "}
+                            <span className="font-semibold">
+                              {Math.round(
+                                (getExamSharedTimerSeconds(quizData.section_config) ??
+                                  defaultExamWideTimerSeconds(assessmentType)) / 60,
+                              )}{" "}
+                              minutes
+                            </span>
+                            . Students manage that time themselves. Change the total under Sections. Per-question limits below are not the sitting clock.
+                          </>
                         </p>
                       </div>
                     </div>

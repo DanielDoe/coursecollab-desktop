@@ -8,6 +8,9 @@ import { cn } from "@/lib/utils"
 
 export const CODEBENCH_LIBRARY_PAGE_SIZE = 8
 export const CODEBENCH_LIVE_PAGE_SIZE = 6
+export const CODEBENCH_CHALLENGES_PAGE_SIZE = 6
+export const CODEBENCH_ACTIVITY_PAGE_SIZE = 10
+export const CODEBENCH_INSIGHTS_PAGE_SIZE = 8
 
 export function paginateCodebenchList<T>(rows: T[], page: number, pageSize: number) {
   const total = rows.length

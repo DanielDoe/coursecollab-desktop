@@ -36,6 +36,7 @@ function emptySummary(students: LiveClassroomStudentRow[]) {
     needsHelp: students.filter((s) => s.status === "needs_help").length,
     submitted: students.filter((s) => s.status === "submitted").length,
     approved: students.filter((s) => s.status === "approved").length,
+    joined: students.filter((s) => s.status === "joined").length,
     notStarted: students.filter((s) => s.status === "not_started").length,
     review: students.filter((s) => s.status === "review").length,
   }

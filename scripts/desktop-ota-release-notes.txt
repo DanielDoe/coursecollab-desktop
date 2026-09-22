@@ -1,6 +1,5 @@
-- Windows: restore the CourseCollab app and tray icons (taskbar, shortcuts, and notification area).
-- Practice Hub: already-answered questions stay locked with prior/correct review; topic progress counts unique questions, not retries.
-- Practice Hub: a fully practiced topic opens as Review instead of blocking.
-- Instructor CodeBench: topic filters, grouping, and pagination on Code Library and Live Classroom.
-- Live Classroom: joined students stay on the roster; typing no longer jumps the caret or gets overwritten by a stale snapshot.
-- Windows: desktop and Start Menu shortcuts point at CourseCollab.exe in the install folder.
+- Quizzes, homework, midterms, and finals use one countdown for the whole assessment. Students manage that time themselves.
+- Instructor CodeBench: the live roster updates when someone joins, leaves, finishes, or is marked correct. Typing no longer reshuffles the list.
+- Joined students show a gold badge, separate from correct and approved.
+- Challenges, Student Activity, and Insights use the same page controls as Live Classroom.
+- Updates: an installing screen stays up, then CourseCollab restarts when the update is in place. macOS no longer quits before the new version is installed.

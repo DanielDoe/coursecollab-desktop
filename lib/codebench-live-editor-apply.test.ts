@@ -29,9 +29,10 @@ function fakeEditor(initial: string, position = { lineNumber: 2, column: 4 }) {
     executeEdits: (
       _source: string,
       edits: Array<{ range: unknown; text: string; forceMoveMarkers?: boolean }>,
+      endCursorState?: unknown,
     ) => {
       value = edits[0]?.text ?? value
-      if (edits[0]?.forceMoveMarkers) {
+      if (!endCursorState) {
         const nextLines = value.split("\n")
         caret = {
           lineNumber: Math.max(1, nextLines.length),
@@ -40,6 +41,14 @@ function fakeEditor(initial: string, position = { lineNumber: 2, column: 4 }) {
       }
       return true
     },
+    getSelections: () => [
+      {
+        startLineNumber: caret.lineNumber,
+        startColumn: caret.column,
+        endLineNumber: caret.lineNumber,
+        endColumn: caret.column,
+      },
+    ],
     getPosition: () => caret,
     setPosition: (next: { lineNumber: number; column: number }) => {
       caret = { ...next }

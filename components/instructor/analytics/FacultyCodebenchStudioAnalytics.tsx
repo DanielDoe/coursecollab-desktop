@@ -1,6 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import { AlertTriangle, Code2, Loader2, RefreshCw, Sparkles, Users } from "lucide-react"
+import {
+  CODEBENCH_INSIGHTS_PAGE_SIZE,
+  CodebenchListPagination,
+  paginateCodebenchList,
+} from "@/components/instructor/codebench/CodebenchListPagination"
 import { DashboardKpiCard } from "@/components/dashboard-v2/DashboardKpiCard"
 import { Button } from "@/components/ui/button"
 import { useInstructorCodebenchStudioAnalytics } from "@/hooks/use-instructor-codebench-studio-analytics"
@@ -11,6 +17,10 @@ import { cn } from "@/lib/utils"
 export function FacultyCodebenchStudioAnalytics() {
   const chrome = facultyEmbedChrome("codebench")
   const { data, loading, error, reload } = useInstructorCodebenchStudioAnalytics()
+  const [faultPage, setFaultPage] = useState(1)
+  const [studentPage, setStudentPage] = useState(1)
+  const faultPaging = paginateCodebenchList(data.families, faultPage, CODEBENCH_INSIGHTS_PAGE_SIZE)
+  const studentPaging = paginateCodebenchList(data.students, studentPage, CODEBENCH_INSIGHTS_PAGE_SIZE)
 
   if (loading) {
     return (
@@ -104,17 +114,25 @@ export function FacultyCodebenchStudioAnalytics() {
             No compile faults recorded yet. They appear after students press Run in CodeBench.
           </p>
         ) : (
-          <ul className="space-y-2">
-            {data.families.map((item) => (
-              <li key={item.family} className="rounded-lg border border-[var(--border)] px-3 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className={cn("text-sm font-semibold", PORTAL_TEXT)}>{item.label}</span>
-                  <span className="text-xs font-semibold text-[var(--cc-accent)]">×{item.count}</span>
-                </div>
-                <p className={cn("mt-0.5 text-xs", PORTAL_TEXT_MUTED)}>{item.tip}</p>
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-3">
+            <ul className="space-y-2">
+              {faultPaging.rows.map((item) => (
+                <li key={item.family} className="rounded-lg border border-[var(--border)] px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={cn("text-sm font-semibold", PORTAL_TEXT)}>{item.label}</span>
+                    <span className="text-xs font-semibold text-[var(--cc-accent)]">×{item.count}</span>
+                  </div>
+                  <p className={cn("mt-0.5 text-xs", PORTAL_TEXT_MUTED)}>{item.tip}</p>
+                </li>
+              ))}
+            </ul>
+            <CodebenchListPagination
+              page={faultPaging.page}
+              pageSize={CODEBENCH_INSIGHTS_PAGE_SIZE}
+              totalItems={faultPaging.total}
+              onPageChange={setFaultPage}
+            />
+          </div>
         )}
       </section>
 
@@ -139,7 +157,7 @@ export function FacultyCodebenchStudioAnalytics() {
         <section className={cn(chrome.card, "space-y-3 p-4 sm:p-5")}>
           <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>Students who need a compile huddle</h3>
           <ul className="space-y-1.5">
-            {data.students.map((student) => (
+            {studentPaging.rows.map((student) => (
               <li key={student.id} className="flex items-center justify-between gap-3 rounded-lg px-1 py-1.5">
                 <div className="min-w-0">
                   <p className={cn("truncate text-sm font-medium", PORTAL_TEXT)}>{student.name}</p>
@@ -153,6 +171,12 @@ export function FacultyCodebenchStudioAnalytics() {
               </li>
             ))}
           </ul>
+          <CodebenchListPagination
+            page={studentPaging.page}
+            pageSize={CODEBENCH_INSIGHTS_PAGE_SIZE}
+            totalItems={studentPaging.total}
+            onPageChange={setStudentPage}
+          />
         </section>
       ) : null}
     </div>

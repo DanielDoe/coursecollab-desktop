@@ -76,6 +76,8 @@ export async function listOpenLiveClassroomSessions(
   },
 ): Promise<OpenLiveClassroomSession[]> {
   await ensureCodebenchLiveSessionsSchema()
+  // `sql` is not a composable fragment. An empty `sql``` becomes a bound $n
+  // and Postgres rejects the student list (`syntax error at or near "$2"`).
   const sessionClause =
     enrollmentScope != null
       ? sqlSubmissionEnrollmentSessionFilter({
@@ -83,7 +85,7 @@ export async function listOpenLiveClassroomSessions(
           sessionId: enrollmentScope.sessionId,
           sessionCode: enrollmentScope.sessionCode,
         })
-      : sql``
+      : sql.unsafe("")
   const rows = await sql`
     SELECT
       ls.id,

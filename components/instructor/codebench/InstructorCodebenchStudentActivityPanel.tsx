@@ -22,7 +22,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { FacultyIntegratedToolbar } from "@/components/instructor/dashboard-v2/FacultyIntegratedToolbar"
-import { FacultySidebarPagination } from "@/components/instructor/dashboard-v2/FacultyContentNavigator"
+import {
+  CODEBENCH_ACTIVITY_PAGE_SIZE,
+  CodebenchListPagination,
+  paginateCodebenchList,
+} from "@/components/instructor/codebench/CodebenchListPagination"
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 import { instructorApiFetch, readInstructorApiJson } from "@/lib/instructor-api-headers"
 import type {
@@ -34,9 +38,10 @@ import { studioToolLabel } from "@/lib/codebench-studio-analytics"
 import { PORTAL_CARD, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
 import { cn } from "@/lib/utils"
 import { useInstructorScopeKey } from "@/hooks/use-instructor-scope-key"
+import { InstructorLiveClassroomDebugLog } from "@/components/instructor/codebench/InstructorLiveClassroomDebugLog"
 import { toast } from "@/lib/app-toast"
 
-const STUDENTS_PER_PAGE = 20
+const RECENT_PER_PAGE = 8
 const CLASSROOM_POINTS_HREF = "/faculty/dashboard/assessments/classroom-points"
 
 function formatWhen(value: string | null): string {
@@ -76,6 +81,8 @@ export function InstructorCodebenchStudentActivityPanel() {
   const [filter, setFilter] = useState<"all" | "active" | "not_started">("all")
   const [windowDays, setWindowDays] = useState("30")
   const [studentsPage, setStudentsPage] = useState(1)
+  const [recentPage, setRecentPage] = useState(1)
+  const [helpPage, setHelpPage] = useState(1)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -117,19 +124,17 @@ export function InstructorCodebenchStudentActivityPanel() {
     })
   }, [filter, payload?.students, search])
 
-  const totalStudentsPages = Math.max(1, Math.ceil(rows.length / STUDENTS_PER_PAGE))
-  const paginatedRows = useMemo(() => {
-    const start = (studentsPage - 1) * STUDENTS_PER_PAGE
-    return rows.slice(start, start + STUDENTS_PER_PAGE)
-  }, [rows, studentsPage])
+  const studentPaging = paginateCodebenchList(rows, studentsPage, CODEBENCH_ACTIVITY_PAGE_SIZE)
+  const recentPaging = paginateCodebenchList(payload?.recent ?? [], recentPage, RECENT_PER_PAGE)
 
   useEffect(() => {
     setStudentsPage(1)
   }, [search, filter, windowDays])
 
   useEffect(() => {
-    if (studentsPage > totalStudentsPages) setStudentsPage(totalStudentsPages)
-  }, [studentsPage, totalStudentsPages])
+    setRecentPage(1)
+    setHelpPage(1)
+  }, [windowDays, payload?.recent.length])
 
   const needsHelp = useMemo(
     () =>
@@ -138,6 +143,7 @@ export function InstructorCodebenchStudentActivityPanel() {
       ),
     [payload?.students],
   )
+  const helpPaging = paginateCodebenchList(needsHelp, helpPage, RECENT_PER_PAGE)
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden pr-1 [scrollbar-gutter:stable] sm:pr-2">
@@ -185,6 +191,8 @@ export function InstructorCodebenchStudentActivityPanel() {
         ) : null}
       </div>
 
+      <InstructorLiveClassroomDebugLog />
+
       <div className="instructor-kpi-grid instructor-kpi-grid--five">
         {[
           { label: "Students", value: payload?.summary.totalStudents ?? 0, icon: Users },
@@ -210,7 +218,7 @@ export function InstructorCodebenchStudentActivityPanel() {
             <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>Students who may need help</h3>
           </div>
           <ul className="space-y-2">
-            {needsHelp.slice(0, 8).map((row) => (
+            {helpPaging.rows.map((row) => (
               <li
                 key={row.studentDbId}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border)] px-3 py-2"
@@ -228,6 +236,12 @@ export function InstructorCodebenchStudentActivityPanel() {
               </li>
             ))}
           </ul>
+          <CodebenchListPagination
+            page={helpPaging.page}
+            pageSize={RECENT_PER_PAGE}
+            totalItems={helpPaging.total}
+            onPageChange={setHelpPage}
+          />
         </section>
       ) : null}
 
@@ -242,8 +256,9 @@ export function InstructorCodebenchStudentActivityPanel() {
             No CodeBench events yet. Activity appears after students press Run, use Cora, or submit assignments.
           </p>
         ) : (
-          <ul className="max-h-[280px] space-y-2 overflow-y-auto pr-1">
-            {payload?.recent.map((item) => (
+          <>
+          <ul className="space-y-2">
+            {recentPaging.rows.map((item) => (
               <li
                 key={item.id}
                 className="flex min-w-0 items-start gap-3 rounded-lg border border-[var(--border)] px-3 py-2.5"
@@ -271,6 +286,14 @@ export function InstructorCodebenchStudentActivityPanel() {
               </li>
             ))}
           </ul>
+          <CodebenchListPagination
+            className="mt-3"
+            page={recentPaging.page}
+            pageSize={RECENT_PER_PAGE}
+            totalItems={recentPaging.total}
+            onPageChange={setRecentPage}
+          />
+          </>
         )}
       </section>
 
@@ -316,7 +339,7 @@ export function InstructorCodebenchStudentActivityPanel() {
         ) : (
           <>
             <div className="divide-y divide-[var(--border)] @[32rem]/student-activity-table:hidden">
-              {paginatedRows.map((row) => (
+              {studentPaging.rows.map((row) => (
                 <StudentActivityCard key={row.studentDbId} row={row} />
               ))}
             </div>
@@ -338,7 +361,7 @@ export function InstructorCodebenchStudentActivityPanel() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border)]">
-                  {paginatedRows.map((row) => (
+                  {studentPaging.rows.map((row) => (
                     <StudentActivityRow key={row.studentDbId} row={row} />
                   ))}
                 </tbody>
@@ -346,11 +369,10 @@ export function InstructorCodebenchStudentActivityPanel() {
             </div>
 
             <div className="px-4 pb-3">
-              <FacultySidebarPagination
-                page={studentsPage}
-                totalPages={totalStudentsPages}
-                totalItems={rows.length}
-                pageSize={STUDENTS_PER_PAGE}
+              <CodebenchListPagination
+                page={studentPaging.page}
+                pageSize={CODEBENCH_ACTIVITY_PAGE_SIZE}
+                totalItems={studentPaging.total}
                 onPageChange={setStudentsPage}
               />
             </div>

@@ -249,6 +249,13 @@ export default function CodeBenchPage({
       liveEditorOriginRef.current = "idle"
       return
     }
+    // A wholesale replace while the student is typing throws the caret to the
+    // end of the file. Instructor pushes go through applyInstructorCode instead.
+    try {
+      if (editorRef.hasTextFocus?.()) return
+    } catch {
+      return
+    }
     const current = readLiveEditorValue(editorRef, liveEditorCodeRef.current)
     if (current === code) return
     if (!shouldReplaceLiveEditorBuffer(current, code, languageId)) return

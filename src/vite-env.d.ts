@@ -110,6 +110,7 @@ interface DesktopUpdateStatus {
     | 'available'
     | 'not-available'
     | 'downloading'
+    | 'installing'
     | 'ready'
     | 'error'
   supported: boolean
@@ -118,6 +119,7 @@ interface DesktopUpdateStatus {
   releaseNotes?: string
   percent?: number
   message?: string
+  needsApplicationsFolder?: boolean
 }
 
 interface CourseCollabDesktopBridge {
@@ -135,6 +137,7 @@ interface CourseCollabDesktopBridge {
   checkForUpdates: () => Promise<DesktopUpdateStatus>
   downloadUpdate: () => Promise<DesktopUpdateStatus>
   installUpdate: () => Promise<DesktopUpdateStatus>
+  moveToApplicationsFolder: () => Promise<{ ok: boolean; message?: string }>
   openUpdateDownloadPage: () => Promise<{ ok: boolean }>
   onUpdateStatus: (handler: (status: DesktopUpdateStatus) => void) => () => void
   platform: NodeJS.Platform

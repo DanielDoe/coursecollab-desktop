@@ -10,6 +10,7 @@ export type DesktopUpdateState =
   | 'available'
   | 'not-available'
   | 'downloading'
+  | 'installing'
   | 'ready'
   | 'error'
 
@@ -21,6 +22,8 @@ export type DesktopUpdateStatus = {
   releaseNotes?: string
   percent?: number
   message?: string
+  /** macOS only: the running copy is outside /Applications, so Squirrel cannot persist an update. */
+  needsApplicationsFolder?: boolean
 }
 
 /** After the main window loads — early enough to prompt on launch, late enough for React to subscribe. */
@@ -64,6 +67,7 @@ function setStatus(patch: Partial<DesktopUpdateStatus>): DesktopUpdateStatus {
     ...patch,
     currentVersion: patch.currentVersion ?? status.currentVersion,
     supported: patch.supported ?? status.supported,
+    needsApplicationsFolder: patch.needsApplicationsFolder === true,
   }
   broadcastStatus()
   return status
@@ -163,7 +167,12 @@ async function checkForUpdates(userInitiated: boolean): Promise<DesktopUpdateSta
     })
   }
 
-  if (status.state === 'checking' || status.state === 'downloading' || installInFlight) {
+  if (
+    status.state === 'checking' ||
+    status.state === 'downloading' ||
+    status.state === 'installing' ||
+    installInFlight
+  ) {
     return status
   }
 
@@ -208,23 +217,31 @@ async function downloadUpdate(): Promise<DesktopUpdateStatus> {
     })
   }
 
-  if (status.state === 'ready') return status
+  if (status.state === 'ready' || status.state === 'installing') return status
   if (status.state === 'downloading' || installInFlight) return status
 
   setStatus({ state: 'downloading', percent: status.percent ?? 0, message: undefined })
 
   try {
     await autoUpdater.downloadUpdate()
-    // macOS needs Squirrel.Mac to finish fetching through the local proxy before state is "ready".
-    const settled = await waitForUpdateState(['ready', 'error'], 120_000)
-    return settled
+    // update-downloaded moves straight into installing and restarts the app.
+    return await waitForUpdateState(['installing', 'ready', 'error'], 120_000)
   } catch (error) {
     return applyUpdateFailure(error, 'download')
   }
 }
 
+function macAppIsOutsideApplications(): boolean {
+  if (process.platform !== 'darwin') return false
+  try {
+    return !app.isInApplicationsFolder()
+  } catch {
+    return false
+  }
+}
+
 function installUpdate(): DesktopUpdateStatus {
-  if (!status.supported || status.state !== 'ready') {
+  if (!status.supported || (status.state !== 'ready' && status.state !== 'installing')) {
     return setStatus({
       state: 'error',
       message: 'No downloaded update is ready to install yet.',
@@ -234,11 +251,24 @@ function installUpdate(): DesktopUpdateStatus {
 
   if (installInFlight) return status
 
+  if (macAppIsOutsideApplications()) {
+    return setStatus({
+      state: 'error',
+      version: status.version,
+      releaseNotes: status.releaseNotes,
+      needsApplicationsFolder: true,
+      message:
+        'CourseCollab is running outside the Applications folder, so macOS throws the update away and asks again. Move it to Applications, then install the update.',
+    })
+  }
+
   installInFlight = true
+  const versionLabel = status.version ?? 'the update'
   setStatus({
-    state: 'ready',
-    message: 'Restarting to install the update…',
+    state: 'installing',
+    message: `Installing version ${versionLabel}. CourseCollab will restart when it is in place.`,
     version: status.version,
+    releaseNotes: status.releaseNotes,
     percent: 100,
   })
   setAppQuitting(true)
@@ -252,8 +282,12 @@ function installUpdate(): DesktopUpdateStatus {
       return
     }
 
-    // macOS + tray apps can keep the process alive after quitAndInstall.
-    // autoInstallOnAppQuit is enabled, so a hard exit still applies the update.
+    // Squirrel.Mac serves the update from an in-process proxy, then quits and relaunches.
+    // app.exit() here kills that proxy before the new bundle is swapped in, so the old
+    // version comes back and the update prompt returns. Windows/Linux spawn a detached
+    // installer first; the fallback exit only unsticks a tray that ignored quit.
+    if (process.platform === 'darwin') return
+
     setTimeout(() => {
       if (!installInFlight) return
       try {
@@ -265,6 +299,22 @@ function installUpdate(): DesktopUpdateStatus {
   })
 
   return status
+}
+
+function moveMacAppToApplications(): { ok: boolean; message?: string } {
+  if (process.platform !== 'darwin') {
+    return { ok: false, message: 'Moving into Applications is only needed on macOS.' }
+  }
+  try {
+    const started = app.moveToApplicationsFolder({
+      conflictHandler: () => true,
+    })
+    return started
+      ? { ok: true }
+      : { ok: false, message: 'Could not move CourseCollab into Applications.' }
+  } catch (error) {
+    return { ok: false, message: errorText(error) }
+  }
 }
 
 async function openManualDownloadPage(): Promise<{ ok: boolean }> {
@@ -292,6 +342,10 @@ export function requestInstallDownloadedUpdate(): DesktopUpdateStatus {
   return installUpdate()
 }
 
+export function requestMoveToApplicationsFolder(): { ok: boolean; message?: string } {
+  return moveMacAppToApplications()
+}
+
 export function registerUpdater(): void {
   status = {
     state: 'idle',
@@ -303,20 +357,22 @@ export function registerUpdater(): void {
   ipcMain.handle('update:check', () => checkForUpdates(true))
   ipcMain.handle('update:download', () => downloadUpdate())
   ipcMain.handle('update:install', () => installUpdate())
+  ipcMain.handle('update:move-to-applications', () => moveMacAppToApplications())
   ipcMain.handle('update:open-download-page', () => openManualDownloadPage())
 
   if (!app.isPackaged) return
 
   configureFeed()
   autoUpdater.autoDownload = false
-  /** Never apply a downloaded update on quit — unsigned macOS Squirrel updates can remove the app if install fails. */
+  autoUpdater.autoRunAppAfterInstall = true
+  /** Apply only from the installing screen. A quit-time install on macOS can remove the app if Squirrel fails. */
   autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.allowDowngrade = false
 
   autoUpdater.on('checking-for-update', () => {
     if (installInFlight) return
     // Never wipe a downloaded update or an in-flight download with a fresh "checking" state.
-    if (status.state === 'ready' || status.state === 'downloading') return
+    if (status.state === 'ready' || status.state === 'downloading' || status.state === 'installing') return
     setStatus({ state: 'checking', message: undefined })
   })
 
@@ -324,6 +380,7 @@ export function registerUpdater(): void {
     if (installInFlight) return
     // Keep Install ready if this version is already downloaded.
     if (status.state === 'ready' && status.version === info.version) return
+    if (status.state === 'installing') return
     if (status.state === 'downloading' && status.version === info.version) return
     const alreadyKnown = status.state === 'available' && status.version === info.version
     setStatus({
@@ -354,19 +411,20 @@ export function registerUpdater(): void {
   })
 
   autoUpdater.on('update-downloaded', (info) => {
-    installInFlight = false
+    if (installInFlight) return
     setStatus({
       state: 'ready',
       version: info.version,
       releaseNotes: releaseNotesText(info.releaseNotes),
       percent: 100,
-      message: `Version ${info.version} is ready to install.`,
+      message: `Installing version ${info.version}. CourseCollab will restart when it is in place.`,
     })
+    installUpdate()
   })
 
   autoUpdater.on('error', (error) => {
     const context =
-      installInFlight || status.state === 'ready'
+      installInFlight || status.state === 'ready' || status.state === 'installing'
         ? 'install'
         : status.state === 'downloading'
           ? 'download'

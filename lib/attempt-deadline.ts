@@ -14,7 +14,9 @@
 
 import { groupQuestionsBySections, parseAssessmentSectionConfig, type SectionConfig } from "@/lib/assessment-sections"
 import {
+  defaultExamWideTimerSeconds,
   getExamSharedTimerSeconds,
+  isExamWideAssessmentType,
   isUntimedAssessmentType,
   resolveQuestionTimeLimitSeconds,
   resolveSectionTotalTimeSeconds,
@@ -50,12 +52,19 @@ export function computeAttemptDeadlineSeconds(input: {
 }): number | null {
   const { questions, assessmentType } = input
   if (!questions.length) return null
-  if (isUntimedAssessmentType(assessmentType)) return null
   const normalized = String(assessmentType ?? "").trim().toLowerCase()
   if (normalized === "practice" || normalized === "points" || normalized === "") return null
 
   const parsed = parseAssessmentSectionConfig(input.sectionConfigRaw as SectionConfig[] | null | undefined)
   const extraPerQuestion = Math.max(0, Number(input.extraTimePerQuestion) || 0)
+
+  if (isExamWideAssessmentType(assessmentType)) {
+    const examWide = getExamSharedTimerSeconds(parsed) ?? defaultExamWideTimerSeconds(assessmentType)
+    if (!(examWide > 0)) return null
+    return withBuffer(examWide + extraPerQuestion * questions.length)
+  }
+
+  if (isUntimedAssessmentType(assessmentType)) return null
 
   // Exam-shared pool: one clock for the whole sitting.
   const examShared = getExamSharedTimerSeconds(parsed)

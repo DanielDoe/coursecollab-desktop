@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { ClipboardList, X } from "lucide-react"
 import type { AssessmentPolicy } from "@/lib/assessment-policy-settings"
-import { formatTimerMmSs } from "@/lib/assessment-timer"
 import { useDismissibleBanner } from "@/lib/use-dismissible-banner"
 import { cn } from "@/lib/utils"
 
@@ -29,10 +28,6 @@ export function CourseAssessmentDefaultsBanner({
 
   if (!policy || !visible) return null
 
-  const t = policy.timer
-  const s = policy.sections
-  const circuitPool = formatTimerMmSs(t.hybrid_circuit_section_pooled_seconds)
-
   return (
     <div
       className={cn(
@@ -46,10 +41,8 @@ export function CourseAssessmentDefaultsBanner({
             Course assessment defaults apply where this assessment does not override
           </p>
           <p className="mt-1.5 text-xs leading-relaxed text-[var(--cc-text-secondary)]">
-            MCQ {t.objective_mcq_seconds}s · True/False {t.objective_true_false_seconds}s · Select All{" "}
-            {t.objective_select_all_seconds}s · Hybrid Section II {circuitPool} · Circuit-only pool{" "}
-            {formatTimerMmSs(t.circuit_only_seconds_per_question)} · Objective backtracking{" "}
-            {s.objective_allow_backtracking ? "on" : "off"}
+            Quizzes, homework, mid-semester exams, and finals use one countdown for the whole assessment.
+            Set that total on the Sections tab. Students manage the time themselves.
           </p>
           <Link
             href={adminHref}

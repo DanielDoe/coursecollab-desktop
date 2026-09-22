@@ -10,6 +10,7 @@ import {
   desktopUpdateFeedback,
   getDesktopUpdateStatus,
   isDesktopUpdateInstallFailure,
+  moveDesktopAppToApplications,
   normalizeDesktopUpdateStatus,
   openDesktopUpdateDownloadPage,
   runDesktopUpdateAction,
@@ -52,6 +53,7 @@ export function CheckForUpdatesButton({ collapsed, variant = "nav" }: CheckForUp
 
   useEffect(() => {
     // Keep install failures visible — don't silently bounce back to "Update".
+    if (status.needsApplicationsFolder) return
     if (status.state === "error" && isDesktopUpdateInstallFailure(status)) return
     if (status.state !== "not-available" && status.state !== "error") return
     const timer = window.setTimeout(() => {
@@ -65,7 +67,22 @@ export function CheckForUpdatesButton({ collapsed, variant = "nav" }: CheckForUp
   }, [status])
 
   const onClick = useCallback(() => {
-    if (status.state === "checking" || status.state === "downloading") return
+    if (status.state === "checking" || status.state === "downloading" || status.state === "installing") {
+      return
+    }
+
+    if (status.needsApplicationsFolder) {
+      void moveDesktopAppToApplications().then((result) => {
+        toast({
+          title: result.ok ? "Moving to Applications" : "Could not move the app",
+          description: result.ok
+            ? "CourseCollab will relaunch from Applications. Install the update again from there."
+            : (result.message ?? "Move CourseCollab into Applications, then install the update."),
+          variant: result.ok ? "default" : "destructive",
+        })
+      })
+      return
+    }
 
     // Install failures: open the manual installer instead of re-entering the Get→Install loop.
     if (status.state === "error" && isDesktopUpdateInstallFailure(status)) {
@@ -108,7 +125,7 @@ export function CheckForUpdatesButton({ collapsed, variant = "nav" }: CheckForUp
 
   const label = desktopUpdateButtonLabel(status)
   const feedback = desktopUpdateFeedback(status)
-  const busy = status.state === "checking" || status.state === "downloading"
+  const busy = status.state === "checking" || status.state === "downloading" || status.state === "installing"
   const highlight = status.state === "available" || status.state === "ready"
   const failed = status.state === "error"
   const current = status.state === "not-available"
@@ -126,6 +143,8 @@ export function CheckForUpdatesButton({ collapsed, variant = "nav" }: CheckForUp
       ? "…"
       : status.state === "downloading"
         ? `${status.percent ?? 0}%`
+        : status.state === "installing"
+          ? "…"
         : status.state === "ready"
           ? "Install"
           : status.state === "available"

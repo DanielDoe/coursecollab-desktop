@@ -49,6 +49,8 @@ contextBridge.exposeInMainWorld('courseCollabDesktop', {
   checkForUpdates: () => ipcRenderer.invoke('update:check') as Promise<DesktopUpdateStatus>,
   downloadUpdate: () => ipcRenderer.invoke('update:download') as Promise<DesktopUpdateStatus>,
   installUpdate: () => ipcRenderer.invoke('update:install') as Promise<DesktopUpdateStatus>,
+  moveToApplicationsFolder: () =>
+    ipcRenderer.invoke('update:move-to-applications') as Promise<{ ok: boolean; message?: string }>,
   openUpdateDownloadPage: () =>
     ipcRenderer.invoke('update:open-download-page') as Promise<{ ok: boolean }>,
   onUpdateStatus: (handler: (status: DesktopUpdateStatus) => void) => {

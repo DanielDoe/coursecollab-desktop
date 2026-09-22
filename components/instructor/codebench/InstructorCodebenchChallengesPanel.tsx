@@ -39,6 +39,11 @@ import { CLASSROOM_SUBMISSION_KIND_CODE } from "@/lib/classroom-solution-submiss
 import { buildInstructorAuthorizedApiHeaders, instructorApiFetch } from "@/lib/instructor-api-headers"
 import { studentApiFetch } from "@/lib/auth"
 import { InstructorClassroomAssignmentActions } from "@/components/instructor/InstructorClassroomAssignmentActions"
+import {
+  CODEBENCH_CHALLENGES_PAGE_SIZE,
+  CodebenchListPagination,
+  paginateCodebenchList,
+} from "@/components/instructor/codebench/CodebenchListPagination"
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
 import { PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
 import { cn } from "@/lib/utils"
@@ -172,6 +177,7 @@ export function InstructorCodebenchChallengesPanel({ onOpenClassroomInIde, onOpe
     submissionKind: CLASSROOM_SUBMISSION_KIND_CODE,
     neverExpires: true,
   }))
+  const [listPage, setListPage] = useState(1)
 
   const { submissions, loading, error, reload } = useInstructorClassroomAssignments(sessionFilter)
   const libraryDrafts = useMemo(
@@ -190,6 +196,12 @@ export function InstructorCodebenchChallengesPanel({ onOpenClassroomInIde, onOpe
       ),
     [submissions],
   )
+
+  const challengePaging = paginateCodebenchList(codeChallenges, listPage, CODEBENCH_CHALLENGES_PAGE_SIZE)
+
+  useEffect(() => {
+    setListPage(1)
+  }, [sessionFilter, submissions.length])
 
   const sessionOptions = useMemo(() => {
     const set = new Set<string>(["all"])
@@ -422,16 +434,24 @@ export function InstructorCodebenchChallengesPanel({ onOpenClassroomInIde, onOpe
             </Button>
           </div>
         ) : (
-          <div className="instructor-challenges-grid grid grid-cols-1 gap-4">
-            {codeChallenges.map((row) => (
-              <ChallengeCard
-                key={row.id}
-                row={row}
-                onOpen={onOpenClassroomInIde}
-                sessions={sessions.length > 0 ? sessions : sessionOptions}
-                onMutated={() => void reload()}
-              />
-            ))}
+          <div className="space-y-3">
+            <div className="instructor-challenges-grid grid grid-cols-1 gap-4">
+              {challengePaging.rows.map((row) => (
+                <ChallengeCard
+                  key={row.id}
+                  row={row}
+                  onOpen={onOpenClassroomInIde}
+                  sessions={sessions.length > 0 ? sessions : sessionOptions}
+                  onMutated={() => void reload()}
+                />
+              ))}
+            </div>
+            <CodebenchListPagination
+              page={challengePaging.page}
+              pageSize={CODEBENCH_CHALLENGES_PAGE_SIZE}
+              totalItems={challengePaging.total}
+              onPageChange={setListPage}
+            />
           </div>
         )}
       </section>

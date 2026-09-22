@@ -6,6 +6,7 @@ export type DesktopUpdateState =
   | "available"
   | "not-available"
   | "downloading"
+  | "installing"
   | "ready"
   | "error"
 
@@ -17,6 +18,7 @@ export type DesktopUpdateStatus = {
   releaseNotes?: string
   percent?: number
   message?: string
+  needsApplicationsFolder?: boolean
 }
 
 const WEB_STATUS: DesktopUpdateStatus = {
@@ -88,6 +90,14 @@ export async function installDesktopUpdate(): Promise<DesktopUpdateStatus> {
   return window.courseCollabDesktop.installUpdate()
 }
 
+export async function moveDesktopAppToApplications(): Promise<{ ok: boolean; message?: string }> {
+  const move = window.courseCollabDesktop?.moveToApplicationsFolder
+  if (!move) {
+    return { ok: false, message: "Move to Applications is only available in the desktop app." }
+  }
+  return move()
+}
+
 export async function openDesktopUpdateDownloadPage(): Promise<boolean> {
   if (!canUseDesktopUpdates() || !window.courseCollabDesktop?.openUpdateDownloadPage) {
     if (typeof window !== "undefined") {
@@ -103,7 +113,7 @@ export async function openDesktopUpdateDownloadPage(): Promise<boolean> {
 }
 
 export function isDesktopUpdateInstallFailure(status: DesktopUpdateStatus): boolean {
-  if (status.state !== "error") return false
+  if (status.state !== "error" || status.needsApplicationsFolder) return false
   const message = status.message ?? ""
   return /install|Applications|GitHub Releases|signature|Restarting/i.test(message)
 }
@@ -125,6 +135,8 @@ export function desktopUpdateButtonLabel(status: DesktopUpdateStatus): string {
       return "Update available"
     case "downloading":
       return status.percent != null ? `Downloading… ${status.percent}%` : "Downloading…"
+    case "installing":
+      return "Installing…"
     case "ready":
       return "Restart to update"
     case "not-available":
@@ -180,6 +192,12 @@ export function desktopUpdateFeedback(status: DesktopUpdateStatus): {
         title: "Downloading update",
         description: status.percent != null ? `${status.percent}% complete` : "The update is downloading.",
       }
+    case "installing":
+      return {
+        title: "Installing update",
+        description:
+          status.message ?? "CourseCollab will restart when the update is in place.",
+      }
     case "ready":
       return {
         title: "Update ready",
@@ -211,7 +229,14 @@ export function normalizeDesktopUpdateStatus(status: DesktopUpdateStatus): Deskt
         : "You're on the latest version.",
     }
   }
-  if (status.supported || status.state === "checking" || status.state === "downloading") return status
+  if (
+    status.supported ||
+    status.state === "checking" ||
+    status.state === "downloading" ||
+    status.state === "installing"
+  ) {
+    return status
+  }
   if (status.state === "error") {
     return {
       ...status,
@@ -241,13 +266,18 @@ export function desktopUpdateAriaLabel(status: DesktopUpdateStatus): string {
   if (status.state === "downloading") {
     return status.percent != null ? `Downloading update ${status.percent} percent` : "Downloading update"
   }
+  if (status.state === "installing") {
+    return "Installing update. CourseCollab will restart when it is in place."
+  }
   return desktopUpdateButtonLabel(status)
 }
 
 export async function runDesktopUpdateAction(
   status: DesktopUpdateStatus,
 ): Promise<DesktopUpdateStatus> {
-  if (status.state === "checking" || status.state === "downloading") return status
+  if (status.state === "checking" || status.state === "downloading" || status.state === "installing") {
+    return status
+  }
   if (status.state === "ready") return installDesktopUpdate()
   if (status.state === "available") return downloadDesktopUpdate()
   return checkForDesktopUpdate()
