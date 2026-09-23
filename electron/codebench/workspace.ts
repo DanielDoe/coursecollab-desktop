@@ -28,10 +28,30 @@ export function getExecutablePath(sessionDir: string): string {
   return join(sessionDir, getExecutableName())
 }
 
+const LIVE_FLUSH_HEADER = `#include <iostream>
+namespace {
+struct CcLiveUnitbuf {
+  CcLiveUnitbuf() {
+    std::cout << std::unitbuf;
+    std::cerr << std::unitbuf;
+  }
+};
+const CcLiveUnitbuf ccLiveUnitbuf;
+}
+`
+
+export const LIVE_FLUSH_HEADER_NAME = 'cc-live-flush.h'
+
+/** Every compile uses `-include cc-live-flush.h`. The file has to be in the workspace or the compiler looks missing. */
+export async function writeLiveFlushHeader(dir: string): Promise<void> {
+  await writeFile(join(dir, LIVE_FLUSH_HEADER_NAME), LIVE_FLUSH_HEADER, { encoding: 'utf8', mode: 0o600 })
+}
+
 export async function createSessionWorkspace(sessionId: string, sourceCode: string): Promise<string> {
   const dir = getSessionDir(sessionId)
   await mkdir(dir, { recursive: true, mode: 0o700 })
   await writeFile(getSourcePath(dir), sourceCode, { encoding: 'utf8', mode: 0o600 })
+  await writeLiveFlushHeader(dir)
   return dir
 }
 

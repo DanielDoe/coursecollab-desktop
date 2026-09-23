@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { detectCppCompiler } from './compilerDetector'
+import { CODEBENCH_LIMITS } from './limits'
 import { installPortableToolchainOnce, isManagedToolchainInstalled } from './toolchain-install'
 import { portableToolchainForHost } from './toolchain-manifest'
 import { emitToolchainProgress } from './toolchain-progress'
@@ -51,7 +52,11 @@ async function acceptVerifiedCompiler(found: CompilerInfo): Promise<CompilerInfo
   return withInstallFlag(found, { canInstall: false })
 }
 
-async function verifyOrUseCache(found: CompilerInfo, emitSearching: boolean): Promise<CompilerInfo | 'retry-install'> {
+async function verifyOrUseCache(
+  found: CompilerInfo,
+  emitSearching: boolean,
+  timeoutMs: number,
+): Promise<CompilerInfo | 'retry-install'> {
   if (await isToolchainVerifyCacheValid(found)) {
     emitToolchainProgress({ phase: 'ready', message: 'C++ compiler ready.', percent: 100 })
     return withInstallFlag(found, { canInstall: false })
@@ -59,7 +64,7 @@ async function verifyOrUseCache(found: CompilerInfo, emitSearching: boolean): Pr
   if (emitSearching) {
     emitToolchainProgress({ phase: 'verifying', message: 'Verifying the C++ compiler…', percent: 100 })
   }
-  const ok = await verifyCppToolchain(found)
+  const ok = await verifyCppToolchain(found, timeoutMs)
   if (ok) {
     return acceptVerifiedCompiler(found)
   }
@@ -78,6 +83,7 @@ export async function ensureCppToolchain(options?: {
       emitToolchainProgress({ phase: 'searching', message: 'Looking for a C++ compiler…' })
     }
     let found = await detectCppCompiler()
+    let replaceManaged = false
 
     if (found.available && isStaleManagedCompiler(found)) {
       found = {
@@ -90,18 +96,16 @@ export async function ensureCppToolchain(options?: {
       }
     }
 
-    if (found.available) {
-      const verified = await verifyOrUseCache(found, emitSearching)
-      if (verified !== 'retry-install') {
-        return verified
-      }
-      if (found.source !== 'app-managed') {
-        return withInstallFlag({
-          ...found,
-          available: false,
-          setupGuidance: 'A C++ compiler was found but could not compile a test program.',
-        })
-      }
+    if (found.available && found.source !== 'app-managed' && found.source !== 'bundled') {
+      const verified = await verifyOrUseCache(found, emitSearching, CODEBENCH_LIMITS.systemVerifyTimeoutMs)
+      if (verified !== 'retry-install') return verified
+      found = await detectCppCompiler({ scope: 'managed' })
+    }
+
+    if (found.available && (found.source === 'app-managed' || found.source === 'bundled')) {
+      const verified = await verifyOrUseCache(found, emitSearching, CODEBENCH_LIMITS.verifyCompileTimeoutMs)
+      if (verified !== 'retry-install') return verified
+      if (found.source === 'app-managed') replaceManaged = true
     }
 
     if (options?.installIfMissing === false || process.env.CODEBENCH_SKIP_TOOLCHAIN_INSTALL === '1') {
@@ -119,13 +123,13 @@ export async function ensureCppToolchain(options?: {
 
     offerMacCommandLineTools()
     try {
-      await installPortableToolchainOnce()
+      await installPortableToolchainOnce({ replace: replaceManaged })
       emitToolchainProgress({ phase: 'verifying', message: 'Checking the C++ compiler…', percent: 100 })
       const installed = await detectCppCompiler()
       if (!installed.available) {
         throw new Error('The C++ compiler was downloaded but could not be verified.')
       }
-      const afterInstall = await verifyOrUseCache(installed, true)
+      const afterInstall = await verifyOrUseCache(installed, true, CODEBENCH_LIMITS.verifyCompileTimeoutMs)
       if (afterInstall === 'retry-install') {
         throw new Error('The C++ compiler was installed but failed a test compile.')
       }

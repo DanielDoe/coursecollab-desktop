@@ -279,11 +279,13 @@ async function firstUsable(candidates: { family: CompilerFamily; path: string }[
   return null
 }
 
-export async function detectCppCompiler(): Promise<CompilerInfo> {
+export async function detectCppCompiler(options?: { scope?: 'all' | 'managed' }): Promise<CompilerInfo> {
+  const scope = options?.scope ?? 'all'
+  const managed = await firstUsable(collectManagedPortable())
+  if (scope === 'managed') return managed ?? emptyInfo()
+  if (managed && (managed.source === 'app-managed' || managed.source === 'bundled')) return managed
   const system = await firstUsable(collectSystemCandidates())
   if (system) return system
-  const managed = await firstUsable(collectManagedPortable())
-  if (managed) return managed
   const pathZig = await firstUsable(collectPathZig())
   if (pathZig) return pathZig
   return emptyInfo()

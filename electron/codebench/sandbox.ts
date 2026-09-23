@@ -21,10 +21,10 @@ export class LocalExecutionSandbox implements ExecutionSandbox {
   private compilerBinDir: string | null = null
 
   async compile(input: ExecutionSandboxCompileInput): Promise<CompileResult> {
-    let compiler = await detectCppCompiler()
-    if (!compiler.available && process.env.CODEBENCH_SKIP_TOOLCHAIN_INSTALL !== '1') {
-      compiler = await ensureCppToolchain({ installIfMissing: true })
-    }
+    const compiler =
+      process.env.CODEBENCH_SKIP_TOOLCHAIN_INSTALL === '1'
+        ? await detectCppCompiler()
+        : await ensureCppToolchain({ installIfMissing: true })
     this.compilerBinDir = binDirForCompiler(compiler.path)
     return compileCppSource(compiler, input)
   }

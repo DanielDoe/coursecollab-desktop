@@ -1,14 +1,15 @@
+import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { createWriteStream, existsSync } from 'node:fs'
+import { createWriteStream, existsSync, readdirSync, statSync } from 'node:fs'
 import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { get } from 'node:https'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import { pipeline } from 'node:stream/promises'
-import { spawn } from 'node:child_process'
 import { portableToolchainForHost, type PortableToolchainArtifact } from './toolchain-manifest'
 import { TOOLCHAIN_MARKER, userToolchainRoot } from './toolchain-paths'
 import { emitToolchainProgress } from './toolchain-progress'
+import { clearToolchainVerifyCache } from './toolchain-verify-cache'
 
 function markerPath(root: string, version: string) {
   return join(root, `${TOOLCHAIN_MARKER}-${version}`)
@@ -78,17 +79,61 @@ function extractArchive(archivePath: string, destDir: string, kind: PortableTool
   })
 }
 
+function clearDownloadQuarantine(root: string): void {
+  if (process.platform !== 'darwin') return
+  spawnSync('xattr', ['-dr', 'com.apple.quarantine', root], { stdio: 'ignore' })
+}
+
+/** Archive layouts sometimes add a top-level folder. Prefer the expected path, then any path that ends with it. */
+export function findExtractedBinary(root: string, relativeBinary: string): string | null {
+  const expected = join(root, relativeBinary)
+  if (existsSync(expected)) return expected
+  const suffix = relativeBinary.replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase()
+  const stack = [root]
+  while (stack.length > 0) {
+    const dir = stack.pop()
+    if (!dir) break
+    let entries: string[]
+    try {
+      entries = readdirSync(dir)
+    } catch {
+      continue
+    }
+    for (const name of entries) {
+      const full = join(dir, name)
+      let isDir = false
+      try {
+        isDir = statSync(full).isDirectory()
+      } catch {
+        continue
+      }
+      if (isDir) {
+        stack.push(full)
+        continue
+      }
+      const rel = relative(root, full).replace(/\\/g, '/').toLowerCase()
+      if (rel === suffix || rel.endsWith(`/${suffix}`)) return full
+    }
+  }
+  return null
+}
+
+async function publishManagedBinary(root: string, artifact: PortableToolchainArtifact, binary: string): Promise<string> {
+  clearDownloadQuarantine(root)
+  if (process.platform !== 'win32') {
+    await chmod(binary, 0o755)
+  }
+  await writeFile(markerPath(root, artifact.version), `${artifact.version}\n${binary}\n`, 'utf8')
+  return binary
+}
+
 async function writeCurrentLink(root: string, artifact: PortableToolchainArtifact): Promise<string> {
-  const extractedBinary = join(root, artifact.binary)
-  if (!existsSync(extractedBinary)) {
+  const extractedBinary = findExtractedBinary(root, artifact.binary)
+  if (!extractedBinary) {
     throw new Error('The C++ compiler binary was not in the archive.')
   }
-  if (process.platform !== 'win32') {
-    await chmod(extractedBinary, 0o755)
-  }
   // Keep the full extract tree (zig + lib/). A lone copied binary cannot compile.
-  await writeFile(markerPath(root, artifact.version), `${artifact.version}\n${extractedBinary}\n`, 'utf8')
-  return extractedBinary
+  return publishManagedBinary(root, artifact, extractedBinary)
 }
 
 export function isManagedToolchainInstalled(artifact = portableToolchainForHost()): boolean {
@@ -96,16 +141,20 @@ export function isManagedToolchainInstalled(artifact = portableToolchainForHost(
   return existsSync(markerPath(userToolchainRoot(), artifact.version))
 }
 
-export async function installPortableToolchain(): Promise<string> {
+export async function installPortableToolchain(options?: { replace?: boolean }): Promise<string> {
   const artifact = portableToolchainForHost()
   if (!artifact) {
     throw new Error('This platform does not have a CourseCollab C++ installer yet.')
   }
   const root = userToolchainRoot()
+  if (options?.replace) {
+    await rm(root, { recursive: true, force: true })
+    await clearToolchainVerifyCache()
+  }
   await mkdir(root, { recursive: true })
-  if (isManagedToolchainInstalled(artifact)) {
-    const extracted = join(root, artifact.binary)
-    if (existsSync(extracted)) return extracted
+  if (!options?.replace && isManagedToolchainInstalled(artifact)) {
+    const extracted = findExtractedBinary(root, artifact.binary)
+    if (extracted) return publishManagedBinary(root, artifact, extracted)
   }
 
   emitToolchainProgress({
@@ -132,7 +181,10 @@ export async function installPortableToolchain(): Promise<string> {
 
 let installLock: Promise<string> | null = null
 
-export function installPortableToolchainOnce(): Promise<string> {
+export function installPortableToolchainOnce(options?: { replace?: boolean }): Promise<string> {
+  if (options?.replace) {
+    return installPortableToolchain({ replace: true })
+  }
   if (!installLock) {
     installLock = installPortableToolchain().finally(() => {
       installLock = null

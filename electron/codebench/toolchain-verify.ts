@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { compileCppSource } from './compiler'
-import { SOURCE_FILE_NAME } from './limits'
+import { CODEBENCH_LIMITS, SOURCE_FILE_NAME } from './limits'
 import type { CompilerInfo } from './types'
 
 const SMOKE_CPP = `#include <iostream>
@@ -13,7 +13,10 @@ int main() {
 }
 `
 
-export async function verifyCppToolchain(compiler: CompilerInfo): Promise<boolean> {
+export async function verifyCppToolchain(
+  compiler: CompilerInfo,
+  timeoutMs = CODEBENCH_LIMITS.verifyCompileTimeoutMs,
+): Promise<boolean> {
   if (!compiler.available || !compiler.path) return false
   const workspaceDir = await mkdtemp(join(tmpdir(), 'coursecollab-cpp-verify-'))
   try {
@@ -22,6 +25,7 @@ export async function verifyCppToolchain(compiler: CompilerInfo): Promise<boolea
       sessionId: 'toolchain-verify',
       sourceCode: SMOKE_CPP,
       workspaceDir,
+      timeoutMs,
       emit: () => undefined,
     })
     if (!result.success || !result.outputPath) return false

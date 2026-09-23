@@ -1,2 +1,2 @@
-- Live Classroom: the instructor sees the selected student's code as they type. The roster still updates only when someone joins, leaves, finishes, or is marked correct.
-- The classroom question button opens with the live session.
+- CodeBench runs with the C++ compiler Setup already installed, instead of saying the compiler is missing.
+- Install compiler replaces a compiler that cannot compile, instead of repeating the same check.

@@ -2,17 +2,17 @@ import { spawn } from 'node:child_process'
 import { CONTROLLED_COMPILE_ARGS, CONTROLLED_MSVC_ARGS, CODEBENCH_LIMITS, SOURCE_FILE_NAME } from './limits'
 import { parseCompilerDiagnostics, sanitizeStudentOutput } from './diagnostics'
 import { buildCompilerChildEnv } from './process-env'
-import { getExecutableName } from './workspace'
+import { getExecutableName, writeLiveFlushHeader } from './workspace'
 import type { CompileResult, CompilerInfo, ExecutionSandboxCompileInput } from './types'
 
 function compileArgs(compiler: CompilerInfo, outputName: string): string[] {
   if (compiler.compiler === 'cl') {
-    return [...CONTROLLED_MSVC_ARGS, SOURCE_FILE_NAME, `/Fe:${outputName}`]
+    return [...CONTROLLED_MSVC_ARGS, '/FI', 'cc-live-flush.h', SOURCE_FILE_NAME, `/Fe:${outputName}`]
   }
   if (compiler.compiler === 'zig') {
-    return ['c++', SOURCE_FILE_NAME, ...CONTROLLED_COMPILE_ARGS, '-o', outputName]
+    return ['c++', '-include', 'cc-live-flush.h', SOURCE_FILE_NAME, ...CONTROLLED_COMPILE_ARGS, '-o', outputName]
   }
-  return [SOURCE_FILE_NAME, ...CONTROLLED_COMPILE_ARGS, '-o', outputName]
+  return ['-include', 'cc-live-flush.h', SOURCE_FILE_NAME, ...CONTROLLED_COMPILE_ARGS, '-o', outputName]
 }
 
 export async function compileCppSource(
@@ -37,6 +37,8 @@ export async function compileCppSource(
   const outputName = getExecutableName()
   const args = compileArgs(compiler, outputName)
   const started = Date.now()
+  const timeoutMs = input.timeoutMs ?? CODEBENCH_LIMITS.compileTimeoutMs
+  await writeLiveFlushHeader(input.workspaceDir)
 
   return new Promise((resolve) => {
     let stdout = ''
@@ -70,7 +72,7 @@ export async function compileCppSource(
     const timer = setTimeout(() => {
       child.kill()
       finish(null, 'Compilation timed out.')
-    }, CODEBENCH_LIMITS.compileTimeoutMs)
+    }, timeoutMs)
 
     const handleChunk = (stream: 'stdout' | 'stderr', chunk: Buffer) => {
       const raw = chunk.toString('utf8')

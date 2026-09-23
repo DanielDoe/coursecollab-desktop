@@ -122,6 +122,7 @@ export type ExecutionSandboxCompileInput = {
   sourceCode: string
   workspaceDir: string
   emit: (event: CodeBenchEvent) => void
+  timeoutMs?: number
 }
 
 export type ExecutionSandboxRunInput = {

@@ -1,6 +1,6 @@
 /** Desktop & mobile app download metadata for the public landing page. */
 
-export const DESKTOP_APP_VERSION = "0.1.28"
+export const DESKTOP_APP_VERSION = "0.1.29"
 
 export type DesktopOs = "mac" | "windows" | "linux"
 export type DesktopArch = "arm64" | "x64"
