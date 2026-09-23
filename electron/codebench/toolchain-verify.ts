@@ -15,7 +15,7 @@ int main() {
 
 export async function verifyCppToolchain(
   compiler: CompilerInfo,
-  timeoutMs = CODEBENCH_LIMITS.verifyCompileTimeoutMs,
+  timeoutMs: number = CODEBENCH_LIMITS.verifyCompileTimeoutMs,
 ): Promise<boolean> {
   if (!compiler.available || !compiler.path) return false
   const workspaceDir = await mkdtemp(join(tmpdir(), 'coursecollab-cpp-verify-'))
