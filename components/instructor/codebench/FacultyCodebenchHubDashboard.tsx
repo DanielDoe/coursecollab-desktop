@@ -88,6 +88,8 @@ export function FacultyCodebenchHubDashboard() {
   const handleExitLiveSession = useCallback(() => {
     setLiveSessionHandoff(null)
     setView("live")
+    // Leaving the classroom must not clear the course chosen in the header.
+    window.dispatchEvent(new Event("instructor-course-display-sync"))
   }, [])
 
   const content = useMemo(() => {
@@ -119,21 +121,25 @@ export function FacultyCodebenchHubDashboard() {
           />
         )
       case "live":
-        return (
-          <InstructorCodebenchLivePanel
-            onStartLiveSession={handleStartLiveSession}
-            onOpenClassroomInIde={handleOpenClassroomInIde}
-            onOpenChallenges={openChallenges}
-          />
-        )
       case "live_session":
-        return liveSessionHandoff ? (
-          <InstructorLiveClassroomSession
-            handoff={liveSessionHandoff}
-            onBack={handleExitLiveSession}
-            onOpenInIde={handleOpenClassroomInIde}
-          />
-        ) : null
+        return (
+          <>
+            <div className={view === "live" ? "contents" : "hidden"} aria-hidden={view !== "live"}>
+              <InstructorCodebenchLivePanel
+                onStartLiveSession={handleStartLiveSession}
+                onOpenClassroomInIde={handleOpenClassroomInIde}
+                onOpenChallenges={openChallenges}
+              />
+            </div>
+            {view === "live_session" && liveSessionHandoff ? (
+              <InstructorLiveClassroomSession
+                handoff={liveSessionHandoff}
+                onBack={handleExitLiveSession}
+                onOpenInIde={handleOpenClassroomInIde}
+              />
+            ) : null}
+          </>
+        )
       case "activity":
         return <InstructorCodebenchActivityPanel />
       case "insights":

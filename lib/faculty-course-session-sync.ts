@@ -231,6 +231,37 @@ export function reconcileFacultySelectedCourse(
   return { session: next, changed, valid: false }
 }
 
+/**
+ * Cookie refresh returns the instructor account without the dashboard's course
+ * section. Keep the section already chosen in this browser.
+ */
+export function retainFacultyCourseScopeOnRefresh(
+  incoming: SessionRecord,
+  existing: SessionRecord | null | undefined,
+): SessionRecord {
+  if (!existing || existing.selectedCourseId == null) return incoming
+  const next: SessionRecord = {
+    ...incoming,
+    selectedCourseId: existing.selectedCourseId,
+    selectedCourseCode: existing.selectedCourseCode,
+    selectedCourseTitle: existing.selectedCourseTitle,
+    selectedAcademicTermId: existing.selectedAcademicTermId,
+    selectedTermLabel: existing.selectedTermLabel,
+    selectedUniversityId: incoming.selectedUniversityId ?? existing.selectedUniversityId,
+    coursePermissions: existing.coursePermissions,
+    staffRoleForCourse: existing.staffRoleForCourse,
+    courseScopeSkipped: existing.courseScopeSkipped,
+  }
+  if (existing.selectedCatalogCourseCode != null) {
+    next.selectedCatalogCourseCode = existing.selectedCatalogCourseCode
+  }
+  if (existing.selectedSessionId != null) {
+    next.selectedSessionId = existing.selectedSessionId
+    next.selectedSessionCode = existing.selectedSessionCode
+  }
+  return next
+}
+
 export function facultyCourseSelectValue(session: SessionRecord): string {
   const courseId = session.selectedCourseId
   if (courseId == null || String(courseId).trim() === "") return ""

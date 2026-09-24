@@ -7,7 +7,10 @@ import {
   readFacultySession,
   saveFacultySession,
 } from "@/lib/faculty-auth-flow"
-import { applyFacultySkipCourseScope } from "@/lib/faculty-course-session-sync"
+import {
+  applyFacultySkipCourseScope,
+  retainFacultyCourseScopeOnRefresh,
+} from "@/lib/faculty-course-session-sync"
 import { persistRememberedFacultyAuth, readRememberedFacultyLogin, readRememberedFacultyUniversity } from "@/lib/remembered-auth"
 import {
   captureRefreshTokenFromResponse,
@@ -39,19 +42,7 @@ export function applyFacultySessionRefreshPayload(data: FacultySessionRefreshRes
     : applyRememberedCourseToSession({ ...instructor })
 
   if (existing?.selectedCourseId != null) {
-    session = {
-      ...session,
-      selectedCourseId: existing.selectedCourseId,
-      selectedCourseCode: existing.selectedCourseCode,
-      selectedCourseTitle: existing.selectedCourseTitle,
-      selectedAcademicTermId: existing.selectedAcademicTermId,
-      selectedTermLabel: existing.selectedTermLabel,
-      selectedUniversityId:
-        instructor.selectedUniversityId ?? existing.selectedUniversityId,
-      coursePermissions: existing.coursePermissions,
-      staffRoleForCourse: existing.staffRoleForCourse,
-      courseScopeSkipped: existing.courseScopeSkipped,
-    }
+    session = retainFacultyCourseScopeOnRefresh(session, existing)
   } else if (skippedScope) {
     session = applyFacultySkipCourseScope(session)
   } else if (instructor.selectedUniversityId != null) {

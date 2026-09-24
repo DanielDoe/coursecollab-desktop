@@ -90,6 +90,51 @@ export function isCodebenchBoilerplate(code: string, languageId: CodebenchLangua
   return normalizeForCompare(code) === normalizeForCompare(lang.defaultCode)
 }
 
+/**
+ * A live snapshot must not replace code the student already typed with the
+ * empty starter template. That happens when the editor remounts and posts
+ * before the saved snapshot is restored.
+ */
+function compactCode(source: string): string {
+  return source.replace(/\s+/g, " ").trim()
+}
+
+/**
+ * A live editor sometimes remounts and posts a short fresh buffer over a
+ * program the student already saved. Keep the saved program when the new
+ * text is much shorter and does not still contain that work.
+ */
+export function isAbruptLiveCodeReset(
+  existing: string,
+  incoming: string,
+  languageId: CodebenchLanguageId,
+): boolean {
+  if (isCodebenchBoilerplate(existing, languageId)) return false
+  const previous = compactCode(existing)
+  const next = compactCode(incoming)
+  if (previous.length < 160) return false
+  if (next.length >= previous.length * 0.75) return false
+  const sliceStart = Math.min(90, Math.floor(previous.length / 3))
+  const needle = previous.slice(sliceStart, sliceStart + 48)
+  if (needle.length >= 24 && next.includes(needle)) return false
+  return true
+}
+
+export function codebenchLiveCodeToPersist(
+  existing: string | null | undefined,
+  incoming: string,
+  languageId: string | null | undefined,
+): string {
+  const previous = typeof existing === "string" ? existing : ""
+  if (!incoming.trim()) return previous.trim() ? previous : incoming
+  const lang = normalizeCodebenchLanguageId(languageId)
+  if (previous.trim() && isCodebenchBoilerplate(incoming, lang) && !isCodebenchBoilerplate(previous, lang)) {
+    return previous
+  }
+  if (previous.trim() && isAbruptLiveCodeReset(previous, incoming, lang)) return previous
+  return incoming
+}
+
 /** Heuristic language detection from editor contents. */
 export function detectCodebenchLanguageFromCode(code: string): CodebenchLanguageId {
   const sample = code.trim()

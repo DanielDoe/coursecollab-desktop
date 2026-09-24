@@ -54,10 +54,6 @@ export const LiveInstructorRunPanel = forwardRef<LiveInstructorRunPanelHandle, P
 
     const runner = useCodeRunner({ onWrite: write })
 
-    useEffect(() => {
-      void runner.checkCompiler()
-    }, [runner.checkCompiler])
-
     const run = useCallback(
       async (sourceCode: string) => {
         for (let i = 0; i < 40; i++) {
@@ -73,14 +69,15 @@ export const LiveInstructorRunPanel = forwardRef<LiveInstructorRunPanelHandle, P
           return
         }
 
+        // Do not call detect-only checkCompiler here. It can finish after a
+        // successful install/warmup and paint "Compiler not found".
         let compilerInfo = runner.compiler
-        if (runner.checking || !compilerInfo?.available) {
-          if (!compilerInfo?.available) {
-            write("\r\nLooking for a C++ compiler…\r\n")
-          }
-          compilerInfo = (await runner.checkCompiler()) ?? compilerInfo
+        if (runner.checking || runner.installing || !compilerInfo) {
+          write("\r\nWaiting for the C++ compiler…\r\n")
+          compilerInfo = (await runner.waitForToolchain()) ?? compilerInfo
         }
         if (!compilerInfo?.available) {
+          write("\r\nLooking for a C++ compiler…\r\n")
           compilerInfo = (await runner.ensureToolchain()) ?? compilerInfo
         }
         if (!compilerInfo?.available) {
@@ -94,9 +91,10 @@ export const LiveInstructorRunPanel = forwardRef<LiveInstructorRunPanelHandle, P
       },
       [
         runner.available,
-        runner.checkCompiler,
+        runner.waitForToolchain,
         runner.checking,
         runner.compiler,
+        runner.installing,
         runner.ensureToolchain,
         runner.run,
         runner.unavailableReason,

@@ -1,10 +1,14 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { accessSync, constants, existsSync, statSync } from 'node:fs'
-import { delimiter, dirname, isAbsolute, join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { portableToolchainForHost } from './toolchain-manifest'
 import { buildCodebenchChildEnv } from './process-env'
 import { bundledToolchainRoot, userToolchainRoot } from './toolchain-paths'
+import { userPathDirectories, windowsWhereLookup } from './user-path'
 import type { CompilerFamily, CompilerInfo, CompilerManager, CompilerSource } from './types'
+
+/** Cold `xcrun` / first Apple clang often exceeds 4s; 15s still fails fast if it's missing. */
+export const VERSION_PROBE_TIMEOUT_MS = 15_000
 
 const MAC_HINT_DIRS = [
   '/usr/bin',
@@ -66,8 +70,7 @@ function isExecutableFile(filePath: string): boolean {
 }
 
 function pathDirectories(): string[] {
-  const raw = process.env.PATH ?? process.env.Path ?? ''
-  return raw.split(delimiter).filter((entry) => entry && isAbsolute(entry))
+  return userPathDirectories()
 }
 
 function systemCandidateNames(): { family: CompilerFamily; name: string }[] {
@@ -115,7 +118,23 @@ function collectNamed(names: { family: CompilerFamily; name: string }[], dirs: s
 }
 
 function collectSystemCandidates(): { family: CompilerFamily; path: string }[] {
-  return collectNamed(systemCandidateNames(), [...hintDirectories(), ...pathDirectories()])
+  const named = collectNamed(systemCandidateNames(), [...hintDirectories(), ...pathDirectories()])
+  if (process.platform !== 'win32') return named
+  const seen = new Set(named.map((item) => item.path.toLowerCase()))
+  const extras: { family: CompilerFamily; path: string }[] = []
+  const whereNames = systemCandidateNames().map((item) => item.name)
+  for (const filePath of windowsWhereLookup(whereNames)) {
+    const key = filePath.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    const family = filePath.toLowerCase().includes('clang')
+      ? 'clang++'
+      : filePath.toLowerCase().includes('cl.exe')
+        ? 'cl'
+        : 'g++'
+    extras.push({ family, path: filePath })
+  }
+  return [...named, ...extras]
 }
 
 function zigNames(): { family: CompilerFamily; name: string }[] {
@@ -178,7 +197,7 @@ function collectPathZig(): { family: CompilerFamily; path: string }[] {
   return collectNamed(zigNames(), pathDirectories())
 }
 
-function macDeveloperToolsPresent(): boolean {
+export function macDeveloperToolsPresent(): boolean {
   if (process.platform !== 'darwin') return true
   const probe = spawnSync('xcode-select', ['-p'], { encoding: 'utf8', windowsHide: true })
   return probe.status === 0 && Boolean(probe.stdout?.trim())
@@ -242,7 +261,7 @@ function runVersion(executablePath: string, family: CompilerFamily): Promise<str
     const timer = setTimeout(() => {
       child.kill()
       finish(null)
-    }, 4000)
+    }, VERSION_PROBE_TIMEOUT_MS)
 
     child.on('error', () => {
       clearTimeout(timer)
@@ -262,6 +281,9 @@ function runVersion(executablePath: string, family: CompilerFamily): Promise<str
 async function firstUsable(candidates: { family: CompilerFamily; path: string }[]): Promise<CompilerInfo | null> {
   const base = emptyInfo()
   for (const candidate of candidates) {
+    // /usr/bin/clang++ on a Mac without Command Line Tools is a stub. Probing it
+    // pops Apple's install dialog and then times out.
+    if (isUnusable(candidate.path, candidate.family, null)) continue
     const version = await runVersion(candidate.path, candidate.family)
     if (!version && candidate.family !== 'cl') continue
     if (isUnusable(candidate.path, candidate.family, version)) continue

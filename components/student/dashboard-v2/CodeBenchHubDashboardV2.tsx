@@ -38,7 +38,13 @@ import { CodebenchStudioCoach } from "@/components/codebench/CodebenchStudioCoac
 import { DailyChallengeCard } from "@/components/codebench/DailyChallengeCard"
 import { StudentLiveClassroomBanner } from "@/components/codebench/StudentLiveClassroomBanner"
 import { useStudentLiveClassroomSessions } from "@/hooks/use-student-live-classroom-sessions"
-import { LIVE_JOIN_GRACE_MS, shouldTreatLiveSessionAsEnded } from "@/lib/codebench-live-student-ui"
+import {
+  LIVE_JOIN_GRACE_MS,
+  assignmentHasOpenLiveSession,
+  shouldTreatLiveSessionAsEnded,
+} from "@/lib/codebench-live-student-ui"
+import { forgetLiveJoin, readRememberedLiveJoin, rememberLiveJoin } from "@/lib/codebench-live-join-memory"
+import { sendLiveEditorLeave } from "@/hooks/use-codebench-live-snapshot"
 import type { StudentLiveClassroomSession } from "@/lib/codebench-live-classroom-types"
 import { CodebenchChallengeCoraDrawer } from "@/components/codebench/CodebenchChallengeCoraDrawer"
 import {
@@ -177,7 +183,12 @@ export function CodeBenchHubDashboardV2() {
   const [editorInstanceKey, setEditorInstanceKey] = useState("editor")
   const [coraDrawerOpen, setCoraDrawerOpen] = useState(false)
   const pullStartY = useRef<number | null>(null)
-  const { sessions: liveSessions, listSupported, loading: liveSessionsLoading } = useStudentLiveClassroomSessions(studentId)
+  const {
+    sessions: liveSessions,
+    listSupported,
+    loading: liveSessionsLoading,
+    error: liveSessionsError,
+  } = useStudentLiveClassroomSessions(studentId)
   const liveJoinGraceUntilRef = useRef(0)
   const liveMissCountRef = useRef(0)
   const markLiveJoinGrace = useCallback(() => {
@@ -224,7 +235,11 @@ export function CodeBenchHubDashboardV2() {
         current?.assignmentId === assignmentId ? current : { assignmentId, nonce: Date.now() },
       )
     }
-    const onLeave = () => setLiveJoin(null)
+    const onLeave = (event: Event) => {
+      setLiveJoin(null)
+      const assignmentId = (event as CustomEvent<{ assignmentId?: string | number }>).detail?.assignmentId
+      forgetLiveJoin(assignmentId != null ? String(assignmentId) : null)
+    }
     window.addEventListener("codebench-join-live-session", onJoin)
     window.addEventListener("codebench-leave-live-session", onLeave)
     return () => {
@@ -251,6 +266,32 @@ export function CodeBenchHubDashboardV2() {
       new CustomEvent("codebench-leave-live-session", { detail: { assignmentId } }),
     )
   }, [liveJoin, liveSessions, liveSessionsLoading, listSupported])
+
+  // Reload: resume the join remembered for this window once the session list can
+  // confirm it is still open. The editor page records the join once the server accepts it.
+  const resumeCheckedRef = useRef(false)
+  useEffect(() => {
+    if (resumeCheckedRef.current || !studentId) return
+    const remembered = readRememberedLiveJoin(studentId)
+    if (!remembered) {
+      resumeCheckedRef.current = true
+      return
+    }
+    if (listSupported === null && !liveSessionsError) return
+    resumeCheckedRef.current = true
+    if (listSupported === true && !assignmentHasOpenLiveSession(liveSessions, remembered)) {
+      // The session closed while this window was reloading. pagehide doesn't always
+      // deliver the leave, so send it now.
+      forgetLiveJoin(remembered)
+      void sendLiveEditorLeave(studentId, remembered)
+      return
+    }
+    markLiveJoinGrace()
+    setLiveJoin({ assignmentId: remembered, nonce: Date.now() })
+    setEditorInstanceKey(`live-${remembered}`)
+    setEditorTool(null)
+    setBrowseView("editor")
+  }, [liveSessions, liveSessionsError, listSupported, markLiveJoinGrace, studentId])
 
   const loadDailyChallenge = useCallback(async (studentIdValue: string) => {
     setChallengeLoading(true)
@@ -510,6 +551,7 @@ export function CodeBenchHubDashboardV2() {
 
   const joinLiveSession = (session: StudentLiveClassroomSession) => {
     const assignmentId = String(session.assignmentId)
+    if (studentId) rememberLiveJoin(studentId, assignmentId)
     markLiveJoinGrace()
     setLiveJoin((current) =>
       current?.assignmentId === assignmentId ? current : { assignmentId, nonce: Date.now() },
@@ -657,6 +699,9 @@ export function CodeBenchHubDashboardV2() {
           <StudentLiveClassroomBanner
             sessions={liveSessions}
             activeAssignmentId={liveJoin?.assignmentId ?? null}
+            // Overview never mounts the editor, and leaving the Editor tab sends a leave.
+            // "Open editor" remounts it with the same assignment and rejoins.
+            connection="paused"
             onJoin={joinLiveSession}
             onLeave={leaveLiveSession}
           />

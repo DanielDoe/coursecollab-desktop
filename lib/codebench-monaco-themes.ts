@@ -88,5 +88,9 @@ export function codebenchEditorOptions() {
     renderLineHighlight: "all" as const,
     overviewRulerBorder: false,
     hideCursorInOverviewRuler: true,
+    // Monaco's default autoIndent "full" rewrites the line and shifts the caret.
+    formatOnType: false,
+    formatOnPaste: false,
+    autoIndent: "keep" as const,
   }
 }

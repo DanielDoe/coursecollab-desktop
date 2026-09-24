@@ -6,6 +6,8 @@ import { LIVE_STUDENT_PUSH_POLL_MS } from "@/lib/codebench-live-timing"
 import { useImmediateLivePoll } from "@/hooks/use-immediate-live-poll"
 import {
   knownLiveInstructorRevision,
+  readStoredLiveInstructorPush,
+  seedLiveInstructorPushBaseline,
   shouldApplyLiveInstructorPush,
   writeStoredLiveInstructorPush,
 } from "@/lib/codebench-live-instructor-push-state"
@@ -14,6 +16,7 @@ type InstructorPushPayload = {
   revision?: number
   code?: string
   fileName?: string | null
+  syncRequestedAt?: string | null
 }
 
 export type InstructorPushApplyMeta = {
@@ -27,16 +30,21 @@ export function useCodebenchLiveInstructorPush({
   assignmentId,
   enabled,
   onApply,
+  onSyncRequest,
 }: {
   studentId: string | null
   assignmentId: string | null
   enabled: boolean
   onApply: (code: string, meta: InstructorPushApplyMeta) => void
+  onSyncRequest?: (requestedAt: string) => void
 }) {
   const appliedRevisionRef = useRef(knownLiveInstructorRevision(studentId, assignmentId))
   const onApplyRef = useRef(onApply)
+  const onSyncRequestRef = useRef(onSyncRequest)
+  const handledSyncAtRef = useRef<string | null>(null)
   const [ready, setReady] = useState(!enabled)
   onApplyRef.current = onApply
+  onSyncRequestRef.current = onSyncRequest
 
   useEffect(() => {
     setReady(!enabled)
@@ -59,8 +67,21 @@ export function useCodebenchLiveInstructorPush({
         return
       }
       const data = (await response.json()) as InstructorPushPayload
+      const syncRequestedAt = typeof data.syncRequestedAt === "string" ? data.syncRequestedAt : ""
+      if (syncRequestedAt && syncRequestedAt !== handledSyncAtRef.current) {
+        handledSyncAtRef.current = syncRequestedAt
+        onSyncRequestRef.current?.(syncRequestedAt)
+      }
       const revision = Number(data.revision) || 0
       const code = typeof data.code === "string" ? data.code : ""
+      if (!readStoredLiveInstructorPush(studentId, assignmentId)) {
+        // Restore normally seeds this; if it failed, an old push would overwrite typed work.
+        appliedRevisionRef.current = Math.max(
+          appliedRevisionRef.current,
+          seedLiveInstructorPushBaseline(studentId, assignmentId, revision),
+        )
+        return
+      }
       const baseline = knownLiveInstructorRevision(studentId, assignmentId)
       const apply = shouldApplyLiveInstructorPush({
         revision,

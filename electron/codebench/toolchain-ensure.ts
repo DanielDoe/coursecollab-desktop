@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { detectCppCompiler } from './compilerDetector'
+import { detectCppCompiler, macDeveloperToolsPresent } from './compilerDetector'
 import { CODEBENCH_LIMITS } from './limits'
 import { installPortableToolchainOnce, isManagedToolchainInstalled } from './toolchain-install'
 import { portableToolchainForHost } from './toolchain-manifest'
@@ -46,27 +46,28 @@ function isStaleManagedCompiler(info: CompilerInfo): boolean {
 
 let ensureLock: Promise<CompilerInfo> | null = null
 
-async function acceptVerifiedCompiler(found: CompilerInfo): Promise<CompilerInfo> {
+async function acceptVerifiedCompiler(found: CompilerInfo, notify: boolean): Promise<CompilerInfo> {
   await writeToolchainVerifyCache(found)
-  emitToolchainProgress({ phase: 'ready', message: 'C++ compiler ready.', percent: 100 })
+  if (notify) {
+    emitToolchainProgress({ phase: 'ready', message: 'C++ compiler ready.', percent: 100 })
+  }
   return withInstallFlag(found, { canInstall: false })
 }
 
 async function verifyOrUseCache(
   found: CompilerInfo,
-  emitSearching: boolean,
+  notify: boolean,
   timeoutMs: number,
 ): Promise<CompilerInfo | 'retry-install'> {
   if (await isToolchainVerifyCacheValid(found)) {
-    emitToolchainProgress({ phase: 'ready', message: 'C++ compiler ready.', percent: 100 })
     return withInstallFlag(found, { canInstall: false })
   }
-  if (emitSearching) {
+  if (notify) {
     emitToolchainProgress({ phase: 'verifying', message: 'Verifying the C++ compiler…', percent: 100 })
   }
   const ok = await verifyCppToolchain(found, timeoutMs)
   if (ok) {
-    return acceptVerifiedCompiler(found)
+    return acceptVerifiedCompiler(found, notify)
   }
   return 'retry-install'
 }
@@ -76,12 +77,9 @@ export async function ensureCppToolchain(options?: {
   mode?: EnsureCppToolchainMode
 }): Promise<CompilerInfo> {
   const mode = options?.mode ?? 'full'
-  const emitSearching = mode !== 'startup'
+  const notify = mode !== 'startup'
   if (ensureLock) return ensureLock
   ensureLock = (async () => {
-    if (emitSearching) {
-      emitToolchainProgress({ phase: 'searching', message: 'Looking for a C++ compiler…' })
-    }
     let found = await detectCppCompiler()
     let replaceManaged = false
 
@@ -97,13 +95,13 @@ export async function ensureCppToolchain(options?: {
     }
 
     if (found.available && found.source !== 'app-managed' && found.source !== 'bundled') {
-      const verified = await verifyOrUseCache(found, emitSearching, CODEBENCH_LIMITS.systemVerifyTimeoutMs)
+      const verified = await verifyOrUseCache(found, false, CODEBENCH_LIMITS.systemVerifyTimeoutMs)
       if (verified !== 'retry-install') return verified
       found = await detectCppCompiler({ scope: 'managed' })
     }
 
     if (found.available && (found.source === 'app-managed' || found.source === 'bundled')) {
-      const verified = await verifyOrUseCache(found, emitSearching, CODEBENCH_LIMITS.verifyCompileTimeoutMs)
+      const verified = await verifyOrUseCache(found, false, CODEBENCH_LIMITS.verifyCompileTimeoutMs)
       if (verified !== 'retry-install') return verified
       if (found.source === 'app-managed') replaceManaged = true
     }
@@ -121,7 +119,10 @@ export async function ensureCppToolchain(options?: {
       return withInstallFlag(found, { canInstall: false })
     }
 
-    offerMacCommandLineTools()
+    if (notify) {
+      emitToolchainProgress({ phase: 'searching', message: 'Looking for a C++ compiler…' })
+    }
+    if (!macDeveloperToolsPresent()) offerMacCommandLineTools()
     try {
       await installPortableToolchainOnce({ replace: replaceManaged })
       emitToolchainProgress({ phase: 'verifying', message: 'Checking the C++ compiler…', percent: 100 })

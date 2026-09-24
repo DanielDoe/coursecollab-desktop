@@ -132,6 +132,9 @@ function createWindow() {
       webviewTag: false,
       devTools: !app.isPackaged,
       partition: 'persist:coursecollab',
+      // Live Classroom presence expires after ~10s without a 2s heartbeat; throttled
+      // timers in a minimized window would drop students off the instructor roster.
+      backgroundThrottling: false,
     },
   })
 

@@ -24,6 +24,8 @@ export type LiveClassroomStudentRow = {
   statusLabel: string
   lastActivityAt: string | null
   compileErrors: number
+  /** Distinct compiler messages behind the error count, newest first. */
+  compileErrorMessages?: string[]
   runs: number
   code: string | null
   /** Live snapshot vs graded Classroom Points / CodeBench submission. */
@@ -69,6 +71,18 @@ export type LiveClassroomSessionPayload = {
     detail: string | null
     tone: "error" | "ok" | "tool" | "info" | "submit"
     createdAt: string
+  }>
+  /**
+   * Students the server refused this session (403 section/course mismatch). They have no
+   * snapshot, so they never appear in `students`. Optional: older servers omit it.
+   */
+  blockedJoins?: Array<{
+    studentDbId: number
+    studentId: string | null
+    fullName: string
+    section: string | null
+    message: string
+    at: string
   }>
 }
 

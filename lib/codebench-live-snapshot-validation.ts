@@ -51,10 +51,8 @@ export async function validateStudentLiveSnapshotAccess(
     is_active: boolean
   }
 
-  if (assignment.hidden_from_students) {
-    return { ok: false, status: 404, error: "Assignment not found." }
-  }
-
+  // Hidden assignments stay off the student catalog, but an instructor can still open a
+  // live classroom on one. Rejecting those snapshots as "not found" drops every keystroke.
   const liveSession = await getOpenLiveClassroomSession(assignmentId)
   if (!liveSession) {
     return { ok: false, status: 410, error: "No live session is open for this assignment." }

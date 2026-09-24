@@ -134,9 +134,6 @@ export async function pushInstructorLiveCode(input: {
       ${input.courseId},
       ${language},
       ${fileName},
-      -- BUGFIX: never seed the STUDENT code column with the instructor buffer. A push before
-      -- the student typed created a roster row that showed instructor code as student work
-      -- and could fight the student's own snapshot restore.
       '',
       ${code},
       1,

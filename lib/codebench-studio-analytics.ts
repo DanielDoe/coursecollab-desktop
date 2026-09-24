@@ -252,6 +252,13 @@ export function saveStudioEvents(studentId: string, events: StudioEvent[]) {
   }
 }
 
+let liveAssignmentId: string | null = null
+
+/** Tag studio events with the live classroom the editor is streaming to (null when not live). */
+export function setStudioLiveAssignment(assignmentId: string | null) {
+  liveAssignmentId = assignmentId?.trim() || null
+}
+
 export function recordStudioEvent(studentId: string, event: Omit<StudioEvent, "id" | "at">): StudioEvent {
   const next: StudioEvent = { ...event, id: newId(), at: Date.now() }
   const events = [...loadStudioEvents(studentId), next]
@@ -261,7 +268,11 @@ export function recordStudioEvent(studentId: string, event: Omit<StudioEvent, "i
     void fetch("/api/codebench/studio-events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ studentId, ...event }),
+      body: JSON.stringify({
+        studentId,
+        ...event,
+        liveAssignmentId: liveAssignmentId ? Number(liveAssignmentId) : null,
+      }),
     }).catch(() => undefined)
   }
   return next

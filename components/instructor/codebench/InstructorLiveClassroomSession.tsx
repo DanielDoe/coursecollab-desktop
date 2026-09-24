@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react"
 import {
   AlertTriangle,
   CheckCircle2,
@@ -11,11 +11,13 @@ import {
   Minimize2,
   Radio,
   RefreshCw,
+  Square,
   Search,
   Users,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Input } from "@/components/ui/input"
 import {
   Breadcrumb,
@@ -47,12 +49,14 @@ import { instructorApiFetch, readInstructorApiJson } from "@/lib/instructor-api-
 import { PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
 import { cn } from "@/lib/utils"
 import { useInstructorScopeKey } from "@/hooks/use-instructor-scope-key"
+import { useInstructorCloudEditorFile } from "@/hooks/use-instructor-cloud-editor-file"
 import { stripCodebenchProbeComments } from "@/lib/codebench-strip-probe-comments"
 import { useAppConfirm } from "@/components/providers/app-confirm-provider"
 import { useToast } from "@/hooks/use-toast"
 import { useImmediateLivePoll } from "@/hooks/use-immediate-live-poll"
 import {
   LIVE_INSTRUCTOR_CODE_POLL_MS,
+  LIVE_INSTRUCTOR_REPLAY_REFRESH_MS,
   LIVE_INSTRUCTOR_SESSION_POLL_MS,
   liveInstructorSelectedKey,
 } from "@/lib/codebench-live-timing"
@@ -63,7 +67,6 @@ type Props = {
   onOpenInIde: (handoff: InstructorClassroomHandoff) => void
 }
 
-const LIVE_WINDOW_MS = 3 * 60 * 1000
 
 type RosterFilter = "all" | "attention" | "coding" | "joined" | "submitted" | "approved"
 
@@ -143,6 +146,51 @@ function rosterBucket(status: LiveStudentStatus): "attention" | "present" | "fin
   }
 }
 
+const FLAG_LABEL: Record<LiveStudentStatus, string> = {
+  not_started: "Not started",
+  joined: "Joined",
+  coding: "Coding now",
+  error: "Compile error",
+  needs_help: "Needs help",
+  submitted: "Submitted",
+  approved: "Approved",
+  review: "Awaiting review",
+}
+
+function rosterFlags(row: LiveClassroomStudentRow): LiveStudentStatus[] {
+  const flags: LiveStudentStatus[] = []
+  const inRoom =
+    row.status === "joined" ||
+    row.status === "coding" ||
+    row.status === "error" ||
+    row.status === "needs_help"
+  if (inRoom) flags.push("joined")
+  if (row.status === "coding" || row.status === "error" || row.status === "needs_help") flags.push("coding")
+  if (row.status === "error") flags.push("error")
+  if (row.status === "needs_help") flags.push("needs_help")
+  const submission = String(row.submissionStatus ?? "").toLowerCase()
+  if (submission === "approved") flags.push("approved")
+  else if (submission === "rejected" || submission === "needs_review") flags.push("review")
+  else if (submission === "pending" || submission === "submitted") flags.push("submitted")
+  else if (!inRoom && (row.status === "submitted" || row.status === "approved" || row.status === "review")) {
+    flags.push(row.status)
+  }
+  if (flags.length === 0 && row.status !== "not_started") flags.push(row.status)
+  return flags
+}
+
+function StatusFlags({ row }: { row: LiveClassroomStudentRow }) {
+  return (
+    <>
+      {rosterFlags(row).map((flag) => (
+        <Badge key={flag} variant="outline" className={cn("text-[10px]", statusTone(flag))}>
+          {FLAG_LABEL[flag]}
+        </Badge>
+      ))}
+    </>
+  )
+}
+
 function rosterRank(bucket: ReturnType<typeof rosterBucket>): number {
   switch (bucket) {
     case "attention":
@@ -156,6 +204,40 @@ function rosterRank(bucket: ReturnType<typeof rosterBucket>): number {
     default:
       return 4
   }
+}
+
+function uniqueCompilerLines(lines: Array<string | null | undefined>, limit = 3): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const line of lines) {
+    const text = line?.replace(/\s+/g, " ").trim()
+    if (!text || seen.has(text)) continue
+    seen.add(text)
+    out.push(text)
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+function compilerErrorLines(
+  row: LiveClassroomStudentRow,
+  recentEvents: LiveClassroomSessionPayload["recentEvents"],
+): string[] {
+  const stored = uniqueCompilerLines(row.compileErrorMessages ?? [])
+  if (stored.length) return stored
+  const fromRecent = uniqueCompilerLines(
+    recentEvents
+      .filter((event) => event.studentDbId === row.studentDbId && event.tone === "error")
+      .map((event) => event.detail),
+  )
+  if (fromRecent.length) return fromRecent
+  const detail = row.latestEventDetail?.trim()
+  const title = row.latestEventTitle ?? ""
+  const latestIsError =
+    row.compileErrors > 0 &&
+    Boolean(detail) &&
+    !/clean compile|ran program|saved workspace|submitted/i.test(title)
+  return latestIsError && detail ? [detail] : []
 }
 
 function matchesFilter(row: LiveClassroomStudentRow, filter: RosterFilter): boolean {
@@ -180,7 +262,7 @@ function StudentRowButton({
   selected,
   shownAt,
   faceStatus,
-  faceLabel,
+  errorLines,
   onSelect,
 }: {
   row: LiveClassroomStudentRow
@@ -188,6 +270,7 @@ function StudentRowButton({
   shownAt: string | null
   faceStatus: LiveStudentStatus
   faceLabel: string
+  errorLines: string[]
   onSelect: () => void
 }) {
   const Icon = statusIcon(faceStatus)
@@ -214,14 +297,21 @@ function StudentRowButton({
         </div>
         <p className="text-xs text-[var(--cc-text-muted)]">{row.studentId}</p>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <Badge variant="outline" className={cn("text-[10px]", statusTone(faceStatus))}>
-            {faceLabel}
-          </Badge>
+          <StatusFlags row={row} />
           {row.compileErrors > 0 ? (
             <Badge variant="outline" className="text-[10px] text-red-600 dark:text-red-300">
               {row.compileErrors} error{row.compileErrors === 1 ? "" : "s"}
             </Badge>
           ) : null}
+          {errorLines.map((line) => (
+            <span
+              key={line}
+              title={line}
+              className="basis-full text-[10px] leading-snug text-red-600 dark:text-red-300"
+            >
+              {line}
+            </span>
+          ))}
           {row.points != null ? (
             <Badge variant="outline" className="text-[10px]">
               {row.points} pts
@@ -247,6 +337,10 @@ function snapshotMs(value: string | null | undefined): number | null {
   return Number.isFinite(ms) ? ms : null
 }
 
+function studentIsInLiveEditor(status: LiveStudentStatus): boolean {
+  return status === "coding" || status === "error" || status === "needs_help" || status === "joined"
+}
+
 /** A slow roster response must not paint over code that already arrived on the fast path. */
 function keepFresherLiveCode(
   incoming: LiveClassroomSessionPayload,
@@ -257,6 +351,7 @@ function keepFresherLiveCode(
   return {
     ...incoming,
     students: incoming.students.map((student) => {
+      if (!studentIsInLiveEditor(student.status)) return student
       const older = prior.get(student.studentDbId)
       const olderMs = snapshotMs(older?.snapshotUpdatedAt)
       const incomingMs = snapshotMs(student.snapshotUpdatedAt)
@@ -274,6 +369,23 @@ function keepFresherLiveCode(
   }
 }
 
+/** Roster polls sent with replay=0 omit the replay; keep the one already loaded. */
+function carryTypingReplay(
+  incoming: LiveClassroomSessionPayload,
+  previous: LiveClassroomSessionPayload | null,
+): LiveClassroomSessionPayload {
+  if (!previous) return incoming
+  const prior = new Map(previous.students.map((student) => [student.studentDbId, student]))
+  return {
+    ...incoming,
+    students: incoming.students.map((student) => {
+      if (student.typingReplay) return student
+      const older = prior.get(student.studentDbId)
+      return older?.typingReplay ? { ...student, typingReplay: older.typingReplay } : student
+    }),
+  }
+}
+
 function withFocusedLiveCode(
   payload: LiveClassroomSessionPayload,
   studentDbId: number,
@@ -283,6 +395,11 @@ function withFocusedLiveCode(
   if (index < 0) return null
   const current = payload.students[index]
   if (!next.code.trim() && (current.code?.trim().length ?? 0) > 0) return null
+  if (!studentIsInLiveEditor(current.status)) {
+    const incomingMs = snapshotMs(next.updatedAt)
+    const currentMs = snapshotMs(current.snapshotUpdatedAt)
+    if (incomingMs != null && currentMs != null && incomingMs < currentMs) return null
+  }
   const sameCode = (current.code ?? "") === next.code
   const sameAt = (current.snapshotUpdatedAt ?? null) === (next.updatedAt ?? null)
   const sameCursor =
@@ -300,6 +417,28 @@ function withFocusedLiveCode(
     snapshotUpdatedAt: next.updatedAt ?? current.snapshotUpdatedAt,
   }
   return { ...payload, students }
+}
+
+function CompactActionTip({
+  label,
+  enabled,
+  children,
+}: {
+  label: string
+  enabled: boolean
+  children: ReactElement
+}) {
+  if (!enabled) return children
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex">{children}</span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" sideOffset={6}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  )
 }
 
 export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }: Props) {
@@ -323,6 +462,7 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
   const [filter, setFilter] = useState<RosterFilter>("all")
   const [studentQuery, setStudentQuery] = useState("")
   const [pushing, setPushing] = useState(false)
+  const [syncingStudent, setSyncingStudent] = useState(false)
   const [runPanelOpen, setRunPanelOpen] = useState(false)
   const [runLoading, setRunLoading] = useState(false)
   const [displayCodeForRun, setDisplayCodeForRun] = useState("")
@@ -409,19 +549,46 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
   const selectedStudentIdRef = useRef(selectedStudentId)
   selectedStudentIdRef.current = selectedStudentId
 
-  const load = useCallback(async (silent = false, showRefresh = false) => {
+  const rosterInFlightRef = useRef(false)
+  const rosterSeqRef = useRef(0)
+  const replayFetchRef = useRef<{ studentId: number | null; at: number }>({ studentId: null, at: 0 })
+
+  /**
+   * silent + !force is the background poll: it is skipped while another roster request is
+   * pending or the window is hidden. Selection changes and manual refreshes pass force.
+   * Responses that arrive after a newer request started are dropped.
+   */
+  const load = useCallback(async (silent = false, showRefresh = false, force = false) => {
+    const background = silent && !force && !showRefresh
+    if (background) {
+      if (rosterInFlightRef.current) return
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return
+    }
+    const seq = ++rosterSeqRef.current
+    rosterInFlightRef.current = true
     if (!silent) setLoading(true)
     else if (showRefresh) setRefreshing(true)
     if (!silent) setError(null)
     try {
       const focus = selectedStudentIdRef.current
       const focusQs = focus != null ? `&studentId=${encodeURIComponent(String(focus))}` : ""
+      const lastReplay = replayFetchRef.current
+      const wantReplay =
+        focus != null &&
+        (!background ||
+          lastReplay.studentId !== focus ||
+          Date.now() - lastReplay.at >= LIVE_INSTRUCTOR_REPLAY_REFRESH_MS)
       const res = await instructorApiFetch(
-        `/api/instructor/codebench/live-session?assignmentId=${encodeURIComponent(String(handoff.submissionId))}${focusQs}`,
+        `/api/instructor/codebench/live-session?assignmentId=${encodeURIComponent(String(handoff.submissionId))}${focusQs}&replay=${wantReplay ? "1" : "0"}`,
       )
       const parsed = await readInstructorApiJson<LiveClassroomSessionPayload>(res, "Live classroom session")
+      if (seq !== rosterSeqRef.current) return
       if (!parsed.ok) throw new Error(parsed.error)
-      setPayload((prev) => keepFresherLiveCode(parsed.data, prev))
+      if (wantReplay) replayFetchRef.current = { studentId: focus, at: Date.now() }
+      setPayload((prev) => {
+        const merged = keepFresherLiveCode(parsed.data, prev)
+        return wantReplay ? merged : carryTypingReplay(merged, prev)
+      })
       setError(null)
       setSelectedStudentId((prev) => {
         if (prev != null && parsed.data.students.some((s) => s.studentDbId === prev)) return prev
@@ -431,11 +598,15 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
         return priority?.studentDbId ?? parsed.data.students[0]?.studentDbId ?? null
       })
     } catch (err) {
+      if (seq !== rosterSeqRef.current) return
       const message = err instanceof Error ? err.message : "Failed to load live session"
       if (!silent || !payloadRef.current) setError(message)
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      if (seq === rosterSeqRef.current) {
+        rosterInFlightRef.current = false
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
   }, [handoff.submissionId, scopeKey])
 
@@ -492,7 +663,7 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
     } catch {
       /* quota / private mode */
     }
-    void load(true, false)
+    void load(true, false, true)
   }, [handoff.submissionId, load, selectedStudentId])
 
   const handleEndSession = useCallback(async () => {
@@ -556,19 +727,12 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
           (row.section ?? "").toLowerCase().includes(query)
         )
       })
-      .map((row) => {
-        const bucket = rosterBucket(row.status)
-        const face =
-          bucket === "present"
-            ? { status: "joined" as const, label: "Joined" }
-            : { status: row.status, label: row.statusLabel }
-        return {
-          row,
-          shownAt: clocks.get(row.studentDbId)?.at ?? row.lastActivityAt,
-          faceStatus: face.status,
-          faceLabel: face.label,
-        }
-      })
+      .map((row) => ({
+        row,
+        shownAt: clocks.get(row.studentDbId)?.at ?? row.lastActivityAt,
+        faceStatus: row.status,
+        faceLabel: row.statusLabel,
+      }))
   }, [filter, payload?.students, studentQuery])
 
   const selectedStudent = useMemo(
@@ -616,6 +780,7 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
         selectedStudent.code?.trim() || submittedCodeByStudent.get(selectedStudent.studentDbId) || "",
       ) || null
     : null
+  const cloudEditorFile = useInstructorCloudEditorFile(selectedStudent && !selectedStudentCode ? selectedStudent.studentDbId : null)
 
   const resolveRunnableCode = useCallback(() => {
     return stripCodebenchProbeComments((displayCodeForRun || selectedStudentCode || "").trim())
@@ -627,6 +792,35 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
     pendingRunCodeRef.current = null
     void runPanelRef.current?.run(code)
   }, [])
+
+  const handleSyncStudentCode = useCallback(async () => {
+    if (!selectedStudentId || syncingStudent) return
+    setSyncingStudent(true)
+    try {
+      const res = await instructorApiFetch("/api/instructor/codebench/live-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assignmentId: Number(handoff.submissionId),
+          studentDbId: selectedStudentId,
+        }),
+      })
+      const parsed = await readInstructorApiJson<{ ok?: boolean }>(res, "Sync from student")
+      if (!parsed.ok) throw new Error(parsed.error)
+      toast({
+        title: "Sync requested",
+        description: "The student editor will save its current file into the live snapshot.",
+      })
+    } catch (err) {
+      toast({
+        title: "Could not request a sync",
+        description: err instanceof Error ? err.message : "Try again in a moment.",
+        variant: "destructive",
+      })
+    } finally {
+      setSyncingStudent(false)
+    }
+  }, [handoff.submissionId, selectedStudentId, syncingStudent, toast])
 
   const handleOpenRunPanel = useCallback(() => {
     const code = resolveRunnableCode()
@@ -654,10 +848,12 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
         ? "submitted"
         : null)
 
-  const isStudentLive = useMemo(() => {
-    if (!selectedStudent?.snapshotUpdatedAt) return false
-    return Date.now() - new Date(selectedStudent.snapshotUpdatedAt).getTime() < LIVE_WINDOW_MS
-  }, [selectedStudent?.snapshotUpdatedAt, payload?.polledAt])
+  // Live follows the roster status. A leave clears that status on the next poll.
+  const isStudentLive =
+    selectedStudent?.status === "coding" ||
+    selectedStudent?.status === "error" ||
+    selectedStudent?.status === "needs_help" ||
+    selectedStudent?.status === "joined"
 
   const filterButtons: Array<{ id: RosterFilter; label: string; count?: number }> = [
     { id: "all", label: "All", count: payload?.summary.totalStudents },
@@ -724,55 +920,75 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
             ) : null}
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-            <Button
-              type="button"
-              size="icon"
-              variant="outline"
-              className="h-8 w-8"
-              onClick={() => void load(true, true)}
-              disabled={loading}
-              aria-label="Refresh roster"
-              title="Refresh roster"
-            >
-              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant={expanded ? "default" : "outline"}
-              className="h-8 w-8"
-              onClick={() => setExpanded((value) => !value)}
-              aria-label={expanded ? "Exit expanded live classroom" : "Expand live classroom"}
-              aria-pressed={expanded}
-              title={expanded ? "Exit expanded view (Esc)" : "Expand students + code view"}
-            >
-              {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-            </Button>
-            <InstructorClassroomQuestionButton
-              open={questionOpen}
-              onClick={() => setQuestionOpen((value) => !value)}
-            />
-            <Button
-              type="button"
-              size="sm"
-              className="h-8"
-              onClick={() => onOpenInIde(handoff)}
-              title="Open this assignment in the instructor IDE"
-            >
-              <Code2 className="mr-1 h-3.5 w-3.5" />
-              Open in IDE
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              className="h-8"
-              onClick={() => void handleEndSession()}
-              disabled={ending}
-            >
-              {ending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-              End session
-            </Button>
+            <CompactActionTip label="Refresh roster" enabled={!expanded}>
+              <Button
+                type="button"
+                size={expanded ? "sm" : "icon"}
+                variant="outline"
+                className={expanded ? "h-8" : "h-8 w-8"}
+                onClick={() => void load(true, true)}
+                disabled={loading}
+                aria-label="Refresh roster"
+              >
+                {loading ? (
+                  <Loader2 className={cn("h-3.5 w-3.5 animate-spin", expanded && "mr-1")} />
+                ) : (
+                  <RefreshCw className={cn("h-3.5 w-3.5", expanded && "mr-1")} />
+                )}
+                {expanded ? "Refresh" : null}
+              </Button>
+            </CompactActionTip>
+            <CompactActionTip label={expanded ? "Exit full screen" : "Expand live classroom"} enabled={!expanded}>
+              <Button
+                type="button"
+                size={expanded ? "sm" : "icon"}
+                variant={expanded ? "default" : "outline"}
+                className={expanded ? "h-8" : "h-8 w-8"}
+                onClick={() => setExpanded((value) => !value)}
+                aria-label={expanded ? "Exit expanded live classroom" : "Expand live classroom"}
+                aria-pressed={expanded}
+              >
+                {expanded ? <Minimize2 className="mr-1 h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                {expanded ? "Exit full screen" : null}
+              </Button>
+            </CompactActionTip>
+            <CompactActionTip label="Question" enabled={!expanded}>
+              <InstructorClassroomQuestionButton
+                open={questionOpen}
+                showLabel={expanded}
+                onClick={() => setQuestionOpen((value) => !value)}
+              />
+            </CompactActionTip>
+            <CompactActionTip label="Open in IDE" enabled={!expanded}>
+              <Button
+                type="button"
+                size={expanded ? "sm" : "icon"}
+                className={expanded ? "h-8" : "h-8 w-8"}
+                onClick={() => onOpenInIde(handoff)}
+                aria-label="Open in IDE"
+              >
+                <Code2 className={cn("h-3.5 w-3.5", expanded && "mr-1")} />
+                {expanded ? "Open in IDE" : null}
+              </Button>
+            </CompactActionTip>
+            <CompactActionTip label="End session" enabled={!expanded}>
+              <Button
+                type="button"
+                size={expanded ? "sm" : "icon"}
+                variant="destructive"
+                className={expanded ? "h-8" : "h-8 w-8"}
+                onClick={() => void handleEndSession()}
+                disabled={ending}
+                aria-label="End session"
+              >
+                {ending ? (
+                  <Loader2 className={cn("h-3.5 w-3.5 animate-spin", expanded && "mr-1")} />
+                ) : (
+                  <Square className={cn("h-3.5 w-3.5", expanded && "mr-1")} />
+                )}
+                {expanded ? "End session" : null}
+              </Button>
+            </CompactActionTip>
           </div>
         </div>
 
@@ -841,6 +1057,26 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
                   ))}
                 </div>
               </div>
+              {payload?.blockedJoins?.length ? (
+                <div
+                  role="status"
+                  className="mb-2 shrink-0 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-800 dark:text-amber-200"
+                >
+                  <p className="font-semibold">
+                    {payload.blockedJoins.length === 1
+                      ? "1 student couldn't join"
+                      : `${payload.blockedJoins.length} students couldn't join`}
+                  </p>
+                  <ul className="mt-1 max-h-20 space-y-0.5 overflow-y-auto overscroll-contain">
+                    {payload.blockedJoins.map((blocked) => (
+                      <li key={blocked.studentDbId} className="line-clamp-1" title={blocked.message}>
+                        {blocked.fullName}
+                        {blocked.section ? ` (${blocked.section})` : ""} · {blocked.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               <div className="instructor-live-session__roster-list scrollbar-themed min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1">
                 {filteredStudents.length ? (
                   filteredStudents.map((entry) => ( /* roster row */
@@ -850,6 +1086,7 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
                       shownAt={entry.shownAt}
                       faceStatus={entry.faceStatus}
                       faceLabel={entry.faceLabel}
+                      errorLines={compilerErrorLines(entry.row, payload?.recentEvents ?? [])}
                       selected={entry.row.studentDbId === selectedStudentId}
                       onSelect={() => setSelectedStudentId(entry.row.studentDbId)}
                     />
@@ -902,16 +1139,21 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
                           : ""}
                         {!sessionClosed ? " · Use Help edit only when intervening" : ""}
                       </p>
+                      {compilerErrorLines(selectedStudent, payload?.recentEvents ?? []).map((line) => (
+                        <p key={line} className="mt-1 text-[11px] leading-snug text-red-600 dark:text-red-300">
+                          {line}
+                        </p>
+                      ))}
                     </div>
-                    <Badge variant="outline" className={cn("text-[10px]", statusTone(selectedStudent.status))}>
-                      {selectedStudent.statusLabel}
-                    </Badge>
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      <StatusFlags row={selectedStudent} />
+                    </div>
                   </div>
                   <LiveTypingReplayPanel
                     key={selectedStudent.studentDbId}
                     replay={selectedStudent.typingReplay}
-                    liveCode={selectedStudentCode}
-                    fileName={selectedStudent.fileName}
+                    liveCode={selectedStudentCode || cloudEditorFile?.code || ""}
+                    fileName={selectedStudent.fileName || cloudEditorFile?.fileName || null}
                     language={selectedStudent.language}
                     isLive={isStudentLive}
                     codeSource={isStudentLive ? "live" : selectedCodeSource}
@@ -927,6 +1169,8 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
                     onSendToStudent={handleSendToStudent}
                     onDisplayCodeChange={setDisplayCodeForRun}
                     onRunStudentCode={handleOpenRunPanel}
+                    onSyncStudentCode={() => void handleSyncStudentCode()}
+                    syncStudentLoading={syncingStudent}
                     runStudentLoading={runLoading}
                     runStudentDisabled={runLoading}
                     studentCursor={selectedStudent.studentCursor}

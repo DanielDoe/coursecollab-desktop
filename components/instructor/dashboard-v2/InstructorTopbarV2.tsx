@@ -36,7 +36,8 @@ import { AdminNotificationBell } from "@/components/admin-notification-bell"
 import { getPortalConfig } from "@/lib/portal-config"
 import { staffRoleLabel } from "@/lib/faculty-portal-nav-config"
 import { buildInstructorApiHeaders } from "@/lib/instructor-api-headers"
-import { reconcileFacultySelectedCourse, facultyCourseSelectValue, parseFacultyOfferingKey } from "@/lib/faculty-course-session-sync"
+import { reconcileFacultySelectedCourse, facultyCourseSelectValue, parseFacultyOfferingKey, resolveFacultyCourseSelectValue } from "@/lib/faculty-course-session-sync"
+import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
 import { findOfferingByKey } from "@/lib/faculty-auth-flow"
 import { facultyOfferingChipCode } from "@/lib/faculty-course-offerings-shared"
 import type { FacultyCourseOffering } from "@/lib/faculty-course-offerings-shared"
@@ -61,6 +62,66 @@ function profileInitials(name?: string | null, username?: string | null, fallbac
 
 function profileDisplayName(name?: string | null, username?: string | null, fallback = "Faculty") {
   return name?.trim() || username?.trim() || fallback
+}
+
+const FACULTY_COURSE_SCOPE_FIELDS = [
+  "selectedCourseId",
+  "selectedCourseCode",
+  "selectedCourseTitle",
+  "selectedCatalogCourseCode",
+  "selectedSessionId",
+  "selectedSessionCode",
+  "selectedAcademicTermId",
+  "selectedTermLabel",
+  "staffRoleForCourse",
+  "coursePermissions",
+] as const
+
+function readStoredFacultyCourseSelectValue(
+  storageKey: string,
+  isAdmin: boolean,
+  allCoursesValue: string,
+): string {
+  if (typeof window === "undefined") return ""
+  try {
+    const session = JSON.parse(localStorage.getItem(storageKey) || "{}") as Record<string, unknown>
+    if (isAdmin) {
+      return session.selectedCourseId != null ? String(session.selectedCourseId) : allCoursesValue
+    }
+    return facultyCourseSelectValue(session)
+  } catch {
+    return ""
+  }
+}
+
+function rememberFacultyCourseScope(session: Record<string, unknown>): Record<string, unknown> | null {
+  if (session.selectedCourseId == null || String(session.selectedCourseId).trim() === "") return null
+  const kept: Record<string, unknown> = {}
+  for (const field of FACULTY_COURSE_SCOPE_FIELDS) {
+    if (session[field] !== undefined) kept[field] = session[field]
+  }
+  return kept
+}
+
+/** A live-classroom teardown must not blank the header. Put the last course back. */
+function restoreDroppedFacultyCourseScope(
+  storageKey: string,
+  kept: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  if (!kept) return kept
+  try {
+    const raw = localStorage.getItem(storageKey)
+    if (!raw) return kept
+    const session = JSON.parse(raw) as Record<string, unknown>
+    if (session.courseScopeSkipped === true) return null
+    if (session.selectedCourseId != null && String(session.selectedCourseId).trim() !== "") {
+      return rememberFacultyCourseScope(session)
+    }
+    localStorage.setItem(storageKey, JSON.stringify({ ...session, ...kept }))
+    return kept
+  } catch {
+    return kept
+  }
 }
 
 export function InstructorTopbarV2({ merged = false }: { merged?: boolean }) {
@@ -96,9 +157,11 @@ export function InstructorTopbarV2({ merged = false }: { merged?: boolean }) {
   const [profileUsername, setProfileUsername] = useState<string | null>(null)
   const [courses, setCourses] = useState<FacultyCourseOffering[]>([])
   const [activeTermLabel, setActiveTermLabel] = useState<string | null>(null)
-  const [courseSelectValue, setCourseSelectValue] = useState("")
-
   const ADMIN_ALL_COURSES = "__all__"
+  const [courseSelectValue, setCourseSelectValue] = useState(() =>
+    readStoredFacultyCourseSelectValue(portalCfg.sessionStorageKey, isAdmin, ADMIN_ALL_COURSES),
+  )
+  const keptCourseScopeRef = useRef<Record<string, unknown> | null>(null)
 
   const loadProfile = () => {
     if (isAdmin) {
@@ -120,7 +183,9 @@ export function InstructorTopbarV2({ merged = false }: { merged?: boolean }) {
 
   const syncSelectFromSession = useCallback(() => {
     try {
-      const s = JSON.parse(localStorage.getItem(portalCfg.sessionStorageKey) || "{}")
+      const s = JSON.parse(localStorage.getItem(portalCfg.sessionStorageKey) || "{}") as Record<string, unknown>
+      const kept = rememberFacultyCourseScope(s)
+      if (kept) keptCourseScopeRef.current = kept
       if (isAdmin) {
         setCourseSelectValue(
           s.selectedCourseId != null ? String(s.selectedCourseId) : ADMIN_ALL_COURSES,
@@ -144,8 +209,20 @@ export function InstructorTopbarV2({ merged = false }: { merged?: boolean }) {
         .then((j) => {
           if (!j?.courses && !j?.offerings) return
           const list = (j.offerings ?? j.courses) as FacultyCourseOffering[]
-          setCourses(list)
+          setCourses((current) => (list.length === 0 && current.length > 0 ? current : list))
           setActiveTermLabel(j.activeTerm?.label ?? null)
+          if (!isAdmin && list.length > 0) {
+            try {
+              const raw = localStorage.getItem(portalCfg.sessionStorageKey)
+              if (raw) {
+                const session = JSON.parse(raw) as Record<string, unknown>
+                const key = resolveFacultyCourseSelectValue(session, list)
+                if (key) setCourseSelectValue(key)
+              }
+            } catch {
+              /* ignore */
+            }
+          }
           if (isAdmin || !opts?.reconcile) return
           try {
             const raw = localStorage.getItem(portalCfg.sessionStorageKey)
@@ -183,14 +260,30 @@ export function InstructorTopbarV2({ merged = false }: { merged?: boolean }) {
 
   useEffect(() => {
     reloadCourses({ reconcile: true })
-    const onRefresh = () => reloadCourses({ reconcile: false })
+    const onRefresh = () => {
+      keptCourseScopeRef.current = restoreDroppedFacultyCourseScope(
+        portalCfg.sessionStorageKey,
+        keptCourseScopeRef.current,
+      )
+      syncSelectFromSession()
+      reloadCourses({ reconcile: false })
+    }
+    const onDisplaySync = () => {
+      keptCourseScopeRef.current = restoreDroppedFacultyCourseScope(
+        portalCfg.sessionStorageKey,
+        keptCourseScopeRef.current,
+      )
+      syncSelectFromSession()
+    }
     window.addEventListener("instructor-session-updated", onRefresh)
     window.addEventListener(portalCfg.courseScopeEvent, onRefresh)
+    window.addEventListener("instructor-course-display-sync", onDisplaySync)
     return () => {
       window.removeEventListener("instructor-session-updated", onRefresh)
       window.removeEventListener(portalCfg.courseScopeEvent, onRefresh)
+      window.removeEventListener("instructor-course-display-sync", onDisplaySync)
     }
-  }, [reloadCourses, portalCfg.courseScopeEvent])
+  }, [reloadCourses, portalCfg.courseScopeEvent, portalCfg.sessionStorageKey, syncSelectFromSession])
 
   const displayName = profileDisplayName(
     profileName,
@@ -221,7 +314,8 @@ export function InstructorTopbarV2({ merged = false }: { merged?: boolean }) {
         localStorage.setItem(portalCfg.sessionStorageKey, JSON.stringify(s))
         setCourseSelectValue(ADMIN_ALL_COURSES)
         bumpCourseScope()
-        router.refresh()
+        window.dispatchEvent(new Event("instructor-session-updated"))
+        if (!isDesktopAppShell()) router.refresh()
         return
       }
 
@@ -288,7 +382,8 @@ export function InstructorTopbarV2({ merged = false }: { merged?: boolean }) {
         } catch {
           /* ignore */
         }
-        router.refresh()
+        window.dispatchEvent(new Event("instructor-session-updated"))
+        if (!isDesktopAppShell()) router.refresh()
       })()
     } catch {
       /* ignore */
@@ -377,12 +472,25 @@ export function InstructorTopbarV2({ merged = false }: { merged?: boolean }) {
     return findOfferingByKey(courses, courseSelectValue) ?? null
   }, [courseSelectValue, courses, isAdmin])
 
+  const storedCourseLabel = useMemo(() => {
+    if (isAdmin || typeof window === "undefined") return null
+    try {
+      const session = JSON.parse(localStorage.getItem(portalCfg.sessionStorageKey) || "{}") as {
+        selectedSessionCode?: string
+        selectedCourseCode?: string
+      }
+      return session.selectedSessionCode?.trim() || session.selectedCourseCode?.trim() || null
+    } catch {
+      return null
+    }
+  }, [courseSelectValue, isAdmin, portalCfg.sessionStorageKey])
+
   const courseChipPrimary =
     isAdmin && (!selectedOffering || courseSelectValue === ADMIN_ALL_COURSES)
       ? "All courses"
       : selectedOffering
         ? facultyOfferingChipCode(selectedOffering)
-        : "Course"
+        : storedCourseLabel || "Course"
   const courseChipSecondary = selectedOffering
     ? [selectedOffering.course_title, selectedOffering.term_label ?? selectedOffering.semester]
         .filter(Boolean)

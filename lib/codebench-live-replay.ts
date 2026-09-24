@@ -74,6 +74,38 @@ export function resolveLiveReplayDisplayCode(input: {
   return input.replayDoc
 }
 
+/**
+ * Keystrokes from before `sinceMs` (epoch ms, e.g. the live session start) fold into
+ * `initialDocument`, and the replay clock restarts at `sinceMs`. Without this, a snapshot
+ * row reused across sessions replays (and times) every earlier session too.
+ * Returns null when no keystrokes remain.
+ */
+export function typingReplaySince(
+  replay: TypingReplay | null | undefined,
+  sinceMs: number | null | undefined,
+): TypingReplay | null {
+  if (!replay?.events?.length) return null
+  if (sinceMs == null || !Number.isFinite(sinceMs)) return replay
+  const cut = sinceMs - replay.startTime
+  if (cut <= 0) return replay
+  const firstKept = replay.events.findIndex((event) => event.t >= cut)
+  if (firstKept < 0) return null
+  return {
+    startTime: sinceMs,
+    initialDocument: getDocumentAtTime(
+      { ...replay, events: replay.events.slice(0, firstKept) },
+      Number.POSITIVE_INFINITY,
+    ),
+    events: replay.events.slice(firstKept).map((event) => ({ ...event, t: event.t - cut })),
+  }
+}
+
+/** Move a replay between client and server clocks (`offsetMs` = targetNow - sourceNow). */
+export function shiftTypingReplayClock<T extends TypingReplay | null>(replay: T, offsetMs: number): T {
+  if (!replay || !Number.isFinite(offsetMs) || offsetMs === 0) return replay
+  return { ...replay, startTime: replay.startTime + offsetMs }
+}
+
 export function prepareLiveTypingReplay(raw: unknown): TypingReplay | null {
   const replay = normalizeTypingReplay(raw)
   if (!replay) return null

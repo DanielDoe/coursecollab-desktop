@@ -6,12 +6,43 @@ import type { StudentLiveClassroomSession } from "@/lib/codebench-live-classroom
 import { cn } from "@/lib/utils"
 import "./student-live-classroom-banner.css"
 
+/**
+ * live: the server accepted the editor. connecting: join sent, not confirmed yet.
+ * paused: joined, but no editor is mounted to stream (student is on another tab).
+ */
+export type StudentLiveBannerConnection = "live" | "connecting" | "paused"
+
 type Props = {
   sessions: StudentLiveClassroomSession[]
   activeAssignmentId?: string | null
+  connection?: StudentLiveBannerConnection
   onJoin: (session: StudentLiveClassroomSession) => void
   onLeave?: (session: StudentLiveClassroomSession) => void
   compact?: boolean
+}
+
+const PILL_LABEL: Record<StudentLiveBannerConnection, string> = {
+  live: "ON AIR",
+  connecting: "JOINING",
+  paused: "PAUSED",
+}
+
+const JOINED_KICKER: Record<StudentLiveBannerConnection, string> = {
+  live: "You are in live classroom",
+  connecting: "Joining live classroom…",
+  paused: "Live classroom paused",
+}
+
+const JOINED_HINT: Record<StudentLiveBannerConnection, string> = {
+  live: "Your instructor can see this editor as you type.",
+  connecting: "Waiting for the classroom to accept this editor.",
+  paused: "Open the editor to resume sharing with your instructor.",
+}
+
+const COMPACT_KICKER: Record<StudentLiveBannerConnection, string> = {
+  live: " · sharing your editor",
+  connecting: " · connecting…",
+  paused: " · paused",
 }
 
 function questionPreview(text: string, max = 140) {
@@ -20,14 +51,20 @@ function questionPreview(text: string, max = 140) {
   return `${plain.slice(0, max).trim()}…`
 }
 
-function LiveSignal({ joined }: { joined: boolean }) {
+function LiveSignal({
+  joined,
+  connection,
+}: {
+  joined: boolean
+  connection: StudentLiveBannerConnection
+}) {
   return (
     <div className="student-live-banner__signal">
       <span className="student-live-banner__dot" aria-hidden="true">
         <span className="student-live-banner__ripple" />
         <span className="student-live-banner__ripple student-live-banner__ripple--late" />
       </span>
-      <span className="student-live-banner__pill">{joined ? "ON AIR" : "LIVE"}</span>
+      <span className="student-live-banner__pill">{joined ? PILL_LABEL[connection] : "LIVE"}</span>
     </div>
   )
 }
@@ -87,6 +124,7 @@ function sessionAction(opts: {
 export function StudentLiveClassroomBanner({
   sessions,
   activeAssignmentId,
+  connection = "live",
   onJoin,
   onLeave,
   compact = false,
@@ -94,18 +132,19 @@ export function StudentLiveClassroomBanner({
   const joinedAny = sessions.some(
     (session) => String(activeAssignmentId ?? "") === String(session.assignmentId),
   )
+  const onAir = joinedAny && connection === "live"
   const [joinBurst, setJoinBurst] = useState(false)
   const wasJoinedRef = useRef(false)
 
   useEffect(() => {
-    if (joinedAny && !wasJoinedRef.current) {
+    if (onAir && !wasJoinedRef.current) {
       setJoinBurst(true)
       const timer = window.setTimeout(() => setJoinBurst(false), 900)
       wasJoinedRef.current = true
       return () => window.clearTimeout(timer)
     }
-    wasJoinedRef.current = joinedAny
-  }, [joinedAny])
+    wasJoinedRef.current = onAir
+  }, [onAir])
 
   if (sessions.length === 0) return null
 
@@ -120,30 +159,30 @@ export function StudentLiveClassroomBanner({
       className={cn(
         "student-live-banner",
         compact ? "student-live-banner--compact" : "student-live-banner--roomy",
-        joinedAny && "student-live-banner--on-air",
+        onAir && "student-live-banner--on-air",
         joinBurst && "student-live-banner--joining",
       )}
     >
       {single ? (
         <div className="student-live-banner__row">
-          <LiveSignal joined={singleJoined} />
+          <LiveSignal joined={singleJoined} connection={connection} />
           <div className="student-live-banner__copy">
             {compact ? (
               <p className="student-live-banner__title">
                 {single.title}
                 {singleJoined ? (
-                  <span className="student-live-banner__kicker"> · sharing your editor</span>
+                  <span className="student-live-banner__kicker">{COMPACT_KICKER[connection]}</span>
                 ) : null}
               </p>
             ) : (
               <>
                 <p className="student-live-banner__kicker">
-                  {singleJoined ? "You are in live classroom" : "Live classroom is open"}
+                  {singleJoined ? JOINED_KICKER[connection] : "Live classroom is open"}
                 </p>
                 <p className="student-live-banner__title">{single.title}</p>
                 <p className="student-live-banner__hint">
                   {singleJoined
-                    ? "Your instructor can see this editor as you type."
+                    ? JOINED_HINT[connection]
                     : "Join to open the assignment. Your instructor can watch your code."}
                 </p>
               </>
@@ -159,7 +198,7 @@ export function StudentLiveClassroomBanner({
         </div>
       ) : (
         <div className="student-live-banner__row">
-          <LiveSignal joined={joinedAny} />
+          <LiveSignal joined={joinedAny} connection={connection} />
           <div className="student-live-banner__copy">
             <p className="student-live-banner__title">
               {sessions.length} live classroom sessions
@@ -179,7 +218,9 @@ export function StudentLiveClassroomBanner({
                       {!compact ? (
                         <p className="student-live-banner__hint">
                           {joined
-                            ? "You are in this session · instructor can see your keystrokes"
+                            ? connection === "live"
+                              ? "You are in this session · instructor can see your keystrokes"
+                              : JOINED_HINT[connection]
                             : questionPreview(session.questionText)}
                         </p>
                       ) : null}

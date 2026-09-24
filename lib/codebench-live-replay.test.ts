@@ -8,6 +8,7 @@ import {
   replayReconstructsTo,
   resolveLiveReplayDisplayCode,
   selectFaithfulTypingReplay,
+  typingReplaySince,
 } from "./codebench-live-replay"
 import { getDocumentAtTime, trimTypingReplay, type TypingReplay } from "./typing-replay"
 
@@ -126,5 +127,24 @@ describe("resolveLiveReplayDisplayCode", () => {
       resolveLiveReplayDisplayCode({ liveCode: live, replayDoc, showReplayFrames: true, isAtEnd: true }),
       live,
     )
+  })
+})
+
+describe("typingReplaySince", () => {
+  it("folds earlier-session keystrokes into initialDocument and restarts the clock", () => {
+    const replay = replayFromTyping("abcdef")
+    replay.startTime = 1_000
+    const since = typingReplaySince(replay, 1_000 + 121)
+    assert.ok(since)
+    assert.equal(since.startTime, 1_000 + 121)
+    assert.equal(since.initialDocument, "abc")
+    assert.equal(since.events.length, 3)
+    assert.equal(since.events[0]?.t, 39)
+  })
+
+  it("returns null when every keystroke is from a previous session", () => {
+    const replay = replayFromTyping("abc")
+    replay.startTime = 1_000
+    assert.equal(typingReplaySince(replay, 1_000 + 10_000), null)
   })
 })

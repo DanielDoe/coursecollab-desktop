@@ -7,7 +7,7 @@ export const CODEBENCH_LIMITS = {
   maxConcurrentSessions: 1,
   compileTimeoutMs: 30_000,
   /** A system compiler that cannot compile should fail fast so we can use the installed toolchain. */
-  systemVerifyTimeoutMs: 20_000,
+  systemVerifyTimeoutMs: 90_000,
   /** First Zig compile builds its cache and can take longer than a student rerun. */
   verifyCompileTimeoutMs: 180_000,
   /** Wall-clock cap. Waiting on cin does not use a shorter idle timeout. */

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+    />
+    <title>Updating CourseCollab</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        background: transparent;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        user-select: none;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .card {
+        width: 460px;
+        height: 158px;
+        display: flex;
+        flex-direction: column;
+        border-radius: 18px;
+        background: #ffffff;
+        box-shadow:
+          0 0 0 1px rgba(0, 0, 0, 0.06),
+          0 18px 50px rgba(0, 0, 0, 0.18);
+        overflow: hidden;
+      }
+      .titlebar {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 38px;
+        flex-shrink: 0;
+      }
+      .lights {
+        position: absolute;
+        left: 14px;
+        top: 13px;
+        display: flex;
+        gap: 8px;
+      }
+      .lights span {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        background: #d4d4d8;
+        box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+      }
+      h1 {
+        margin: 0;
+        color: #8e8e93;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .body {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 6px 22px 8px;
+      }
+      .mark {
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        object-fit: cover;
+        flex-shrink: 0;
+      }
+      p {
+        margin: 0;
+        color: #1c1c1e;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+      .track {
+        margin: 8px 22px 18px;
+        height: 6px;
+        border-radius: 999px;
+        background: #e6e6ea;
+        overflow: hidden;
+      }
+      .track span {
+        display: block;
+        height: 100%;
+        width: 18%;
+        border-radius: inherit;
+        background: #b4b4bb;
+        transition: width 0.65s ease;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="titlebar">
+        <div class="lights" aria-hidden="true"><span></span><span></span><span></span></div>
+        <h1 id="title">Updating CourseCollab</h1>
+      </div>
+      <div class="body">
+        <img class="mark" src="course-collab-icon.png" alt="" />
+        <p id="status">Stopping CourseCollab...</p>
+      </div>
+      <div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="18" aria-busy="true">
+        <span id="bar"></span>
+      </div>
+    </div>
+    <script>
+      const params = new URLSearchParams(location.search)
+      const name = params.get("name") || "CourseCollab"
+      const version = params.get("version") || ""
+      const title = document.getElementById("title")
+      const status = document.getElementById("status")
+      const bar = document.getElementById("bar")
+      const track = document.querySelector(".track")
+      title.textContent = version ? "Updating " + name + " (" + version + ")" : "Updating " + name
+      document.title = title.textContent
+      status.textContent = "Stopping " + name + "..."
+
+      window.setInstallStage = function (label, percent) {
+        status.textContent = label
+        bar.style.width = percent + "%"
+        track.setAttribute("aria-valuenow", String(percent))
+      }
+    </script>
+  </body>
+</html>

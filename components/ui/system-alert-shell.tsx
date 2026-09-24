@@ -78,7 +78,7 @@ export function SystemAlertShell({
       </div>
 
       {showTimer ? (
-        <div className="h-[2px] w-full bg-zinc-100 dark:bg-zinc-800">
+        <div className="h-[2px] w-full bg-[var(--muted)]">
           <div
             className="cc-system-alert-progress h-full origin-left rounded-full bg-[var(--cc-accent)]"
             style={{ animationDuration: `${duration}ms` }}

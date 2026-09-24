@@ -30,6 +30,8 @@ import { replayReconstructsTo, resolveLiveReplayDisplayCode } from "@/lib/codebe
 import { cn } from "@/lib/utils"
 
 const SPEEDS = [0.5, 1, 2, 4] as const
+/** Keep showing a sent fix until the student's editor echoes it back. */
+const SENT_FIX_HOLD_MS = 6000
 
 type Props = {
   replay: TypingReplay | null | undefined
@@ -46,6 +48,8 @@ type Props = {
   onSendToStudent?: (code: string) => void | Promise<void>
   onDisplayCodeChange?: (code: string) => void
   onRunStudentCode?: () => void
+  onSyncStudentCode?: () => void
+  syncStudentLoading?: boolean
   runStudentLoading?: boolean
   runStudentDisabled?: boolean
   studentCursor?: { line: number; column: number } | null
@@ -116,6 +120,8 @@ export function LiveTypingReplayPanel({
   onSendToStudent,
   onDisplayCodeChange,
   onRunStudentCode,
+  onSyncStudentCode,
+  syncStudentLoading = false,
   runStudentLoading = false,
   runStudentDisabled = false,
   studentCursor = null,
@@ -126,6 +132,8 @@ export function LiveTypingReplayPanel({
   const [speedIndex, setSpeedIndex] = useState(1)
   const [followLive, setFollowLive] = useState(true)
   const [draft, setDraft] = useState<string | null>(null)
+  const [draftBase, setDraftBase] = useState<string | null>(null)
+  const [sentFix, setSentFix] = useState<string | null>(null)
   const [syncState, setSyncState] = useState<"idle" | "sending" | "error">("idle")
   const editorHostRef = useRef<HTMLDivElement>(null)
   const [editorHeight, setEditorHeight] = useState(220)
@@ -157,7 +165,9 @@ export function LiveTypingReplayPanel({
     showReplayFrames,
     isAtEnd,
   })
-  const displayCode = editing ? draft! : streamedCode
+  const displayCode = editing ? draft! : sentFix ?? streamedCode
+  const studentTypedDuringEdit =
+    editing && draftBase != null && (liveCode ?? "") !== draftBase
   const hasCode = displayCode.trim().length > 0
   const showEditor = hasCode || editable
   const lineCount = countLines(displayCode)
@@ -176,8 +186,27 @@ export function LiveTypingReplayPanel({
     }
   }, [followLive, hasReplay, isLive, liveCode, totalMs])
 
+  useEffect(() => {
+    if (isLive) return
+    setIsPlaying(false)
+    setFollowLive(true)
+  }, [isLive])
+
+  useEffect(() => {
+    if (sentFix == null) return
+    if ((liveCode ?? "").trim() === sentFix.trim()) {
+      setSentFix(null)
+      return
+    }
+    const timer = window.setTimeout(() => setSentFix(null), SENT_FIX_HOLD_MS)
+    return () => window.clearTimeout(timer)
+  }, [liveCode, sentFix])
+
   const beginHelpEdit = () => {
-    setDraft(streamedCode)
+    const base = sentFix ?? streamedCode
+    setDraft(base)
+    setDraftBase(liveCode ?? "")
+    setSentFix(null)
     setFollowLive(false)
     setIsPlaying(false)
     setSyncState("idle")
@@ -185,17 +214,21 @@ export function LiveTypingReplayPanel({
 
   const returnToLive = () => {
     setDraft(null)
+    setDraftBase(null)
     setFollowLive(true)
     setIsPlaying(false)
     setSyncState("idle")
   }
 
   const sendToStudent = async () => {
-    if (!onSendToStudent || draft == null || !draft.trim()) return
+    if (!onSendToStudent || draft == null || !draft.trim() || !isLive) return
+    const sent = draft
     setSyncState("sending")
     try {
-      await onSendToStudent(draft)
+      await onSendToStudent(sent)
+      setSentFix(sent)
       setDraft(null)
+      setDraftBase(null)
       setFollowLive(true)
       setSyncState("idle")
     } catch {
@@ -227,20 +260,31 @@ export function LiveTypingReplayPanel({
     setIsPlaying((p) => !p)
   }
 
-  const submittedView = codeSource === "submitted" || (!isLive && hasCode)
+  const submittedView = codeSource === "submitted"
+  const savedEditorView = !isLive && !submittedView && hasCode
   const statusLabel = editing
     ? syncState === "sending" || sending
       ? "Sending your fix to the student…"
       : syncState === "error"
         ? "Could not send — try again"
-        : "Editing a fix — student stream paused here until you send or follow live"
-    : hasReplay
-      ? `Typing replay · ${formatDuration(timeSpentMs)}`
+        : !isLive
+          ? "Student left the live classroom — they won't receive this fix"
+          : studentTypedDuringEdit
+            ? "Student typed since you started — sending replaces their latest edits"
+            : "Editing a fix — student stream paused here until you send or follow live"
+    : sentFix != null
+      ? "Fix sent — waiting for the student's editor"
+      : !isLive && followLive && savedEditorView
+      ? "Saved editor"
+      : hasReplay
+        ? `Typing replay · ${formatDuration(timeSpentMs)}`
       : isLive
         ? "Following student live"
-        : submittedView
-          ? "Submitted Classroom Points solution"
-          : "No code captured yet"
+        : savedEditorView
+          ? "Saved editor"
+          : submittedView
+            ? "Submitted Classroom Points solution"
+            : "No code captured yet"
 
   return (
     <div className={cn("live-replay-studio flex min-h-0 flex-1 flex-col gap-3", className)}>
@@ -267,6 +311,10 @@ export function LiveTypingReplayPanel({
             ) : submittedView ? (
               <Badge variant="outline" className="live-replay-studio__lang-badge">
                 Submitted
+              </Badge>
+            ) : savedEditorView ? (
+              <Badge variant="outline" className="live-replay-studio__lang-badge">
+                Saved
               </Badge>
             ) : null}
             {studentCursor && isLive && !editing ? (
@@ -305,7 +353,8 @@ export function LiveTypingReplayPanel({
                     size="sm"
                     className="h-8 shrink-0 px-2.5 text-[11px]"
                     onClick={() => void sendToStudent()}
-                    disabled={sending || syncState === "sending" || !draft?.trim()}
+                    disabled={sending || syncState === "sending" || !draft?.trim() || !isLive}
+                    title={!isLive ? "The student is no longer in the live classroom" : undefined}
                   >
                     <Send className="mr-1 h-3.5 w-3.5" />
                     {sending || syncState === "sending" ? "Sending…" : "Send to student"}
@@ -405,6 +454,20 @@ export function LiveTypingReplayPanel({
                   <Play className="h-3.5 w-3.5" />
                 )}
                 Run student code
+              </Button>
+            ) : null}
+            {onSyncStudentCode ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5 px-3 text-[11px]"
+                onClick={onSyncStudentCode}
+                disabled={syncStudentLoading}
+                title="Ask the student editor to save its current file into the live snapshot"
+              >
+                {syncStudentLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radio className="h-3.5 w-3.5" />}
+                Sync from student
               </Button>
             ) : null}
             {onRunStudentCode && hasReplay ? (

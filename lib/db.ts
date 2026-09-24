@@ -132,23 +132,28 @@ async function withTransientDbRetry<T>(fn: () => Promise<T>): Promise<T> {
  * Arrays become `ARRAY[1,2]` so `ANY($1::int[])` becomes valid `ANY(ARRAY[1,2]::int[])`.
  * (Brace literals `{1,2}` after `ANY` are a syntax error; `String([1,2])` is also wrong.)
  */
+function quoteNeonLiteral(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
+/** Date#toString() is not a valid timestamptz literal. Neon unsafe queries inline params. */
+function formatScalarForNeonUnsafeInline(param: unknown): string {
+  if (param === null || param === undefined) return "NULL"
+  if (typeof param === "number" && Number.isFinite(param)) return String(param)
+  if (typeof param === "boolean") return param ? "true" : "false"
+  if (typeof param === "bigint") return String(param)
+  if (param instanceof Date) {
+    if (Number.isNaN(param.getTime())) return "NULL"
+    return quoteNeonLiteral(param.toISOString())
+  }
+  return quoteNeonLiteral(String(param))
+}
+
 function formatValueForNeonUnsafeInline(param: unknown): string {
   if (Array.isArray(param)) {
-    const elems = param.map((el) => {
-      if (el === null || el === undefined) return "NULL"
-      if (typeof el === "number" && Number.isFinite(el)) return String(el)
-      if (typeof el === "boolean") return el ? "true" : "false"
-      if (typeof el === "bigint") return String(el)
-      const s = String(el)
-      return `'${s.replace(/'/g, "''")}'`
-    })
-    return `ARRAY[${elems.join(",")}]`
+    return `ARRAY[${param.map((el) => formatScalarForNeonUnsafeInline(el)).join(",")}]`
   }
-  if (typeof param === "string") return `'${param.replace(/'/g, "''")}'`
-  if (param === null) return "NULL"
-  if (typeof param === "number") return String(param)
-  if (typeof param === "boolean") return param ? "true" : "false"
-  return `'${String(param).replace(/'/g, "''")}'`
+  return formatScalarForNeonUnsafeInline(param)
 }
 
 /** Run raw SQL with $1…$n placeholders (Neon inline or pg pool). */

@@ -1,2 +1,5 @@
-- CodeBench runs with the C++ compiler Setup already installed, instead of saying the compiler is missing.
-- Install compiler replaces a compiler that cannot compile, instead of repeating the same check.
+- Joining or leaving a live classroom updates the instructor roster right away.
+- Your editor file is saved even when you are not in the live room.
+- When your instructor syncs, the open editor uploads the file you have now.
+- Your CodeBench project files are saved to your CourseCollab account.
+- Joined stays visible while Coding, Needs help, or Submitted is also showing.

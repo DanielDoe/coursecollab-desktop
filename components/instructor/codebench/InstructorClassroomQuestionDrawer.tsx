@@ -41,23 +41,26 @@ export function InstructorClassroomQuestionButton({
   open = false,
   onClick,
   className,
+  showLabel = true,
 }: {
   open?: boolean
   onClick: () => void
   className?: string
+  showLabel?: boolean
 }) {
   return (
     <Button
       type="button"
-      size="sm"
+      size={showLabel ? "sm" : "icon"}
       variant={open ? "secondary" : "outline"}
-      className={cn("h-8 min-w-0 overflow-hidden px-2", className)}
+      className={cn(showLabel ? "h-8 min-w-0 overflow-hidden px-2" : "h-8 w-8", className)}
       onClick={onClick}
       aria-pressed={open}
+      aria-label="Question"
       title="Show the assignment question"
     >
-      <BookOpenCheck className="mr-1 h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">Question</span>
+      <BookOpenCheck className={cn("h-3.5 w-3.5 shrink-0", showLabel && "mr-1")} />
+      {showLabel ? <span className="truncate">Question</span> : null}
     </Button>
   )
 }

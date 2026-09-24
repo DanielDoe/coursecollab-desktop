@@ -38,7 +38,9 @@ import { CodebenchEditorChrome } from "@/components/codebench/CodebenchEditorChr
 import { CodebenchEditorCoraSplit } from "@/components/codebench/CodebenchEditorCoraSplit"
 import { CodebenchExplorer } from "@/components/codebench/CodebenchExplorer"
 import { useCodebenchIde } from "@/hooks/use-codebench-ide"
-import { useCodebenchLiveSnapshot } from "@/hooks/use-codebench-live-snapshot"
+import { useCodebenchIdeCloudSave } from "@/hooks/use-codebench-ide-cloud"
+import { saveLiveEditorCode, sendLiveEditorLeave, useCodebenchLiveSnapshot } from "@/hooks/use-codebench-live-snapshot"
+import { forgetLiveJoin, readRememberedLiveJoin, rememberLiveJoin } from "@/lib/codebench-live-join-memory"
 import { useCodebenchLiveInstructorPush } from "@/hooks/use-codebench-live-instructor-push"
 import { useStudentLiveClassroomSessions } from "@/hooks/use-student-live-classroom-sessions"
 import { StudentLiveClassroomBanner } from "@/components/codebench/StudentLiveClassroomBanner"
@@ -77,6 +79,7 @@ import {
   type CodebenchLanguageId,
   CODEBENCH_LANGUAGE_STORAGE_KEY,
   DEFAULT_CODEBENCH_LANGUAGE_ID,
+  isCodebenchBoilerplate,
   normalizeCodebenchLanguageId,
   readStoredCodebenchLanguageId,
   resolveEffectiveCodebenchLanguage,
@@ -158,6 +161,7 @@ export default function CodeBenchPage({
     typeof window !== "undefined" ? readStoredCodebenchLanguageId() : DEFAULT_CODEBENCH_LANGUAGE_ID,
   )
   const ide = useCodebenchIde({ studentId })
+  useCodebenchIdeCloudSave(studentId, ide.hydrated ? ide.workspace : null, Boolean(studentId && ide.hydrated))
   const code = ide.activeContent
   const setCode = ide.setActiveContent
   const [editorKey, setEditorKey] = useState(0)
@@ -176,13 +180,22 @@ export default function CodeBenchPage({
   const [assignmentSelectionConfirmed, setAssignmentSelectionConfirmed] = useState(() =>
     Boolean(initialAssignmentId?.trim()),
   )
-  const [liveSharing, setLiveSharing] = useState(() => Boolean(initialAssignmentId?.trim()))
+  // Starts off even with an assignment prop: sharing turns on only once the session
+  // list confirms the session is open (see the initialAssignmentId effect).
+  const [liveSharing, setLiveSharing] = useState(false)
   const [questionDrawerOpen, setQuestionDrawerOpen] = useState(false)
   const [classroomQuestion, setClassroomQuestion] = useState<StudentClassroomQuestionView | null>(null)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [submissionSuccessData, setSubmissionSuccessData] = useState<{ score: number; pointsAwarded: number; isAssignment?: boolean } | null>(null)
   const [editorRef, setEditorRef] = useState<any>(null)
-  const { sessions: liveSessions, listSupported, loading: liveSessionsLoading } = useStudentLiveClassroomSessions(studentId)
+  const {
+    sessions: liveSessions,
+    listSupported,
+    loading: liveSessionsLoading,
+    error: liveSessionsError,
+  } = useStudentLiveClassroomSessions(studentId)
+  // A failed first fetch leaves listSupported null; don't block joining on it forever.
+  const liveListSettled = listSupported !== null || Boolean(liveSessionsError)
   const liveAssignmentIds = useMemo(
     () => new Set(liveSessions.map((session) => String(session.assignmentId))),
     [liveSessions],
@@ -262,7 +275,7 @@ export default function CodeBenchPage({
     noteExternalApplyRef.current(400, code)
     applyLiveEditorText(editorRef, code, () => {})
   }, [code, editorRef, languageId])
-  const { noteExternalApply, restoreReady } = useCodebenchLiveSnapshot({
+  const { noteExternalApply, restoreReady, connection: liveConnection } = useCodebenchLiveSnapshot({
     studentId,
     assignmentId: classroomSubmissionId || null,
     code,
@@ -277,6 +290,18 @@ export default function CodeBenchPage({
     assignmentId: classroomSubmissionId || null,
     enabled: liveSnapshotEnabled && restoreReady,
     onApply: applyInstructorCode,
+    onSyncRequest: () => {
+      if (!studentId || !classroomSubmissionId) return
+      const latest = readLiveEditorValue(editorRef, code)
+      if (!latest.trim()) return
+      void saveLiveEditorCode({
+        studentId,
+        assignmentId: classroomSubmissionId,
+        code: latest,
+        language: languageId,
+        fileName: ide.activeFile?.name ?? null,
+      })
+    },
   })
   noteExternalApplyRef.current = noteExternalApply
   const [replaySteps, setReplaySteps] = useState<CodeReplayStep[]>([])
@@ -382,6 +407,21 @@ export default function CodeBenchPage({
     if (typeof window === "undefined" || !code) return
     writeStoredCodebenchCode(languageId, code)
   }, [code, languageId])
+
+  useEffect(() => {
+    if (liveSharing || !studentId || !classroomSubmissionId) return
+    if (!code.trim() || isCodebenchBoilerplate(code, languageId)) return
+    const handle = window.setTimeout(() => {
+      void saveLiveEditorCode({
+        studentId,
+        assignmentId: classroomSubmissionId,
+        code,
+        language: languageId,
+        fileName: ide.activeFile?.name ?? null,
+      })
+    }, 800)
+    return () => window.clearTimeout(handle)
+  }, [classroomSubmissionId, code, ide.activeFile?.name, languageId, liveSharing, studentId])
 
   const loadClassroomAssignments = useCallback(async () => {
     if (!studentId) {
@@ -567,18 +607,67 @@ export default function CodeBenchPage({
     setAssignmentSelectionConfirmed(true)
     if (fromProp) {
       markLiveJoinGrace()
-      // Only turn sharing ON from a listed session. Never clear it here — a
-      // transient empty/alias-missed list poll used to drop joined students
-      // off the faculty roster.
-      if (listSupported === true) {
-        if (assignmentHasOpenLiveSession(liveSessions, next)) {
-          setLiveSharing(true)
-        }
-      } else if (listSupported !== false) {
+      // Only turn sharing ON from a listed session, and not before the list has loaded:
+      // a refresh used to send the join before the list could say the session had
+      // ended. When the list API is unavailable the server gates the join (403/410).
+      // Never clear it here — a transient empty/alias-missed list poll used to drop
+      // joined students off the faculty roster.
+      if (!liveListSettled) return
+      if (listSupported !== true || assignmentHasOpenLiveSession(liveSessions, next)) {
         setLiveSharing(true)
       }
     }
-  }, [initialAssignmentId, liveSessions, listSupported, markLiveJoinGrace, searchParams])
+  }, [initialAssignmentId, liveListSettled, liveSessions, listSupported, markLiveJoinGrace, searchParams])
+
+  // Standalone page reload: resume the join remembered for this window. The embedded
+  // editor leaves this to the CodeBench hub, which owns the join there.
+  const resumeCheckedRef = useRef(false)
+  useEffect(() => {
+    if (resumeCheckedRef.current || !studentId) return
+    if (embedded || initialAssignmentId?.trim()) {
+      resumeCheckedRef.current = true
+      return
+    }
+    const remembered = readRememberedLiveJoin(studentId)
+    if (!remembered) {
+      resumeCheckedRef.current = true
+      return
+    }
+    if (!liveListSettled) return
+    resumeCheckedRef.current = true
+    const match = liveSessions.find((session) => String(session.assignmentId) === remembered)
+    if (match) {
+      bindLiveAssignment(match)
+      return
+    }
+    if (listSupported === true) {
+      // The session closed while this window was reloading. pagehide doesn't always
+      // deliver the leave, so send it now.
+      forgetLiveJoin(remembered)
+      void sendLiveEditorLeave(studentId, remembered)
+      return
+    }
+    markLiveJoinGrace()
+    setPinnedAssignmentId(remembered)
+    setClassroomSubmissionId(remembered)
+    setAssignmentSelectionConfirmed(true)
+    setLiveSharing(true)
+  }, [
+    bindLiveAssignment,
+    embedded,
+    initialAssignmentId,
+    liveListSettled,
+    liveSessions,
+    listSupported,
+    markLiveJoinGrace,
+    studentId,
+  ])
+
+  useEffect(() => {
+    if (liveSharing && studentId && classroomSubmissionId) {
+      rememberLiveJoin(studentId, classroomSubmissionId)
+    }
+  }, [classroomSubmissionId, liveSharing, studentId])
 
   useEffect(() => {
     const onJoin = (event: Event) => {
@@ -602,7 +691,11 @@ export default function CodeBenchPage({
   }, [bindLiveAssignment, liveSessions, markLiveJoinGrace])
 
   useEffect(() => {
-    const onLeave = () => setLiveSharing(false)
+    const onLeave = (event: Event) => {
+      setLiveSharing(false)
+      const assignmentId = (event as CustomEvent<{ assignmentId?: string | number }>).detail?.assignmentId
+      forgetLiveJoin(assignmentId != null ? String(assignmentId) : null)
+    }
     window.addEventListener("codebench-leave-live-session", onLeave)
     return () => window.removeEventListener("codebench-leave-live-session", onLeave)
   }, [])
@@ -633,6 +726,33 @@ export default function CodeBenchPage({
       description: "Your instructor closed this session.",
     })
   }, [classroomSubmissionId, listSupported, liveSessions, liveSessionsLoading, liveSharing, toast])
+
+  // The server is the authority on whether this editor is in the room. A 403 (section
+  // mismatch) or repeated 410 (session closed) must drop ON AIR even when the
+  // live-sessions list is unavailable or still lists the session.
+  useEffect(() => {
+    if (!liveSharing) return
+    if (liveConnection.state !== "rejected" && liveConnection.state !== "ended") return
+    setLiveSharing(false)
+    setClassroomQuestion((current) => (current?.isLive ? null : current))
+    window.dispatchEvent(
+      new CustomEvent("codebench-leave-live-session", {
+        detail: { assignmentId: classroomSubmissionId },
+      }),
+    )
+    if (liveConnection.state === "ended") {
+      toast({
+        title: "Live classroom ended",
+        description: "Your instructor closed this session.",
+      })
+    } else {
+      toast({
+        title: "Could not join live classroom",
+        description: liveConnection.message,
+        variant: "destructive",
+      })
+    }
+  }, [classroomSubmissionId, liveConnection, liveSharing, toast])
 
   useEffect(() => {
     setClassroomSubmissions((current) => mergeLiveAssignments(current))
@@ -2095,6 +2215,7 @@ export default function CodeBenchPage({
             compact
             sessions={liveSessions}
             activeAssignmentId={liveSharing ? classroomSubmissionId : null}
+            connection={liveConnection.state === "live" ? "live" : "connecting"}
             onJoin={(session) => {
               bindLiveAssignment(session)
               window.dispatchEvent(

@@ -170,9 +170,47 @@ export function InstructorCodebenchLivePanel({
     })
   }, [activeCodeChallenges, questionSearch, topicFilter])
 
+  const liveAssignmentIds = useMemo(
+    () => new Set(openSessions.map((session) => session.assignmentId)),
+    [openSessions],
+  )
+
+  const liveRows = useMemo(() => {
+    const byId = new Map(submissions.map((row) => [row.id, row]))
+    const rows: typeof submissions = []
+    const seen = new Set<number>()
+    for (const session of openSessions) {
+      if (seen.has(session.assignmentId)) continue
+      seen.add(session.assignmentId)
+      const existing = byId.get(session.assignmentId)
+      if (existing) {
+        rows.push(existing)
+        continue
+      }
+      rows.push({
+        id: session.assignmentId,
+        title: session.title,
+        description: session.questionText,
+        created_at: session.startedAt,
+        session: session.session,
+        submission_kind: CLASSROOM_SUBMISSION_KIND_CODE,
+        question_config: null,
+        due_at: null,
+        expires_at: null,
+        is_active: true,
+      })
+    }
+    return rows
+  }, [openSessions, submissions])
+
+  const queuedRows = useMemo(
+    () => visibleCodeChallenges.filter((row) => !liveAssignmentIds.has(row.id)),
+    [visibleCodeChallenges, liveAssignmentIds],
+  )
+
   const grouped = useMemo(
-    () => groupClassroomAssignmentsByTopic(visibleCodeChallenges),
-    [visibleCodeChallenges],
+    () => groupClassroomAssignmentsByTopic(queuedRows),
+    [queuedRows],
   )
 
   const paging = useMemo(
@@ -194,11 +232,6 @@ export function InstructorCodebenchLivePanel({
     setPage(next)
     listRef.current?.scrollTo({ top: 0, behavior: "smooth" })
   }, [])
-
-  const liveAssignmentIds = useMemo(
-    () => new Set(openSessions.map((session) => session.assignmentId)),
-    [openSessions],
-  )
 
   const handleRefresh = () => {
     void reload()
@@ -301,6 +334,78 @@ export function InstructorCodebenchLivePanel({
     .filter(Boolean)
     .join(" · ")
 
+  const renderLiveAssignmentCard = (row: (typeof submissions)[number]) => {
+    const handoff = classroomAssignmentToHandoff(row)
+    const preview = questionPreview(extractClassroomQuestionText(row))
+    const isLive = liveAssignmentIds.has(row.id)
+    const starting = startingId === row.id
+    return (
+      <article key={row.id} className={cn(chrome.card, "instructor-lift-card flex flex-col gap-3 p-4")}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 space-y-1">
+            <p className={cn("text-sm font-semibold leading-snug", PORTAL_TEXT)}>{row.title}</p>
+            <p className={cn("line-clamp-2 text-xs leading-relaxed", PORTAL_TEXT_MUTED)}>{preview}</p>
+          </div>
+          <div className="flex shrink-0 items-start gap-1">
+            <InstructorClassroomAssignmentActions
+              submission={row}
+              sessions={sessionOptions}
+              onMutated={() => {
+                void reload()
+                void reloadSessions(true)
+              }}
+            />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--cc-accent)_12%,var(--card))] text-[var(--cc-accent)]">
+              <Code2 className="h-4 w-4" />
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {isLive ? (
+            <Badge variant="secondary" className="text-[10px]">
+              Live now
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-[10px]">
+              Ready
+            </Badge>
+          )}
+          <Badge variant="outline" className="text-[10px]">
+            {classroomAssignmentTopic(row)}
+          </Badge>
+        </div>
+        <div className="mt-auto grid w-full grid-cols-2 gap-2">
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 w-full min-w-0 px-2 text-xs sm:text-sm"
+            onClick={() => void handleStart(handoff)}
+            disabled={starting}
+          >
+            {starting ? (
+              <Loader2 className="mr-1 h-3.5 w-3.5 shrink-0 animate-spin" />
+            ) : (
+              <Radio className="mr-1 h-3.5 w-3.5 shrink-0" />
+            )}
+            <span className="truncate">{isLive ? "Open live session" : "Start live session"}</span>
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={cn(
+              "h-8 w-full min-w-0 bg-[var(--card)] px-2 text-xs shadow-sm sm:text-sm",
+              chrome.outline,
+            )}
+            onClick={() => onOpenClassroomInIde(handoff)}
+          >
+            Open in IDE
+          </Button>
+        </div>
+      </article>
+    )
+  }
+
   return (
     <div className="instructor-challenges-panel flex min-h-0 w-full flex-1 flex-col gap-4 pr-1">
       <div className={cn(chrome.card, "space-y-3 p-4 sm:p-5")}>
@@ -317,6 +422,11 @@ export function InstructorCodebenchLivePanel({
                 No course selected
               </Badge>
             )}
+            {liveRows.length > 0 ? (
+              <Badge variant="secondary" className="text-[10px]">
+                {liveRows.length} live
+              </Badge>
+            ) : null}
           </div>
           <p className={cn("w-full text-sm leading-relaxed", PORTAL_TEXT_MUTED)}>
             Create a live session or start one from an existing coding challenge. Students join from CodeBench while
@@ -423,7 +533,7 @@ export function InstructorCodebenchLivePanel({
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading active challenges…
         </div>
-      ) : grouped.length === 0 ? (
+      ) : liveRows.length === 0 && grouped.length === 0 ? (
         <div className={cn(chrome.card, "space-y-3 p-6 text-center")}>
           <p className={cn("text-sm font-medium", PORTAL_TEXT)}>
             {questionSearch.trim() || topicFilter !== "all"
@@ -470,87 +580,29 @@ export function InstructorCodebenchLivePanel({
       ) : (
         <>
           <div ref={listRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+            {liveRows.length > 0 ? (
+              <section className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>Live now</h3>
+                  <Badge variant="secondary" className="text-[10px]">
+                    {liveRows.length} live
+                  </Badge>
+                </div>
+                <div className="instructor-challenges-grid grid grid-cols-1 gap-3">
+                  {liveRows.map((row) => renderLiveAssignmentCard(row))}
+                </div>
+              </section>
+            ) : null}
             {pageGrouped.map(([topic, rows]) => (
           <section key={topic.id} className="space-y-2">
             <div className="flex items-center gap-2">
               <h3 className={cn("text-sm font-semibold", PORTAL_TEXT)}>{topic.label}</h3>
               <Badge variant="outline" className="text-[10px]">
-                {rows.filter((row) => liveAssignmentIds.has(row.id)).length || rows.length}{" "}
-                {rows.some((row) => liveAssignmentIds.has(row.id)) ? "live" : "ready"}
+                {rows.length} ready
               </Badge>
             </div>
             <div className="instructor-challenges-grid grid grid-cols-1 gap-3">
-              {rows.map((row) => {
-                const handoff = classroomAssignmentToHandoff(row)
-                const preview = questionPreview(extractClassroomQuestionText(row))
-                const isLive = liveAssignmentIds.has(row.id)
-                const starting = startingId === row.id
-                return (
-                  <article key={row.id} className={cn(chrome.card, "instructor-lift-card flex flex-col gap-3 p-4")}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 space-y-1">
-                        <p className={cn("text-sm font-semibold leading-snug", PORTAL_TEXT)}>{row.title}</p>
-                        <p className={cn("line-clamp-2 text-xs leading-relaxed", PORTAL_TEXT_MUTED)}>{preview}</p>
-                      </div>
-                      <div className="flex shrink-0 items-start gap-1">
-                        <InstructorClassroomAssignmentActions
-                          submission={row}
-                          sessions={sessionOptions}
-                          onMutated={() => {
-                            void reload()
-                            void reloadSessions(true)
-                          }}
-                        />
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--cc-accent)_12%,var(--card))] text-[var(--cc-accent)]">
-                          <Code2 className="h-4 w-4" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {isLive ? (
-                        <Badge variant="secondary" className="text-[10px]">
-                          Live now
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[10px]">
-                          Ready
-                        </Badge>
-                      )}
-                      <Badge variant="outline" className="text-[10px]">
-                        {classroomAssignmentTopic(row)}
-                      </Badge>
-                    </div>
-                    <div className="mt-auto grid w-full grid-cols-2 gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="h-8 w-full min-w-0 px-2 text-xs sm:text-sm"
-                        onClick={() => void handleStart(handoff)}
-                        disabled={starting}
-                      >
-                        {starting ? (
-                          <Loader2 className="mr-1 h-3.5 w-3.5 shrink-0 animate-spin" />
-                        ) : (
-                          <Radio className="mr-1 h-3.5 w-3.5 shrink-0" />
-                        )}
-                        <span className="truncate">{isLive ? "Open live session" : "Start live session"}</span>
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className={cn(
-                          "h-8 w-full min-w-0 bg-[var(--card)] px-2 text-xs shadow-sm sm:text-sm",
-                          chrome.outline,
-                        )}
-                        onClick={() => onOpenClassroomInIde(handoff)}
-                      >
-                        Open in IDE
-                      </Button>
-                    </div>
-                  </article>
-                )
-              })}
+              {rows.map((row) => renderLiveAssignmentCard(row))}
             </div>
           </section>
             ))}

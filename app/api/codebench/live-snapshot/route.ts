@@ -8,6 +8,7 @@ import {
   prepareLiveTypingReplay,
   selectFaithfulTypingReplay,
 } from "@/lib/codebench-live-replay"
+import { codebenchLiveCodeToPersist } from "@/lib/codebench-languages"
 import { normalizeTypingReplay } from "@/lib/typing-replay"
 
 export const dynamic = "force-dynamic"
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: access.error }, { status: access.status })
     }
 
-    const code = typeof body.code === "string" ? body.code.slice(0, MAX_CODE_CHARS) : ""
+    let code = typeof body.code === "string" ? body.code.slice(0, MAX_CODE_CHARS) : ""
     const language = typeof body.language === "string" ? body.language.slice(0, 32) : null
     const fileName = typeof body.fileName === "string" ? body.fileName.slice(0, 80) : null
     const incomingReplay = capReplayDocument(prepareLiveTypingReplay(body.typingReplay))
@@ -108,6 +109,22 @@ export async function POST(request: NextRequest) {
         : null
 
     await ensureCodebenchLiveSnapshotsSchema()
+
+    const storedRows = await sql`
+      SELECT code
+      FROM codebench_live_snapshots
+      WHERE student_id = ${auth.studentDbId}
+        AND assignment_id = ${assignmentId}
+      LIMIT 1
+    `.catch(() => [])
+    const storedCode = (storedRows[0] as { code?: string } | undefined)?.code
+    const persistedCode = codebenchLiveCodeToPersist(
+      typeof storedCode === "string" ? storedCode : "",
+      code,
+      language,
+    )
+    const preservedTypedCode = persistedCode !== code
+    code = persistedCode
 
     let replayJson: string | null = null
     let updateReplay = false
@@ -130,6 +147,7 @@ export async function POST(request: NextRequest) {
       })
       replayJson = chosen ? JSON.stringify(chosen) : null
     }
+    if (preservedTypedCode) updateReplay = false
 
     if (updateReplay) {
       await sql`

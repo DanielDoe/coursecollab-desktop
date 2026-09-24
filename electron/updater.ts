@@ -1,4 +1,6 @@
-import { Notification, app, ipcMain, BrowserWindow, shell } from 'electron'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { Notification, app, ipcMain, BrowserWindow, screen, shell } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { setAppQuitting } from './app-state'
 
@@ -46,6 +48,7 @@ let status: DesktopUpdateStatus = {
 let lastCheckUserInitiated = false
 let statusListener: (() => void) | null = null
 let installInFlight = false
+let installWindow: BrowserWindow | null = null
 const updateWaiters = new Set<() => void>()
 
 function broadcastStatus(): void {
@@ -134,11 +137,127 @@ function applyUpdateFailure(
   context: 'check' | 'download' | 'install' = 'check',
 ): DesktopUpdateStatus {
   installInFlight = false
+  if (context === 'install') {
+    closeInstallWindow()
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window.isDestroyed()) continue
+      window.show()
+    }
+  }
   return setStatus({
     state: 'error',
     message: friendlyUpdateError(error, context),
     // Keep version so the UI can offer manual download after a failed install.
     version: status.version,
+  })
+}
+
+function updateInstallPagePath(): string {
+  const candidates = [
+    join(__dirname, 'setup', 'update-install.html'),
+    process.resourcesPath ? join(process.resourcesPath, 'setup', 'update-install.html') : '',
+  ]
+  return candidates.find((path) => path && existsSync(path)) ?? candidates[0]
+}
+
+function closeInstallWindow(): void {
+  if (!installWindow || installWindow.isDestroyed()) {
+    installWindow = null
+    return
+  }
+  installWindow.destroy()
+  installWindow = null
+}
+
+const INSTALL_WINDOW_WIDTH = 460
+const INSTALL_WINDOW_HEIGHT = 158
+const STOPPING_STAGE_MS = 1100
+const INSTALLING_STAGE_MS = 1200
+const RESTARTING_STAGE_MS = 800
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function installWindowOrigin(width: number, height: number): { x: number; y: number } {
+  const parent = BrowserWindow.getAllWindows().find((window) => !window.isDestroyed())
+  const anchor = parent?.getBounds()
+  if (anchor && anchor.width > width && anchor.height > height) {
+    return {
+      x: Math.round(anchor.x + (anchor.width - width) / 2),
+      y: Math.round(anchor.y + (anchor.height - height) / 2),
+    }
+  }
+  const area = screen.getDisplayMatching(anchor ?? screen.getPrimaryDisplay().bounds).workArea
+  return {
+    x: Math.round(area.x + (area.width - width) / 2),
+    y: Math.round(area.y + (area.height - height) / 2),
+  }
+}
+
+async function setInstallStage(stage: 'stopping' | 'installing' | 'restarting'): Promise<void> {
+  const window = installWindow
+  if (!window || window.isDestroyed()) return
+  const label =
+    stage === 'stopping'
+      ? 'Stopping CourseCollab...'
+      : stage === 'installing'
+        ? 'Installing update...'
+        : 'Restarting CourseCollab...'
+  const percent = stage === 'stopping' ? 28 : stage === 'installing' ? 64 : 90
+  await window.webContents
+    .executeJavaScript(`window.setInstallStage && window.setInstallStage(${JSON.stringify(label)}, ${percent})`)
+    .catch(() => undefined)
+}
+
+function showInstallWindow(version: string): Promise<void> {
+  const page = updateInstallPagePath()
+  if (!existsSync(page)) return Promise.resolve()
+
+  closeInstallWindow()
+  const width = INSTALL_WINDOW_WIDTH
+  const height = INSTALL_WINDOW_HEIGHT
+  const origin = installWindowOrigin(width, height)
+  const window = new BrowserWindow({
+    width,
+    height,
+    x: origin.x,
+    y: origin.y,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    closable: false,
+    alwaysOnTop: true,
+    frame: false,
+    transparent: process.platform === 'darwin',
+    backgroundColor: process.platform === 'darwin' ? '#00000000' : '#ffffff',
+    roundedCorners: true,
+    hasShadow: process.platform !== 'darwin',
+    show: false,
+    title: version ? `Updating CourseCollab (${version})` : 'Updating CourseCollab',
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  installWindow = window
+  window.setMenuBarVisibility(false)
+
+  return new Promise((resolve) => {
+    const finish = () => resolve()
+    window.once('ready-to-show', () => {
+      if (window.isDestroyed()) {
+        finish()
+        return
+      }
+      window.show()
+      window.focus()
+      finish()
+    })
+    void window.loadFile(page, { query: { name: 'CourseCollab', version } }).catch(() => finish())
+    setTimeout(finish, 1200)
   })
 }
 
@@ -153,9 +272,10 @@ function teardownBeforeInstall(): void {
   }
 
   for (const window of BrowserWindow.getAllWindows()) {
-    if (window.isDestroyed()) continue
+    if (window.isDestroyed() || window === installWindow) continue
     // Prevent "minimize to tray" from canceling quitAndInstall.
     window.removeAllListeners('close')
+    window.hide()
   }
 }
 
@@ -263,18 +383,23 @@ function installUpdate(): DesktopUpdateStatus {
   }
 
   installInFlight = true
-  const versionLabel = status.version ?? 'the update'
   setStatus({
     state: 'installing',
-    message: `Installing version ${versionLabel}. CourseCollab will restart when it is in place.`,
+    message: 'Stopping CourseCollab...',
     version: status.version,
     releaseNotes: status.releaseNotes,
     percent: 100,
   })
   setAppQuitting(true)
-  teardownBeforeInstall()
 
-  setImmediate(() => {
+  void showInstallWindow(status.version ?? '').then(async () => {
+    await setInstallStage('stopping')
+    teardownBeforeInstall()
+    await wait(STOPPING_STAGE_MS)
+    await setInstallStage('installing')
+    await wait(INSTALLING_STAGE_MS)
+    await setInstallStage('restarting')
+    await wait(RESTARTING_STAGE_MS)
     try {
       autoUpdater.quitAndInstall(false, true)
     } catch (error) {

@@ -9,6 +9,7 @@ import {
   findOfferingMatch,
   reconcileFacultySelectedCourse,
   resolveFacultyCourseSelectValue,
+  retainFacultyCourseScopeOnRefresh,
 } from "./faculty-course-session-sync"
 
 function offering(
@@ -69,6 +70,31 @@ describe("reconcileFacultySelectedCourse", () => {
       resolveFacultyCourseSelectValue(result.session, [courseOnly, p01, p02]),
       "42:9:101",
     )
+  })
+})
+
+describe("retainFacultyCourseScopeOnRefresh", () => {
+  it("keeps the selected lab section when the refresh payload has only the account", () => {
+    const next = retainFacultyCourseScopeOnRefresh(
+      { id: 7, name: "Instructor" },
+      {
+        selectedCourseId: 42,
+        selectedCourseCode: "ELEG1301",
+        selectedCatalogCourseCode: "ELEG1301",
+        selectedCourseTitle: "Programming",
+        selectedSessionId: 101,
+        selectedSessionCode: "ELEG1301P01",
+        selectedAcademicTermId: 9,
+        selectedTermLabel: "Fall 2026",
+        coursePermissions: ["codebench"],
+        staffRoleForCourse: "INSTRUCTOR",
+      },
+    )
+    assert.equal(next.selectedCourseId, 42)
+    assert.equal(next.selectedSessionId, 101)
+    assert.equal(next.selectedSessionCode, "ELEG1301P01")
+    assert.equal(next.selectedCatalogCourseCode, "ELEG1301")
+    assert.equal(facultyCourseSelectValue(next), "42:9:101")
   })
 })
 
