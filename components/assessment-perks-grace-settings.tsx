@@ -148,7 +148,7 @@ export function AssessmentPerksGraceSettings({ bare = false }: { bare?: boolean 
   return (
     <InstructorPolicySurfaceCard
       title="Rollover & retake grace period"
-      description="Course-wide rule: after each assessment deadline, membership Extend and unused retakes stay open for this many days, then expire automatically."
+      description="Course-wide rule: after each quiz or homework deadline, students can apply a membership rollover or trade grade points for one for this many days. The semester end closes every assessment even if this window is still open."
     >
       {body}
     </InstructorPolicySurfaceCard>

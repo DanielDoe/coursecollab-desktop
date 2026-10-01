@@ -60,8 +60,8 @@ export class CodeBenchProcessManager {
     return ensureCppToolchain({ installIfMissing: true, mode: 'startup' })
   }
 
-  async ensureToolchain(): Promise<CompilerInfo> {
-    return ensureCppToolchain({ installIfMissing: true, mode: 'full' })
+  async ensureToolchain(forceInstall = false): Promise<CompilerInfo> {
+    return ensureCppToolchain({ installIfMissing: true, mode: 'full', forceInstall })
   }
 
   hasBusySession(): boolean {
@@ -228,8 +228,13 @@ export class CodeBenchProcessManager {
       if (!session.exitEmitted) {
         this.finish(session, exitCode, session.stopReason ?? 'exit')
       }
-    } catch {
-      this.emit(session, { type: 'process:error', sessionId: session.id, message: 'PTY creation failed.' })
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'PTY creation failed.'
+      this.emit(session, {
+        type: 'process:error',
+        sessionId: session.id,
+        message: detail.startsWith('PTY') ? detail : `PTY creation failed. ${detail}`,
+      })
       this.finish(session, null, 'crash')
     }
   }
@@ -271,6 +276,10 @@ export class CodeBenchProcessManager {
     if (reason === 'timeout') message = 'Execution stopped: time limit reached.'
     if (reason === 'output-limit') message = 'Execution stopped: excessive output.'
     if (reason === 'shutdown' || reason === 'navigation') message = 'Process terminated.'
+    // STATUS_DLL_NOT_FOUND. Windows shows this in a hidden dialog, so the terminal would stay blank.
+    if (exitCode === 3221225781 || exitCode === -1073741515) {
+      message = 'Windows could not start the program because a compiler library (DLL) was missing.'
+    }
 
     this.emit(session, {
       type: 'process:exit',

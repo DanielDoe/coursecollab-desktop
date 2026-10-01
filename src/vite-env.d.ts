@@ -191,7 +191,7 @@ interface CourseCollabDesktopBridge {
   codebench: {
     checkCompiler: () => Promise<CodeBenchCompilerInfo>
     warmupToolchain: () => Promise<CodeBenchCompilerInfo>
-    ensureToolchain: () => Promise<CodeBenchCompilerInfo>
+    ensureToolchain: (options?: { force?: boolean }) => Promise<CodeBenchCompilerInfo>
     loadWorkspace: (studentId?: string | null) => Promise<{ ok: boolean; workspace: unknown | null }>
     saveWorkspace: (
       workspace: unknown,

@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion"
 import { BookOpenCheck, Calendar, Clock, Code2, PenLine, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { ClassroomQuestionContent } from "@/components/codebench/ClassroomQuestionContent"
 import { QuestionTextRenderer } from "@/components/question-text-renderer"
 import { QuestionMediaDisplay } from "@/components/question-media-display"
 import {
@@ -175,9 +176,11 @@ export function InstructorClassroomQuestionDrawer({ open, onClose, assignment }:
                   <QuestionMediaDisplay question={assignment.questionConfig} size="medium" />
                 ) : null}
 
-                <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4 shadow-sm">
-                  <QuestionTextRenderer text={assignment.questionText} className="text-sm leading-relaxed" />
-                </div>
+                <ClassroomQuestionContent
+                  title={assignment.title}
+                  questionText={assignment.questionText}
+                  showSyntaxReference
+                />
 
                 {assignment.description &&
                 assignment.submissionKind === CLASSROOM_SUBMISSION_KIND_CODE &&

@@ -1,0 +1,162 @@
+[
+  {
+    "title": "Assignment, Comparison, and Short-Circuit Evaluation",
+    "question_type": "select_all",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "Consider the following C++ code. Select ALL statements that are true.\n\n```cpp\nint x = 4;\nint y = 0;\n\nif ((x = 2) && (y = x + 3))\n    cout << x << \" \" << y;\nelse\n    cout << \"Fail\";\n```",
+    "options": [
+      {"id": "A", "text": "The program prints `2 5`."},
+      {"id": "B", "text": "The expression `(x = 2)` evaluates as true."},
+      {"id": "C", "text": "The assignment `(y = x + 3)` is skipped because of short-circuit evaluation."},
+      {"id": "D", "text": "After the condition is evaluated, `x` is 2 and `y` is 5."},
+      {"id": "E", "text": "Replacing `(x = 2)` with `(x = 0)` would prevent `(y = x + 3)` from being evaluated."}
+    ],
+    "correct_answers": ["A", "B", "D", "E"],
+    "explanation": "`x = 2` assigns 2 to `x` and evaluates to the nonzero value 2, which is true. Therefore the right side of `&&` is evaluated. `y = x + 3` assigns 5 to `y`, which is also true. The body executes and prints `2 5`. If the first assignment instead produced 0, `&&` would short-circuit and the assignment to `y` would not execute."
+  },
+  {
+    "title": "Finding the Boundary Errors in an Else-If Chain",
+    "question_type": "select_all",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "The programmer intends to classify scores as `A` for 90–100, `B` for 80–89, `C` for 70–79, and `F` for anything below 70. Select ALL statements that correctly identify behavior or bugs in the code.\n\n```cpp\nint score;\ncin >> score;\n\nif (score > 90 && score <= 100)\n    cout << \"A\";\nelse if (score > 80 && score < 90)\n    cout << \"B\";\nelse if (score >= 70 && score < 80)\n    cout << \"C\";\nelse\n    cout << \"F\";\n```",
+    "options": [
+      {"id": "A", "text": "A score of 90 incorrectly produces `F`."},
+      {"id": "B", "text": "A score of 80 incorrectly produces `F`."},
+      {"id": "C", "text": "A score of 70 produces `C`."},
+      {"id": "D", "text": "A score of 100 produces `A`."},
+      {"id": "E", "text": "Changing the first two lower-bound comparisons from `>` to `>=` is sufficient to fix the intended 90 and 80 boundary cases."}
+    ],
+    "correct_answers": ["A", "B", "C", "D", "E"],
+    "explanation": "At 90, the first condition fails because it requires `score > 90`, while the second fails because it requires `score < 90`; therefore 90 reaches `F`. Similarly, 80 fails the second condition because it requires `score > 80` and fails the third because it requires `score < 80`. Scores 70 and 100 are handled correctly. Using `score >= 90` and `score >= 80` fixes those two intended boundary gaps."
+  },
+  {
+    "title": "Switch Fall-Through and Entry Point",
+    "question_type": "select_all",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "Consider the following C++ code. Select ALL statements that are true.\n\n```cpp\nint n = 2;\n\nswitch (n) {\n    case 1:\n        cout << \"A\";\n    case 2:\n        cout << \"B\";\n    case 3:\n        cout << \"C\";\n        break;\n    case 4:\n        cout << \"D\";\n    default:\n        cout << \"E\";\n}\n```",
+    "options": [
+      {"id": "A", "text": "With `n = 2`, the output is `BC`."},
+      {"id": "B", "text": "With `n = 1`, the output is `ABC`."},
+      {"id": "C", "text": "With `n = 3`, the output is `C`."},
+      {"id": "D", "text": "With `n = 4`, the output is `DE`."},
+      {"id": "E", "text": "With `n = 5`, nothing is printed because no numbered case matches."}
+    ],
+    "correct_answers": ["A", "B", "C", "D"],
+    "explanation": "A matching case determines where execution begins, but execution continues until a `break` or the end of the switch. Thus 2 produces `BC`, 1 produces `ABC`, 3 produces `C`, and 4 falls through into `default`, producing `DE`. If `n = 5`, `default` executes and prints `E`."
+  },
+  {
+    "title": "Nested If and Dangling Else Analysis",
+    "question_type": "select_all",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "Examine the code carefully. Select ALL statements that are true.\n\n```cpp\nint x = 8;\nint y = 3;\n\nif (x > 5)\n    if (y > 5)\n        cout << \"A\";\n    else\n        cout << \"B\";\nelse\n    cout << \"C\";\n```",
+    "options": [
+      {"id": "A", "text": "For the given values, the program prints `B`."},
+      {"id": "B", "text": "The first `else` is associated with `if (y > 5)`."},
+      {"id": "C", "text": "If `x` were 2, the program would print `C` regardless of the value of `y`."},
+      {"id": "D", "text": "If `x` were 8 and `y` were 10, the program would print `A`."},
+      {"id": "E", "text": "The indentation forces the first `else` to belong to `if (x > 5)`."}
+    ],
+    "correct_answers": ["A", "B", "C", "D"],
+    "explanation": "Without braces, an `else` is associated with the nearest unmatched `if`. Therefore the first `else` belongs to `if (y > 5)`. For `x=8, y=3`, the output is `B`. If the outer condition is false, the outer `else` prints `C`. Indentation has no effect on the grammatical association."
+  },
+  {
+    "title": "Chained Comparisons That Look Correct",
+    "question_type": "select_all",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "Consider the condition below. Select ALL statements that are true in C++.\n\n```cpp\nint x = 50;\nif (0 < x < 10)\n    cout << \"Inside\";\nelse\n    cout << \"Outside\";\n```",
+    "options": [
+      {"id": "A", "text": "The program prints `Inside`."},
+      {"id": "B", "text": "The condition is parsed as `(0 < x) < 10`."},
+      {"id": "C", "text": "The result of `0 < x` can participate in the second comparison as a value equivalent to 0 or 1."},
+      {"id": "D", "text": "The correct conventional test for the intended range is `0 < x && x < 10`."},
+      {"id": "E", "text": "C++ rejects the original condition as a syntax error."}
+    ],
+    "correct_answers": ["A", "B", "C", "D"],
+    "explanation": "Relational operators associate left-to-right, so the expression is parsed as `(0 < x) < 10`. With `x=50`, `0 < 50` is true. In the comparison with 10, that Boolean value is converted to 1, making `1 < 10` true. The intended range test should use two comparisons joined by `&&`."
+  },
+  {
+    "title": "Short-Circuit Operators and Hidden Side Effects",
+    "question_type": "select_all",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "Consider the following code. Select ALL statements that are true.\n\n```cpp\nint x = 0;\nint y = 5;\n\nif (x != 0 && ++y > 5)\n    cout << \"A\";\n\nif (x == 0 || ++y > 6)\n    cout << y;\n```",
+    "options": [
+      {"id": "A", "text": "The first `++y` is not evaluated."},
+      {"id": "B", "text": "The second `++y` is not evaluated."},
+      {"id": "C", "text": "The final value of `y` is 5."},
+      {"id": "D", "text": "The program prints `5`."},
+      {"id": "E", "text": "The first `if` prints `A` because `++y > 5` would be true."}
+    ],
+    "correct_answers": ["A", "B", "C", "D"],
+    "explanation": "In the first condition, `x != 0` is false, so `&&` short-circuits and `++y` is skipped. In the second condition, `x == 0` is true, so `||` short-circuits and its `++y` is also skipped. Therefore `y` remains 5, the first body does not execute, and the second body prints `5`."
+  },
+  {
+    "title": "Debugging an Invalid Switch Statement",
+    "question_type": "select_all",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "Which of the following modifications would make the shown `switch` structure invalid or cause a compile-time error? Select ALL that apply.\n\n```cpp\nint choice = 2;\nswitch (choice) {\n    case 1:\n        cout << \"A\";\n        break;\n    case 2:\n        cout << \"B\";\n        break;\n    default:\n        cout << \"C\";\n}\n```",
+    "options": [
+      {"id": "A", "text": "Change `choice` to a `double` and use it directly as the switch condition."},
+      {"id": "B", "text": "Add another `case 2:` label to the same switch."},
+      {"id": "C", "text": "Remove both `break` statements."},
+      {"id": "D", "text": "Move the `default` label before `case 1:`."},
+      {"id": "E", "text": "Replace `case 2:` with `case 1 + 1:` while keeping `case 1:`."}
+    ],
+    "correct_answers": ["A", "B"],
+    "explanation": "A `double` cannot be used directly as the controlling expression of a standard C++ switch, and duplicate case values are not allowed. Removing `break` statements is legal but introduces fall-through. `default` may appear anywhere inside the switch. Replacing `case 2` with `case 1 + 1` is also valid because `1 + 1` is an integral constant expression equal to 2 and does not duplicate `case 1`."
+  },
+  {
+    "title": "Ternary Operator, Type Conversion, and Integer Arithmetic",
+    "question_type": "select_all",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "Consider the following code. Select ALL statements that are true.\n\n```cpp\nint a = 9;\nint b = 4;\ndouble result = (a < b) ? a / 2.0 : a / b;\n```",
+    "options": [
+      {"id": "A", "text": "The condition `a < b` is false."},
+      {"id": "B", "text": "The selected expression is `a / b`."},
+      {"id": "C", "text": "The arithmetic operation in the selected branch produces the integer value 2 before the result is converted."},
+      {"id": "D", "text": "`result` ultimately contains `2.0`."},
+      {"id": "E", "text": "`result` contains `2.25` because its declared type is `double`."}
+    ],
+    "correct_answers": ["A", "B", "C", "D"],
+    "explanation": "`9 < 4` is false, so the expression associated with the false branch, `a / b`, determines the value. Since both operands of that division are integers, `9 / 4` evaluates to 2. The conditional expression's common type is affected by the other `double` branch, so the selected value is converted to `double`, and `result` becomes `2.0`, not `2.25`."
+  },
+  {
+    "title": "Nested Ternary Operator Decision Path",
+    "question_type": "select_all",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "Analyze the following nested ternary expression. Select ALL statements that are true.\n\n```cpp\nint x = 6;\nint y = 6;\nint z = 3;\n\nint result = x > y ? 10 : y > z ? 20 : x == z ? 30 : 40;\n```",
+    "options": [
+      {"id": "A", "text": "The first condition `x > y` is false."},
+      {"id": "B", "text": "The expression is interpreted as `x > y ? 10 : (y > z ? 20 : (x == z ? 30 : 40))`."},
+      {"id": "C", "text": "`result` becomes 20."},
+      {"id": "D", "text": "The condition `x == z` must be evaluated before `result` can be determined."},
+      {"id": "E", "text": "Changing `y` from 6 to 2 while leaving `x=6` and `z=3` would make `result` equal 10."}
+    ],
+    "correct_answers": ["A", "B", "C", "E"],
+    "explanation": "The conditional operator is right-associative. With `x=6` and `y=6`, `x > y` is false, so evaluation proceeds to `y > z`. Since `6 > 3` is true, 20 is selected and `x == z` is not evaluated. If `y` were changed to 2, the first condition `6 > 2` would be true and the result would instead be 10."
+  },
+  {
+    "title": "Multiple Independent If Statements Versus Else-If",
+    "question_type": "select_all",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "Consider the following code. Select ALL statements that are true.\n\n```cpp\nint x = 15;\n\nif (x > 5)\n    cout << \"A\";\nif (x > 10)\n    cout << \"B\";\nif (x > 20)\n    cout << \"C\";\nelse\n    cout << \"D\";\n```",
+    "options": [
+      {"id": "A", "text": "The program prints `ABD`."},
+      {"id": "B", "text": "The `else` is associated only with `if (x > 20)`."},
+      {"id": "C", "text": "Both of the first two `if` bodies execute."},
+      {"id": "D", "text": "Changing the second and third `if` keywords to `else if` would change the output for `x = 15`."},
+      {"id": "E", "text": "The program prints only `A` because once one `if` succeeds, all later conditions are skipped."}
+    ],
+    "correct_answers": ["A", "B", "C", "D"],
+    "explanation": "These are three independent `if` statements, except that the final `else` belongs specifically to the third `if`. Since `15 > 5` and `15 > 10` are true, `A` and `B` are printed. Since `15 > 20` is false, its `else` prints `D`, giving `ABD`. If the latter conditions were changed to `else if`, the first successful branch would prevent the later branches from being evaluated, so the output would change."
+  }
+]

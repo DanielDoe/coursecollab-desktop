@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import { studentInInstructorSessionScopeSql } from "./instructor-session-scope"
+import { officeHourStudentVisibleInOfferingSql } from "./office-hours-course-scope"
 
 describe("office hours offering scope", () => {
   it("locks office-hour students to the selected Fall session, not every ELEG1301P01", () => {
@@ -23,5 +24,16 @@ describe("office hours offering scope", () => {
     })
     assert.match(sql, /academic_terms/)
     assert.match(sql, /is_active/)
+  })
+
+  it("also matches a current-term student who shares the requester email", () => {
+    const sql = officeHourStudentVisibleInOfferingSql({
+      courseId: 5,
+      sessionId: 505,
+      studentAlias: "s",
+    })
+    assert.match(sql, /s\.session_id = 505/)
+    assert.match(sql, /s_oh_current\.email/)
+    assert.match(sql, /s_oh_current\.session_id = 505/)
   })
 })

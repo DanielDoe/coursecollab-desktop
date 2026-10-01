@@ -9,7 +9,7 @@ import Link from "next/link"
 import {
   Clock,
   Loader2,
-  Calendar,
+  Calendar as CalendarIcon,
   CheckCircle2,
   XCircle,
   ChevronDown,
@@ -24,10 +24,12 @@ import {
   Search,
   ArrowUpDown,
   LayoutGrid,
-  List,
+  Pencil,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -67,6 +69,190 @@ const DAY_OPTIONS = [
   { value: 6, label: "Saturday" },
 ]
 
+type OfficeHourEditForm = {
+  status: string
+  topic: string
+  areaOfConcern: string
+  description: string
+  priority: string
+  scheduledDate: string
+  meetingLink: string
+  meetingVenue: string
+  instructorNotes: string
+}
+
+function emptyOfficeHourEditForm(): OfficeHourEditForm {
+  return {
+    status: "pending",
+    topic: "",
+    areaOfConcern: "",
+    description: "",
+    priority: "medium",
+    scheduledDate: "",
+    meetingLink: "",
+    meetingVenue: "",
+    instructorNotes: "",
+  }
+}
+
+function toDatetimeLocalValue(value: unknown): string {
+  if (!value) return ""
+  const date = new Date(value as string)
+  if (Number.isNaN(date.getTime())) return ""
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+const OFFICE_HOUR_MINUTES = [0, 15, 30, 45]
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0")
+}
+
+function composeDatetimeLocal(day: Date, hours24: number, minutes: number) {
+  return `${day.getFullYear()}-${pad2(day.getMonth() + 1)}-${pad2(day.getDate())}T${pad2(hours24)}:${pad2(minutes)}`
+}
+
+function parseDatetimeLocal(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value)
+  if (!match) return null
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]), Number(match[5]))
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function hourCycle(hours24: number) {
+  const period: "AM" | "PM" = hours24 >= 12 ? "PM" : "AM"
+  return { hour12: hours24 % 12 || 12, period }
+}
+
+function toHours24(hour12: number, period: "AM" | "PM") {
+  if (period === "AM") return hour12 === 12 ? 0 : hour12
+  return hour12 === 12 ? 12 : hour12 + 12
+}
+
+function OfficeHourDateTimeField({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (next: string) => void
+}) {
+  const selected = parseDatetimeLocal(value)
+  const { hour12, period } = hourCycle(selected?.getHours() ?? 9)
+  const minutes = selected?.getMinutes() ?? 0
+  const minuteOptions = OFFICE_HOUR_MINUTES.includes(minutes)
+    ? OFFICE_HOUR_MINUTES
+    : [...OFFICE_HOUR_MINUTES, minutes].sort((a, b) => a - b)
+  const label = selected
+    ? selected.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+    : "Choose date and time"
+
+  const write = (day: Date, hours24: number, minute: number) => {
+    onChange(composeDatetimeLocal(day, hours24, minute))
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" className="h-9 w-full justify-start px-3 font-normal">
+          <CalendarIcon className="size-4 text-slate-500" />
+          <span className="truncate">{label}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-fit overflow-hidden p-0">
+        <div className="flex w-fit flex-col">
+        <Calendar
+          mode="single"
+          selected={selected ?? undefined}
+          onSelect={(day) => {
+            if (!day) return
+            write(day, selected?.getHours() ?? 9, selected?.getMinutes() ?? 0)
+          }}
+        />
+        <div className="grid w-0 min-w-full grid-cols-3 gap-2 border-t border-[var(--border)] p-3">
+          <label className="min-w-0 space-y-1 text-xs text-[var(--cc-text-muted)]">
+            Hour
+            <select
+              aria-label="Hour"
+              className="mt-1 h-9 w-full min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)] px-2 text-sm text-[var(--cc-text)]"
+              value={hour12}
+              onChange={(e) => {
+                const day = selected ?? new Date()
+                write(day, toHours24(Number(e.target.value), period), minutes)
+              }}
+            >
+              {Array.from({ length: 12 }, (_, index) => index + 1).map((hour) => (
+                <option key={hour} value={hour}>
+                  {hour}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="min-w-0 space-y-1 text-xs text-[var(--cc-text-muted)]">
+            Minute
+            <select
+              aria-label="Minute"
+              className="mt-1 h-9 w-full min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)] px-2 text-sm text-[var(--cc-text)]"
+              value={minutes}
+              onChange={(e) => {
+                const day = selected ?? new Date()
+                write(day, selected?.getHours() ?? toHours24(hour12, period), Number(e.target.value))
+              }}
+            >
+              {minuteOptions.map((minute) => (
+                <option key={minute} value={minute}>
+                  {pad2(minute)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="min-w-0 space-y-1 text-xs text-[var(--cc-text-muted)]">
+            AM/PM
+            <select
+              aria-label="AM or PM"
+              className="mt-1 h-9 w-full min-w-0 rounded-md border border-[var(--border)] bg-[var(--card)] px-2 text-sm text-[var(--cc-text)]"
+              value={period}
+              onChange={(e) => {
+                const nextPeriod = e.target.value === "PM" ? "PM" : "AM"
+                const day = selected ?? new Date()
+                write(day, toHours24(hour12, nextPeriod), minutes)
+              }}
+            >
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
+          </label>
+        </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function formFromOfficeHourRequest(request: {
+  status?: string
+  topic?: string
+  area_of_concern?: string
+  description?: string
+  priority?: string
+  scheduled_date?: string
+  meeting_link?: string
+  meeting_venue?: string
+  instructor_notes?: string
+}): OfficeHourEditForm {
+  return {
+    status: request.status || "pending",
+    topic: request.topic || "",
+    areaOfConcern: request.area_of_concern || "",
+    description: request.description || "",
+    priority: request.priority || "medium",
+    scheduledDate: toDatetimeLocalValue(request.scheduled_date),
+    meetingLink: request.meeting_link || "",
+    meetingVenue: request.meeting_venue || "",
+    instructorNotes: request.instructor_notes || "",
+  }
+}
+
 export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDashboard?: boolean }) {
   const fp = getFacultyModuleTheme("office-hours").page
   const cardBase = PORTAL_CARD
@@ -82,13 +268,7 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
-  const [scheduleForm, setScheduleForm] = useState({
-    status: "scheduled",
-    scheduledDate: "",
-    meetingLink: "",
-    meetingVenue: "",
-    instructorNotes: "",
-  })
+  const [scheduleForm, setScheduleForm] = useState<OfficeHourEditForm>(emptyOfficeHourEditForm)
   const [regularHours, setRegularHours] = useState<any[]>([])
   const [configOpen, setConfigOpen] = useState(false)
   const [configSlots, setConfigSlots] = useState<{ dayOfWeek: number; startTime: string; endTime: string }[]>([])
@@ -211,15 +391,19 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
         headers: apiHeaders(),
         body: JSON.stringify({
           status: scheduleForm.status,
-          scheduledDate: scheduleForm.scheduledDate || undefined,
-          meetingLink: scheduleForm.meetingLink || undefined,
-          meetingVenue: scheduleForm.meetingVenue || undefined,
-          instructorNotes: scheduleForm.instructorNotes || undefined,
+          topic: scheduleForm.topic.trim(),
+          areaOfConcern: scheduleForm.areaOfConcern.trim() || null,
+          description: scheduleForm.description.trim() || null,
+          priority: scheduleForm.priority,
+          scheduledDate: scheduleForm.scheduledDate || null,
+          meetingLink: scheduleForm.meetingLink.trim() || null,
+          meetingVenue: scheduleForm.meetingVenue.trim() || null,
+          instructorNotes: scheduleForm.instructorNotes.trim() || null,
         }),
       })
       if (res.ok) {
-        toast({ title: "Scheduled", description: "Student has been notified with details." })
-        setScheduleForm({ status: "scheduled", scheduledDate: "", meetingLink: "", meetingVenue: "", instructorNotes: "" })
+        toast({ title: "Updated", description: "The request was saved and the student was notified." })
+        setScheduleForm(emptyOfficeHourEditForm())
         setEditingId(null)
         loadRequests()
       } else {
@@ -252,6 +436,126 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
       setSaving(false)
     }
   }
+
+  const openEdit = (request: {
+    id: number
+    status?: string
+    topic?: string
+    area_of_concern?: string
+    description?: string
+    priority?: string
+    scheduled_date?: string
+    meeting_link?: string
+    meeting_venue?: string
+    instructor_notes?: string
+  }) => {
+    setExpandedId(request.id)
+    setEditingId(request.id)
+    setScheduleForm(formFromOfficeHourRequest(request))
+  }
+
+  const renderEditForm = (requestId: number) => (
+    <div className="space-y-4 p-4 bg-slate-100/80 dark:bg-white/5 rounded-xl border border-slate-200/60 dark:border-white/[0.08]">
+      <h4 className="font-medium text-slate-800 dark:text-slate-100">Edit request</h4>
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Topic</Label>
+          <Input
+            value={scheduleForm.topic}
+            onChange={(e) => setScheduleForm((p) => ({ ...p, topic: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Status</Label>
+          <Select value={scheduleForm.status} onValueChange={(value) => setScheduleForm((p) => ({ ...p, status: value }))}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="scheduled">Scheduled</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Area of concern</Label>
+          <Input
+            value={scheduleForm.areaOfConcern}
+            onChange={(e) => setScheduleForm((p) => ({ ...p, areaOfConcern: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Priority</Label>
+          <Select value={scheduleForm.priority} onValueChange={(value) => setScheduleForm((p) => ({ ...p, priority: value }))}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="low">Low</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="urgent">Urgent</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label>Description</Label>
+        <Textarea
+          value={scheduleForm.description}
+          onChange={(e) => setScheduleForm((p) => ({ ...p, description: e.target.value }))}
+          placeholder="What the meeting is about"
+        />
+      </div>
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Date & time</Label>
+          <OfficeHourDateTimeField
+            value={scheduleForm.scheduledDate}
+            onChange={(scheduledDate) => setScheduleForm((p) => ({ ...p, scheduledDate }))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Zoom / meeting link</Label>
+          <Input
+            placeholder="https://zoom.us/j/..."
+            value={scheduleForm.meetingLink}
+            onChange={(e) => setScheduleForm((p) => ({ ...p, meetingLink: e.target.value }))}
+          />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label>Venue</Label>
+        <Input
+          placeholder="Room 101, Building A"
+          value={scheduleForm.meetingVenue}
+          onChange={(e) => setScheduleForm((p) => ({ ...p, meetingVenue: e.target.value }))}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label>Notes for student</Label>
+        <Textarea
+          placeholder="Optional message..."
+          value={scheduleForm.instructorNotes}
+          onChange={(e) => setScheduleForm((p) => ({ ...p, instructorNotes: e.target.value }))}
+        />
+      </div>
+      <div className="flex gap-2">
+        <Button onClick={() => handleSchedule(requestId)} disabled={saving || !scheduleForm.topic.trim()} className={fp.cta}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+          Save changes
+        </Button>
+        <Button variant="outline" onClick={() => setEditingId(null)} disabled={saving}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  )
 
   const statusColor = (s: string) => {
     switch (s) {
@@ -648,7 +952,7 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
               </Button>
             </div>
           ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 items-start md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
           {filteredRequests.map((r: any) => (
             <div
               key={r.id}
@@ -753,7 +1057,7 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
                   )}
                   {r.scheduled_date && (
                     <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                      <Calendar className="h-4 w-4 shrink-0 text-teal-500" />
+                      <CalendarIcon className="h-4 w-4 shrink-0 text-teal-500" />
                       Scheduled: {new Date(r.scheduled_date).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
                     </div>
                   )}
@@ -779,92 +1083,25 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
                     </p>
                   )}
 
-                  {r.status === "pending" && editingId !== r.id && (
+                  {["pending", "approved", "scheduled", "completed"].includes(r.status) && editingId !== r.id && (
                     <div className="flex flex-wrap gap-2 pt-2">
-                      <Button size="sm" onClick={() => handleApprove(r.id)} disabled={saving} className={fp.cta}>
-                        <CheckCircle2 className="h-4 w-4 mr-1.5 shrink-0" /> Approve
+                      {r.status === "pending" && (
+                        <Button size="sm" onClick={() => handleApprove(r.id)} disabled={saving} className={fp.cta}>
+                          <CheckCircle2 className="h-4 w-4 mr-1.5 shrink-0" /> Approve
+                        </Button>
+                      )}
+                      <Button size="sm" variant="secondary" onClick={() => openEdit(r)} disabled={saving}>
+                        <Pencil className="h-4 w-4 mr-1.5 shrink-0" /> Edit
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {
-                          setEditingId(r.id)
-                          setScheduleForm({
-                            status: "scheduled",
-                            scheduledDate: "",
-                            meetingLink: "",
-                            meetingVenue: "",
-                            instructorNotes: "",
-                          })
-                        }}
-                        disabled={saving}
-                      >
-                        <Calendar className="h-4 w-4 mr-1.5 shrink-0" /> Schedule
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleReject(r.id)} disabled={saving} className="border-red-200 dark:border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10">
-                        <XCircle className="h-4 w-4 mr-1.5 shrink-0" /> Reject
-                      </Button>
+                      {r.status === "pending" && (
+                        <Button size="sm" variant="outline" onClick={() => handleReject(r.id)} disabled={saving} className="border-red-200 dark:border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10">
+                          <XCircle className="h-4 w-4 mr-1.5 shrink-0" /> Reject
+                        </Button>
+                      )}
                     </div>
                   )}
 
-                  {editingId === r.id && (
-                    <div className="space-y-4 p-4 bg-slate-100/80 dark:bg-white/5 rounded-xl border border-slate-200/60 dark:border-white/[0.08]">
-                      <h4 className="font-medium text-slate-800 dark:text-slate-100">Schedule meeting</h4>
-                      {r.preferredDates?.length > 0 && (
-                        <p className="text-xs text-slate-500">
-                          Student preferred: {r.preferredDates.map((d: string) => new Date(d).toLocaleString()).join("; ")}
-                        </p>
-                      )}
-                      {regularHours.length > 0 && (
-                        <p className="text-xs text-slate-500">
-                          Your regular hours: {regularHours.map((h) => `${h.dayName} ${h.startTime}-${h.endTime}`).join(", ")}
-                        </p>
-                      )}
-                      <div className="grid sm:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Date & time</Label>
-                          <Input
-                            type="datetime-local"
-                            value={scheduleForm.scheduledDate}
-                            onChange={(e) => setScheduleForm((p) => ({ ...p, scheduledDate: e.target.value }))}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Meeting link</Label>
-                          <Input
-                            placeholder="https://meet.google.com/..."
-                            value={scheduleForm.meetingLink}
-                            onChange={(e) => setScheduleForm((p) => ({ ...p, meetingLink: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Venue (if in-person)</Label>
-                        <Input
-                          placeholder="Room 101, Building A"
-                          value={scheduleForm.meetingVenue}
-                          onChange={(e) => setScheduleForm((p) => ({ ...p, meetingVenue: e.target.value }))}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Notes for student</Label>
-                        <Textarea
-                          placeholder="Optional message..."
-                          value={scheduleForm.instructorNotes}
-                          onChange={(e) => setScheduleForm((p) => ({ ...p, instructorNotes: e.target.value }))}
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button onClick={() => handleSchedule(r.id)} disabled={saving} className={fp.cta}>
-                          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                          Save & notify student
-                        </Button>
-                        <Button variant="outline" onClick={() => setEditingId(null)} disabled={saving}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+                  {editingId === r.id && renderEditForm(r.id)}
                 </div>
               )}
             </div>
@@ -931,7 +1168,7 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
                       )}
                       {r.scheduled_date && (
                         <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                          <Calendar className="h-4 w-4 shrink-0 text-teal-500" />
+                          <CalendarIcon className="h-4 w-4 shrink-0 text-teal-500" />
                           Scheduled: {new Date(r.scheduled_date).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
                         </div>
                       )}
@@ -946,52 +1183,24 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
                           {r.meeting_venue}
                         </div>
                       )}
-                      {r.status === "pending" && editingId !== r.id && (
+                      {["pending", "approved", "scheduled", "completed"].includes(r.status) && editingId !== r.id && (
                         <div className="flex flex-wrap gap-2 pt-2">
-                          <Button size="sm" onClick={() => handleApprove(r.id)} disabled={saving} className={fp.cta}>
-                            <CheckCircle2 className="h-4 w-4 mr-1.5 shrink-0" /> Approve
-                          </Button>
-                          <Button size="sm" variant="secondary" onClick={() => { setEditingId(r.id); setScheduleForm({ status: "scheduled", scheduledDate: "", meetingLink: "", meetingVenue: "", instructorNotes: "" }); }} disabled={saving}>
-                            <Calendar className="h-4 w-4 mr-1.5 shrink-0" /> Schedule
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => handleReject(r.id)} disabled={saving} className="border-red-200 dark:border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10">
-                            <XCircle className="h-4 w-4 mr-1.5 shrink-0" /> Reject
-                          </Button>
-                        </div>
-                      )}
-                      {editingId === r.id && (
-                        <div className="space-y-4 p-4 bg-slate-100/80 dark:bg-white/5 rounded-xl border border-slate-200/60 dark:border-white/[0.08]">
-                          <h4 className="font-medium text-slate-800 dark:text-slate-100">Schedule meeting</h4>
-                          {r.preferredDates?.length > 0 && (
-                            <p className="text-xs text-slate-500">Student preferred: {r.preferredDates.map((d: string) => new Date(d).toLocaleString()).join("; ")}</p>
-                          )}
-                          <div className="grid sm:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label>Date & time</Label>
-                              <Input type="datetime-local" value={scheduleForm.scheduledDate} onChange={(e) => setScheduleForm((p) => ({ ...p, scheduledDate: e.target.value }))} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Meeting link</Label>
-                              <Input placeholder="https://meet.google.com/..." value={scheduleForm.meetingLink} onChange={(e) => setScheduleForm((p) => ({ ...p, meetingLink: e.target.value }))} />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Venue (if in-person)</Label>
-                            <Input placeholder="Room 101, Building A" value={scheduleForm.meetingVenue} onChange={(e) => setScheduleForm((p) => ({ ...p, meetingVenue: e.target.value }))} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Notes for student</Label>
-                            <Textarea placeholder="Optional message..." value={scheduleForm.instructorNotes} onChange={(e) => setScheduleForm((p) => ({ ...p, instructorNotes: e.target.value }))} />
-                          </div>
-                          <div className="flex gap-2">
-                            <Button onClick={() => handleSchedule(r.id)} disabled={saving} className={fp.cta}>
-                              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                              Save & notify student
+                          {r.status === "pending" && (
+                            <Button size="sm" onClick={() => handleApprove(r.id)} disabled={saving} className={fp.cta}>
+                              <CheckCircle2 className="h-4 w-4 mr-1.5 shrink-0" /> Approve
                             </Button>
-                            <Button variant="outline" onClick={() => setEditingId(null)} disabled={saving}>Cancel</Button>
-                          </div>
+                          )}
+                          <Button size="sm" variant="secondary" onClick={() => openEdit(r)} disabled={saving}>
+                            <Pencil className="h-4 w-4 mr-1.5 shrink-0" /> Edit
+                          </Button>
+                          {r.status === "pending" && (
+                            <Button size="sm" variant="outline" onClick={() => handleReject(r.id)} disabled={saving} className="border-red-200 dark:border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10">
+                              <XCircle className="h-4 w-4 mr-1.5 shrink-0" /> Reject
+                            </Button>
+                          )}
                         </div>
                       )}
+                      {editingId === r.id && renderEditForm(r.id)}
                     </div>
                   )}
                 </div>

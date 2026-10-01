@@ -31,7 +31,17 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { status, scheduledDate, meetingLink, meetingVenue, instructorNotes } = body
+    const {
+      status,
+      scheduledDate,
+      meetingLink,
+      meetingVenue,
+      instructorNotes,
+      topic,
+      areaOfConcern,
+      description,
+      priority,
+    } = body
 
     const current = await sql`
       SELECT * FROM office_hour_requests WHERE id = ${requestId} LIMIT 1
@@ -40,7 +50,23 @@ export async function PATCH(
       return NextResponse.json({ error: "Request not found" }, { status: 404 })
     }
     const row = current[0] as any
+    const allowedStatus = new Set(["pending", "approved", "scheduled", "rejected", "completed", "cancelled"])
+    const allowedPriority = new Set(["low", "medium", "high", "urgent"])
+    if (status != null && !allowedStatus.has(String(status))) {
+      return NextResponse.json({ error: "Invalid status" }, { status: 400 })
+    }
+    if (priority != null && !allowedPriority.has(String(priority))) {
+      return NextResponse.json({ error: "Invalid priority" }, { status: 400 })
+    }
+
+    const newTopic = topic !== undefined ? String(topic).trim() : row.topic
+    if (!newTopic) {
+      return NextResponse.json({ error: "Topic is required" }, { status: 400 })
+    }
     const newStatus = status ?? row.status
+    const newArea = areaOfConcern !== undefined ? areaOfConcern || null : row.area_of_concern
+    const newDescription = description !== undefined ? description || null : row.description
+    const newPriority = priority !== undefined ? priority || "medium" : row.priority
     const newScheduled =
       scheduledDate !== undefined ? (scheduledDate ? new Date(scheduledDate) : null) : row.scheduled_date
     const newLink = meetingLink !== undefined ? meetingLink || null : row.meeting_link
@@ -49,7 +75,11 @@ export async function PATCH(
 
     const result = await sql`
       UPDATE office_hour_requests
-      SET status = ${newStatus},
+      SET topic = ${newTopic},
+          area_of_concern = ${newArea},
+          description = ${newDescription},
+          priority = ${newPriority},
+          status = ${newStatus},
           scheduled_date = ${newScheduled},
           meeting_link = ${newLink},
           meeting_venue = ${newVenue},
@@ -64,28 +94,47 @@ export async function PATCH(
       return NextResponse.json({ error: "Request not found" }, { status: 404 })
     }
 
-    if (status && ["approved", "scheduled"].includes(status)) {
-      const studentId = updated.student_id
-      const details: string[] = []
-      if (updated.scheduled_date) details.push(`Scheduled: ${new Date(updated.scheduled_date).toLocaleString()}`)
-      if (updated.meeting_link) details.push(`Meeting link: ${updated.meeting_link}`)
-      if (updated.meeting_venue) details.push(`Venue: ${updated.meeting_venue}`)
-      const message = details.length
-        ? `Your office hours request (${updated.topic}) has been ${status}. ${details.join(". ")}`
-        : `Your office hours request (${updated.topic}) has been ${status}.`
-      await createNotification({
-        studentId,
-        type: "office_hours",
-        title: "Office Hours Approved",
-        message,
-        link: "/student/dashboard-v2/office-hours",
-      })
-    } else if (status && ["rejected", "cancelled", "declined"].includes(String(status).toLowerCase())) {
+    const detailLines = [
+      updated.topic ? `Topic: ${updated.topic}` : "",
+      updated.description ? `Details: ${updated.description}` : "",
+      updated.scheduled_date
+        ? `Scheduled: ${new Date(updated.scheduled_date).toLocaleString()}`
+        : "",
+      updated.meeting_link ? `Zoom / meeting link: ${updated.meeting_link}` : "",
+      updated.meeting_venue ? `Venue: ${updated.meeting_venue}` : "",
+      updated.instructor_notes ? `Note: ${updated.instructor_notes}` : "",
+    ].filter(Boolean)
+    const detailsChanged = [
+      topic,
+      areaOfConcern,
+      description,
+      priority,
+      scheduledDate,
+      meetingLink,
+      meetingVenue,
+      instructorNotes,
+    ].some((value) => value !== undefined)
+
+    if (status && ["rejected", "cancelled", "declined"].includes(String(status).toLowerCase())) {
       await createNotification({
         studentId: updated.student_id,
         type: "office_hours",
         title: "Office Hours Update",
         message: `Your office hours request (${updated.topic}) was ${status}.`,
+        link: "/student/dashboard-v2/office-hours",
+      })
+    } else if (
+      detailsChanged ||
+      ["approved", "scheduled", "completed"].includes(String(newStatus))
+    ) {
+      const message = detailLines.length
+        ? `Your office hours request was updated. ${detailLines.join(". ")}`
+        : `Your office hours request (${updated.topic}) was updated.`
+      await createNotification({
+        studentId: updated.student_id,
+        type: "office_hours",
+        title: "Office Hours Update",
+        message,
         link: "/student/dashboard-v2/office-hours",
       })
     }

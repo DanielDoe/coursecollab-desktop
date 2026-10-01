@@ -3,7 +3,7 @@ import { sql } from "@/lib/db"
 import { requireInstructorCourse } from "@/lib/instructor-course-scope"
 import {
   buildOfficeHourRequestCourseScopeSqlFragment,
-  buildOfficeHourStudentInOfferingSqlFragmentFromRequest,
+  buildOfficeHourStudentVisibleInOfferingSqlFragmentFromRequest,
   ensureOfficeHoursCourseScopeColumns,
   hasOfficeHourRequestsCourseIdColumn,
   studentBelongsToOfficeHourOffering,
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const courseId = scope.course.id
     const hasRequestCourseId = await hasOfficeHourRequestsCourseIdColumn()
     const requestScope = buildOfficeHourRequestCourseScopeSqlFragment("ohr", courseId, hasRequestCourseId)
-    const studentScope = buildOfficeHourStudentInOfferingSqlFragmentFromRequest(request, courseId, "s")
+    const studentScope = buildOfficeHourStudentVisibleInOfferingSqlFragmentFromRequest(request, courseId, "s")
 
     const requests = await sql`
       SELECT ohr.*, s.full_name, s.student_id as student_code, s.email

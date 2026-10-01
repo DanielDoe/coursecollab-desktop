@@ -402,7 +402,22 @@ export async function canRetakeAssessment(
       retakeOn
     )
 
+    // The extra_retake superpower is +1 per assessment, total. It was re-granted on every start request
+    // (unbounded retakes) yet never read back from the stored grant (list hid the unused +1).
     let superpowerExtraRetake = extraAttemptFromSuperpower === true
+    if (!superpowerExtraRetake) {
+      try {
+        const granted = await sql`
+          SELECT 1 FROM quiz_attempts
+          WHERE student_id = ${studentId} AND quiz_id = ${quizId}
+            AND deleted_at IS NULL AND extra_retake_granted = true
+          LIMIT 1
+        `
+        superpowerExtraRetake = granted.length > 0
+      } catch {
+        /* column may not exist */
+      }
+    }
     if (superpowerExtraRetake) {
       const tr = await sql`
         SELECT assessment_type FROM quizzes WHERE id = ${quizId} AND deleted_at IS NULL LIMIT 1

@@ -602,6 +602,8 @@ interface QuestionRendererProps {
   /** Pause strict anti-cheat while solution file picker is open. */
   onAntiCheatSuspendChange?: (suspended: boolean) => void
   antiCheatSuspendedForSolutionUpload?: boolean
+  /** The attempt's effective fullscreen setting; undefined keeps the legacy always-on lock. */
+  requireFullscreen?: boolean
   isAntiCheatSuspended?: () => boolean
   circuitAnswerSnapshotRef?: React.MutableRefObject<(() => string) | null>
   circuitPrepareSubmitRef?: React.MutableRefObject<(() => void) | null>
@@ -646,6 +648,7 @@ export const QuestionRenderer = memo(function QuestionRenderer({
   studentDatabaseId,
   onAntiCheatSuspendChange,
   antiCheatSuspendedForSolutionUpload = false,
+  requireFullscreen,
   isAntiCheatSuspended,
   circuitAnswerSnapshotRef,
   circuitPrepareSubmitRef,
@@ -727,7 +730,7 @@ export const QuestionRenderer = memo(function QuestionRenderer({
   }, [])
 
   // Stable callback to prevent infinite loops
-  const handleGeminiDetected = useCallback((reason: string) => {
+  const handleGeminiDetected = useCallback((reason: string, source?: "panel" | "resize" | "focus") => {
     if (isAntiCheatSuspended?.()) return
     if (!isBrowserAiEnforcementPlatform()) return
     // Debounce event dispatching to prevent rapid-fire events
@@ -738,13 +741,16 @@ export const QuestionRenderer = memo(function QuestionRenderer({
     lastEventDispatchRef.current = now
 
     // Dispatch custom event that parent quiz-taker can listen to
-    // This allows detection at the question level without tight coupling
+    // This allows detection at the question level without tight coupling.
+    // `source` lets the quiz-taker tell the weak sustained-focus-loss heuristic apart from the
+    // high-confidence panel/resize fingerprints so only the former gets a one-time warning pass.
     if (typeof window !== "undefined") {
       window.dispatchEvent(
         new CustomEvent("gemini-detected", {
           detail: {
             questionId: question.id,
             reason,
+            source,
             timestamp: new Date().toISOString(),
           },
         })
@@ -755,6 +761,7 @@ export const QuestionRenderer = memo(function QuestionRenderer({
     queueEvent("quiz", "antiCheat", "GEMINI_DETECTED_QUESTION_LEVEL", {
       questionId: question.id,
       reason,
+      source,
     }, "warning")
   }, [question.id, isAntiCheatSuspended])
 
@@ -772,7 +779,7 @@ export const QuestionRenderer = memo(function QuestionRenderer({
       !isAntiCheatSuspended?.(),
     onDetected: handleGeminiDetected,
     isDetectionPaused: isAntiCheatSuspended,
-    requireFullscreen: !isPracticeHub,
+    requireFullscreen: !isPracticeHub && requireFullscreen !== false,
     // Browser-AI heuristics are owned by the parent quiz/exam taker. Running them here too
     // double-counted strikes and ignored the quiz's trackGeminiWindow config (and fired inside
     // the Electron shell where no browser AI side-panel can exist). Keep only the fullscreen lock.

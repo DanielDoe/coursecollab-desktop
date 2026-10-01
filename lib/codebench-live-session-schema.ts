@@ -1,6 +1,8 @@
 import { sql } from "@/lib/db"
 
-export async function ensureCodebenchLiveSnapshotsSchema() {
+let snapshotsSchemaReady: Promise<void> | null = null
+
+async function ensureCodebenchLiveSnapshotsSchemaOnce() {
   await sql`
     CREATE TABLE IF NOT EXISTS codebench_live_snapshots (
       id bigserial PRIMARY KEY,
@@ -28,12 +30,37 @@ export async function ensureCodebenchLiveSnapshotsSchema() {
     await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS student_left_at timestamptz`
     await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS student_joined_at timestamptz`
     await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS student_active_at timestamptz`
+    await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS sync_requested_at timestamptz`
   } catch {
     /* columns may already exist or migration unavailable */
   }
 }
 
-export async function ensureCodebenchLiveSessionsSchema() {
+/** Schema checks are several round trips. Run them once per server process. */
+export function ensureCodebenchLiveSnapshotsSchema() {
+  if (!snapshotsSchemaReady) {
+    snapshotsSchemaReady = ensureCodebenchLiveSnapshotsSchemaOnce().catch((error) => {
+      snapshotsSchemaReady = null
+      throw error
+    })
+  }
+  return snapshotsSchemaReady
+}
+
+let sessionsSchemaReady: Promise<void> | null = null
+
+/** Called on every snapshot and roster poll, so run the DDL once per server process. */
+export function ensureCodebenchLiveSessionsSchema() {
+  if (!sessionsSchemaReady) {
+    sessionsSchemaReady = ensureCodebenchLiveSessionsSchemaOnce().catch((error) => {
+      sessionsSchemaReady = null
+      throw error
+    })
+  }
+  return sessionsSchemaReady
+}
+
+async function ensureCodebenchLiveSessionsSchemaOnce() {
   await sql`
     CREATE TABLE IF NOT EXISTS codebench_live_sessions (
       id bigserial PRIMARY KEY,

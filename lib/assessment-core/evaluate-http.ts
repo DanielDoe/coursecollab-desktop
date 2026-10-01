@@ -18,6 +18,7 @@ import {
 } from "@/lib/regular-assessments-cutoff"
 import { isRegularAssessmentSemesterHardCloseBlockingStudent } from "@/lib/retake-access"
 import { canVerifyLocally } from "@/lib/local-answer-verification"
+import { issueEvaluationReceipt } from "@/lib/evaluation-receipt"
 
 /** Question types graded by AI / vision through evaluateAssessmentAnswer. */
 export const ASSESSMENT_CORE_EVAL_TYPES = new Set([
@@ -161,6 +162,16 @@ export async function buildAssessmentCoreEvaluateResponse(input: AssessmentCoreE
 
   const aiFeedback = (result as { aiFeedback?: Record<string, unknown> }).aiFeedback
 
+  // Anti-tamper: bind this exact server-computed score to (attemptId, questionId, answer) so
+  // `submit` can tell a genuine re-post of this result apart from a client-edited one.
+  const receipt = issueEvaluationReceipt({
+    attemptId: input.attemptId,
+    questionId: input.questionId,
+    answer: input.answer,
+    isCorrect: Boolean(result.isCorrect),
+    points: Number(result.pointsEarned ?? result.points ?? 0),
+  })
+
   return formatEvaluateApiResponse({
     result: {
       isCorrect: result.isCorrect,
@@ -172,5 +183,6 @@ export async function buildAssessmentCoreEvaluateResponse(input: AssessmentCoreE
     aiFeedback: aiFeedback ?? null,
     questionType: qtLower,
     maxPoints,
+    receipt,
   })
 }

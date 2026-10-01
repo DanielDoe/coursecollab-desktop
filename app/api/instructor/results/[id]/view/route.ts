@@ -57,6 +57,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         q.section_config,
         s.full_name as student_name,
         s.student_id,
+        s.id as student_db_id,
         s.section
       FROM quiz_attempts qa
       JOIN quizzes q ON qa.quiz_id = q.id
@@ -777,16 +778,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     `
     const cohortRow = cohortStats[0] as { avg_pct: number | null; max_pct: number | null } | undefined
 
-    const siblingRows = await sql`
+    const studentDbId = Number(attempt.student_db_id)
+    const siblingRows = Number.isFinite(studentDbId)
+      ? await sql`
       SELECT qa.id, qa.attempt_number, qa.score::float, qa.is_final_grade,
         qa.completed_at, qa.results_finalized_at IS NOT NULL AS results_finalized
       FROM quiz_attempts qa
       WHERE qa.quiz_id = ${attempt.quiz_id}
-        AND qa.student_id = ${attempt.student_id}
+        AND qa.student_id = ${studentDbId}
         AND qa.deleted_at IS NULL
         AND qa.completed_at IS NOT NULL
       ORDER BY qa.attempt_number ASC
     `
+      : []
     const siblingIds = (siblingRows as { id: number }[]).map((r) => Number(r.id))
     const siblingDisplayGrades =
       siblingIds.length > 0 ? await getAttemptDisplayGradesBatch(siblingIds) : new Map()

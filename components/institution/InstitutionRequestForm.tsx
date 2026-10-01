@@ -58,6 +58,7 @@ function InstitutionRequestFormInner({
         estimatedInstructors: form.get("estimatedInstructors"),
         desiredScope: form.get("desiredScope"),
         desiredPlan: plan?.planKey ?? null,
+        companyWebsite: form.get("companyWebsite"),
       }),
     })
     setBusy(false)
@@ -114,7 +115,13 @@ function InstitutionRequestFormInner({
           </Link>
         </div>
         <InstitutionPrivacyTrustStrip variant="compact" className="mb-4" />
-        <form onSubmit={(e) => void submit(e)} className={cn(landingCardClass, "space-y-4 p-6 sm:p-8")}>
+        <form onSubmit={(e) => void submit(e)} className={cn(landingCardClass, "relative space-y-4 p-6 sm:p-8")}>
+          <div className="absolute -left-[9999px] h-px w-px overflow-hidden" aria-hidden="true">
+            <label>
+              Website
+              <input name="companyWebsite" tabIndex={-1} autoComplete="off" />
+            </label>
+          </div>
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-[var(--cc-accent)]">Institutions</p>
             <h1 className="mt-1 text-2xl font-extrabold text-[var(--cc-text)]">{title}</h1>

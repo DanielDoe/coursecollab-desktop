@@ -109,7 +109,8 @@ contextBridge.exposeInMainWorld('courseCollabDesktop', {
   codebench: {
     checkCompiler: () => ipcRenderer.invoke('codebench:check-compiler') as Promise<CompilerInfo>,
     warmupToolchain: () => ipcRenderer.invoke('codebench:warmup-toolchain') as Promise<CompilerInfo>,
-    ensureToolchain: () => ipcRenderer.invoke('codebench:ensure-toolchain') as Promise<CompilerInfo>,
+    ensureToolchain: (options?: { force?: boolean }) =>
+      ipcRenderer.invoke('codebench:ensure-toolchain', options) as Promise<CompilerInfo>,
     loadWorkspace: (studentId?: string | null) =>
       ipcRenderer.invoke('codebench:load-workspace', studentId) as Promise<{
         ok: boolean

@@ -14,6 +14,39 @@ const tfOptions = {
   E: null,
 }
 
+const noOptions = { A: null, B: null, C: null, D: null, E: null }
+
+describe("fill blank / output strictness", () => {
+  it("does not treat 3.14 and 314 as equal", () => {
+    const r = verifyAnswerLocally("fill_blank", "314", { correctAnswer: "3.14", options: noOptions })
+    assert.equal(r.isCorrect, false)
+    assert.equal(r.score, 0)
+  })
+
+  it("gives no partial credit for a wrong number", () => {
+    const r = verifyAnswerLocally("fill_blank", "121", { correctAnswer: "120", options: noOptions })
+    assert.equal(r.isCorrect, false)
+    assert.equal(r.score, 0)
+  })
+
+  it("does not accept 100 for 10", () => {
+    const r = verifyAnswerLocally("fill_blank", "100", { correctAnswer: "10", options: noOptions })
+    assert.equal(r.isCorrect, false)
+  })
+
+  it("treats a JSON-looking expected output as literal", () => {
+    const wrong = verifyAnswerLocally("code_output", "1", { correctAnswer: "[1, 2, 3]", options: noOptions })
+    assert.equal(wrong.isCorrect, false)
+    const right = verifyAnswerLocally("code_output", "[1, 2, 3]", { correctAnswer: "[1, 2, 3]", options: noOptions })
+    assert.equal(right.isCorrect, true)
+  })
+
+  it("still accepts a string list of alternatives for text fill blanks", () => {
+    const r = verifyAnswerLocally("fill_blank", "Ohm", { correctAnswer: '["ohm","ohms"]', options: noOptions })
+    assert.equal(r.isCorrect, true)
+  })
+})
+
 describe("local answer verification", () => {
   it("grades true/false when correct_answer is True text and student selects A", () => {
     const result = verifyAnswerLocally("true_false", "A", {

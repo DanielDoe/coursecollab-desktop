@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
+import { sqlForCodebenchStudent } from "@/lib/codebench/trusted-sql"
+import { listLoggedStudioEvents } from "@/lib/codebench-studio-server"
 import { resolveCourseIdForStudioEvent } from "@/lib/codebench-studio-course-scope"
 import { ensureCodebenchStudioEventsSchema } from "@/lib/codebench-studio-schema"
 
@@ -15,6 +17,19 @@ const EVENT_TYPES = new Set([
   "save",
   "suggest_fix",
 ])
+
+export async function GET(request: NextRequest) {
+  try {
+    const auth = await requireCodebenchStudent(request, request.nextUrl.searchParams.get("studentId"))
+    if (!auth.ok) return auth.response
+    const tenantDb = (await sqlForCodebenchStudent(auth.studentDbId)) ?? sql
+    const events = await listLoggedStudioEvents(tenantDb as Parameters<typeof listLoggedStudioEvents>[0], auth.studentDbId)
+    return NextResponse.json({ events })
+  } catch (error) {
+    console.error("[codebench studio-events get]", error)
+    return NextResponse.json({ events: [] })
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {

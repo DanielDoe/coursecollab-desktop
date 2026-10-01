@@ -30,6 +30,7 @@ import {
   persistIdeWorkspaceCloud,
   persistIdeWorkspaceDurable,
   persistIdeWorkspaceProjectFiles,
+  preferNewerWorkspace,
   renameNodeInProject,
   resolvePersistedIdeWorkspace,
   saveFileInProject,
@@ -60,10 +61,16 @@ export function useCodebenchIde({ studentId = null }: Options = {}) {
   useEffect(() => {
     let cancelled = false
     setHydrated(false)
+    const baseline = workspaceRef.current
     void resolvePersistedIdeWorkspace(studentId).then((loaded) => {
       if (cancelled) return
-      setWorkspace(loaded)
-      persistIdeWorkspace(loaded, studentId)
+      // The cloud copy can land seconds after mount. Typing or a live-classroom restore
+      // in that window must not be replaced by an older stored copy.
+      const current = workspaceRef.current
+      const next = current === baseline ? loaded : preferNewerWorkspace(loaded, current)
+      workspaceRef.current = next
+      setWorkspace(next)
+      persistIdeWorkspace(next, studentId)
       setHydrated(true)
     })
     return () => {

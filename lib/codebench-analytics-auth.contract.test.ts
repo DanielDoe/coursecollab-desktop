@@ -45,6 +45,9 @@ describe("CodeBench analytics auth contract", () => {
     const src = readRoute("app/api/codebench/leaderboard/route.ts")
     assert.doesNotMatch(src, /student_code/)
     assert.match(src, /s\.course_id|sess\.course_id/)
+    assert.match(src, /academic_term_id/)
+    assert.match(src, /codebenchLeaderboardTermPredicateSql/)
+    assert.doesNotMatch(src, /reason LIKE '%CodeBench%'/)
   })
 
   it("analyze and learning-plan do not fabricate scores on parse failure", () => {

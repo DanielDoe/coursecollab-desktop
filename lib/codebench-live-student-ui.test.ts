@@ -7,6 +7,7 @@ import { getCodebenchLanguage } from "./codebench-languages"
 import {
   LIVE_JOIN_GRACE_MS,
   LIVE_SESSION_END_CONFIRM_MISSES,
+  replacementLiveSession,
   shouldReplaceLiveEditorBuffer,
   shouldRestoreLiveStudentCode,
   shouldTreatLiveSessionAsEnded,
@@ -82,6 +83,21 @@ describe("shouldTreatLiveSessionAsEnded", () => {
     })
     assert.equal(whileLoading.ended, false)
     assert.equal(whileLoading.nextMissCount, 0)
+  })
+})
+
+describe("replacementLiveSession", () => {
+  const older = { ...open[0], assignmentId: 7, title: "Old", startedAt: "2026-09-28T22:17:00.000Z" }
+  const newer = { ...open[0], assignmentId: 9, title: "New", startedAt: "2026-09-28T22:47:15.000Z" }
+
+  it("returns null when the current session is the only one open", () => {
+    assert.equal(replacementLiveSession(open, 42), null)
+    assert.equal(replacementLiveSession([], 42), null)
+  })
+
+  it("follows the newest other open session", () => {
+    assert.equal(replacementLiveSession([older, newer], 42)?.assignmentId, 9)
+    assert.equal(replacementLiveSession([newer, older, open[0]], 42)?.assignmentId, 9)
   })
 })
 
@@ -166,5 +182,16 @@ describe("shouldRestoreLiveStudentCode", () => {
       shouldRestoreLiveStudentCode(getCodebenchLanguage("cpp").defaultCode, "int x = 42;\n", "cpp"),
       true,
     )
+  })
+
+  it("replaces a buffer that still holds another live assignment's code", () => {
+    assert.equal(
+      shouldRestoreLiveStudentCode("int previous = 1;\n", "int thisAssignment = 2;\n", "cpp", true),
+      true,
+    )
+  })
+
+  it("keeps the buffer when this assignment has nothing saved", () => {
+    assert.equal(shouldRestoreLiveStudentCode("int previous = 1;\n", "  \n", "cpp", true), false)
   })
 })

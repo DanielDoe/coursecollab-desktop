@@ -11,6 +11,7 @@ import {
   Radio,
   Settings2,
   Target,
+  Trophy,
   Users,
 } from "lucide-react"
 import { FacultyModuleSideMenu } from "@/components/instructor/dashboard-v2/FacultyModuleSideMenu"
@@ -20,6 +21,7 @@ import { InstructorCodebenchIde } from "@/components/instructor/codebench/Instru
 import { InstructorCodeLibraryPanel } from "@/components/instructor/codebench/InstructorCodeLibraryPanel"
 import { InstructorCodebenchProjectsPanel } from "@/components/instructor/codebench/InstructorCodebenchProjectsPanel"
 import { InstructorCodebenchActivityPanel } from "@/components/instructor/codebench/InstructorCodebenchActivityPanel"
+import { InstructorCodebenchLeaderboardPanel } from "@/components/instructor/codebench/InstructorCodebenchLeaderboardPanel"
 import { InstructorCodebenchChallengesPanel } from "@/components/instructor/codebench/InstructorCodebenchChallengesPanel"
 import { InstructorCodebenchLivePanel } from "@/components/instructor/codebench/InstructorCodebenchLivePanel"
 import { InstructorLiveClassroomSession } from "@/components/instructor/codebench/InstructorLiveClassroomSession"
@@ -40,6 +42,7 @@ type HubView =
   | "live"
   | "live_session"
   | "activity"
+  | "leaderboard"
   | "insights"
   | "settings"
 
@@ -50,6 +53,7 @@ const MENU_ITEMS = [
   { id: "challenges" as const, label: "Challenges", icon: Target },
   { id: "live" as const, label: "Live Classroom", icon: Radio },
   { id: "activity" as const, label: "Student Activity", icon: Users },
+  { id: "leaderboard" as const, label: "Leaderboard", icon: Trophy },
   { id: "insights" as const, label: "Insights", icon: Activity },
   { id: "settings" as const, label: "Settings", icon: Settings2 },
 ]
@@ -142,6 +146,8 @@ export function FacultyCodebenchHubDashboard() {
         )
       case "activity":
         return <InstructorCodebenchActivityPanel />
+      case "leaderboard":
+        return <InstructorCodebenchLeaderboardPanel />
       case "insights":
         return <FacultyCodebenchStudioAnalytics />
       case "settings":

@@ -3,6 +3,7 @@ import { persistRefreshToken, setRefreshTokenCookie } from "@/lib/auth-refresh-t
 import { checkRateLimit, rateLimitKey } from "@/lib/compliance/rate-limit"
 import { InstitutionWorkspaceExistsError, provisionInstitutionWorkspace } from "@/lib/institutions/workspace"
 import { notifyInstitutionAccessRequest } from "@/lib/institutions/request-notify"
+import { institutionRequestSpamReason } from "@/lib/institutions/request-spam"
 import { getInstitutionPlan } from "@/lib/institution-plans"
 
 export const dynamic = "force-dynamic"
@@ -33,13 +34,31 @@ export async function POST(request: NextRequest) {
         ? "pilot"
         : "demo"
 
+  const domain = body.domain ? String(body.domain).trim() : ""
+  if (String(body.companyWebsite ?? "").trim()) {
+    return NextResponse.json({ error: "Could not create workspace" }, { status: 400 })
+  }
+  const spam = institutionRequestSpamReason({
+    institutionName,
+    contactName,
+    contactEmail,
+    domain,
+  })
+  if (spam) {
+    console.warn("[institution/signup] rejected spam", spam)
+    return NextResponse.json(
+      { error: "Enter a real institution name, contact email, and school domain." },
+      { status: 400 },
+    )
+  }
+
   try {
     const created = await provisionInstitutionWorkspace({
       institutionName,
       contactName,
       contactEmail,
       password,
-      domain: body.domain ? String(body.domain) : null,
+      domain: domain || null,
       institutionType: body.institutionType ? String(body.institutionType) : null,
       desiredPlan: plan?.planKey ?? null,
       requestKind,
@@ -54,7 +73,7 @@ export async function POST(request: NextRequest) {
           contactName,
           contactEmail,
           desiredPlan: plan?.planKey ?? null,
-          domain: body.domain ? String(body.domain) : null,
+          domain: domain || null,
         })
       } catch (err) {
         console.error("[institution/signup] notify failed", err)

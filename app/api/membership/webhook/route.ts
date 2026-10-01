@@ -1941,8 +1941,8 @@ async function handleDonationFailed(session: Stripe.Checkout.Session, errorMessa
       studentId: parseInt(studentId),
       type: "donation",
       title: "Payment Failed",
-      message: `Your donation payment could not be processed. ${errorMessage}. Please try again or contact support if the issue persists.`,
-      link: "/student/donate"
+      message: `Your donation payment could not be processed. ${errorMessage}. New donations are closed. Upgrade to Explorer or Trailblazer if you still need access.`,
+      link: "/student/dashboard-v2/membership"
     })
     console.log(`[Webhook] ✅ Notification sent to student ${studentId} about failed payment`)
   } catch (error) {

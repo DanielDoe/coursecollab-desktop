@@ -118,9 +118,32 @@ export function clearFacultyExplicitSignOutFlag(): void {
 
 let inflightFacultyRestore: Promise<boolean> | null = null
 
-/** Restore local faculty session from httpOnly refresh cookie when storage expired. */
-export async function tryRestoreFacultySessionFromRefresh(): Promise<boolean> {
-  if (inflightFacultyRestore) return inflightFacultyRestore
+export function refreshedSessionMatchesUniversity(
+  instructor: Record<string, unknown> | undefined,
+  expectedUniversityId: number | null | undefined,
+): boolean {
+  if (expectedUniversityId == null) return true
+  const restored = Number(instructor?.selectedUniversityId)
+  if (!Number.isFinite(restored) || restored <= 0) return true
+  return restored === expectedUniversityId
+}
+
+/**
+ * Restore local faculty session from httpOnly refresh cookie when storage expired.
+ * `expectedUniversityId` is read after the refresh returns; a session for another school is
+ * not adopted, so a leftover cookie can't override a school the user just picked.
+ */
+export async function tryRestoreFacultySessionFromRefresh(opts?: {
+  expectedUniversityId?: () => number | null | undefined
+}): Promise<boolean> {
+  if (inflightFacultyRestore) {
+    const restored = await inflightFacultyRestore
+    if (!restored || !opts?.expectedUniversityId) return restored
+    return refreshedSessionMatchesUniversity(
+      readFacultySession() ?? undefined,
+      opts.expectedUniversityId(),
+    )
+  }
 
   inflightFacultyRestore = (async () => {
     if (typeof window === "undefined") return false
@@ -149,6 +172,7 @@ export async function tryRestoreFacultySessionFromRefresh(): Promise<boolean> {
 
       const data = (await res.json()) as FacultySessionRefreshResponse
       if (data.userType !== "instructor") return false
+      if (!refreshedSessionMatchesUniversity(data.instructor, opts?.expectedUniversityId?.())) return false
       if (!applyFacultySessionRefreshPayload(data)) return false
       const session = readFacultySession()
       if (!session) return false

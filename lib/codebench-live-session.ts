@@ -7,7 +7,8 @@ import { studioEventInCourseSql } from "@/lib/codebench-studio-course-scope"
 import { formatInstructorStudioEvent } from "@/lib/codebench-instructor-student-activity"
 import { studentInOfferingSqlFromRequest } from "@/lib/instructor-session-scope"
 import { studentMatchesLiveAssignmentSession } from "@/lib/classroom-submission-scope"
-import { selectFaithfulTypingReplay } from "@/lib/codebench-live-replay"
+import { selectFaithfulTypingReplay, typingReplaySince } from "@/lib/codebench-live-replay"
+import { listBlockedLiveJoins, recordRosterSample } from "@/lib/codebench-live-activity-log"
 import type {
   LiveClassroomSessionPayload,
   LiveClassroomStudentRow,
@@ -36,12 +37,19 @@ async function ensureLiveSessionSchemas() {
   } catch (error) {
     console.error("[live-session] studio schema", error)
   }
-  try {
-    await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`
-  } catch {
-    /* column may already exist or migration unavailable */
+  // ALTER TABLE takes an ACCESS EXCLUSIVE lock on students even when the column
+  // exists; on a 1s instructor poll that stalls every other read of students.
+  if (!studentsDeletedAtReady) {
+    studentsDeletedAtReady = sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`
+      .then(() => undefined)
+      .catch(() => {
+        /* column may already exist or migration unavailable */
+      })
   }
+  await studentsDeletedAtReady
 }
+
+let studentsDeletedAtReady: Promise<void> | null = null
 
 type ScopedStudentRow = {
   student_db_id: number
@@ -87,10 +95,46 @@ async function loadScopedStudents(courseId: number, request: NextRequest): Promi
   }
 }
 
+/** Roster order ignores keystrokes. Coding and joined stay in one group. */
+function rosterBucket(status: LiveStudentStatus): "attention" | "present" | "finished" | "approved" | "absent" {
+  switch (status) {
+    case "needs_help":
+    case "error":
+      return "attention"
+    case "coding":
+    case "joined":
+      return "present"
+    case "submitted":
+    case "review":
+      return "finished"
+    case "approved":
+      return "approved"
+    default:
+      return "absent"
+  }
+}
+
+function rosterRank(bucket: ReturnType<typeof rosterBucket>): number {
+  switch (bucket) {
+    case "attention":
+      return 0
+    case "present":
+      return 1
+    case "finished":
+      return 2
+    case "approved":
+      return 3
+    default:
+      return 4
+  }
+}
+
 function statusLabel(status: LiveStudentStatus): string {
   switch (status) {
     case "not_started":
       return "Not started"
+    case "joined":
+      return "Joined"
     case "coding":
       return "Coding now"
     case "error":
@@ -108,7 +152,14 @@ function statusLabel(status: LiveStudentStatus): string {
   }
 }
 
-const LIVE_ACTIVITY_MS = 3 * 60 * 1000
+/** Editor heartbeats are every 2s. After this gap the student has left the live editor. */
+const LIVE_ACTIVITY_MS = 45 * 1000
+
+/** Five missed 2s heartbeats. */
+const LIVE_PRESENCE_TIMEOUT_MS = 10 * 1000
+
+/** Per-student window for error/run counts, so one busy student can't crowd out the class. */
+const STUDIO_EVENTS_PER_STUDENT = 20
 
 function isActiveRecently(input: {
   lastActivityMs: number | null
@@ -120,25 +171,41 @@ function isActiveRecently(input: {
   )
 }
 
+/** Newest compile wins. A later clean build clears earlier faults from this session. */
+function currentCompileFault(
+  events: Array<{ event_type: string; error_message: string | null }>,
+): { count: number; messages: string[] } {
+  const latest = events.find(
+    (event) => event.event_type === "compile_error" || event.event_type === "compile_success",
+  )
+  if (!latest || latest.event_type === "compile_success") return { count: 0, messages: [] }
+  const message = latest.error_message?.trim()
+  return { count: 1, messages: message ? [message.slice(0, 180)] : [] }
+}
+
 function deriveStatus(input: {
   classroomStatus: string | null
   hasSubmission: boolean
   lastActivityMs: number | null
   latestEventType: string | null
   latestCoraTool: string | null
-  compileErrors: number
+  hasCurrentCompileError: boolean
   snapshotAgeMs: number | null
+  connectedThisSession: boolean
 }): LiveStudentStatus {
   const status = String(input.classroomStatus ?? "").toLowerCase()
   const activeRecently = isActiveRecently(input)
 
   if (activeRecently) {
-    if (input.latestEventType === "compile_error") return "error"
+    if (input.hasCurrentCompileError) return "error"
     if (input.latestEventType === "suggest_fix") return "needs_help"
     if (input.latestEventType === "cora_tool" && input.latestCoraTool === "debug") return "needs_help"
-    if (input.compileErrors > 0 && input.latestEventType !== "compile_success") return "error"
     return "coding"
   }
+
+  // In the room but not editing or compiling. This is Joined, even if they already
+  // have a submission from earlier in the class.
+  if (input.connectedThisSession) return "joined"
 
   if (status === "approved") return "approved"
   if (status === "rejected" || status === "needs_review") return "review"
@@ -199,6 +266,8 @@ export async function fetchLiveClassroomSession(
   courseId: number,
   assignmentId: number,
   request: NextRequest,
+  focusStudentDbId?: number | null,
+  options: { includeReplay?: boolean } = {},
 ): Promise<LiveClassroomSessionPayload | null> {
   await ensureLiveSessionSchemas()
   let openSession: Awaited<ReturnType<typeof getOpenLiveClassroomSession>> = null
@@ -243,13 +312,19 @@ export async function fetchLiveClassroomSession(
         instructor_updated_at,
         file_name,
         language,
-        typing_replay,
         updated_at,
+        student_left_at,
+        student_joined_at,
+        student_active_at,
+        (EXTRACT(EPOCH FROM (NOW() - student_joined_at)) * 1000)::float8 AS joined_age_ms,
         student_cursor,
         instructor_cursor
       FROM codebench_live_snapshots
       WHERE assignment_id = ${assignmentId}
-    `.catch(() => []),
+    `.catch((error) => {
+      console.error("[live-session] snapshots", error)
+      return []
+    }),
     sql`
       SELECT cs.student_id, cs.code, cs.status, cs.score, cs.submitted_at
       FROM classroom_points cp
@@ -291,14 +366,26 @@ export async function fetchLiveClassroomSession(
         e.error_family,
         e.error_message,
         e.created_at
-      FROM codebench_studio_events e
+      FROM (
+        SELECT
+          e.*,
+          ROW_NUMBER() OVER (PARTITION BY e.student_id ORDER BY e.created_at DESC) AS student_rank
+        FROM codebench_studio_events e
+        WHERE ${sql.unsafe(eventCourseMatch)}
+          AND e.created_at >= GREATEST(
+            ${assignment.created_at}::timestamptz,
+            COALESCE(${openSession?.startedAt ?? null}::timestamptz, ${assignment.created_at}::timestamptz)
+          )
+          AND (e.assignment_id = ${assignmentId} OR e.assignment_tagged = false)
+      ) e
       JOIN students s ON s.id = e.student_id
-      WHERE ${sql.unsafe(eventCourseMatch)}
-        AND e.created_at >= ${assignment.created_at}::timestamptz
+      WHERE e.student_rank <= ${STUDIO_EVENTS_PER_STUDENT}
         AND ${sql.unsafe(scopeWhere)}
       ORDER BY e.created_at DESC
-      LIMIT 60
-    `.catch(() => []),
+    `.catch((error) => {
+      console.error("[live-session] studio events", error)
+      return []
+    }),
   ])
 
   const filteredStudents = studentRows.filter((row) =>
@@ -313,8 +400,11 @@ export async function fetchLiveClassroomSession(
     instructor_updated_at?: string | null
     file_name: string | null
     language: string | null
-    typing_replay: unknown
     updated_at: string
+    student_left_at?: string | null
+    student_joined_at?: string | null
+    student_active_at?: string | null
+    joined_age_ms?: number | string | null
     student_cursor?: unknown
     instructor_cursor?: unknown
   }>) {
@@ -402,6 +492,7 @@ export async function fetchLiveClassroomSession(
   }
 
   const now = Date.now()
+  const sessionStartedAtMs = openSession ? new Date(openSession.startedAt).getTime() : Number.NaN
 
   const students: LiveClassroomStudentRow[] = rosterStudents.map((row) => {
     const studentDbId = Number(row.student_db_id)
@@ -410,7 +501,9 @@ export async function fetchLiveClassroomSession(
     const classroom = classroomByStudent.get(studentDbId)
     const events = eventsByStudent.get(studentDbId) ?? []
 
-    const compileErrors = events.filter((e) => e.event_type === "compile_error").length
+    const currentFault = currentCompileFault(events)
+    const compileErrors = currentFault.count
+    const compileErrorMessages = currentFault.messages
     const runs = events.filter((e) => e.event_type === "run").length
     const latestEvent = events[0]
     const latestFormatted = latestEvent
@@ -430,20 +523,39 @@ export async function fetchLiveClassroomSession(
       latestEvent?.created_at,
     ])
 
-    const lastActivityMs = lastActivityAt ? now - new Date(lastActivityAt).getTime() : null
     // Faculty "live/coding" follows the student stream only — instructor_updated_at
     // would otherwise keep an empty editor looking live after a help-edit.
     const snapshotFreshAt = snapshot?.updated_at ?? null
-    const snapshotAgeMs = snapshotFreshAt ? now - new Date(snapshotFreshAt).getTime() : null
+    const joinedAtMs = snapshot?.student_joined_at ? new Date(snapshot.student_joined_at).getTime() : Number.NaN
+    const leftAtMs = snapshot?.student_left_at ? new Date(snapshot.student_left_at).getTime() : Number.NaN
+    const activeAtMs = snapshot?.student_active_at ? new Date(snapshot.student_active_at).getTime() : Number.NaN
+    const eventAtMs = latestEvent?.created_at ? new Date(latestEvent.created_at).getTime() : Number.NaN
+    // The open editor re-stamps student_joined_at on every heartbeat, so a stale
+    // stamp means the leave never arrived (crash, sleep, network drop).
+    const joinedAgeMs = snapshot?.joined_age_ms == null ? Number.NaN : Number(snapshot.joined_age_ms)
+    const inRoom =
+      Number.isFinite(joinedAtMs) &&
+      Number.isFinite(sessionStartedAtMs) &&
+      joinedAtMs >= sessionStartedAtMs &&
+      (!Number.isFinite(leftAtMs) || joinedAtMs > leftAtMs) &&
+      Number.isFinite(joinedAgeMs) &&
+      joinedAgeMs < LIVE_PRESENCE_TIMEOUT_MS
+    // Compare against the session start, not joined_at: heartbeats re-stamp joined_at
+    // every 2s, which made a compile error or burst of typing stop counting almost at once.
+    const codeAgeMs =
+      inRoom && Number.isFinite(activeAtMs) && activeAtMs >= sessionStartedAtMs ? now - activeAtMs : null
+    const eventAgeMs =
+      inRoom && Number.isFinite(eventAtMs) && eventAtMs >= sessionStartedAtMs ? now - eventAtMs : null
 
     const status = deriveStatus({
       classroomStatus: classroom?.status ?? submission?.status ?? null,
       hasSubmission: Boolean(submission || classroom),
-      lastActivityMs,
+      lastActivityMs: eventAgeMs,
       latestEventType: latestEvent?.event_type ?? null,
       latestCoraTool: latestEvent?.tool ?? null,
-      compileErrors,
-      snapshotAgeMs,
+      hasCurrentCompileError: compileErrors > 0,
+      snapshotAgeMs: codeAgeMs,
+      connectedThisSession: inRoom,
     })
 
     const submittedCode = firstNonEmptyCode(submission?.code, classroom?.code)
@@ -461,12 +573,13 @@ export async function fetchLiveClassroomSession(
       statusLabel: statusLabel(status),
       lastActivityAt,
       compileErrors,
+      compileErrorMessages,
       runs,
       code,
       codeSource,
       fileName: snapshot?.file_name ?? null,
       language: snapshot?.language ?? null,
-      typingReplay: selectFaithfulTypingReplay(snapshot?.typing_replay, code),
+      typingReplay: null,
       studentCursor: parseLiveEditorCursor(snapshot?.student_cursor),
       instructorCursor: parseLiveEditorCursor(snapshot?.instructor_cursor),
       snapshotUpdatedAt: snapshotFreshAt,
@@ -479,30 +592,33 @@ export async function fetchLiveClassroomSession(
   })
 
   students.sort((a, b) => {
-    const priority = (s: LiveStudentStatus) => {
-      switch (s) {
-        case "needs_help":
-          return 0
-        case "error":
-          return 1
-        case "coding":
-          return 2
-        case "submitted":
-          return 3
-        case "review":
-          return 4
-        case "approved":
-          return 5
-        default:
-          return 6
-      }
-    }
-    const diff = priority(a.status) - priority(b.status)
+    const diff = rosterRank(rosterBucket(a.status)) - rosterRank(rosterBucket(b.status))
     if (diff !== 0) return diff
-    const aTime = a.lastActivityAt ? new Date(a.lastActivityAt).getTime() : 0
-    const bTime = b.lastActivityAt ? new Date(b.lastActivityAt).getTime() : 0
-    return bTime - aTime
+    return a.fullName.localeCompare(b.fullName, undefined, { sensitivity: "base" })
   })
+
+  if (focusStudentDbId != null && focusStudentDbId > 0 && options.includeReplay !== false) {
+    const replayRows = await sql`
+      SELECT typing_replay
+      FROM codebench_live_snapshots
+      WHERE assignment_id = ${assignmentId}
+        AND student_id = ${focusStudentDbId}
+      LIMIT 1
+    `.catch((error) => {
+      console.error("[live-session] focused replay", error)
+      return []
+    })
+    const focused = students.find((student) => student.studentDbId === focusStudentDbId)
+    if (focused) {
+      focused.typingReplay = typingReplaySince(
+        selectFaithfulTypingReplay(
+          (replayRows[0] as { typing_replay?: unknown } | undefined)?.typing_replay,
+          focused.code,
+        ),
+        Number.isFinite(sessionStartedAtMs) ? sessionStartedAtMs : null,
+      )
+    }
+  }
 
   const summary = {
     totalStudents: students.length,
@@ -511,6 +627,7 @@ export async function fetchLiveClassroomSession(
     needsHelp: students.filter((s) => s.status === "needs_help").length,
     submitted: students.filter((s) => s.status === "submitted").length,
     approved: students.filter((s) => s.status === "approved").length,
+    joined: students.filter((s) => s.status === "joined").length,
     notStarted: students.filter((s) => s.status === "not_started").length,
     review: students.filter((s) => s.status === "review").length,
   }
@@ -544,6 +661,31 @@ export async function fetchLiveClassroomSession(
     }
   })
 
+  const liveEditorStatuses = new Set(["joined", "coding", "error", "needs_help"])
+  const inEditorIds = new Set(
+    students.filter((student) => liveEditorStatuses.has(student.status)).map((student) => student.studentDbId),
+  )
+  const openSessionStartIso =
+    openSession && Number.isFinite(sessionStartedAtMs) ? new Date(sessionStartedAtMs).toISOString() : null
+  const blockedJoins = openSessionStartIso
+    ? (await listBlockedLiveJoins(assignment.id, openSessionStartIso)).filter(
+        (blocked) => !inEditorIds.has(blocked.studentDbId),
+      )
+    : []
+
+  if (openSession) {
+    void recordRosterSample({
+      courseId,
+      assignmentId: assignment.id,
+      liveSessionId: openSession.sessionId,
+      students: students.map((student) => ({
+        studentId: student.studentDbId,
+        status: student.status,
+        codeChars: student.code?.length ?? null,
+      })),
+    })
+  }
+
   return {
     assignmentId: assignment.id,
     title: assignment.title,
@@ -555,6 +697,7 @@ export async function fetchLiveClassroomSession(
     summary,
     students,
     recentEvents: recent,
+    blockedJoins,
   }
 }
 

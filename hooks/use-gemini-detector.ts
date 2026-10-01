@@ -11,9 +11,14 @@ import {
 import { isDesktopElectronAssessmentClient } from "@/lib/desktop-anticheat-policy"
 import { isDocumentFullscreen, requestDocumentFullscreen, subscribeDocumentFullscreen } from "@/lib/document-fullscreen"
 
+export type GeminiDetectionSource = "panel" | "resize" | "focus"
+
 export interface GeminiDetectorConfig {
   enabled: boolean
-  onDetected?: (reason: string) => void
+  /** `source` distinguishes the high-confidence fingerprint methods (panel/resize) from the
+   *  weaker sustained-focus-loss heuristic, which false-positives on Start menu, password
+   *  manager popups, and secondary-monitor clicks. Callers should not strike equally on all three. */
+  onDetected?: (reason: string, source?: GeminiDetectionSource) => void
   onCleared?: () => void // Called when AI tool is no longer detected
   widthThreshold?: number // Default: 300px
   minWidthDifference?: number // Default: 300px
@@ -27,8 +32,11 @@ export interface GeminiDetectorConfig {
 }
 
 const MANUAL_CLEAR_COOLDOWN_MS = 8000
-/** Focus must stay lost this long (tab still visible) before an AI overlay is suspected. Single blurs (Spotlight, notifications, OS menus) never fire. */
-const SUSTAINED_FOCUS_LOSS_MS = 4000
+/** Focus must stay lost this long (tab still visible) before an AI overlay is suspected. Single blurs
+ * (Spotlight, notifications, OS menus, Start menu, password manager popups, a click to a second
+ * monitor) never fire. 6s (vs. the previous 4s) further cuts one-off false positives; real AI
+ * overlay usage stays open far longer than that. */
+const SUSTAINED_FOCUS_LOSS_MS = 6000
 /** Chrome-width delta must persist across this many consecutive 1.5s polls before firing. */
 const PANEL_CONFIRM_POLLS = 2
 /** Grace period after a page-zoom / devicePixelRatio change (zoom rescales innerWidth and would fake a panel). */
@@ -133,7 +141,7 @@ export function useGeminiDetector({
         timestamp: new Date().toISOString(),
       })
 
-      onDetected?.(reason)
+      onDetected?.(reason, source)
     },
     [onDetected],
   )

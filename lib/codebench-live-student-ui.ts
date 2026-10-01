@@ -16,6 +16,29 @@ export function assignmentHasOpenLiveSession(
   return sessions.some((session) => String(session.assignmentId) === id)
 }
 
+/**
+ * When the instructor closes one live assignment and opens another, the editor
+ * should follow the newest open session instead of dropping the student.
+ */
+export function replacementLiveSession<T extends { assignmentId: number; startedAt: string }>(
+  sessions: T[],
+  currentAssignmentId: string | number | null | undefined,
+): T | null {
+  const current = String(currentAssignmentId ?? "").trim()
+  let latest: T | null = null
+  let latestMs = Number.NEGATIVE_INFINITY
+  for (const session of sessions) {
+    if (String(session.assignmentId) === current) continue
+    const startedMs = Date.parse(session.startedAt)
+    const ms = Number.isFinite(startedMs) ? startedMs : 0
+    if (!latest || ms > latestMs) {
+      latest = session
+      latestMs = ms
+    }
+  }
+  return latest
+}
+
 /** Whether the student editor should stream keystrokes for live classroom. */
 export function studentLiveSnapshotShouldRun(input: {
   liveSharing: boolean
@@ -60,9 +83,11 @@ export function shouldRestoreLiveStudentCode(
   localCode: string,
   savedCode: string,
   languageId: string,
+  localIsOtherAssignment = false,
 ): boolean {
   if (!savedCode.trim()) return false
   if (localCode === savedCode) return false
+  if (localIsOtherAssignment) return true
   if (editorLooksLikeStudentWork(localCode, languageId)) return false
   return true
 }

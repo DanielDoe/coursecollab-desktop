@@ -3,6 +3,7 @@ import { detectCppCompiler } from './compilerDetector'
 import { canLoadNodePty, PtySession } from './processRunner'
 import { ensureCppToolchain } from './toolchain-ensure'
 import { binDirForCompiler } from './toolchain-paths'
+import { stageWindowsCompilerRuntime } from './windows-runtime'
 import type {
   CodeBenchStopReason,
   CompileResult,
@@ -40,6 +41,7 @@ export class LocalExecutionSandbox implements ExecutionSandbox {
 
     const session = new PtySession()
     this.sessions.set(input.sessionId, session)
+    stageWindowsCompilerRuntime(input.pathPrefix ?? this.compilerBinDir, input.workspaceDir)
 
     return new Promise<number | null>((resolve, reject) => {
       try {

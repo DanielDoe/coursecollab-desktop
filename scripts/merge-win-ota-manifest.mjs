@@ -39,12 +39,13 @@ function main() {
   const version = readVersion()
   const x64 = findExe(version, "x64")
   const arm64 = findExe(version, "arm64")
-  const paths = [x64, arm64].filter(Boolean)
-  if (!paths.length) {
+  // x64 must come first: electron-updater falls back to `path`, and most Windows PCs are x64.
+  if (!x64) {
     throw new Error(
-      `No Windows installers for ${version} in release/. Run npm run build:desktop:win (and arm64 if needed).`,
+      `Missing CourseCollab-${version}-win-x64.exe in release/. Build with: npm run build:desktop:win -- --x64 --arm64`,
     )
   }
+  const paths = [x64, arm64].filter(Boolean)
 
   const files = paths.map((filePath) => ({
     url: path.basename(filePath),

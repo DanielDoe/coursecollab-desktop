@@ -5,14 +5,16 @@ import { buildCompilerChildEnv } from './process-env'
 import { getExecutableName, writeLiveFlushHeader } from './workspace'
 import type { CompileResult, CompilerInfo, ExecutionSandboxCompileInput } from './types'
 
-function compileArgs(compiler: CompilerInfo, outputName: string): string[] {
+function compileArgs(compiler: CompilerInfo, outputName: string, sysroot?: string): string[] {
+  const sysrootArgs =
+    process.platform === 'darwin' && sysroot && compiler.compiler !== 'cl' ? ['-isysroot', sysroot] : []
   if (compiler.compiler === 'cl') {
     return [...CONTROLLED_MSVC_ARGS, '/FI', 'cc-live-flush.h', SOURCE_FILE_NAME, `/Fe:${outputName}`]
   }
   if (compiler.compiler === 'zig') {
-    return ['c++', '-include', 'cc-live-flush.h', SOURCE_FILE_NAME, ...CONTROLLED_COMPILE_ARGS, '-o', outputName]
+    return ['c++', ...sysrootArgs, '-include', 'cc-live-flush.h', SOURCE_FILE_NAME, ...CONTROLLED_COMPILE_ARGS, '-o', outputName]
   }
-  return ['-include', 'cc-live-flush.h', SOURCE_FILE_NAME, ...CONTROLLED_COMPILE_ARGS, '-o', outputName]
+  return [...sysrootArgs, '-include', 'cc-live-flush.h', SOURCE_FILE_NAME, ...CONTROLLED_COMPILE_ARGS, '-o', outputName]
 }
 
 export async function compileCppSource(
@@ -35,7 +37,8 @@ export async function compileCppSource(
 
   const compilerPath = compiler.path
   const outputName = getExecutableName()
-  const args = compileArgs(compiler, outputName)
+  const env = buildCompilerChildEnv(compiler.path, compiler.compiler)
+  const args = compileArgs(compiler, outputName, env.SDKROOT)
   const started = Date.now()
   const timeoutMs = input.timeoutMs ?? CODEBENCH_LIMITS.compileTimeoutMs
   await writeLiveFlushHeader(input.workspaceDir)
@@ -64,7 +67,7 @@ export async function compileCppSource(
 
     const child = spawn(compilerPath, args, {
       cwd: input.workspaceDir,
-      env: buildCompilerChildEnv(compiler.path, compiler.compiler),
+      env,
       shell: false,
       windowsHide: true,
     })
@@ -91,9 +94,9 @@ export async function compileCppSource(
     child.stderr?.on('data', (chunk: Buffer) => handleChunk('stderr', chunk))
     child.on('error', (error) => {
       clearTimeout(timer)
-      const message = 'Compiler invocation failed.'
+      const message = `Compiler invocation failed (${compiler.compiler ?? 'compiler'} at ${compilerPath}). ${error.message}`
       input.emit({ type: 'compile:error', sessionId: input.sessionId, message })
-      finish(null, `${message} ${error.message}`)
+      finish(null, message)
     })
     child.on('close', (code) => {
       clearTimeout(timer)

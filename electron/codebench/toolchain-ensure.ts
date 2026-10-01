@@ -1,17 +1,30 @@
 import { spawn } from 'node:child_process'
-import { detectCppCompiler, macDeveloperToolsPresent } from './compilerDetector'
+import { existsSync } from 'node:fs'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { detectCppCompiler, firstDetectedCppCompiler, macDeveloperToolsPresent } from './compilerDetector'
 import { CODEBENCH_LIMITS } from './limits'
-import { installPortableToolchainOnce, isManagedToolchainInstalled } from './toolchain-install'
+import { installPortableToolchainOnce } from './toolchain-install'
+import { shouldAttemptPortableInstall } from './toolchain-install-policy'
 import { portableToolchainForHost } from './toolchain-manifest'
 import { emitToolchainProgress } from './toolchain-progress'
+import { userToolchainRoot } from './toolchain-paths'
 import { verifyCppToolchain } from './toolchain-verify'
 import {
+  clearToolchainVerifyCache,
   isToolchainVerifyCacheValid,
   writeToolchainVerifyCache,
 } from './toolchain-verify-cache'
 import type { CompilerInfo } from './types'
 
 export type EnsureCppToolchainMode = 'startup' | 'full'
+
+type InstallFailureRecord = {
+  failedAt: string
+  detail: string
+}
+
+const INSTALL_FAILURE_FILE = 'install-failed.json'
 
 function offerMacCommandLineTools(): void {
   if (process.platform !== 'darwin') return
@@ -38,112 +51,182 @@ function withInstallFlag(info: CompilerInfo, extras?: Partial<CompilerInfo>): Co
   }
 }
 
-function isStaleManagedCompiler(info: CompilerInfo): boolean {
-  const artifact = portableToolchainForHost()
-  if (!artifact || info.source !== 'app-managed') return false
-  return !isManagedToolchainInstalled(artifact)
+function unavailable(message: string): CompilerInfo {
+  return withInstallFlag(
+    {
+      available: false,
+      compiler: null,
+      path: null,
+      version: null,
+      platform: process.platform,
+      architecture: process.arch,
+      setupGuidance: message,
+      source: null,
+    },
+    { canInstall: true },
+  )
+}
+
+function installFailurePath(): string {
+  return join(userToolchainRoot(), INSTALL_FAILURE_FILE)
+}
+
+async function readInstallFailure(): Promise<InstallFailureRecord | null> {
+  const path = installFailurePath()
+  if (!existsSync(path)) return null
+  try {
+    const parsed = JSON.parse(await readFile(path, 'utf8')) as InstallFailureRecord
+    if (typeof parsed.failedAt !== 'string' || typeof parsed.detail !== 'string') return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+async function writeInstallFailure(detail: string): Promise<void> {
+  const root = userToolchainRoot()
+  await mkdir(root, { recursive: true })
+  const record: InstallFailureRecord = { failedAt: new Date().toISOString(), detail }
+  await writeFile(installFailurePath(), JSON.stringify(record), 'utf8')
+}
+
+async function clearInstallFailure(): Promise<void> {
+  await rm(installFailurePath(), { force: true }).catch(() => undefined)
 }
 
 let ensureLock: Promise<CompilerInfo> | null = null
 
 async function acceptVerifiedCompiler(found: CompilerInfo, notify: boolean): Promise<CompilerInfo> {
   await writeToolchainVerifyCache(found)
+  await clearInstallFailure()
   if (notify) {
     emitToolchainProgress({ phase: 'ready', message: 'C++ compiler ready.', percent: 100 })
   }
   return withInstallFlag(found, { canInstall: false })
 }
 
+function explainTestCompileFailure(detail: string): string {
+  const body = detail.trim() || 'The compiler did not print an error.'
+  if (/unknown architecture/i.test(body)) {
+    return [
+      'The compiler downloaded, then the test compile failed on this Mac. The system library list names a CPU type this compiler cannot read (unknown architecture, from libSystem.tbd).',
+      body,
+    ].join('\n')
+  }
+  return ['The compiler downloaded, then the test compile failed on this computer.', body].join('\n')
+}
+
+function timeoutFor(info: CompilerInfo): number {
+  return info.source === 'app-managed' || info.source === 'bundled'
+    ? CODEBENCH_LIMITS.verifyCompileTimeoutMs
+    : CODEBENCH_LIMITS.systemVerifyTimeoutMs
+}
+
 async function verifyOrUseCache(
   found: CompilerInfo,
   notify: boolean,
-  timeoutMs: number,
-): Promise<CompilerInfo | 'retry-install'> {
+): Promise<CompilerInfo | { failed: string }> {
   if (await isToolchainVerifyCacheValid(found)) {
+    await clearInstallFailure()
     return withInstallFlag(found, { canInstall: false })
   }
-  if (notify) {
-    emitToolchainProgress({ phase: 'verifying', message: 'Verifying the C++ compiler…', percent: 100 })
+  const result = await verifyCppToolchain(found, timeoutFor(found))
+  if (result.ok) return acceptVerifiedCompiler(found, notify)
+  const where = [found.compiler, found.path].filter(Boolean).join(' at ')
+  return {
+    failed: `${where || 'The C++ compiler'} failed a test compile:\n${result.detail || 'No compiler output.'}`,
   }
-  const ok = await verifyCppToolchain(found, timeoutMs)
-  if (ok) {
-    return acceptVerifiedCompiler(found, notify)
-  }
-  return 'retry-install'
+}
+
+/**
+ * Prefer a compiler that can compile. System tools are tried before the copy
+ * CourseCollab downloaded, because a broken download used to win on --version
+ * alone and then get deleted and fetched again on every Run.
+ */
+async function selectVerifiedCompiler(notify: boolean): Promise<{ info: CompilerInfo | null; detail: string }> {
+  let detail = ''
+  let chosen: CompilerInfo | null = null
+  await firstDetectedCppCompiler('all', async (info) => {
+    const verified = await verifyOrUseCache(info, notify)
+    if ('failed' in verified) {
+      detail = verified.failed
+      return false
+    }
+    chosen = verified
+    return true
+  })
+  return { info: chosen, detail }
 }
 
 export async function ensureCppToolchain(options?: {
   installIfMissing?: boolean
   mode?: EnsureCppToolchainMode
+  forceInstall?: boolean
 }): Promise<CompilerInfo> {
   const mode = options?.mode ?? 'full'
   const notify = mode !== 'startup'
+  const forceInstall = options?.forceInstall === true
   if (ensureLock) return ensureLock
   ensureLock = (async () => {
-    let found = await detectCppCompiler()
-    let replaceManaged = false
-
-    if (found.available && isStaleManagedCompiler(found)) {
-      found = {
-        ...found,
-        available: false,
-        compiler: null,
-        path: null,
-        version: null,
-        setupGuidance: found.setupGuidance || setupGuidanceFallback(),
+    const cached = await firstDetectedCppCompiler('all', (info) => isToolchainVerifyCacheValid(info))
+    if (cached) {
+      await clearInstallFailure()
+      if (notify) {
+        emitToolchainProgress({ phase: 'ready', message: 'C++ compiler ready.', percent: 100 })
       }
+      return withInstallFlag(cached, { canInstall: false })
     }
 
-    if (found.available && found.source !== 'app-managed' && found.source !== 'bundled') {
-      const verified = await verifyOrUseCache(found, false, CODEBENCH_LIMITS.systemVerifyTimeoutMs)
-      if (verified !== 'retry-install') return verified
-      found = await detectCppCompiler({ scope: 'managed' })
+    const previous = await readInstallFailure()
+    const failedAt = previous ? Date.parse(previous.failedAt) : null
+    const coolingDown = !shouldAttemptPortableInstall(
+      Number.isFinite(failedAt) ? failedAt : null,
+      Date.now(),
+      forceInstall,
+    )
+    if (coolingDown) {
+      return unavailable(
+        previous?.detail || 'Could not install a C++ compiler on this computer.',
+      )
     }
 
-    if (found.available && (found.source === 'app-managed' || found.source === 'bundled')) {
-      const verified = await verifyOrUseCache(found, false, CODEBENCH_LIMITS.verifyCompileTimeoutMs)
-      if (verified !== 'retry-install') return verified
-      if (found.source === 'app-managed') replaceManaged = true
-    }
+    const verified = await selectVerifiedCompiler(notify)
+    if (verified.info) return verified.info
 
     if (options?.installIfMissing === false || process.env.CODEBENCH_SKIP_TOOLCHAIN_INSTALL === '1') {
-      return withInstallFlag(found.available ? found : await detectCppCompiler())
+      return withInstallFlag(await detectCppCompiler())
     }
 
     const artifact = portableToolchainForHost()
     if (!artifact) {
-      emitToolchainProgress({
-        phase: 'failed',
-        message: found.setupGuidance || 'No C++ compiler installer is available for this computer.',
-      })
-      return withInstallFlag(found, { canInstall: false })
+      const message = verified.detail || setupGuidanceFallback()
+      if (notify) emitToolchainProgress({ phase: 'failed', message })
+      return unavailable(message)
     }
 
     if (notify) {
       emitToolchainProgress({ phase: 'searching', message: 'Looking for a C++ compiler…' })
     }
     if (!macDeveloperToolsPresent()) offerMacCommandLineTools()
+    const managed = await detectCppCompiler({ scope: 'managed' })
     try {
-      await installPortableToolchainOnce({ replace: replaceManaged })
-      emitToolchainProgress({ phase: 'verifying', message: 'Checking the C++ compiler…', percent: 100 })
-      const installed = await detectCppCompiler()
-      if (!installed.available) {
-        throw new Error('The C++ compiler was downloaded but could not be verified.')
+      if (forceInstall) await clearToolchainVerifyCache()
+      await installPortableToolchainOnce({ replace: forceInstall && managed.available })
+      if (notify) {
+        emitToolchainProgress({ phase: 'verifying', message: 'Checking the C++ compiler…', percent: 100 })
       }
-      const afterInstall = await verifyOrUseCache(installed, true, CODEBENCH_LIMITS.verifyCompileTimeoutMs)
-      if (afterInstall === 'retry-install') {
-        throw new Error('The C++ compiler was installed but failed a test compile.')
+      const afterInstall = await selectVerifiedCompiler(notify)
+      if (!afterInstall.info) {
+        const why = afterInstall.detail || verified.detail
+        throw new Error(explainTestCompileFailure(why))
       }
-      return afterInstall
+      return afterInstall.info
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not install a C++ compiler.'
-      emitToolchainProgress({ phase: 'failed', message })
-      const latest = await detectCppCompiler()
-      return withInstallFlag({
-        ...latest,
-        available: false,
-        setupGuidance: `${message} ${latest.setupGuidance}`.trim(),
-      })
+      const guidance = message
+      await writeInstallFailure(guidance).catch(() => undefined)
+      if (notify) emitToolchainProgress({ phase: 'failed', message: guidance })
+      return unavailable(guidance)
     }
   })().finally(() => {
     ensureLock = null

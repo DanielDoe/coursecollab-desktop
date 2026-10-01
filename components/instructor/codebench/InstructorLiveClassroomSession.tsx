@@ -223,6 +223,7 @@ function compilerErrorLines(
   row: LiveClassroomStudentRow,
   recentEvents: LiveClassroomSessionPayload["recentEvents"],
 ): string[] {
+  if ((row.compileErrors ?? 0) <= 0) return []
   const stored = uniqueCompilerLines(row.compileErrorMessages ?? [])
   if (stored.length) return stored
   const fromRecent = uniqueCompilerLines(
@@ -467,6 +468,7 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
   const [runLoading, setRunLoading] = useState(false)
   const [displayCodeForRun, setDisplayCodeForRun] = useState("")
   const runPanelRef = useRef<LiveInstructorRunPanelHandle | null>(null)
+  const runStudentIdRef = useRef(selectedStudentId)
   const pendingRunCodeRef = useRef<string | null>(null)
   const { toast } = useToast()
   const { confirm } = useAppConfirm()
@@ -822,6 +824,20 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
     }
   }, [handoff.submissionId, selectedStudentId, syncingStudent, toast])
 
+  useEffect(() => {
+    if (runStudentIdRef.current === selectedStudentId) return
+    const nextId = selectedStudentId
+    runStudentIdRef.current = nextId
+    pendingRunCodeRef.current = null
+    setRunLoading(false)
+    const panel = runPanelRef.current
+    if (!panel) return
+    void panel.stop().finally(() => {
+      if (runStudentIdRef.current !== nextId) return
+      panel.clear()
+    })
+  }, [selectedStudentId])
+
   const handleOpenRunPanel = useCallback(() => {
     const code = resolveRunnableCode()
     if (!code) {
@@ -1172,7 +1188,6 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
                     onSyncStudentCode={() => void handleSyncStudentCode()}
                     syncStudentLoading={syncingStudent}
                     runStudentLoading={runLoading}
-                    runStudentDisabled={runLoading}
                     studentCursor={selectedStudent.studentCursor}
                   />
                 </>
@@ -1195,6 +1210,7 @@ export function InstructorLiveClassroomSession({ handoff, onBack, onOpenInIde }:
                 onBusyChange={setRunLoading}
                 onClose={() => {
                   pendingRunCodeRef.current = null
+                  setRunLoading(false)
                   setRunPanelOpen(false)
                 }}
                 onTerminalReady={handleTerminalReady}

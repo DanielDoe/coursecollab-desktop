@@ -1,0 +1,102 @@
+[
+  {
+    "title": "Assignment Expression in an If Condition",
+    "question_type": "true_false",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "Consider the code below. The statement prints `A`.\n\n```cpp\nint x = 5;\nif (x = 3)\n    cout << \"A\";\nelse\n    cout << \"B\";\n```",
+    "options": [{"id": "A", "text": "True"}, {"id": "B", "text": "False"}],
+    "correct_answer": "A",
+    "explanation": "The expression `x = 3` assigns 3 to `x`. An assignment expression evaluates to the assigned value. Since 3 is nonzero, it converts to `true`, so the program prints `A`."
+  },
+  {
+    "title": "Short-Circuit Evaluation Preventing Division by Zero",
+    "question_type": "true_false",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "Consider the code below. Evaluating the `if` condition attempts to compute `10 / x`, causing division by zero.\n\n```cpp\nint x = 0;\nif (x != 0 && 10 / x > 2)\n    cout << \"A\";\nelse\n    cout << \"B\";\n```",
+    "options": [{"id": "A", "text": "True"}, {"id": "B", "text": "False"}],
+    "correct_answer": "B",
+    "explanation": "`&&` uses short-circuit evaluation. Since `x != 0` is false, the right operand `10 / x > 2` is not evaluated. Therefore division by zero is avoided, and the program prints `B`."
+  },
+  {
+    "title": "Switch Fall-Through Across Multiple Cases",
+    "question_type": "true_false",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "The following code prints exactly `BC`.\n\n```cpp\nint x = 2;\nswitch (x) {\n    case 1: cout << \"A\";\n    case 2: cout << \"B\";\n    case 3: cout << \"C\";\n    default: cout << \"D\";\n}\n```",
+    "options": [{"id": "A", "text": "True"}, {"id": "B", "text": "False"}],
+    "correct_answer": "B",
+    "explanation": "Execution begins at `case 2`, printing `B`. Because there are no `break` statements, execution continues through `case 3` and then `default`, producing `BCD`, not `BC`."
+  },
+  {
+    "title": "Nested If and Dangling Else",
+    "question_type": "true_false",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "The following program prints `C`.\n\n```cpp\nint x = 10, y = 2;\nif (x > 5)\n    if (y > 5)\n        cout << \"A\";\n    else\n        cout << \"B\";\nelse\n    cout << \"C\";\n```",
+    "options": [{"id": "A", "text": "True"}, {"id": "B", "text": "False"}],
+    "correct_answer": "B",
+    "explanation": "The first `else` is associated with the nearest unmatched `if`, which is `if (y > 5)`. Since `x > 5` is true and `y > 5` is false, the program prints `B`, not `C`."
+  },
+  {
+    "title": "Chained Relational Comparison",
+    "question_type": "true_false",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "For the code below, `Valid` is printed even though x = 100 is not between 1 and 10.\n\n```cpp\nint x = 100;\nif (1 < x < 10)\n    cout << \"Valid\";\nelse\n    cout << \"Invalid\";\n```",
+    "options": [{"id": "A", "text": "True"}, {"id": "B", "text": "False"}],
+    "correct_answer": "A",
+    "explanation": "The expression is parsed as `(1 < x) < 10`. Since `1 < 100` is true, the result behaves numerically as 1. Then `1 < 10` is true, so `Valid` is printed. The intended condition should be `x > 1 && x < 10`."
+  },
+  {
+    "title": "Ternary Operator with Integer Division",
+    "question_type": "true_false",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "The following program stores 2.5 in `result`.\n\n```cpp\nint x = 5, y = 2;\ndouble result = (x > y) ? x / y : y / x;\n```",
+    "options": [{"id": "A", "text": "True"}, {"id": "B", "text": "False"}],
+    "correct_answer": "B",
+    "explanation": "Because `x > y` is true, `x / y` is selected. Both operands are integers, so `5 / 2` performs integer division and produces 2. The value 2 is then converted to `double`, so `result` becomes `2.0`, not `2.5`."
+  },
+  {
+    "title": "Logical OR and Side Effects",
+    "question_type": "true_false",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "After executing the following code, `x` has the value 6.\n\n```cpp\nint x = 5;\nif (x == 5 || ++x > 5)\n    cout << \"A\";\n```",
+    "options": [{"id": "A", "text": "True"}, {"id": "B", "text": "False"}],
+    "correct_answer": "B",
+    "explanation": "`x == 5` is already true. Because `||` short-circuits when its left operand is true, `++x > 5` is never evaluated. Therefore `x` remains 5."
+  },
+  {
+    "title": "Switch Expression Type Restriction",
+    "question_type": "true_false",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "The following is a valid C++ `switch` statement and will print `A`.\n\n```cpp\ndouble x = 2.0;\nswitch (x) {\n    case 2: cout << \"A\"; break;\n    default: cout << \"B\";\n}\n```",
+    "options": [{"id": "A", "text": "True"}, {"id": "B", "text": "False"}],
+    "correct_answer": "B",
+    "explanation": "A standard C++ `switch` condition must have an integral, enumeration, or suitably convertible class type. A `double` cannot be used directly as the controlling expression, so this code does not compile."
+  },
+  {
+    "title": "Else-If Evaluation Stops After First Match",
+    "question_type": "true_false",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "The following code prints both `A` and `B` because both comparisons are true.\n\n```cpp\nint score = 95;\nif (score >= 90)\n    cout << \"A\";\nelse if (score >= 80)\n    cout << \"B\";\nelse\n    cout << \"C\";\n```",
+    "options": [{"id": "A", "text": "True"}, {"id": "B", "text": "False"}],
+    "correct_answer": "B",
+    "explanation": "An `if`/`else if`/`else` chain selects at most one branch. Since `score >= 90` is true, `A` is printed and the remaining branches are skipped. Although `score >= 80` would also be true if evaluated independently, it is never evaluated here."
+  },
+  {
+    "title": "Nested Ternary Associativity",
+    "question_type": "true_false",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "The following program prints `20`.\n\n```cpp\nint a = 3, b = 7;\nint result = a > b ? 10 : b > 5 ? 20 : 30;\ncout << result;\n```",
+    "options": [{"id": "A", "text": "True"}, {"id": "B", "text": "False"}],
+    "correct_answer": "A",
+    "explanation": "The conditional operator is right-associative, so the expression is interpreted as `a > b ? 10 : (b > 5 ? 20 : 30)`. Since `a > b` is false and `b > 5` is true, `result` becomes 20."
+  }
+]

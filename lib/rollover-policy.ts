@@ -1,14 +1,15 @@
 import { SEMESTER_END_DATE } from "@/lib/membership-constants"
 
 /**
- * Days before SEMESTER_END_DATE when self-service membership Extend (rollover apply) closes.
- * After this instant, students cannot POST /api/student/rollover/apply (instructor grants unchanged).
- * Default 21 (~3 weeks). Override with ROLLOVER_APPLY_CUTOFF_DAYS_BEFORE_SEMESTER_END.
+ * Days before the semester end when self-service membership Extend closes.
+ * Default 0: students can apply until the semester ends. Each assessment still
+ * closes one month after its own deadline. Override with
+ * ROLLOVER_APPLY_CUTOFF_DAYS_BEFORE_SEMESTER_END.
  */
 export function getRolloverApplyCutoffDaysBeforeSemesterEnd(): number {
   const raw = process.env.ROLLOVER_APPLY_CUTOFF_DAYS_BEFORE_SEMESTER_END
-  const n = raw != null && raw !== "" ? parseInt(String(raw), 10) : 21
-  if (!Number.isFinite(n) || n < 0) return 21
+  const n = raw != null && raw !== "" ? parseInt(String(raw), 10) : 0
+  if (!Number.isFinite(n) || n < 0) return 0
   return Math.min(n, 365)
 }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Check, Sparkles, Heart, Zap, Crown, Gift, Star } from "lucide-react"
+import { ArrowLeft, Check, Sparkles, Zap, Crown, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -51,64 +51,6 @@ export default function StudentUpgradePage() {
               Get the ability to retake quizzes and homework assignments. Mid-semester exams and finals are always single-attempt.
             </p>
           </div>
-        </motion.div>
-
-        {/* Donation Option */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="mb-8"
-        >
-          <Card className="border-2 border-rose-200 dark:border-rose-800 bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-900/20 dark:to-pink-900/20">
-            <CardHeader>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-rose-100 dark:bg-rose-900/50 rounded-lg">
-                  <Heart className="h-6 w-6 text-rose-600 dark:text-rose-400" />
-                </div>
-                <CardTitle className="text-2xl">Support CourseCollab</CardTitle>
-              </div>
-              <CardDescription className="text-base">
-                Donate any amount to unlock 14 days of premium access including retakes!
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Check className="h-5 w-5 text-rose-600 dark:text-rose-400" />
-                  <span className="font-medium">2 Retakes (3 total attempts) on all assessments</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Check className="h-5 w-5 text-rose-600 dark:text-rose-400" />
-                  <span className="font-medium">14 days of Trailblazer-level access</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Check className="h-5 w-5 text-rose-600 dark:text-rose-400" />
-                  <span className="font-medium">Unlimited Cora access</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Check className="h-5 w-5 text-rose-600 dark:text-rose-400" />
-                  <span className="font-medium">Unlimited Playground credits</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Check className="h-5 w-5 text-rose-600 dark:text-rose-400" />
-                  <span className="font-medium">Early access to new features</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Check className="h-5 w-5 text-rose-600 dark:text-rose-400" />
-                  <span className="font-medium">Save and Finish Later</span>
-                </div>
-              </div>
-              <Button
-                onClick={() => router.push("/student/trade-center")}
-                className="w-full bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white"
-                size="lg"
-              >
-                <Gift className="h-5 w-5 mr-2" />
-                Donate Now
-              </Button>
-            </CardContent>
-          </Card>
         </motion.div>
 
         {/* Membership Plans */}

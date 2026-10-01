@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
-import { X, Heart, Crown, Gift, Check, Sparkles, Zap, Rocket, Star, Coins, Gamepad2, Brain, Lock, ArrowRight, Code2, BookmarkCheck } from "lucide-react"
+import { X, Crown, Check, Sparkles, Zap, Rocket, Star, Coins, Gamepad2, Brain, Lock, ArrowRight, Code2, BookmarkCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -36,18 +36,13 @@ export function RetakeUpgradeModal({ open, onClose, assessmentType = "assessment
   useEffect(() => {
     if (open && pathname) {
       setReturnPath(pathname)
-      // Store in sessionStorage so donation/upgrade pages can redirect back
+      // Store in sessionStorage so the membership page can redirect back
       sessionStorage.setItem("retakeModalReturnPath", pathname)
     }
   }, [open, pathname])
 
   const explorerPlan = MEMBERSHIP_PLANS.find((p) => p.id === "Explorer")
   const trailblazerPlan = MEMBERSHIP_PLANS.find((p) => p.id === "Trailblazer")
-
-  const handleDonate = () => {
-    onClose()
-    router.push("/student/donate")
-  }
 
   const handleUpgrade = () => {
     onClose()
@@ -62,7 +57,7 @@ export function RetakeUpgradeModal({ open, onClose, assessmentType = "assessment
   const handleClose = () => {
     onClose()
     // Redirect back to the assessment page if we have a return path
-    if (returnPath && returnPath !== "/student/donate" && returnPath !== "/student/membership/plans" && returnPath !== "/student/dashboard-v2/membership" && returnPath !== "/student/upgrade") {
+    if (returnPath && returnPath !== "/student/membership/plans" && returnPath !== "/student/dashboard-v2/membership" && returnPath !== "/student/upgrade") {
       router.push(returnPath)
     }
   }
@@ -110,73 +105,6 @@ export function RetakeUpgradeModal({ open, onClose, assessmentType = "assessment
         </div>
 
         <div className="p-8 space-y-6">
-          {/* Donation Option - Enhanced */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="relative overflow-hidden rounded-2xl border-2 border-rose-300 dark:border-rose-700 bg-gradient-to-br from-rose-50 via-pink-50 to-rose-50 dark:from-rose-900/30 dark:via-pink-900/30 dark:to-rose-900/30 shadow-lg"
-          >
-            <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-rose-400/20 to-pink-400/20 rounded-full blur-3xl -mr-32 -mt-32" />
-            <div className="relative p-6">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="p-3 bg-gradient-to-br from-rose-500 to-pink-500 rounded-xl shadow-lg">
-                  <Heart className="h-6 w-6 text-white" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Support CourseCollab</h3>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">Unlock 14 days of premium access</p>
-                </div>
-                <Badge className="bg-gradient-to-r from-rose-600 to-pink-600 text-white px-3 py-1 text-sm font-semibold">
-                  14 Days
-                </Badge>
-              </div>
-              
-              <p className="text-slate-700 dark:text-slate-300 mb-5 leading-relaxed">
-                Donate any amount to unlock <strong>14 days of Trailblazer-level access</strong>, including unlimited retakes, AI Tutor, and Playground!
-              </p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
-                <div className="flex items-start gap-2 p-3 bg-white/60 dark:bg-slate-800/60 rounded-lg">
-                  <Check className="h-5 w-5 text-rose-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="font-semibold text-sm">2 Retakes</div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400">3 total attempts</div>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2 p-3 bg-white/60 dark:bg-slate-800/60 rounded-lg">
-                  <Brain className="h-5 w-5 text-rose-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="font-semibold text-sm">High-capacity Cora</div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400">Tutor access</div>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2 p-3 bg-white/60 dark:bg-slate-800/60 rounded-lg">
-                  <Gamepad2 className="h-5 w-5 text-rose-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="font-semibold text-sm">Unlimited</div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400">Playground</div>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2 p-3 bg-white/60 dark:bg-slate-800/60 rounded-lg">
-                  <BookmarkCheck className="h-5 w-5 text-rose-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="font-semibold text-sm">Save and Finish Later</div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400">Resume quizzes anytime</div>
-                  </div>
-                </div>
-              </div>
-              
-              <Button
-                onClick={handleDonate}
-                size="lg"
-                className="w-full bg-gradient-to-r from-rose-600 via-pink-600 to-rose-600 hover:from-rose-700 hover:via-pink-700 hover:to-rose-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
-              >
-                <Gift className="h-5 w-5 mr-2" />
-                Donate Now - Unlock Premium
-              </Button>
-            </div>
-          </motion.div>
-
           {/* Membership Plans - Enhanced */}
           <div className="space-y-6">
             {/* Explorer Plan */}

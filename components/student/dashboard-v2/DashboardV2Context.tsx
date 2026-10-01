@@ -30,6 +30,9 @@ interface DashboardV2ContextValue {
   /** Cora workspace immersive — hide breadcrumbs, Cora nav, collapse platform sidebar */
   coraImmersive: boolean
   setCoraImmersive: (on: boolean) => void
+  /** Topbar module search (⌘K) */
+  searchOpen: boolean
+  setSearchOpen: (open: boolean) => void
 }
 
 const DashboardV2Context = createContext<DashboardV2ContextValue | null>(null)
@@ -43,6 +46,7 @@ export function DashboardV2Provider({ children }: { children: ReactNode }) {
   const [campModuleBreadcrumbTitle, setCampModuleBreadcrumbTitle] = useState<string | null>(null)
   const [campModuleFullscreen, setCampModuleFullscreen] = useState(false)
   const [coraImmersive, setCoraImmersive] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
 
   useEffect(() => {
     const studentDbId = getStudentDatabaseIdFromClient()
@@ -86,6 +90,8 @@ export function DashboardV2Provider({ children }: { children: ReactNode }) {
         setCampModuleFullscreen,
         coraImmersive,
         setCoraImmersive,
+        searchOpen,
+        setSearchOpen,
       }}
     >
       {children}
@@ -112,5 +118,7 @@ export function useDashboardV2() {
     setCampModuleFullscreen: () => {},
     coraImmersive: false,
     setCoraImmersive: () => {},
+    searchOpen: false,
+    setSearchOpen: () => {},
   }
 }

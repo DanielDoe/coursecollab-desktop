@@ -3,7 +3,12 @@ import { sql } from "@/lib/db"
 import { submitAnswer, finalizeAttempt } from "@/lib/assessment-core/submit"
 import { getAssessmentConfig, saveAnswer as saveAnswerToDb, type AssessmentType } from "@/lib/assessment-core/db"
 import type { SubmitAnswerPayload } from "@/lib/assessment-core/submit"
-import { resolveAwardedPointsForAiSubmission } from "@/lib/ai-points-consistency"
+import {
+  AI_CODE_QUESTION_TYPES,
+  isAiProcessingPlaceholder,
+  resolveAwardedPointsForAiSubmission,
+} from "@/lib/ai-points-consistency"
+import { verifyEvaluationReceipt } from "@/lib/evaluation-receipt"
 import {
   isRegularAssessmentTypeForSemesterCutoff,
   regularAssessmentsClosedMessage,
@@ -176,12 +181,60 @@ export async function POST(
         LIMIT 1
       `) as { mp: number | string }[]
       const maxPts = Math.max(1, Number(maxPointRows[0]?.mp ?? 1) || 1)
-      const tentativePts =
-        typeof pointsEarned === "number" && Number.isFinite(pointsEarned)
-          ? pointsEarned
-          : aiFeedback?.pointsEarned != null && Number.isFinite(Number(aiFeedback.pointsEarned))
-            ? Number(aiFeedback.pointsEarned)
-            : 0
+
+      // ANTI-TAMPER: for Section II AI-code types, the evaluate round-trip signs a receipt
+      // binding its score to this exact (attemptId, questionId, answer) — see
+      // lib/evaluation-receipt.ts. Trust ONLY that, not the pointsEarned/aiFeedback the client
+      // re-posted (editable in devtools before this call). Invalid receipt = withhold the score
+      // pending review rather than trust or silently zero it; no receipt = unchanged legacy
+      // behavior below (older clients haven't been updated to send one yet).
+      const isAiCodeReceiptType = AI_CODE_QUESTION_TYPES.has(qt)
+      let verifiedReceipt: { isCorrect: boolean; points: number } | null = null
+      let receiptTamperDetected = false
+      const receiptCandidate = (aiFeedback as { receipt?: unknown } | null | undefined)?.receipt
+      if (isAiCodeReceiptType && receiptCandidate != null) {
+        const verification = verifyEvaluationReceipt(receiptCandidate, {
+          attemptId: Number(attemptId),
+          questionId: Number(questionId),
+          answer,
+        })
+        if (verification.ok) {
+          verifiedReceipt = { isCorrect: verification.isCorrect, points: verification.points }
+        } else {
+          receiptTamperDetected = true
+          console.warn(`${LOG} AI evaluation receipt failed verification — forcing manual review`, {
+            attemptId,
+            questionId,
+            questionType: qt,
+            reason: verification.reason,
+          })
+        }
+      }
+
+      const tentativePts = verifiedReceipt
+        ? verifiedReceipt.points
+        : receiptTamperDetected
+          ? 0
+          : typeof pointsEarned === "number" && Number.isFinite(pointsEarned)
+            ? pointsEarned
+            : aiFeedback?.pointsEarned != null && Number.isFinite(Number(aiFeedback.pointsEarned))
+              ? Number(aiFeedback.pointsEarned)
+              : 0
+
+      // resolveAwardedPointsForAiSubmission re-derives % straight from aiFeedback.score /
+      // scoreBreakdown.finalScore for these code types — sanitize those so it can't fall back
+      // to the tampered raw feedback.
+      let aiFeedbackForPoints: Record<string, unknown> | null = aiFeedback ?? null
+      let bodyScoreForPoints = bodyScore
+      if (isAiCodeReceiptType && verifiedReceipt) {
+        const verifiedPct = maxPts > 0 ? (verifiedReceipt.points / maxPts) * 100 : 0
+        aiFeedbackForPoints = { ...(aiFeedbackForPoints ?? {}), score: verifiedPct, scoreBreakdown: undefined }
+        bodyScoreForPoints = verifiedPct
+      } else if (isAiCodeReceiptType && receiptTamperDetected) {
+        aiFeedbackForPoints = null
+        bodyScoreForPoints = undefined
+      }
+
       const codeTypesSave = [
         "code_write",
         "code_problem",
@@ -209,27 +262,40 @@ export async function POST(
         `) as { ai_evaluation_mode?: string }[]
         saveOnlyAiMode = modeRows[0]?.ai_evaluation_mode ?? null
       }
-      const pts = resolveAwardedPointsForAiSubmission({
-        questionType: questionType || "mcq",
-        questionMaxPoints: maxPts,
-        tentativePoints: tentativePts,
-        bodyScore,
-        aiFeedback: aiFeedback ?? null,
-        aiEvaluationMode: saveOnlyAiMode,
-        rawAnswer: answer,
-      })
-      const clampedPts = Math.min(Math.max(0, Number(pts) || 0), maxPts)
+      const pts =
+        isAiCodeReceiptType && receiptTamperDetected
+          ? 0
+          : resolveAwardedPointsForAiSubmission({
+              questionType: questionType || "mcq",
+              questionMaxPoints: maxPts,
+              tentativePoints: tentativePts,
+              bodyScore: bodyScoreForPoints,
+              aiFeedback: aiFeedbackForPoints,
+              aiEvaluationMode: saveOnlyAiMode,
+              rawAnswer: answer,
+            })
       const isProcessing =
-        feedback === "Processing..." ||
-        (typeof aiFeedback?.status === "string" && aiFeedback.status === "Processing...")
+        !verifiedReceipt &&
+        !receiptTamperDetected &&
+        (feedback === "Processing..." ||
+          isAiProcessingPlaceholder(aiFeedback) ||
+          (typeof aiFeedback?.status === "string" && aiFeedback.status === "Processing..."))
+      const clampedPts = isProcessing ? 0 : Math.min(Math.max(0, Number(pts) || 0), maxPts)
       const reqReview = isProcessing
         ? false
-        : Boolean(requiresManualReview ?? aiFeedback?.requiresManualReview)
+        : receiptTamperDetected
+          ? true
+          : Boolean(requiresManualReview ?? aiFeedback?.requiresManualReview)
+      const finalIsCorrectForSave = verifiedReceipt
+        ? verifiedReceipt.isCorrect
+        : receiptTamperDetected
+          ? false
+          : Boolean(isCorrect ?? (clampedPts > 0))
       await saveAnswerToDb(assessmentType, {
         attemptId,
         questionId,
         selectedAnswer,
-        isCorrect: Boolean(isCorrect ?? (clampedPts > 0)),
+        isCorrect: finalIsCorrectForSave,
         pointsEarned: clampedPts,
         answerData: Object.keys(answerData).length > 1 || answerData.typing_replay ? answerData : undefined,
         feedback: feedback ?? aiFeedback?.feedback ?? null,
@@ -239,7 +305,7 @@ export async function POST(
       })
       return NextResponse.json({
         success: true,
-        isCorrect: isCorrect ?? (clampedPts > 0),
+        isCorrect: finalIsCorrectForSave,
         pointsEarned: clampedPts,
         maxPoints: maxPts,
         feedback: feedback ?? aiFeedback?.feedback,

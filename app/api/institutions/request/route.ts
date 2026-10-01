@@ -3,6 +3,7 @@ import { sql } from "@/lib/db"
 import { ensureInstitutionSchema } from "@/lib/ensure-institution-schema"
 import { getInstitutionPlan, INSTITUTION_PLANS } from "@/lib/institution-plans"
 import { checkRateLimit, rateLimitKey } from "@/lib/compliance/rate-limit"
+import { institutionRequestSpamReason } from "@/lib/institutions/request-spam"
 
 export const dynamic = "force-dynamic"
 
@@ -29,18 +30,41 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const limited = checkRateLimit(rateLimitKey(request, "institution-request"), 8, 60_000)
+  const limited = checkRateLimit(rateLimitKey(request, "institution-request"), 5, 15 * 60_000)
   if (!limited.ok) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 })
   }
   await ensureInstitutionSchema()
   const body = await request.json().catch(() => ({}))
+  if (String(body.companyWebsite ?? "").trim()) {
+    return NextResponse.json({ success: true })
+  }
   const institutionName = String(body.institutionName ?? "").trim()
   const contactName = String(body.contactName ?? "").trim()
   const contactEmail = String(body.contactEmail ?? "").trim().toLowerCase()
+  const domain = body.domain ? String(body.domain).trim() : ""
+  const jobTitle = body.jobTitle ? String(body.jobTitle).trim() : ""
+  const department = body.department ? String(body.department).trim() : ""
+  const desiredScope = body.desiredScope ? String(body.desiredScope).trim() : ""
   const requestKind = String(body.requestKind ?? "demo")
   if (!institutionName || !contactName || !contactEmail.includes("@")) {
     return NextResponse.json({ error: "Institution name, contact name, and email are required" }, { status: 400 })
+  }
+  const spam = institutionRequestSpamReason({
+    institutionName,
+    contactName,
+    contactEmail,
+    domain,
+    jobTitle,
+    department,
+    desiredScope,
+  })
+  if (spam) {
+    console.warn("[institutions/request] rejected spam", spam)
+    return NextResponse.json(
+      { error: "Enter a real institution name, contact email, and school domain." },
+      { status: 400 },
+    )
   }
   if (!["demo", "quote", "pilot"].includes(requestKind)) {
     return NextResponse.json({ error: "Invalid request kind" }, { status: 400 })
@@ -57,16 +81,16 @@ export async function POST(request: NextRequest) {
       department, phone, estimated_students, estimated_instructors, desired_scope, desired_plan, request_kind
     ) VALUES (
       ${institutionName},
-      ${body.domain ? String(body.domain) : null},
+      ${domain || null},
       ${body.institutionType ? String(body.institutionType) : null},
       ${contactName},
       ${contactEmail},
-      ${body.jobTitle ? String(body.jobTitle) : null},
-      ${body.department ? String(body.department) : null},
+      ${jobTitle || null},
+      ${department || null},
       ${body.phone ? String(body.phone) : null},
       ${Number.isFinite(estimatedStudents) ? estimatedStudents : null},
       ${Number.isFinite(estimatedInstructors) ? estimatedInstructors : null},
-      ${body.desiredScope ? String(body.desiredScope) : null},
+      ${desiredScope || null},
       ${desiredPlan?.planKey ?? null},
       ${requestKind}
     )
@@ -82,13 +106,13 @@ export async function POST(request: NextRequest) {
       contactName,
       contactEmail,
       desiredPlan: desiredPlan?.planKey ?? null,
-      domain: body.domain ? String(body.domain) : null,
-      jobTitle: body.jobTitle ? String(body.jobTitle) : null,
-      department: body.department ? String(body.department) : null,
+      domain: domain || null,
+      jobTitle: jobTitle || null,
+      department: department || null,
       phone: body.phone ? String(body.phone) : null,
       estimatedStudents: Number.isFinite(estimatedStudents) ? estimatedStudents : null,
       estimatedInstructors: Number.isFinite(estimatedInstructors) ? estimatedInstructors : null,
-      desiredScope: body.desiredScope ? String(body.desiredScope) : null,
+      desiredScope: desiredScope || null,
     })
   } catch (err) {
     console.error("[institutions/request] notify failed", err)

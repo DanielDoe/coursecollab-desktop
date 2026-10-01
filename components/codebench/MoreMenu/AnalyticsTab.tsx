@@ -4,7 +4,6 @@ import type { ReactNode } from "react"
 import { useEffect, useMemo, useState } from "react"
 import {
   BarChart3,
-  Target,
   Sparkles,
   Activity,
   TrendingUp,
@@ -22,7 +21,9 @@ import { parseCodebenchCoraJson } from "@/lib/codebench-cora-client"
 import { CodebenchAnalyticsSkeleton } from "@/components/codebench/CodebenchSkeletons"
 import { CodebenchStudioCoach } from "@/components/codebench/CodebenchStudioCoach"
 import { buildCodebenchCoraRead, type CodebenchCoraRead } from "@/lib/codebench-analytics-read"
+import { CodebenchStudentInsight } from "@/components/codebench/CodebenchStudentInsight"
 import { getStudioSnapshot } from "@/lib/codebench-studio-analytics"
+import { useStudioSnapshot } from "@/hooks/use-studio-snapshot"
 import {
   ActivityWeekChart,
   ScoreTrendChart,
@@ -86,7 +87,7 @@ export function AnalyticsTab({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<AnalyticsPayload | null>(null)
-  const [localTick, setLocalTick] = useState(0)
+  const studio = useStudioSnapshot(studentId)
 
   useEffect(() => {
     const load = async () => {
@@ -113,17 +114,11 @@ export function AnalyticsTab({
     load()
   }, [studentId, refreshKey])
 
-  useEffect(() => {
-    const bump = () => setLocalTick((n) => n + 1)
-    window.addEventListener("codebench-studio-analytics", bump)
-    return () => window.removeEventListener("codebench-studio-analytics", bump)
-  }, [])
-
+  const studioSnapshot = studio ?? getStudioSnapshot(studentId ?? "local")
   const cora = useMemo<CodebenchCoraRead | null>(() => {
     if (!data?.performance) return null
-    const local = getStudioSnapshot(studentId ?? "local")
-    return buildCodebenchCoraRead(data.performance, local)
-  }, [data, studentId, localTick])
+    return buildCodebenchCoraRead(data.performance, studioSnapshot)
+  }, [data, studioSnapshot])
 
   const Section = ({
     title,
@@ -170,50 +165,27 @@ export function AnalyticsTab({
 
   const { performance } = data
   const workshopBars = cora.workshopBars ?? []
-  const strengths = cora.strengths ?? []
-  const weaknesses = cora.weaknesses ?? []
-  const tasks = cora.tasks ?? []
   const hasScoreTrend = (performance.scoreTrend ?? []).length > 0
   const hasActivity = (performance.activityByDay ?? []).some((d) => d.count > 0)
   const hasStatus = (performance.statusMix ?? []).some((d) => d.value > 0)
   const hasWorkshop = workshopBars.some((d) => d.value > 0)
-  const hasWork = performance.submissionCount > 0 || hasWorkshop
 
   return (
     <div className="space-y-5">
-      {coach}
-
-      <section className={cn(EMBED_MATERIAL_PANEL, "p-4 sm:p-5")}>
-        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <SolidListThumbTile thumb={roles.tool} icon={Sparkles} size="compact" />
-            <div>
-              <h2 className={cn("text-lg font-semibold", PORTAL_TEXT)}>Cora performance</h2>
-              <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>From your editor runs and graded work</p>
-            </div>
-          </div>
-          {hasWork ? (
-            <div className="flex flex-wrap gap-2">
-              <span className="rounded-full bg-[var(--cc-accent-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--cc-accent-dark)]">
-                {cora.level}
-              </span>
-              <span className={cn("rounded-full bg-[var(--muted)]/50 px-2.5 py-1 text-xs font-semibold", PORTAL_TEXT)}>
-                {cora.proficiencyScore}% from your results
-              </span>
-            </div>
-          ) : null}
-        </div>
-        <p className={cn("text-sm leading-relaxed", PORTAL_TEXT)}>{cora.overview}</p>
-        {!hasWork && onOpenEditor ? (
-          <Button
-            className="mt-4 rounded-xl border-0 shadow-sm hover:opacity-90"
-            style={{ backgroundColor: roles.cta.fill, color: roles.cta.icon }}
-            onClick={onOpenEditor}
-          >
-            Open editor to start
-          </Button>
-        ) : null}
-      </section>
+      <CodebenchStudentInsight
+        rows={studioSnapshot.runRows}
+        errorCount={studioSnapshot.compileErrors}
+        cleanCount={studioSnapshot.compileSuccesses}
+      />
+      {!hasWorkshop && performance.submissionCount === 0 && onOpenEditor ? (
+        <Button
+          className="h-11 w-full rounded-xl border-0 shadow-sm hover:opacity-90 sm:w-auto"
+          style={{ backgroundColor: roles.cta.fill, color: roles.cta.icon }}
+          onClick={onOpenEditor}
+        >
+          Open editor to start
+        </Button>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
@@ -233,62 +205,6 @@ export function AnalyticsTab({
           </div>
         ))}
       </div>
-
-      {(strengths.length > 0 || weaknesses.length > 0) && (
-        <Section title="Strengths & focus areas" icon={Sparkles} thumbIndex={2}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {strengths.length > 0 ? (
-              <div>
-                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--cc-success)]">
-                  Strengths
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {strengths.map((item) => (
-                    <span
-                      key={item}
-                      className="rounded-[6px] bg-[var(--cc-success)]/10 px-3 py-1.5 text-sm font-medium text-[var(--cc-success)]"
-                    >
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            {weaknesses.length > 0 ? (
-              <div>
-                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--cc-warning)]">
-                  Focus areas
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {weaknesses.map((item) => (
-                    <span
-                      key={item}
-                      className="rounded-[6px] bg-[var(--cc-warning)]/10 px-3 py-1.5 text-sm font-medium text-[var(--cc-warning)]"
-                    >
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </Section>
-      )}
-
-      {tasks.length > 0 ? (
-        <Section title="Next up" icon={Target} thumbIndex={1}>
-          <ul className="space-y-2">
-            {tasks.map((task, idx) => (
-              <li key={idx} className="flex items-start gap-3">
-                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--cc-accent-soft)] text-xs font-bold text-[var(--cc-accent-dark)]">
-                  {idx + 1}
-                </span>
-                <span className={cn("flex-1 text-sm", PORTAL_TEXT)}>{task}</span>
-              </li>
-            ))}
-          </ul>
-        </Section>
-      ) : null}
 
       {(hasWorkshop || hasScoreTrend || hasActivity || hasStatus) && (
         <div className="grid gap-5 lg:grid-cols-2">

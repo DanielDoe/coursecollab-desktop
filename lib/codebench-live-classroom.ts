@@ -1,8 +1,12 @@
 import { sql } from "@/lib/db"
+import { recordLiveActivity } from "@/lib/codebench-live-activity-log"
 import { CLASSROOM_SUBMISSION_KIND_CODE } from "@/lib/classroom-solution-submission"
 import { sqlSubmissionEnrollmentSessionFilter, studentMatchesLiveAssignmentSession } from "@/lib/classroom-submission-scope"
 import { extractClassroomQuestionText, type ClassroomAssignmentRow } from "@/lib/codebench-instructor-classroom"
-import { ensureCodebenchLiveSessionsSchema } from "@/lib/codebench-live-session-schema"
+import {
+  ensureCodebenchLiveSessionsSchema,
+  ensureCodebenchLiveSnapshotsSchema,
+} from "@/lib/codebench-live-session-schema"
 import type { OpenLiveClassroomSession, StudentLiveClassroomSession } from "@/lib/codebench-live-classroom-types"
 
 type LiveSessionRow = {
@@ -112,6 +116,7 @@ export async function listStudentOpenLiveSessions(input: {
   courseId: number
   sessionId: number | null
   sessionCode: string | null
+  studentDbId?: number | null
 }): Promise<StudentLiveClassroomSession[]> {
   let enrolledSession = input.sessionCode?.trim() || ""
   if (!enrolledSession && input.sessionId != null) {
@@ -128,16 +133,52 @@ export async function listStudentOpenLiveSessions(input: {
   // The SQL enrollment filter is exact-code only and previously hid live classrooms
   // after section renames (E1304P01 vs ELEG1304P01) or blank "open to all" sessions.
   const sessions = await listOpenLiveClassroomSessions(input.courseId)
-  return sessions
-    .filter((session) => studentMatchesLiveAssignmentSession(session.session, enrolledSession, enrolledSession))
-    .map(({ sessionId, assignmentId, title, questionText, session, startedAt }) => ({
-      sessionId,
-      assignmentId,
-      title,
-      questionText,
-      session,
-      startedAt,
-    }))
+  const matched = sessions.filter((session) =>
+    studentMatchesLiveAssignmentSession(session.session, enrolledSession, enrolledSession),
+  )
+  if (input.studentDbId) {
+    if (matched.length > 0) {
+      await Promise.all(
+        matched.map((session) =>
+          recordLiveActivity({
+            courseId: input.courseId,
+            assignmentId: session.assignmentId,
+            liveSessionId: session.sessionId,
+            studentId: input.studentDbId,
+            actor: "student",
+            eventType: "session_visible",
+            ok: true,
+            httpStatus: 200,
+            message: `Student can see live session ${session.session ?? "open to all"}`,
+            dedupeSeconds: 60,
+          }),
+        ),
+      )
+    } else if (sessions.length > 0) {
+      await recordLiveActivity({
+        courseId: input.courseId,
+        assignmentId: sessions[0]?.assignmentId ?? null,
+        liveSessionId: sessions[0]?.sessionId ?? null,
+        studentId: input.studentDbId,
+        actor: "student",
+        eventType: "session_hidden",
+        ok: false,
+        httpStatus: 200,
+        message: `Enrolled section ${enrolledSession || "unknown"} does not match open session ${[
+          ...new Set(sessions.map((session) => session.session?.trim() || "open")),
+        ].join(", ")}`,
+        dedupeSeconds: 60,
+      })
+    }
+  }
+  return matched.map(({ sessionId, assignmentId, title, questionText, session, startedAt }) => ({
+    sessionId,
+    assignmentId,
+    title,
+    questionText,
+    session,
+    startedAt,
+  }))
 }
 
 export async function startLiveClassroomSession(input: {
@@ -163,6 +204,23 @@ export async function startLiveClassroomSession(input: {
 
   const started = await getOpenLiveClassroomSession(input.assignmentId)
   if (!started) throw new Error("Could not start live classroom session.")
+
+  // Presence is stored per (student, assignment), so a previous session's joins
+  // and missed leaves would otherwise carry into this one.
+  try {
+    await ensureCodebenchLiveSnapshotsSchema()
+    await sql`
+      UPDATE codebench_live_snapshots
+      SET student_joined_at = NULL,
+          student_left_at = NULL,
+          student_active_at = NULL,
+          typing_replay = NULL
+      WHERE assignment_id = ${input.assignmentId}
+        AND (student_joined_at IS NULL OR student_joined_at < ${started.startedAt}::timestamptz)
+    `
+  } catch (error) {
+    console.error("[codebench live-session start] reset presence", error)
+  }
   return started
 }
 
@@ -180,4 +238,19 @@ export async function endLiveClassroomSession(input: {
     RETURNING id
   `
   return rows.length > 0
+}
+
+/** End every open live classroom for courses this instructor teaches. */
+export async function endAllLiveClassroomSessionsForInstructor(instructorId: number): Promise<number> {
+  await ensureCodebenchLiveSessionsSchema()
+  const rows = await sql`
+    UPDATE codebench_live_sessions ls
+    SET ended_at = NOW()
+    FROM courses c
+    WHERE ls.course_id = c.id
+      AND c.instructor_id = ${instructorId}
+      AND ls.ended_at IS NULL
+    RETURNING ls.id
+  `
+  return rows.length
 }

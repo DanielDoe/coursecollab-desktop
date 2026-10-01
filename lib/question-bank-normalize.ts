@@ -87,6 +87,9 @@ export function normalizeCorrectAnswerToLetter(
   }
 
   if (qType === "true_false") {
+    // Option order is instructor-defined ("False" may be option A); match text before assuming True=A.
+    const byOptionText = letterForOptionText(str, options)
+    if (byOptionText) return byOptionText
     const lower = str.toLowerCase()
     if (lower === "true" || lower === "t") return "A"
     if (lower === "false" || lower === "f") return "B"

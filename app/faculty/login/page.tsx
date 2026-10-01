@@ -72,7 +72,9 @@ export default function FacultyLoginPage() {
       }
 
       if (!onCourseStep) {
-        const restored = await tryRestoreFacultySessionFromRefresh()
+        const restored = await tryRestoreFacultySessionFromRefresh({
+          expectedUniversityId: () => readSessionSelectedUniversity()?.id,
+        })
         if (cancelled) return
 
         const session = readFacultySession()

@@ -40,7 +40,11 @@ import {
   isAssessmentLockdownActive,
   registerAssessmentLockdownIpc,
 } from './assessment-lockdown'
-import { scheduleWindowsShortcutRepair } from './windows-shortcut-repair'
+import {
+  createWindowsShortcutsFromLauncher,
+  scheduleWindowsShortcutRepair,
+  wantsShortcutCreation,
+} from './windows-shortcut-repair'
 
 loadEnv({ path: join(__dirname, '../.env') })
 
@@ -59,7 +63,8 @@ const startHidden = process.argv.includes('--hidden')
 if (!gotSingleInstanceLock) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
+    if (wantsShortcutCreation(argv)) void createWindowsShortcutsFromLauncher()
     const existing = BrowserWindow.getAllWindows()[0]
     if (!existing) {
       createWindow()
@@ -230,6 +235,7 @@ app.whenReady().then(async () => {
   registerFirstRunSetupIpc()
   registerUpdater()
   scheduleWindowsShortcutRepair()
+  if (wantsShortcutCreation(process.argv)) void createWindowsShortcutsFromLauncher()
   registerNotificationHandlers()
   loadNotificationPreferences()
   syncLaunchAtLoginPreference()

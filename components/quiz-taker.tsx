@@ -119,6 +119,7 @@ import type { SectionQuestionSelections } from "@/lib/section-pick-scoring"
 import type { StudentPickSectionSummary } from "@/lib/section-pick-scoring"
 import { formatApiErrorMessage } from "@/lib/format-api-error-message"
 import { isServerGradedQuestionType } from "@/lib/server-graded-question-types"
+import { isRevisableObjectiveQuestion } from "@/lib/objective-answer-policy"
 import { sectionPickRequiredCount } from "@/lib/section-pick-scoring"
 import {
   multiPartMissingOptionalSolutionUpload,
@@ -1037,7 +1038,7 @@ export function QuizTaker({
   const isSessionSupersededRef = useRef(false)
   const serverDeadlineExpiredRef = useRef(false)
   const [serverIntegrityStop, setServerIntegrityStop] = useState<
-    "deadline_expired" | "session_superseded" | null
+    "deadline_expired" | "session_superseded" | "violation_locked" | null
   >(null)
 
   const attemptApiHeaders = useCallback((): Record<string, string> => {
@@ -1063,6 +1064,12 @@ export function QuizTaker({
           isSessionSupersededRef.current = true
           setServerIntegrityStop("session_superseded")
         }
+        return true
+      }
+      // Server already counted the max violations (e.g. the tab closed before the client auto-submit
+      // fired). Every later save would 423, so finalize instead of leaving the student stuck.
+      if (status === 423 && payload.code === "violation_locked") {
+        setServerIntegrityStop((prev) => prev ?? "violation_locked")
         return true
       }
       return false
@@ -1463,9 +1470,25 @@ export function QuizTaker({
     }
   }, [])
 
+  // Nothing counts before the attempt is live (start screen, fullscreen prompt, loading) or after
+  // it is finalized; water breaks cover the quiz with an overlay, so screen sleep there is not a leave.
+  const antiCheatLifecycleRef = useRef({ quizStarted, loading, attemptId, isQuizFinalized })
+  antiCheatLifecycleRef.current = { quizStarted, loading, attemptId, isQuizFinalized }
+  const isAntiCheatSuspendedNow = useCallback(() => {
+    const s = antiCheatLifecycleRef.current
+    return (
+      !s.quizStarted ||
+      s.loading ||
+      s.attemptId == null ||
+      s.isQuizFinalized ||
+      waterBreakPausedRef.current ||
+      isSolutionUploadAntiCheatPaused()
+    )
+  }, [isSolutionUploadAntiCheatPaused])
+
   const { state: antiCheatState, closeWarning, logViolation, incrementGeminiStrike } = useAntiCheat({
     config: activeAntiCheatConfig,
-    isAntiCheatSuspended: isSolutionUploadAntiCheatPaused,
+    isAntiCheatSuspended: isAntiCheatSuspendedNow,
     initialCounts: restoredViolationCounts ?? undefined,
     onViolation: () => {
       // Violation detected
@@ -1550,6 +1573,16 @@ export function QuizTaker({
         duration: 6000,
       })
       finalizeQuizWithViolation("Time limit exceeded (server deadline reached)")
+    } else if (serverIntegrityStop === "violation_locked") {
+      if (autoSubmitOnceRef.current) return
+      autoSubmitOnceRef.current = true
+      toast({
+        title: "Maximum violations reached",
+        description: "This attempt reached the anti-cheat limit. Your saved answers are being submitted.",
+        variant: "destructive",
+        duration: 6000,
+      })
+      finalizeQuizWithViolation("Maximum anti-cheat violations reached (server lock)")
     } else {
       toast({
         title: "Attempt opened elsewhere",
@@ -1568,10 +1601,21 @@ export function QuizTaker({
   const isCurrentlyHandlingGeminiRef = useRef<boolean>(false) // Track if we're already handling a detection
   const geminiCurrentlyDetectedRef = useRef<boolean>(false) // Track current detection state for use in callbacks
   const lastPopUpDismissedTimeRef = useRef<number>(0) // Track when pop-up was last dismissed
+  // The sustained-focus-loss heuristic (unlike the panel/resize width fingerprints) is a weak
+  // signal that catches the Windows Start menu, password manager popups, and clicks to a second
+  // monitor just as easily as a real AI overlay. Give it exactly one free pass per attempt —
+  // logged for instructor visibility but not struck and not blocking — so a single accidental
+  // trigger can't cost a strike. A second focus-loss trigger (or any panel/resize fingerprint
+  // match, which is high-confidence) strikes normally; real AI-tool use trips this repeatedly
+  // over the course of an exam, so detection isn't weakened.
+  const geminiFocusWarningUsedRef = useRef(false)
+  // True only for the render right after the free-pass warning fires, so the "keep quiz blocked
+  // while detected" effect below doesn't block the quiz for that occurrence.
+  const geminiJustWarnedRef = useRef(false)
 
   // Stable callback to prevent infinite loops and double strikes
-  const handleGeminiDetected = useCallback((reason: string) => {
-    if (isSolutionUploadAntiCheatPaused()) {
+  const handleGeminiDetected = useCallback((reason: string, source?: "panel" | "resize" | "focus") => {
+    if (isAntiCheatSuspendedNow()) {
       return
     }
     if (!isBrowserAiEnforcementPlatform()) {
@@ -1581,6 +1625,20 @@ export function QuizTaker({
     // This prevents violations from being counted when trackGeminiWindow is false
     if (!antiCheatConfig.trackGeminiWindow) {
       serverLog("QuizTaker", "Gemini detection ignored - tracking disabled")
+      return
+    }
+
+    if (source === "focus" && !geminiFocusWarningUsedRef.current) {
+      geminiFocusWarningUsedRef.current = true
+      geminiJustWarnedRef.current = true
+      logViolation?.("gemini_window", reason, { eventType: "detected", punitive: false })
+      toast({
+        title: "⚠️ Stay on the assessment window",
+        description:
+          "We noticed the assessment lost focus for a while. This is just a reminder — no strike was recorded. If this happens again, it will count as a strike.",
+        variant: "default",
+      })
+      serverLog("QuizTaker", "Gemini focus-loss warning issued (one-time, unstruck)", { reason })
       return
     }
 
@@ -1650,7 +1708,7 @@ export function QuizTaker({
     } else {
       serverLog("QuizTaker", "incrementGeminiStrike is not available")
     }
-  }, [incrementGeminiStrike, antiCheatConfig.trackGeminiWindow, antiCheatState.geminiStrikes, antiCheatConfig.maxGeminiStrikes, solutionUploadSuspendingAntiCheat])
+  }, [incrementGeminiStrike, antiCheatConfig.trackGeminiWindow, antiCheatState.geminiStrikes, antiCheatConfig.maxGeminiStrikes, solutionUploadSuspendingAntiCheat, isAntiCheatSuspendedNow, logViolation, toast])
 
   // Callback when Gemini is cleared by the detector (focus regained / panel closed)
   const handleGeminiCleared = useCallback(() => {
@@ -1690,7 +1748,7 @@ export function QuizTaker({
     onDetected: handleGeminiDetected,
     onCleared: handleGeminiCleared,
     requireFullscreen: antiCheatDisabledForTesting ? false : antiCheatConfig.requireFullscreen,
-    isDetectionPaused: isSolutionUploadAntiCheatPaused,
+    isDetectionPaused: isAntiCheatSuspendedNow,
     // Skip browser-AI heuristics when: Electron shell (no browser panels exist) OR the quiz has
     // Gemini tracking disabled (the hook may still be enabled purely for the fullscreen lock —
     // detections in that mode would blur the quiz without ever showing a dismissible warning).
@@ -1762,6 +1820,14 @@ export function QuizTaker({
   useEffect(() => {
     // Update ref for use in callbacks
     geminiCurrentlyDetectedRef.current = geminiCurrentlyDetected
+
+    // The free-pass focus-loss warning fired for this detection — don't block. The hook's
+    // internal "detected" state clears itself on focus regain (or a 30s safety timeout), which
+    // fires handleGeminiCleared and is a no-op here since we never blocked.
+    if (geminiJustWarnedRef.current) {
+      geminiJustWarnedRef.current = false
+      return
+    }
     
     // If Gemini is detected, keep the quiz blocked unless the student just dismissed.
     // Never block when Gemini tracking is disabled for this quiz — blocking without tracking
@@ -1814,6 +1880,9 @@ export function QuizTaker({
       // Only block after grace period so Dictionary/Spotlight/menus don't trigger
       blurGraceTimer = setTimeout(() => {
         blurGraceTimer = null
+        // Focus moved into an embedded iframe (question media, PDF preview) — still inside the quiz.
+        if (document.hidden || document.hasFocus() || document.activeElement?.tagName === "IFRAME") return
+        if (isAntiCheatSuspendedNow()) return
         console.log("[ANTI-CHEAT] Window blur sustained (macOS) - blocking quiz after grace period", {
           isVisible,
           hasFocus: document.hasFocus(),
@@ -1838,7 +1907,7 @@ export function QuizTaker({
       window.removeEventListener("focus", handleWindowFocus)
       if (blurGraceTimer) clearTimeout(blurGraceTimer)
     }
-  }, [antiCheatConfig.trackGeminiWindow, quizStarted, loading, solutionUploadSuspendingAntiCheat, isSolutionUploadAntiCheatPaused])
+  }, [antiCheatConfig.trackGeminiWindow, quizStarted, loading, solutionUploadSuspendingAntiCheat, isSolutionUploadAntiCheatPaused, isAntiCheatSuspendedNow])
 
   // Auto-Dismiss Logic: Listen for window regaining focus on macOS
   // When focus is regained, safely assume the student has finished interacting with the external tool
@@ -1912,7 +1981,10 @@ export function QuizTaker({
   const lastEventHandledRef = useRef<number>(0)
   const eventHandlingDebounce = 5000 // Only handle events once every 5 seconds
 
-  // Listen for Gemini detections from question-renderer components
+  // Listen for Gemini detections from question-renderer components. In practice this path is
+  // inert today (the per-question detector below always sets skipBrowserAiHeuristics: true, so
+  // it never dispatches "gemini-detected"), but it shares the same one-free-pass
+  // geminiFocusWarningUsedRef as the real detector above in case that ever changes.
   useEffect(() => {
     if (!antiCheatConfig.trackGeminiWindow || !isBrowserAiEnforcementPlatform() || !quizStarted || loading) return
 
@@ -1931,8 +2003,28 @@ export function QuizTaker({
       }
       lastStrikeIncrementRef.current = now
 
-      const { questionId, reason } = event.detail
-      
+      const { questionId, reason, source } = event.detail as {
+        questionId: number
+        reason: string
+        source?: "panel" | "resize" | "focus"
+      }
+
+      if (source === "focus" && !geminiFocusWarningUsedRef.current) {
+        geminiFocusWarningUsedRef.current = true
+        // Log for instructor visibility without consuming a strike or blocking the quiz.
+        logViolation("gemini_window", `Question ${questionId}: ${reason}`, {
+          eventType: "detected",
+          punitive: false,
+        })
+        toast({
+          title: "⚠️ Stay on the assessment window",
+          description:
+            "We noticed the assessment lost focus for a while. This is just a reminder — no strike was recorded. If this keeps happening, it will count as a strike.",
+          variant: "default",
+        })
+        return
+      }
+
       // Block quiz interaction
       setIsGeminiBlocking(true)
       
@@ -1954,7 +2046,7 @@ export function QuizTaker({
     return () => {
       window.removeEventListener("gemini-detected", handleGeminiDetected as EventListener)
     }
-  }, [antiCheatConfig.trackGeminiWindow, quizStarted, loading, incrementGeminiStrike, eventHandlingDebounce, strikeDebounceDelay, solutionUploadSuspendingAntiCheat])
+  }, [antiCheatConfig.trackGeminiWindow, quizStarted, loading, incrementGeminiStrike, eventHandlingDebounce, strikeDebounceDelay, solutionUploadSuspendingAntiCheat, logViolation, toast])
 
   const [questionTimeRemaining, setQuestionTimeRemaining] = useState<Record<number, number>>({})
   const [sectionTimeRemaining, setSectionTimeRemaining] = useState<Record<number, number>>({})
@@ -3530,9 +3622,18 @@ export function QuizTaker({
               )
             })
 
-          const submittedIds = submittedIdsForResume
-          const lockedIds = filterCircuitLocksIfPoolActive(
-            attemptData.lockedQuestionIds ?? submittedIds ?? [],
+          // Exam mode: objective answers stay revisable until the attempt is submitted
+          // (Save & Finish Later resumes keep the server-enforced lock).
+          const keepRevisableUnlocked = (ids: number[]) =>
+            resumeFromSaveLaterRef.current
+              ? ids
+              : ids.filter((id) => {
+                  const q = normalizedQuestions.find((nq) => nq.id === id)
+                  return !q || !isRevisableObjectiveQuestion(q.question_type, effectiveType)
+                })
+          const submittedIds = keepRevisableUnlocked(submittedIdsForResume)
+          const lockedIds = keepRevisableUnlocked(
+            filterCircuitLocksIfPoolActive(attemptData.lockedQuestionIds ?? submittedIds ?? []),
           )
           serverLog("QuizTaker FETCH", "setting locked/submitted", {
             submittedIds,
@@ -4158,8 +4259,20 @@ export function QuizTaker({
 
     for (const queuedAnswer of queue) {
       try {
+        if (queuedAnswer?.autoSave === true) {
+          // Draft autosaves belong to save-answer; /submit rejects them (no isCorrect) and they looped forever.
+          const res = await studentApiFetch("/api/student/save-answer", {
+            method: "POST",
+            headers: attemptApiHeaders(),
+            body: JSON.stringify(queuedAnswer),
+            signal: AbortSignal.timeout(15000),
+          })
+          if (!res.ok && res.status >= 500) throw new Error(`Auto-save retry failed: ${res.status}`)
+          continue
+        }
         await submitAnswerToServer(queuedAnswer)
-      } catch (error) {
+      } catch (error: any) {
+        if (error?.name === "SubmitRejectedError") continue
         failedCount++
         setAnswerQueue(prev => [...prev, queuedAnswer])
       }
@@ -4201,17 +4314,30 @@ export function QuizTaker({
     try {
       const response = await studentApiFetch(`/api/${normalizedType}/submit`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: attemptApiHeaders(),
         body: JSON.stringify(answerData),
         signal: AbortSignal.timeout(timeoutMs),
       })
 
       if (!response.ok) {
+        if (response.status >= 400 && response.status < 500) {
+          let payload: { code?: string; error?: string } = {}
+          try {
+            payload = await response.json()
+          } catch {
+            /* ignore */
+          }
+          handleAttemptWriteRejection(response.status, payload)
+          const rejection = new Error(payload.error || `Request rejected: ${response.status}`)
+          rejection.name = "SubmitRejectedError"
+          throw rejection
+        }
         throw new Error(`Server error: ${response.status}`)
       }
 
       return await response.json()
     } catch (error: any) {
+      if (error?.name === "SubmitRejectedError") throw error
       // Submit attempt failed - retry on timeout, network, or server errors
       const isRetryable =
         error?.name === 'AbortError' ||
@@ -4269,8 +4395,11 @@ export function QuizTaker({
       questionType.toLowerCase(),
     )
 
+    const isRevisableObjective = isRevisableObjectiveQuestion(questionType, effectiveType)
+
     if (
       isLockableType &&
+      !isRevisableObjective &&
       submittedQuestions.has(currentQuestion.id) &&
       !isAutoSubmit
     ) {
@@ -4610,6 +4739,45 @@ export function QuizTaker({
       // The evaluation API handles both letter and text formats
       // Converting here causes reports to show "not answered" when answers were actually saved
       convertedAnswer = answerToSubmit
+    }
+
+    if (isRevisableObjective) {
+      // Exam mode: save (server grades from the key), keep the answer editable, reveal nothing.
+      setAttemptCount({ ...attemptCount, [currentQuestion.id]: newAttemptCount })
+      setAnswers({
+        ...answers,
+        [currentQuestion.id]:
+          typeof convertedAnswer === "string" ? convertedAnswer : JSON.stringify(convertedAnswer),
+      })
+      setIsSubmittingAnswer(false)
+      setAiFeedback(null)
+      setShowFeedback(false)
+      setAiGradingStatus("idle")
+      const rawExam =
+        Math.floor((Date.now() - (questionStartTimeRef.current || Date.now())) / 1000) +
+        (questionTimeSpent[currentQuestion.id] || 0)
+      void saveAnswer(
+        currentQuestion.id,
+        convertedAnswer,
+        questionType,
+        newAttemptCount,
+        false,
+        undefined,
+        undefined,
+        capTimeSpent(currentQuestion.id, rawExam),
+      )
+      if (!isAutoSubmit) {
+        const isLast = currentQuestionIndex >= quiz.questions.length - 1
+        toast({
+          title: "Answer saved",
+          description: isLast
+            ? "You can change any answer until you submit the assessment."
+            : "You can come back and change it any time before you submit.",
+          duration: 2000,
+        })
+        if (!isLast) void goToQuestion(currentQuestionIndex + 1)
+      }
+      return
     }
 
     setIsSubmittingAnswer(true)
@@ -5442,8 +5610,10 @@ export function QuizTaker({
       }
       return { outcome: "saved", submitResponse: response as Record<string, unknown> }
     } catch (error: unknown) {
-      // Queue for later if all retries failed
-      setAnswerQueue(prev => [...prev, answerData])
+      const rejected = error instanceof Error && error.name === "SubmitRejectedError"
+      if (!rejected) {
+        setAnswerQueue(prev => [...prev, answerData])
+      }
       // Remove from saved answers if it was previously marked
       setSavedAnswers((prev) => {
         const next = new Set(prev)
@@ -5686,7 +5856,17 @@ export function QuizTaker({
     
     // FIXED: Restore saved code for AI-graded questions instead of resetting to template
     if (isTargetAIGradable) {
-      const savedCode = answers[currentQuestion.id]
+      // codeByQuestion is the live editor store; answers[] can lag behind an in-flight autosave.
+      // Plot answers restored from the server may be the {code, plotImage} JSON envelope.
+      let savedCode: unknown = codeByQuestion[currentQuestion.id] ?? answers[currentQuestion.id]
+      if (typeof savedCode === "string" && savedCode.trimStart().startsWith("{")) {
+        try {
+          const parsed = JSON.parse(savedCode) as { code?: unknown }
+          if (typeof parsed?.code === "string") savedCode = parsed.code
+        } catch {
+          /* plain code that happens to start with "{" */
+        }
+      }
       const questionType = targetQuestionType
       
       if (savedCode && typeof savedCode === 'string' && savedCode.trim()) {
@@ -6440,7 +6620,11 @@ export function QuizTaker({
               }
 
               const question = quiz.questions.find(q => q.id === a.questionId)
-              if (question && isObjectiveAutoGradedType(question.question_type?.toLowerCase() || "")) {
+              if (
+                question &&
+                isObjectiveAutoGradedType(question.question_type?.toLowerCase() || "") &&
+                !isRevisableObjectiveQuestion(question.question_type, effectiveType)
+              ) {
                 rememberObjectiveGrade(
                   a.questionId,
                   {
@@ -7873,7 +8057,8 @@ export function QuizTaker({
 
   // Lock questions if: timer expired OR (lockable type AND submitted) OR (AI-graded AND timer expired)
   const shouldLockQuestion =
-    isQuestionLocked || (isLockableType && isQuestionSubmitted)
+    isQuestionLocked ||
+    (isLockableType && isQuestionSubmitted && !isRevisableObjectiveQuestion(questionType, effectiveType))
 
   // Prefer fetched hint text (take payloads omit the text and set `has_hint`);
   // fall back to question.hint when present (preview/instructor/review payloads).
@@ -8491,6 +8676,7 @@ export function QuizTaker({
                       circuitPrepareSubmitRef={circuitPrepareSubmitRef}
                       onAntiCheatSuspendChange={setSolutionUploadAntiCheatSuspension}
                       antiCheatSuspendedForSolutionUpload={solutionUploadSuspendingAntiCheat}
+                      requireFullscreen={!antiCheatDisabledForTesting && antiCheatConfig.requireFullscreen === true}
                       isAntiCheatSuspended={isSolutionUploadAntiCheatPaused}
                       onTypingReplay={antiCheatConfig.keystrokePlaybackEnforced !== false ? (replay) => {
                         if (currentQuestion?.id) {

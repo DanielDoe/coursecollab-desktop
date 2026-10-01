@@ -4,7 +4,7 @@ import { sql } from "@/lib/db"
 import { getEffectiveMembershipTier, hasActiveDonationTrial, isBetaUser } from "@/lib/membership"
 import { MEMBERSHIP_PLANS } from "@/lib/membership-constants"
 import { canRetakeAssessment, getCompletedAttemptCount } from "@/lib/retake-utils"
-import { hasDeadlineExtensionForStudentQuiz } from "@/lib/deadline-extension"
+import { getActiveRolloverExpiresAt, hasDeadlineExtensionForStudentQuiz } from "@/lib/deadline-extension"
 import { getAssessmentPerksExpiry } from "@/lib/assessment-perks-expiry"
 import { getAssessmentPerksGraceDaysForQuiz } from "@/lib/assessment-perks-grace-resolve"
 import { hasRetakeAccess, hasSaveAndFinishLaterAccess } from "@/lib/retake-access"
@@ -193,6 +193,11 @@ export async function POST(request: NextRequest) {
       available_until: quizAvailableUntil,
     } = quizSettings[0]
     const graceMinutes = getResumeGraceMinutes(Number(time_per_question || 60), Number(num_questions || 1))
+    const rolloverExpiresAt = await getActiveRolloverExpiresAt(
+      studentDatabaseId,
+      parseInt(String(quizId), 10),
+    )
+    const resumeAvailableUntil = rolloverExpiresAt ?? quizAvailableUntil
 
     // CLEANUP: Finalize any incomplete attempts past the resume window for this student+quiz
     // EXCEPTION: Do NOT finalize attempts with saved_for_later_at when student has Save and Finish Later access
@@ -211,7 +216,7 @@ export async function POST(request: NextRequest) {
       } else {
         const startedAt =
           row.started_at instanceof Date ? row.started_at : new Date(row.started_at)
-        if (isWithinResumeGrace(startedAt, graceMinutes, quizAvailableUntil)) continue
+        if (isWithinResumeGrace(startedAt, graceMinutes, resumeAvailableUntil)) continue
       }
       try {
         const { finalizeAttempt } = await import("@/lib/finalize-utils")
@@ -281,7 +286,7 @@ export async function POST(request: NextRequest) {
       const inc = incompleteAttempt[0]
       const startedAt = inc.started_at instanceof Date ? inc.started_at : new Date(inc.started_at)
 
-      if (isWithinResumeGrace(startedAt, graceMinutes, quizAvailableUntil)) {
+      if (isWithinResumeGrace(startedAt, graceMinutes, resumeAvailableUntil)) {
         await persistSuperpowersToAttempt(inc.id, superpowersForAttempt)
         return NextResponse.json({
           success: true,
@@ -292,7 +297,7 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      // Save and Finish Later: allow resume until perks grace window (deadline + 7 days)
+      // Save and Finish Later: allow resume until perks grace window (deadline + grace days)
       if (hasSaveLater && inc.saved_for_later_at) {
         const cutoff = getAssessmentPerksExpiry(quizAvailableUntil, perksGraceDays)
         if (cutoff && new Date() <= cutoff) {
@@ -367,7 +372,7 @@ export async function POST(request: NextRequest) {
     if (existingAttempts.length === 0 && maxAttempts === 0 && !hasDonationAccess) {
       return NextResponse.json(
         {
-          error: "Quiz attempts are not available with your current membership tier (Scholar). Please donate to unlock 14 days of premium access (2 retakes) or upgrade to Explorer or Trailblazer for quiz attempts.",
+          error: "Quiz attempts are not available on the Scholar plan. Upgrade to Explorer or Trailblazer for quiz attempts.",
           canRetake: false,
           upgradeRequired: "Explorer",
         },
@@ -439,7 +444,7 @@ export async function POST(request: NextRequest) {
         ) {
           return NextResponse.json(
             {
-              error: "Retakes require Explorer or Trailblazer membership, or an active donation. Please upgrade your membership or donate to unlock retake access.",
+              error: "Retakes require Explorer or Trailblazer membership. Upgrade your plan to retake this assessment.",
               canRetake: false,
               upgradeRequired: true,
             },
@@ -480,7 +485,7 @@ export async function POST(request: NextRequest) {
                 ? retakeCheck.reason ||
                   "Retakes for this assessment expired after the due date. Use rollover while eligible to finish within an extension window."
                 : retakeCheck.attemptsRemaining === 0 
-                ? `You have reached the maximum number of attempts (${totalAttempts}) for this quiz. ${maxAttempts === 0 ? "Please donate to unlock 7 days of premium access or upgrade to Explorer or Trailblazer for quiz attempts." : ""}`
+                ? `You have reached the maximum number of attempts (${totalAttempts}) for this quiz. ${maxAttempts === 0 ? "Upgrade to Explorer or Trailblazer for quiz attempts." : ""}`
                 : `Retakes are not available for this assessment. ${retakeCheck.reason || ""}`,
               canRetake: false,
               calendarRetakePerksExpired: retakeCheck.calendarRetakePerksExpired ?? false,

@@ -52,7 +52,7 @@ const SOURCE_OPTIONS: Array<{
     value: "membership_enabled",
     title: "Membership enabled",
     description:
-      "Explorer and Trailblazer membership benefits may grant additional assessment opportunities (retakes, save-and-finish, rollovers) per platform rules.",
+      "Explorer and Trailblazer membership benefits may grant additional assessment opportunities (retakes, save-and-finish, rollovers) per platform rules. Students without a membership can still trade grade points in the Trade Center for a rollover or extra attempts.",
   },
   {
     value: "hybrid",

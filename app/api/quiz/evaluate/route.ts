@@ -19,6 +19,7 @@ import {
 } from "@/lib/assessment-core/evaluate-http"
 import { getAnswerChangeBlockReasonForRequest } from "@/lib/quiz-answer-lock"
 import { resolveReferenceAnswerForAiGrading } from "@/lib/resolve-reference-answer-for-ai"
+import { issueEvaluationReceipt } from "@/lib/evaluation-receipt"
 
 export const dynamic = 'force-dynamic'
 // Mark as dynamic to prevent build-time database initialization
@@ -213,11 +214,24 @@ export async function POST(request: NextRequest) {
           ? parseFloat(aiResult.pointsEarned.toFixed(2))
           : parseFloat(((aiResult.score / 100) * maxPoints).toFixed(2))
 
+      // Anti-tamper: bind this exact server-computed score to (attemptId, questionId, answer) so
+      // /api/quiz/submit can tell a genuine re-post of this result apart from a client-edited one.
+      const receipt = attemptId
+        ? issueEvaluationReceipt({
+            attemptId: Number(attemptId),
+            questionId: Number(questionId),
+            answer,
+            isCorrect: Boolean(aiResult.isCorrect),
+            points: pointsEarned,
+          })
+        : undefined
+
       return NextResponse.json({
         isCorrect: aiResult.isCorrect,
         score: aiResult.score,
         pointsEarned,
         maxPoints,
+        ...(receipt ? { receipt } : {}),
         feedback: aiResult.feedback || aiResult.statusMessage,
         criteria: aiResult.criteria,
         suggestions: aiResult.suggestions,

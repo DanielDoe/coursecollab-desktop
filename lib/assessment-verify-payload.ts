@@ -15,6 +15,15 @@ export type LocalVerifyQuestionData = {
   }
 }
 
+const LETTER_KEYED_TYPES = new Set([
+  "mcq",
+  "multiple_choice",
+  "true_false",
+  "truefalse",
+  "select_all",
+  "multi_output",
+])
+
 /** Normalize quiz question row fields for verifyAnswerLocally. */
 export function buildLocalVerifyQuestionData(question: {
   question_type?: string | null
@@ -35,8 +44,12 @@ export function buildLocalVerifyQuestionData(question: {
     E: question.option_e,
   }
   const optionTexts = quizQuestionOptionsAsStrings(question)
+  // Only letter-keyed types: fill_blank / code_output keys like "3" must not become "D".
+  const letterKeyed = LETTER_KEYED_TYPES.has(qType)
   return {
-    correctAnswer: normalizeCorrectAnswerToLetter(question.correct_answer, optionTexts, qType),
+    correctAnswer: letterKeyed
+      ? normalizeCorrectAnswerToLetter(question.correct_answer, optionTexts, qType)
+      : question.correct_answer,
     circuitSpec: question.circuit_spec,
     options,
   }

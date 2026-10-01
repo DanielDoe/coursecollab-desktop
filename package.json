@@ -1,6 +1,6 @@
 {
   "name": "coursecollab-desktop",
-  "version": "0.1.31",
+  "version": "0.1.36",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
@@ -279,7 +279,7 @@
     "publish:desktop-ota": "node scripts/normalize-release-artifact-names.mjs && node scripts/publish-desktop-ota.mjs",
     "publish:desktop-downloads": "node scripts/upload-desktop-downloads.mjs",
     "release:desktop:ota:mac": "npm run build:desktop:mac && npm run build:desktop:mac:x64 && npm run merge:desktop-ota-mac-manifest",
-    "release:desktop:ota:win": "npm run build:desktop:win && npm run merge:desktop-ota-win-manifest",
+    "release:desktop:ota:win": "npm run build:desktop:win -- --x64 --arm64 && npm run merge:desktop-ota-win-manifest",
     "release:desktop:artifacts": "npm run release:desktop:ota:mac && npm run release:desktop:ota:win",
     "test:codebench": "npm run sync:notification-groups && tsc -p tsconfig.electron.json && electron dist-electron/codebench-selftest.js",
     "typecheck:renderer": "tsc -p tsconfig.app.json --noEmit",
@@ -523,6 +523,7 @@
     "dmg": {
       "icon": "build/icon.icns"
     },
+    "beforePack": "scripts/electron-builder-before-pack.cjs",
     "win": {
       "icon": "build/icon.ico",
       "executableName": "CourseCollab",

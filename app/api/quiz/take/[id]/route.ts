@@ -138,7 +138,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       if (completedCount === 0 && maxAttempts === 0 && !hasDonationAccess) {
         return NextResponse.json(
           {
-            error: "Quiz attempts are not available with your current membership tier (Scholar). Please donate to unlock 14 days of premium access (2 retakes) or upgrade to Explorer or Trailblazer for quiz attempts.",
+            error: "Quiz attempts are not available on the Scholar plan. Upgrade to Explorer or Trailblazer for quiz attempts.",
             canRetake: false,
             upgradeRequired: "Explorer",
           },
@@ -195,7 +195,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           
           return NextResponse.json(
             {
-              error: `You have reached the maximum number of attempts (${effectiveMaxAttempts}) for this quiz. ${!hasOverride && maxAttempts === 0 ? "Please donate to unlock 14 days of premium access (2 retakes) or upgrade to Explorer or Trailblazer for quiz attempts." : !hasOverride && maxAttempts === 3 ? "Upgrade to Explorer or Trailblazer for more attempts." : hasOverride ? "Contact your instructor if you need additional attempts." : ""}`,
+              error: `You have reached the maximum number of attempts (${effectiveMaxAttempts}) for this quiz. ${!hasOverride && maxAttempts === 0 ? "Upgrade to Explorer or Trailblazer for quiz attempts." : !hasOverride && maxAttempts === 3 ? "Upgrade to Explorer or Trailblazer for more attempts." : hasOverride ? "Contact your instructor if you need additional attempts." : ""}`,
               canRetake: false,
               upgradeRequired: !hasOverride && maxAttempts === 1 ? "Explorer" : null,
             },

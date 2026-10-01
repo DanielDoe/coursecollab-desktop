@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import { isBrowserAiEnforcementPlatform } from "@/lib/device-utils"
+import { withStudentApiInit } from "@/lib/auth"
 import {
   assessmentLeaveViolationDetail,
   assessmentLeaveWarningMessage,
@@ -25,6 +26,11 @@ export interface AntiCheatConfig {
   suspended?: boolean
   /** When true (default), record and send keystroke data for code questions to enforce anti-cheat deductions. */
   keystrokePlaybackEnforced?: boolean
+  /**
+   * Instructor-authorized only. `informational` still logs TAB_HIDDEN/WINDOW_BLUR
+   * as separate facts but does not increment punitive tab-switch auto-submit.
+   */
+  focusEventPolicy?: "enforce" | "informational"
 }
 
 export interface ViolationLog {
@@ -108,6 +114,12 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
   const onMaxViolationsTriggeredRef = useRef<boolean>(false) // Prevent multiple calls to onMaxViolations
   const configRef = useRef(config)
   const isAntiCheatSuspendedRef = useRef(isAntiCheatSuspended)
+  // Callers pass inline callbacks; keeping them in refs stops every parent re-render (the quiz
+  // timer ticks each second) from tearing down listeners and clearing the desktop leave grace timer.
+  const onViolationRef = useRef(onViolation)
+  const onMaxViolationsRef = useRef(onMaxViolations)
+  onViolationRef.current = onViolation
+  onMaxViolationsRef.current = onMaxViolations
 
   useEffect(() => {
     configRef.current = config
@@ -147,13 +159,13 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
     if (!onMaxViolationsTriggeredRef.current) {
       if (cfg.trackGeminiWindow && restoredGeminiStrikes >= cfg.maxGeminiStrikes) {
         onMaxViolationsTriggeredRef.current = true
-        onMaxViolations?.("gemini_window", restoredGeminiStrikes)
+        onMaxViolationsRef.current?.("gemini_window", restoredGeminiStrikes)
       } else if (cfg.trackTabSwitches && cfg.autoSubmitOnViolations && restoredTabSwitches >= cfg.maxTabSwitches) {
         onMaxViolationsTriggeredRef.current = true
-        onMaxViolations?.("tab_switch", restoredTabSwitches)
+        onMaxViolationsRef.current?.("tab_switch", restoredTabSwitches)
       }
     }
-  }, [initialCounts, onMaxViolations])
+  }, [initialCounts])
 
   // Track last logged violation to prevent duplicate API calls
   const lastLoggedViolationRef = useRef<{ type: string; timestamp: number } | null>(null)
@@ -163,6 +175,8 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
   const lastVisibilityChangeTimeRef = useRef<number>(0)
   const visibilityChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const desktopLeaveGraceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const webLeaveTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const pageUnloadingRef = useRef(false)
   const violationLogDebounceDelay = 1000 // 1 second debounce for API calls
 
   // Log violation
@@ -197,26 +211,28 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
         violations: [...prev.violations, violation],
       }))
 
-      // Call external violation handler
-      if (onViolation) {
-        onViolation(violation)
-      }
+      onViolationRef.current?.(violation)
 
-      // Log to server if attemptId is provided
+      // Log to server if attemptId is provided. Student auth headers are required: desktop
+      // sessions authenticate with a bearer token, not cookies alone.
       if (attemptId) {
-        fetch("/api/quiz/log-violation", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            attemptId,
-            violation,
+        fetch(
+          "/api/quiz/log-violation",
+          withStudentApiInit({
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              attemptId,
+              violation,
+            }),
+            keepalive: true,
           }),
-        }).catch((error) => {
+        ).catch((error) => {
           console.error("Failed to log violation to server:", error)
         })
       }
     },
-    [onViolation, attemptId]
+    [attemptId]
   )
 
   // Show warning modal
@@ -529,6 +545,11 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
         }, 100)
       }, tabSwitchDebounceDelay + 200)
 
+      if (config.focusEventPolicy === "informational") {
+        logViolation("tab_switch", assessmentLeaveViolationDetail(), { fact: "TAB_HIDDEN", punitive: false })
+        return
+      }
+
       const currentCount = tabSwitchCountRef.current
       if (currentCount >= config.maxTabSwitches) {
         setTimeout(() => {
@@ -573,9 +594,9 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
       }
 
       if (hasReachedMax && !onMaxViolationsTriggeredRef.current) {
-        if (config.autoSubmitOnViolations && onMaxViolations) {
+        if (config.autoSubmitOnViolations && onMaxViolationsRef.current) {
           onMaxViolationsTriggeredRef.current = true
-          onMaxViolations("tab_switch", updatedCount)
+          onMaxViolationsRef.current("tab_switch", updatedCount)
         }
       }
     }
@@ -641,7 +662,14 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
           return
         }
 
-        recordTabSwitchLeave()
+        // Refresh/close/redirect also fire "hidden"; pagehide/beforeunload land first, so wait a
+        // beat and skip the count when the page is unloading rather than switching tabs.
+        if (webLeaveTimerRef.current) clearTimeout(webLeaveTimerRef.current)
+        webLeaveTimerRef.current = setTimeout(() => {
+          webLeaveTimerRef.current = null
+          if (pageUnloadingRef.current) return
+          recordTabSwitchLeave()
+        }, 300)
       } else {
         // Tab regained focus
         setState((prev) => ({
@@ -675,15 +703,32 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
       }))
     }
 
+    const markUnloading = () => {
+      pageUnloadingRef.current = true
+    }
+    const clearUnloading = (e: PageTransitionEvent) => {
+      if (e.persisted) pageUnloadingRef.current = false
+    }
+
     document.addEventListener("visibilitychange", handleVisibilityChange)
     window.addEventListener("blur", handleBlur)
     window.addEventListener("focus", handleFocus)
+    window.addEventListener("beforeunload", markUnloading)
+    window.addEventListener("pagehide", markUnloading)
+    window.addEventListener("pageshow", clearUnloading)
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange)
       window.removeEventListener("blur", handleBlur)
       window.removeEventListener("focus", handleFocus)
       window.removeEventListener("resize", handleResize)
+      window.removeEventListener("beforeunload", markUnloading)
+      window.removeEventListener("pagehide", markUnloading)
+      window.removeEventListener("pageshow", clearUnloading)
+      if (webLeaveTimerRef.current) {
+        clearTimeout(webLeaveTimerRef.current)
+        webLeaveTimerRef.current = null
+      }
       if (visibilityChangeTimeoutRef.current) {
         clearTimeout(visibilityChangeTimeoutRef.current)
       }
@@ -691,13 +736,14 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
         clearTimeout(desktopLeaveGraceTimerRef.current)
       }
     }
-  }, [config.trackTabSwitches, config.warnOnTabSwitch, config.maxTabSwitches, config.autoSubmitOnViolations, logViolation, showWarningModal, onMaxViolations, antiCheatPaused])
+  }, [config.trackTabSwitches, config.warnOnTabSwitch, config.maxTabSwitches, config.autoSubmitOnViolations, config.focusEventPolicy, logViolation, showWarningModal, antiCheatPaused])
 
   // Handle mouse movement tracking
   useEffect(() => {
     if (!config.trackMouseMovement) return
 
     const handleMouseLeave = () => {
+      if (antiCheatPaused()) return
       setState((prev) => ({
         ...prev,
         mouseLeaveCount: prev.mouseLeaveCount + 1,
@@ -712,7 +758,7 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
     return () => {
       document.removeEventListener("mouseleave", handleMouseLeave)
     }
-  }, [config.trackMouseMovement, logViolation])
+  }, [config.trackMouseMovement, logViolation, antiCheatPaused])
 
   // Function to manually increment Gemini strikes and show warning
   // CRITICAL: Must be defined BEFORE the useEffect that uses it
@@ -781,141 +827,38 @@ export function useAntiCheat({ config, onViolation, onMaxViolations, attemptId, 
     if (hasReachedMax && !onMaxViolationsTriggeredRef.current) {
       // CRITICAL: For Gemini violations, always call onMaxViolations but it will handle blocking without auto-submit
       // For other violations, check autoSubmitOnViolations config
-      if (onMaxViolations) {
+      if (onMaxViolationsRef.current) {
         // CRITICAL: Set flag BEFORE calling to prevent duplicate calls
         onMaxViolationsTriggeredRef.current = true
-        onMaxViolations("gemini_window", newStrikes)
-        // Note: onMaxViolations will handle blocking without auto-submit for Gemini violations
+        onMaxViolationsRef.current("gemini_window", newStrikes)
       }
     }
-  }, [config.trackGeminiWindow, config.maxGeminiStrikes, config.autoSubmitOnViolations, logViolation, showWarningModal, onMaxViolations, antiCheatPaused])
+  }, [config.trackGeminiWindow, config.maxGeminiStrikes, logViolation, showWarningModal, antiCheatPaused])
 
-  // Handle Gemini window detection
+  // Gemini activation shortcut. Tab switches and panel resizes are handled elsewhere
+  // (tab-visibility effect above and useGeminiDetector) so they are not double-counted here.
   useEffect(() => {
     if (!config.trackGeminiWindow || !isBrowserAiEnforcementPlatform()) return
 
-    let focusBlurCount = 0
-    let rapidSwitchTimer: NodeJS.Timeout | null = null
-    let lastBlurTime = 0
-    const RAPID_SWITCH_THRESHOLD = 2000 // 2 seconds - rapid switching indicates possible Gemini use
-    const FOCUS_BLUR_WINDOW = 5000 // 5 seconds window to detect rapid focus/blur cycles
-
-    const detectGeminiPattern = () => {
-      if (antiCheatPaused()) return
-      focusBlurCount++
-      
-      // Clear previous timer
-      if (rapidSwitchTimer) {
-        clearTimeout(rapidSwitchTimer)
-      }
-
-      // CRITICAL: Only detect Gemini if we have RAPID switching (3+ switches within threshold)
-      // Normal tab switches (1-2 switches) should NOT trigger Gemini detection
-      // This prevents false positives from normal tab switching behavior
-      const timeSinceLastBlur = Date.now() - lastBlurTime
-      if (timeSinceLastBlur < RAPID_SWITCH_THRESHOLD && focusBlurCount >= 3) {
-        setState((prev) => {
-          // CRITICAL: Check if max already reached - if so, don't increment and trigger auto-submit
-          if (prev.geminiStrikes >= config.maxGeminiStrikes) {
-            // Max already reached - trigger auto-submit immediately if not already triggered
-            if (config.autoSubmitOnViolations && onMaxViolations) {
-              onMaxViolations("gemini_window", prev.geminiStrikes)
-            }
-            // Return state unchanged - don't increment beyond max
-            return prev
-          }
-
-          // Increment strikes (we're below max)
-          const newStrikes = prev.geminiStrikes + 1
-          const hasReachedMax = newStrikes >= config.maxGeminiStrikes
-          
-          // Log violation
-          logViolation("gemini_window", `Rapid window switching detected (${focusBlurCount} switches in ${timeSinceLastBlur}ms) - Possible Gemini window usage`)
-          
-          // Show warning
-          if (hasReachedMax) {
-            showWarningModal(
-              "gemini_window",
-              `⚠️ CRITICAL WARNING: Maximum Gemini strikes reached (${newStrikes}/${config.maxGeminiStrikes}). Your assessment will be automatically submitted.`
-            )
-          } else if (newStrikes > 0) {
-            showWarningModal(
-              "gemini_window",
-              `⚠️ Warning: Suspicious window activity detected (${newStrikes}/${config.maxGeminiStrikes} strikes). Browser AI tools are not permitted during assessments.`
-            )
-          }
-          
-          // If max reached, trigger auto-submit immediately
-          if (hasReachedMax && config.autoSubmitOnViolations && onMaxViolations) {
-            onMaxViolations("gemini_window", newStrikes)
-          }
-          
-          return {
-            ...prev,
-            geminiStrikes: newStrikes, // Cap at max to prevent negative remaining counts
-          }
-        })
-        
-        focusBlurCount = 0 // Reset counter
-      }
-
-      // Reset counter after window expires
-      rapidSwitchTimer = setTimeout(() => {
-        focusBlurCount = 0
-      }, FOCUS_BLUR_WINDOW)
-    }
-
-    // CRITICAL: Disable Gemini detection via visibilitychange/blur/focus when tab switching tracking is enabled
-    // This prevents false positives - normal tab switches should NOT trigger Gemini detection
-    // Gemini detection should ONLY come from:
-    // 1. Resize events (detected by useGeminiDetector hook)
-    // 2. Keyboard shortcuts (Ctrl+Shift+G)
-    // 3. Manual incrementGeminiStrike calls from question renderer
-    const handleBlur = () => {
-      // Do nothing - tab switches are handled by separate useEffect
-      // This prevents false positives from normal tab switching
-    }
-
-    const handleFocus = () => {
-      // Do nothing - tab switches are handled by separate useEffect
-      // This prevents false positives from normal tab switching
-    }
-
-    // Monitor visibility changes (more reliable than blur/focus)
-    // CRITICAL: DISABLED - Normal tab switches should NOT trigger Gemini detection
-    // Only resize events and keyboard shortcuts should trigger Gemini detection
-    const handleVisibilityChange = () => {
-      // Do nothing - tab switches are handled by separate useEffect
-      // This prevents false positives from normal tab switching
-      // Gemini detection comes from useGeminiDetector hook (resize events) and keyboard shortcuts only
-    }
-
-    // Monitor for Gemini-specific keyboard shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
       if (antiCheatPaused()) return
-      // Detect Ctrl/Cmd + Shift + G (Gemini activation)
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'G' || e.key === 'g')) {
-        // CRITICAL: Use centralized incrementGeminiStrike function to prevent double-counting
-        // This ensures all debouncing, ref guards, and processing flags are respected
-        incrementGeminiStrike("Gemini activation shortcut detected (Ctrl/Cmd + Shift + G)")
-      }
+      if (!((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "G" || e.key === "g"))) return
+      // Cmd/Ctrl+Shift+G is "find previous" in the code editor and text inputs — not a Gemini launch.
+      const target = e.target as HTMLElement | null
+      const inEditor =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable === true ||
+        !!target?.closest?.(".monaco-editor, .cm-editor, [data-code-editor]")
+      if (inEditor) return
+      incrementGeminiStrike("Gemini activation shortcut detected (Ctrl/Cmd + Shift + G)")
     }
 
-    window.addEventListener("blur", handleBlur)
-    window.addEventListener("focus", handleFocus)
-    document.addEventListener("visibilitychange", handleVisibilityChange)
     document.addEventListener("keydown", handleKeyDown, true)
-
     return () => {
-      window.removeEventListener("blur", handleBlur)
-      window.removeEventListener("focus", handleFocus)
-      document.removeEventListener("visibilitychange", handleVisibilityChange)
       document.removeEventListener("keydown", handleKeyDown, true)
-      if (rapidSwitchTimer) {
-        clearTimeout(rapidSwitchTimer)
-      }
     }
-  }, [config.trackGeminiWindow, config.maxGeminiStrikes, config.autoSubmitOnViolations, logViolation, showWarningModal, onMaxViolations, incrementGeminiStrike, antiCheatPaused])
+  }, [config.trackGeminiWindow, incrementGeminiStrike, antiCheatPaused])
 
   // Cleanup on unmount
   useEffect(() => {

@@ -21,6 +21,19 @@ export function repairLatexDamagedByJsonEscapes(input: string): string {
   )
 }
 
+/**
+ * Two prices on one line (`$8.00 ... $12.00`) are not math. remark-math would
+ * swallow the span and KaTeX would drop the spaces, so the words run together.
+ */
+function escapeNonMathDollarPairs(input: string): string {
+  return input.replace(/(?<!\\)\$([^$\n]+)\$(?!\$)/g, (full, inner: string) => {
+    if (looksLikeLatex(inner)) return full
+    // A price that opens the span, with words before the closing dollar.
+    if (!/^\d[\d,]*(?:\.\d+)?\b/.test(inner.trim()) || !/\s/.test(inner)) return full
+    return full.replace(/(?<!\\)\$/g, "\\$")
+  })
+}
+
 /** Normalize LaTeX delimiters into remark-math $ / $$ form. */
 export function normalizeMathDelimiters(input: string): string {
   let t = input.replace(/\\n/g, "\n")
@@ -31,6 +44,7 @@ export function normalizeMathDelimiters(input: string): string {
   // Already-delimited $$ blocks: ensure opening/closing fences are line-broken
   t = t.replace(/\$\$([\s\S]*?)\$\$/g, (_, expr) => `\n$$\n${String(expr).trim()}\n$$\n`)
   t = fixUnbracedMultiCharSubscriptsInMath(t)
+  t = escapeNonMathDollarPairs(t)
   return t.replace(/\n{3,}/g, "\n\n")
 }
 

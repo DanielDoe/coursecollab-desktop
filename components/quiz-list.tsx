@@ -153,6 +153,8 @@ interface Quiz {
   calendar_open?: boolean
   /** Server: semester concluded — secondary close after per-assessment due dates. */
   semester_assessments_closed?: boolean
+  /** Deadline plus the course rollover window. */
+  assessment_perks_expires_at?: string | null
   /** Final with restrict access: student sees the row but is not on the instructor allowlist yet. */
   final_access_pending_allowlist?: boolean
   timer_display_label?: string
@@ -172,6 +174,20 @@ function formatPostedOrDue(value: string | null | undefined): string {
 function isPastCalendarDeadline(quiz: Quiz): boolean {
   if (!quiz.available_until) return false
   return new Date(quiz.available_until).getTime() < Date.now()
+}
+
+/** Past due, still inside the one-month window, and the semester has not closed quizzes. */
+function quizInsideRolloverGrace(quiz: Quiz): boolean {
+  if (quiz.semester_assessments_closed || quiz.rollover_active) return false
+  if (!isPastCalendarDeadline(quiz)) return false
+  if (!quiz.assessment_perks_expires_at) return false
+  const expires = new Date(quiz.assessment_perks_expires_at).getTime()
+  return Number.isFinite(expires) && expires > Date.now()
+}
+
+function quizCanOfferRollover(quiz: Quiz): boolean {
+  if (quiz.rollover_active) return false
+  return !!(quiz.can_apply_rollover || quiz.rollover_requires_upgrade || quizInsideRolloverGrace(quiz))
 }
 
 /** Closed for display: per-assessment due passed (primary), or semester concluded (secondary). */
@@ -224,7 +240,7 @@ function buildQuizActionConfig(
 ) {
   const hasReport = !!(quiz.attempted && quiz.attempt_id && quiz.completed)
   const savedForLater = !!(quiz.saved_for_later && (quiz.is_active || quiz.rollover_active))
-  const canExtend = !!((quiz.can_apply_rollover || quiz.rollover_requires_upgrade) && !quiz.rollover_active)
+  const canExtend = quizCanOfferRollover(quiz)
   const canStart = canShowStartAssessment(quiz)
   const pendingFinalAllowlist = !!quiz.final_access_pending_allowlist && quiz.is_active
   const startLabelAfterDue = primaryOpenAfterDueLabel(
@@ -250,9 +266,8 @@ function buildQuizActionConfig(
     onContinue: savedForLater ? () => handlers.handleStartQuiz(quiz.id) : undefined,
     onExtend: canExtend ? () => handlers.handleApplyRollover(quiz) : undefined,
     extending: handlers.applyingRollover === quiz.id,
-    extendLabel: quiz.rollover_requires_upgrade
-      ? "Extend (Upgrade)"
-      : `Extend (${quiz.rollover_hours ?? 24}h${
+    extendLabel: quiz.can_apply_rollover
+      ? `Extend (${quiz.rollover_hours ?? 24}h${
           quiz.rollover_membership_applies_max != null &&
           quiz.rollover_membership_applies_max > 1
             ? ` · ${Math.max(
@@ -261,7 +276,8 @@ function buildQuizActionConfig(
                   (quiz.rollover_membership_applies_used ?? 0),
               )} left`
             : ""
-        })`,
+        })`
+      : "Extend with points",
     onStart: canStart ? () => handlers.handleStartQuiz(quiz.id) : undefined,
     startLabel: startLabelAfterDue,
     lockedLabel: pendingFinalAllowlist
@@ -543,8 +559,8 @@ export function QuizList({
   }
 
   const handleApplyRollover = (quiz: Quiz) => {
-    if (quiz.rollover_requires_upgrade) {
-      setShowRolloverUpgradeModal(true)
+    if (!quiz.can_apply_rollover) {
+      router.push(`/student/dashboard-v2/trade-center?tab=rollover&quizId=${quiz.id}`)
       return
     }
     if (rolloverPolicy && !rolloverPolicy.self_service_open) {
@@ -706,7 +722,7 @@ export function QuizList({
     // Finals (and mid-semester) list only "admin" rows from the API — Official vs Practice does not apply.
     const effectiveFilterType = assessmentType === "final" || assessmentType === "mid_semester" ? "all" : filterType
     if (effectiveFilterType !== "all") list = list.filter((q) => q.quiz_type === effectiveFilterType)
-    if (filterStatus === "active") list = list.filter((q) => q.is_active)
+    if (filterStatus === "active") list = list.filter((q) => q.is_active || quizCanOfferRollover(q))
     else if (filterStatus === "completed") list = list.filter((q) => q.attempted)
     else if (filterStatus === "locked") list = list.filter((q) => !q.is_active && !q.attempted)
 
@@ -1173,7 +1189,7 @@ export function QuizList({
                               </div>
                               <span className={cn("text-xs font-medium", assessmentsTheme.page.iconText)}>Active</span>
                             </div>
-                          ) : (quiz.can_apply_rollover || quiz.rollover_requires_upgrade) ? (
+                          ) : quizCanOfferRollover(quiz) ? (
                             <div className="flex items-center gap-1.5">
                               <div className="p-1 bg-amber-100 dark:bg-amber-900/30 rounded-md">
                                 <Timer className="h-3 w-3 text-amber-600 dark:text-amber-400" />
@@ -1294,7 +1310,7 @@ export function QuizList({
                         {(() => {
                           const hasReport = !!(quiz.attempted && quiz.attempt_id && quiz.completed)
                           const savedForLater = !!(quiz.saved_for_later && (quiz.is_active || quiz.rollover_active))
-                          const canExtend = !!((quiz.can_apply_rollover || quiz.rollover_requires_upgrade) && !quiz.rollover_active)
+                          const canExtend = quizCanOfferRollover(quiz)
                           const canStart = canShowStartAssessment(quiz)
                           const pendingFinalAllowlist =
                             !!quiz.final_access_pending_allowlist && quiz.is_active
@@ -1330,9 +1346,8 @@ export function QuizList({
                               onExtend={canExtend ? () => handleApplyRollover(quiz) : undefined}
                               extending={applyingRollover === quiz.id}
                               extendLabel={
-                                quiz.rollover_requires_upgrade
-                                  ? "Extend (Upgrade)"
-                                  : `Extend (${quiz.rollover_hours ?? 24}h${
+                                quiz.can_apply_rollover
+                                  ? `Extend (${quiz.rollover_hours ?? 24}h${
                                       quiz.rollover_membership_applies_max != null &&
                                       quiz.rollover_membership_applies_max > 1
                                         ? ` · ${Math.max(
@@ -1342,6 +1357,7 @@ export function QuizList({
                                           )} left`
                                         : ""
                                     })`
+                                  : "Extend with points"
                               }
                               onStart={canStart ? () => handleStartQuiz(quiz.id) : undefined}
                               startLabel={startLabelAfterDue}
@@ -1420,7 +1436,7 @@ export function QuizList({
                         <Badge className={cn(assessmentsTheme.page.cta, "border-0 whitespace-nowrap rounded-full shadow-sm px-3 py-1")}>
                           Active
                         </Badge>
-                      ) : (quiz.can_apply_rollover || quiz.rollover_requires_upgrade) ? (
+                      ) : quizCanOfferRollover(quiz) ? (
                         <Badge variant="outline" className="whitespace-nowrap rounded-full border-amber-400 dark:border-amber-500 text-amber-700 dark:text-amber-400 px-3 py-1">
                           Past Due – Extend
                         </Badge>
@@ -1533,7 +1549,7 @@ export function QuizList({
                 {(() => {
                   const hasReport = !!(quiz.attempted && quiz.attempt_id && quiz.completed)
                   const savedForLater = !!(quiz.saved_for_later && (quiz.is_active || quiz.rollover_active))
-                  const canExtend = !!((quiz.can_apply_rollover || quiz.rollover_requires_upgrade) && !quiz.rollover_active)
+                  const canExtend = quizCanOfferRollover(quiz)
                   const canStart = canShowStartAssessment(quiz)
                   const pendingFinalAllowlist =
                     !!quiz.final_access_pending_allowlist && quiz.is_active
@@ -1568,9 +1584,8 @@ export function QuizList({
                       onExtend={canExtend ? () => handleApplyRollover(quiz) : undefined}
                       extending={applyingRollover === quiz.id}
                       extendLabel={
-                        quiz.rollover_requires_upgrade
-                          ? "Extend (Upgrade)"
-                          : `Extend (${quiz.rollover_hours ?? 24}h${
+                        quiz.can_apply_rollover
+                          ? `Extend (${quiz.rollover_hours ?? 24}h${
                               quiz.rollover_membership_applies_max != null &&
                               quiz.rollover_membership_applies_max > 1
                                 ? ` · ${Math.max(
@@ -1580,6 +1595,7 @@ export function QuizList({
                                   )} left`
                                 : ""
                             })`
+                          : "Extend with points"
                       }
                       onStart={canStart ? () => handleStartQuiz(quiz.id) : undefined}
                       startLabel={startLabelAfterDue}

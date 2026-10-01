@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { UniversityLogo, universityHasFullWordmark } from "@/components/auth/UniversityLogo"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -91,9 +91,15 @@ export default function AuthUniversityPage() {
   const [selected, setSelected] = useState<UniversityRecord | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  const userPickedRef = useRef(false)
 
   useRememberedStudentAuthRedirect()
-  useRememberedFacultyAuthRedirect()
+  useRememberedFacultyAuthRedirect(() => userPickedRef.current)
+
+  const pick = (uni: UniversityRecord) => {
+    userPickedRef.current = true
+    setSelected(uni)
+  }
 
   useEffect(() => {
     void (async () => {
@@ -242,7 +248,7 @@ export default function AuthUniversityPage() {
                           ? true
                           : Boolean(selected && selected.id === 0 && selected.name === uni.name && selected.domain === uni.domain)
                       }
-                      onSelect={() => setSelected(uni)}
+                      onSelect={() => pick(uni)}
                     />
                   ))
                 )
@@ -253,7 +259,7 @@ export default function AuthUniversityPage() {
                       key={`remembered-${rememberedOutsideFeatured.id}`}
                       uni={rememberedOutsideFeatured}
                       active={selected?.id === rememberedOutsideFeatured.id}
-                      onSelect={() => setSelected(rememberedOutsideFeatured)}
+                      onSelect={() => pick(rememberedOutsideFeatured)}
                     />
                   ) : null}
                   {featured.map((uni) => (
@@ -261,7 +267,7 @@ export default function AuthUniversityPage() {
                       key={uni.id}
                       uni={uni}
                       active={selected?.id === uni.id}
-                      onSelect={() => setSelected(uni)}
+                      onSelect={() => pick(uni)}
                     />
                   ))}
                 </>
@@ -270,7 +276,7 @@ export default function AuthUniversityPage() {
                 <UniversityOptionButton
                   uni={other}
                   active={Boolean(selected && isOtherUniversity(selected))}
-                  onSelect={() => setSelected(other)}
+                  onSelect={() => pick(other)}
                 />
               ) : null}
             </div>

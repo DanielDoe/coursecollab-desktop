@@ -129,7 +129,7 @@ function timestampMs(value: string | Date | null | undefined): number | null {
   return Number.isNaN(t) ? null : t
 }
 
-/** Live for students only when a due date or duration window is still open. */
+/** Live for students when the due date is still ahead, the duration window is open, or there is no deadline. */
 export function classroomAssignmentOpenState(
   row: ClassroomAssignmentOpenInput,
 ): ClassroomAssignmentOpenState {
@@ -149,7 +149,7 @@ export function classroomAssignmentOpenState(
     return "expired"
   }
 
-  return "unscheduled"
+  return "active"
 }
 
 /** CodeBench / manage lists — hide only assignments that passed their due or duration window. */

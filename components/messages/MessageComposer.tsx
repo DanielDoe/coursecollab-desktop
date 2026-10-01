@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useRef, useState } from "react"
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Underline from "@tiptap/extension-underline"
@@ -33,8 +33,49 @@ import {
   uploadMessageAttachment,
 } from "@/lib/direct-messages/upload-message-attachment-client"
 import { mediaDisplayUrl } from "@/lib/media/display-url"
+import {
+  LOCAL_DEVICE_FILE_PASTE_ERROR,
+  messageIsOnlyLocalDeviceFile,
+  plainTextHasLocalDeviceFileUrl,
+} from "@/lib/direct-messages/local-device-file"
 
 export type { MessageAttachmentDraft } from "@/lib/direct-messages/attachments"
+
+function isClipboardImageFile(file: File): boolean {
+  if (file.size <= 0) return false
+  const type = file.type.toLowerCase()
+  if (type.startsWith("image/")) return true
+  if (/^public\.(png|jpe?g|gif|webp|heic|heif|tiff|image)$/.test(type)) return true
+  return /\.(png|jpe?g|gif|webp|heic|heif|bmp|tiff?)$/i.test(file.name)
+}
+
+/** Read files before text. iOS paste often hides the photo behind a file:// string. */
+function imageFilesFromClipboard(clipboard: DataTransfer): File[] {
+  const candidates: File[] = []
+  const seen = new Set<File>()
+  const add = (file: File | null) => {
+    if (!file || file.size <= 0 || seen.has(file)) return
+    seen.add(file)
+    candidates.push(file)
+  }
+  for (const file of Array.from(clipboard.files ?? [])) add(file)
+  for (const item of Array.from(clipboard.items ?? [])) {
+    const type = item.type.toLowerCase()
+    if (item.kind === "file" || type.startsWith("image/") || type.startsWith("public.")) {
+      add(item.getAsFile())
+    }
+  }
+  const images = candidates.filter(isClipboardImageFile)
+  if (images.length > 0) return images
+  const hint = `${clipboard.getData("text/plain") || ""}\n${clipboard.getData("text/uri-list") || ""}`
+  if (/\.(png|jpe?g|gif|webp|heic|heif|bmp|tiff?)(\b|$)/i.test(hint)) {
+    return candidates.filter((file) => {
+      const type = file.type.toLowerCase()
+      return !type || type === "application/octet-stream"
+    })
+  }
+  return []
+}
 
 const QUICK_EMOJIS = [
   "😀", "😊", "👍", "🙏", "❤️", "🎉", "✅", "📎",
@@ -134,6 +175,26 @@ function ComposerPlusMenu({
 
   const menuItems = [
     {
+      id: "gallery",
+      label: "Photo library",
+      description: "Choose a picture to send",
+      icon: ImageIcon,
+      onClick: () => {
+        onChoosePhoto()
+        setOpen(false)
+      },
+    },
+    {
+      id: "camera",
+      label: "Take photo",
+      description: "Use your camera",
+      icon: Camera,
+      onClick: () => {
+        onTakePhoto()
+        setOpen(false)
+      },
+    },
+    {
       id: "attach",
       label: "Attach file",
       description: "PDF, docs, and more",
@@ -149,26 +210,6 @@ function ComposerPlusMenu({
       description: "Add a web address",
       icon: Link2,
       onClick: () => setView("link"),
-    },
-    {
-      id: "camera",
-      label: "Take photo",
-      description: "Use your camera",
-      icon: Camera,
-      onClick: () => {
-        onTakePhoto()
-        setOpen(false)
-      },
-    },
-    {
-      id: "gallery",
-      label: "Photo library",
-      description: "Choose from device",
-      icon: ImageIcon,
-      onClick: () => {
-        onChoosePhoto()
-        setOpen(false)
-      },
     },
     {
       id: "emoji",
@@ -366,12 +407,16 @@ export function MessageComposer({
   className,
 }: MessageComposerProps) {
   const theme = useMessagesTheme()
+  const fileInputId = useId()
+  const cameraInputId = useId()
+  const photoInputId = useId()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const uploadFileRef = useRef<(file: File) => void>(() => {})
+  const recoverPhotoRef = useRef<() => void>(() => {})
   const attachmentsRef = useRef(attachments)
   attachmentsRef.current = attachments
   const uploadChainRef = useRef<Promise<void>>(Promise.resolve())
@@ -385,7 +430,11 @@ export function MessageComposer({
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
-      StarterKit.configure({ heading: { levels: [2, 3] } }),
+      StarterKit.configure({
+        heading: { levels: [2, 3] },
+        link: false,
+        underline: false,
+      }),
       Underline,
       Link.configure({ openOnClick: false, HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" } }),
       Placeholder.configure({ placeholder }),
@@ -393,6 +442,15 @@ export function MessageComposer({
     content: value || "",
     editable: !disabled,
     onUpdate: ({ editor: ed }) => {
+      const plain = ed.getText().replace(/\u00a0/g, " ")
+      if (messageIsOnlyLocalDeviceFile(plain)) {
+        queueMicrotask(() => {
+          if (!ed.isDestroyed) ed.commands.setContent("")
+        })
+        onChange("")
+        recoverPhotoRef.current()
+        return
+      }
       onChange(ed.getHTML())
     },
     editorProps: {
@@ -420,21 +478,33 @@ export function MessageComposer({
         }
         return false
       },
-      handlePaste: (_view, event) => {
+      handlePaste: (view, event) => {
         const clipboard = event.clipboardData
         if (!clipboard) return false
-        for (const item of clipboard.items) {
-          if (item.kind !== "file") continue
-          const file = item.getAsFile()
-          if (
-            file &&
-            (file.type.startsWith("image/") ||
-              /\.(png|jpe?g|gif|webp|heic|heif)$/i.test(file.name))
-          ) {
-            event.preventDefault()
-            uploadFileRef.current(file)
-            return true
-          }
+        const images = imageFilesFromClipboard(clipboard)
+        if (images.length > 0) {
+          event.preventDefault()
+          for (const file of images) uploadFileRef.current(file)
+          return true
+        }
+        const pastedText = `${clipboard.getData("text/plain") || ""}\n${clipboard.getData("text/uri-list") || ""}\n${clipboard.getData("text/html") || ""}`
+        if (
+          plainTextHasLocalDeviceFileUrl(pastedText) ||
+          messageIsOnlyLocalDeviceFile(clipboard.getData("text/plain") || "")
+        ) {
+          event.preventDefault()
+          recoverPhotoRef.current()
+          return true
+        }
+        const plain = clipboard.getData("text/plain") || ""
+        const touch =
+          typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches
+        if (touch && plain.trim()) {
+          event.preventDefault()
+          const from = view.state.selection.from
+          const to = view.state.selection.to
+          view.dispatch(view.state.tr.insertText(plain, from, to))
+          return true
         }
         return false
       },
@@ -522,6 +592,44 @@ export function MessageComposer({
 
   uploadFileRef.current = (file) => {
     queueUpload(file)
+  }
+
+  const recoveringPhotoRef = useRef(false)
+  recoverPhotoRef.current = () => {
+    if (recoveringPhotoRef.current) return
+    recoveringPhotoRef.current = true
+    const finish = () => {
+      recoveringPhotoRef.current = false
+    }
+    const fail = () => {
+      finish()
+      setUploadError(LOCAL_DEVICE_FILE_PASTE_ERROR)
+      photoInputRef.current?.click()
+    }
+    const read = navigator.clipboard?.read?.bind(navigator.clipboard)
+    if (!read) {
+      fail()
+      return
+    }
+    void read()
+      .then(async (items) => {
+        for (const item of items) {
+          const type = item.types.find((entry) => entry.startsWith("image/"))
+          if (!type) continue
+          const blob = await item.getType(type)
+          if (blob.size <= 0) continue
+          const subtype = type.slice("image/".length).split("+")[0] || "png"
+          const ext = subtype === "jpeg" ? "jpg" : subtype
+          uploadFileRef.current(new File([blob], `photo.${ext}`, { type }))
+          setUploadError(null)
+          finish()
+          return
+        }
+        fail()
+      })
+      .catch(() => {
+        fail()
+      })
   }
 
   const hasContent = composerCanSend(value, attachments)
@@ -645,6 +753,20 @@ export function MessageComposer({
         )}
       >
         <div className="flex items-center shrink-0 pb-0.5">
+          <button
+            type="button"
+            aria-label="Add photo"
+            disabled={disabled || uploading}
+            onClick={() => photoInputRef.current?.click()}
+            className={cn(
+              "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-all",
+              "text-slate-500 dark:text-slate-400 active:scale-95",
+              "disabled:opacity-40 disabled:pointer-events-none",
+              theme.page.iconText,
+            )}
+          >
+            <ImageIcon className="h-5 w-5" strokeWidth={2.25} />
+          </button>
           <ComposerPlusMenu
             disabled={disabled || uploading}
             uploading={uploading}
@@ -683,6 +805,7 @@ export function MessageComposer({
       </div>
 
       <input
+        id={fileInputId}
         ref={fileInputRef}
         type="file"
         className="hidden"
@@ -694,6 +817,7 @@ export function MessageComposer({
         }}
       />
       <input
+        id={cameraInputId}
         ref={cameraInputRef}
         type="file"
         className="hidden"
@@ -706,6 +830,7 @@ export function MessageComposer({
         }}
       />
       <input
+        id={photoInputId}
         ref={photoInputRef}
         type="file"
         className="hidden"

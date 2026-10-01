@@ -37,8 +37,8 @@ import {
 import { cn } from "@/lib/utils"
 
 const TAB_ITEMS = [
+  { id: "analytics", label: "Your read", icon: BarChart3 },
   { id: "profile", label: "Profile", icon: User },
-  { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "badges", label: "Badges", icon: Award },
   { id: "challenge", label: "Daily Challenge", icon: Target },
   { id: "leaderboard", label: "Leaderboard", icon: Trophy },
@@ -50,7 +50,7 @@ export function CodeBenchAnalyticsDashboardV2() {
   const searchParams = useSearchParams()
   const [studentId, setStudentId] = useState<string | null>(null)
   const [code, setCode] = useState("")
-  const [activeTab, setActiveTab] = useState<(typeof TAB_ITEMS)[number]["id"]>("profile")
+  const [activeTab, setActiveTab] = useState<(typeof TAB_ITEMS)[number]["id"]>("analytics")
   const [refreshKey, setRefreshKey] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const [progressSummary, setProgressSummary] = useState<CodebenchProgressSummary | null>(null)
@@ -156,7 +156,7 @@ export function CodeBenchAnalyticsDashboardV2() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-[var(--cc-text)] sm:text-2xl">Analytics & More</h1>
-          <p className="mt-0.5 text-sm text-[var(--cc-text-muted)]">Profile, badges, streak, and leaderboard</p>
+          <p className="mt-0.5 text-sm text-[var(--cc-text-muted)]">Your errors, what to improve, and what you already do well</p>
         </div>
         <Button
           type="button"
@@ -174,7 +174,7 @@ export function CodeBenchAnalyticsDashboardV2() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
       {/* Side nav — appearance-themed */}
       <nav
-        className="flex shrink-0 flex-col gap-0.5 lg:w-52 xl:w-56 lg:sticky lg:top-4 lg:border-l-2 lg:border-[var(--cc-drawer-soft-border)] lg:pl-3"
+        className="flex shrink-0 gap-1 overflow-x-auto pb-1 lg:sticky lg:top-4 lg:w-52 lg:flex-col lg:overflow-visible lg:border-l-2 lg:border-[var(--cc-drawer-soft-border)] lg:pb-0 lg:pl-3 xl:w-56"
         aria-label="CodeBench sections"
       >
         {TAB_ITEMS.map((item) => {
@@ -186,7 +186,7 @@ export function CodeBenchAnalyticsDashboardV2() {
               type="button"
               onClick={() => setTab(item.id)}
               className={cn(
-                "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-medium transition-all duration-300 min-h-[44px] sm:min-h-0",
+                "flex w-auto shrink-0 items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-medium transition-all duration-300 min-h-[44px] lg:w-full lg:min-h-0",
                 isActive ? PORTAL_NAV_LINK_ACTIVE : PORTAL_NAV_LINK_IDLE,
               )}
             >

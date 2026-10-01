@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { linkableMacSdkRoot } from './macos-sdk'
 import { binDirForCompiler, prependPath, userToolchainRoot } from './toolchain-paths'
 import type { CompilerFamily } from './types'
 
@@ -29,6 +30,10 @@ const PASSTHROUGH_KEYS = [
   'SystemRoot',
   'SYSTEMROOT',
   'WINDIR',
+  'SystemDrive',
+  'PATHEXT',
+  'ComSpec',
+  'COMSPEC',
   'USER',
   'USERNAME',
   'TERM',
@@ -77,6 +82,8 @@ export function buildCodebenchChildEnv(options: CodebenchChildEnvOptions = {}): 
   const env = pickProcessEnv()
   if (!env.LANG) env.LANG = 'en_US.UTF-8'
   if (options.useZigCache) ensureZigCacheEnv(env)
+  const sdk = linkableMacSdkRoot()
+  if (sdk) env.SDKROOT = sdk
   return prependPath(env, options.pathPrefix)
 }
 

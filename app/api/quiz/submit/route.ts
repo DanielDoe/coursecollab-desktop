@@ -4,12 +4,18 @@ import { sql } from "@/lib/db"
 
 import { ensureAiEvaluationSchema } from "@/lib/ensure-ai-evaluation-schema"
 import { isCodeAnswerCorrupt } from "@/lib/code-answer-validation"
-import { normalizeAiPercentScore, resolveAwardedPointsForAiSubmission } from "@/lib/ai-points-consistency"
+import {
+  AI_CODE_QUESTION_TYPES,
+  isAiProcessingPlaceholder,
+  normalizeAiPercentScore,
+  resolveAwardedPointsForAiSubmission,
+} from "@/lib/ai-points-consistency"
 import { flattenStoredAiFeedback } from "@/lib/flatten-stored-ai-feedback"
 import { getDocumentAtTime, type TypingReplay } from "@/lib/typing-replay"
 import { requireAttemptOwnership, requireCallerStudentDbId } from "@/lib/student-api-auth"
 import { submitAnswer } from "@/lib/assessment-core/submit"
 import { isServerGradedQuestionType } from "@/lib/server-graded-question-types"
+import { verifyEvaluationReceipt } from "@/lib/evaluation-receipt"
 
 // Use Node runtime for quiz submission (database-heavy operation)
 export const dynamic = 'force-dynamic'
@@ -125,7 +131,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const requiresReview = Boolean(requiresManualReview)
+    let requiresReview = Boolean(requiresManualReview)
     
     // Get the question's actual max points from database
     // Use COALESCE(max_points, points, 1) to get the correct point value
@@ -252,11 +258,49 @@ export async function POST(request: NextRequest) {
       (questionType || "").toLowerCase(),
     )
 
+    // ANTI-TAMPER: the evaluate round-trip signs a receipt binding its score to this exact
+    // (attemptId, questionId, answer) — see lib/evaluation-receipt.ts. When that receipt is
+    // present we trust ONLY it, not whatever pointsEarned/aiFeedback/score the client re-posted
+    // (those travel through the browser and can be edited before this call). A receipt that
+    // fails verification (edited, reused for a different answer, or expired) is treated as a
+    // tamper signal: the score is withheld pending review rather than trusted or silently zeroed.
+    // Older clients that don't send a receipt yet fall through to the pre-existing behavior below.
+    // Scoped to Section II AI-code types — multi_part/circuit_submission score off several other
+    // client-supplied sub-fields (mcqEarned, totalScore, rubricScores, ...) the receipt doesn't
+    // cover yet, so tampering there is unchanged for now.
+    const isAiCodeReceiptType = AI_CODE_QUESTION_TYPES.has(qt)
+    let verifiedReceipt: { isCorrect: boolean; points: number } | null = null
+    let receiptTamperDetected = false
+    const receiptCandidate = (aiFeedback as { receipt?: unknown } | null | undefined)?.receipt
+    if (isAiCodeReceiptType && receiptCandidate != null && attemptId && questionId) {
+      const verification = verifyEvaluationReceipt(receiptCandidate, {
+        attemptId: Number(attemptId),
+        questionId: Number(questionId),
+        answer,
+      })
+      if (verification.ok) {
+        verifiedReceipt = { isCorrect: verification.isCorrect, points: verification.points }
+      } else {
+        receiptTamperDetected = true
+        console.warn("[Submit] AI evaluation receipt failed verification — forcing manual review", {
+          attemptId,
+          questionId,
+          questionType: qt,
+          reason: verification.reason,
+        })
+      }
+    }
+    if (receiptTamperDetected) requiresReview = true
+
     // CRITICAL: If we have evaluation data (locallyVerified or aiFeedback with score),
     // ALWAYS use that to determine isCorrect, not the request body value
     // This prevents stale isCorrect: false from overwriting correct evaluation results
     let finalIsCorrect = isCorrect
-    if (locallyVerified !== undefined && locallyVerified !== null) {
+    if (verifiedReceipt) {
+      finalIsCorrect = verifiedReceipt.isCorrect
+    } else if (receiptTamperDetected) {
+      finalIsCorrect = false
+    } else if (locallyVerified !== undefined && locallyVerified !== null) {
       // Local verification was performed - use the evaluation result
       // If score > 0, it's correct (for binary questions) or partially correct (for partial credit)
       if (score !== undefined && score !== null) {
@@ -277,9 +321,14 @@ export async function POST(request: NextRequest) {
     // Calculate points based on question type
     // Scale to question's max points instead of assuming 1 point
     let finalPoints = finalIsCorrect ? questionMaxPoints : 0
-    
+
+    if (verifiedReceipt) {
+      finalPoints = verifiedReceipt.points
+    } else if (receiptTamperDetected) {
+      finalPoints = 0
+    }
     // Priority 1: Numeric pointsEarned from client / evaluation API
-    if (pointsEarned !== undefined && pointsEarned !== null && pointsEarned !== "") {
+    else if (pointsEarned !== undefined && pointsEarned !== null && pointsEarned !== "") {
       const pe = Number(pointsEarned)
       if (Number.isFinite(pe)) finalPoints = pe
     }
@@ -313,16 +362,34 @@ export async function POST(request: NextRequest) {
       finalPoints = partialCreditMultiplier * questionMaxPoints
     }
 
+    const isPlaceholderFeedback = isAiProcessingPlaceholder(aiFeedback)
+
+    // resolveAwardedPointsForAiSubmission re-derives % straight from aiFeedback.score /
+    // scoreBreakdown.finalScore for these code types — sanitize those to the verified receipt
+    // value (or drop them on a failed receipt) so it can't re-trust the tampered raw feedback.
+    let aiFeedbackForPoints: Record<string, unknown> | null = (aiFeedback as Record<string, unknown> | null) ?? null
+    let bodyScoreForPoints: unknown = score
+    if (isAiCodeReceiptType && verifiedReceipt) {
+      const verifiedPct = questionMaxPoints > 0 ? (verifiedReceipt.points / questionMaxPoints) * 100 : 0
+      aiFeedbackForPoints = { ...(aiFeedbackForPoints ?? {}), score: verifiedPct, scoreBreakdown: undefined }
+      bodyScoreForPoints = verifiedPct
+    } else if (isAiCodeReceiptType && receiptTamperDetected) {
+      aiFeedbackForPoints = null
+      bodyScoreForPoints = undefined
+    }
+
     // Align awarded points with canonical AI % + same attempt floor as evaluateCode (all quiz types)
-    finalPoints = resolveAwardedPointsForAiSubmission({
-      questionType,
-      questionMaxPoints,
-      tentativePoints: finalPoints,
-      bodyScore: score,
-      aiFeedback: aiFeedback ?? null,
-      aiEvaluationMode: quizAiEvaluationMode,
-      rawAnswer: answer,
-    })
+    finalPoints = isPlaceholderFeedback || (isAiCodeReceiptType && receiptTamperDetected)
+      ? 0
+      : resolveAwardedPointsForAiSubmission({
+          questionType,
+          questionMaxPoints,
+          tentativePoints: finalPoints,
+          bodyScore: bodyScoreForPoints,
+          aiFeedback: aiFeedbackForPoints,
+          aiEvaluationMode: quizAiEvaluationMode,
+          rawAnswer: answer,
+        })
 
     let responsePointsEarned = finalPoints
     let responseIsCorrect = finalIsCorrect

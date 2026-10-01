@@ -41,6 +41,7 @@ import { useStudentLiveClassroomSessions } from "@/hooks/use-student-live-classr
 import {
   LIVE_JOIN_GRACE_MS,
   assignmentHasOpenLiveSession,
+  replacementLiveSession,
   shouldTreatLiveSessionAsEnded,
 } from "@/lib/codebench-live-student-ui"
 import { forgetLiveJoin, readRememberedLiveJoin, rememberLiveJoin } from "@/lib/codebench-live-join-memory"
@@ -260,12 +261,21 @@ export function CodeBenchHubDashboardV2() {
     })
     liveMissCountRef.current = result.nextMissCount
     if (!result.ended || !liveJoin) return
+    const replacement = replacementLiveSession(liveSessions, liveJoin.assignmentId)
+    if (replacement) {
+      const nextId = String(replacement.assignmentId)
+      markLiveJoinGrace()
+      setLiveJoin((current) =>
+        current?.assignmentId === nextId ? current : { assignmentId: nextId, nonce: Date.now() },
+      )
+      return
+    }
     const assignmentId = liveJoin.assignmentId
     setLiveJoin(null)
     window.dispatchEvent(
       new CustomEvent("codebench-leave-live-session", { detail: { assignmentId } }),
     )
-  }, [liveJoin, liveSessions, liveSessionsLoading, listSupported])
+  }, [liveJoin, liveSessions, liveSessionsLoading, listSupported, markLiveJoinGrace])
 
   // Reload: resume the join remembered for this window once the session list can
   // confirm it is still open. The editor page records the join once the server accepts it.

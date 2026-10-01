@@ -31,6 +31,7 @@ export type DesktopUpdateStatus = {
 /** After the main window loads — early enough to prompt on launch, late enough for React to subscribe. */
 const STARTUP_CHECK_DELAY_MS = 2_500
 const INSTALL_EXIT_FALLBACK_MS = 2_500
+const MAC_QUIT_FALLBACK_MS = 10_000
 
 /** Public Blob feed — works even when the GitHub repo is private. */
 const DEFAULT_GENERIC_UPDATE_FEED_URL =
@@ -227,7 +228,9 @@ function showInstallWindow(version: string): Promise<void> {
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
-    closable: false,
+    // Must stay closable: on macOS a non-closable window cancels app.quit(), so
+    // quitAndInstall never exits. Frameless already hides the close button.
+    closable: true,
     alwaysOnTop: true,
     frame: false,
     transparent: process.platform === 'darwin',
@@ -259,6 +262,17 @@ function showInstallWindow(version: string): Promise<void> {
     void window.loadFile(page, { query: { name: 'CourseCollab', version } }).catch(() => finish())
     setTimeout(finish, 1200)
   })
+}
+
+function makeAllWindowsClosable(): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (window.isDestroyed()) continue
+    try {
+      window.setClosable(true)
+    } catch {
+      // ignore
+    }
+  }
 }
 
 function teardownBeforeInstall(): void {
@@ -400,6 +414,7 @@ function installUpdate(): DesktopUpdateStatus {
     await wait(INSTALLING_STAGE_MS)
     await setInstallStage('restarting')
     await wait(RESTARTING_STAGE_MS)
+    makeAllWindowsClosable()
     try {
       autoUpdater.quitAndInstall(false, true)
     } catch (error) {
@@ -411,7 +426,20 @@ function installUpdate(): DesktopUpdateStatus {
     // app.exit() here kills that proxy before the new bundle is swapped in, so the old
     // version comes back and the update prompt returns. Windows/Linux spawn a detached
     // installer first; the fallback exit only unsticks a tray that ignored quit.
-    if (process.platform === 'darwin') return
+    // If something still cancelled the quit, destroy the windows and quit again.
+    // ShipIt is already waiting on our pid, so it installs once we are gone.
+    if (process.platform === 'darwin') {
+      setTimeout(() => {
+        if (!installInFlight) return
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (window.isDestroyed()) continue
+          window.removeAllListeners('close')
+          window.destroy()
+        }
+        app.quit()
+      }, MAC_QUIT_FALLBACK_MS)
+      return
+    }
 
     setTimeout(() => {
       if (!installInFlight) return

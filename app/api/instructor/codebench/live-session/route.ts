@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { CLASSROOM_SUBMISSION_KIND_CODE } from "@/lib/classroom-solution-submission"
 import { submissionBelongsToCourse } from "@/lib/classroom-submission-scope"
 import {
+  endAllLiveClassroomSessionsForInstructor,
   endLiveClassroomSession,
   listOpenLiveClassroomSessions,
   startLiveClassroomSession,
@@ -102,7 +103,16 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const payload = await fetchLiveClassroomSession(courseScope.course.id, assignmentId, request)
+    const focusStudentDbId = Number(request.nextUrl.searchParams.get("studentId"))
+    // Older desktop builds omit `replay` and expect the focused replay on every poll.
+    const replayParam = request.nextUrl.searchParams.get("replay")
+    const payload = await fetchLiveClassroomSession(
+      courseScope.course.id,
+      assignmentId,
+      request,
+      Number.isFinite(focusStudentDbId) && focusStudentDbId > 0 ? focusStudentDbId : null,
+      { includeReplay: replayParam !== "0" },
+    )
     if (!payload) {
       return NextResponse.json({ error: "Assignment not found." }, { status: 404 })
     }
@@ -165,6 +175,16 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const scope = await requireInstructorCourse(request)
   if (!scope.ok) return scope.response
+
+  if (request.nextUrl.searchParams.get("all") === "1") {
+    try {
+      const ended = await endAllLiveClassroomSessionsForInstructor(scope.instructorId)
+      return NextResponse.json({ ok: true, ended })
+    } catch (error) {
+      console.error("[instructor codebench live-session end all]", error)
+      return NextResponse.json({ error: "Could not end live classroom sessions." }, { status: 500 })
+    }
+  }
 
   const assignmentId = readAssignmentId(request)
   if (assignmentId == null) {

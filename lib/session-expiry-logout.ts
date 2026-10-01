@@ -70,7 +70,10 @@ function isStudentPortalPath(): boolean {
   return path.startsWith("/student") || path.startsWith("/guest")
 }
 
-function isCrossPortalUnauthorized(headers: Headers): boolean {
+function isCrossPortalUnauthorized(headers: Headers, url: string): boolean {
+  if (url.split("?")[0].includes("/api/admin/") && (isFacultyPortalPath() || isStudentPortalPath())) {
+    return true
+  }
   const hasStudent = Boolean(headers.get("x-student-id")?.trim())
   const hasInstructor = Boolean(headers.get("x-instructor-id")?.trim())
   if (isFacultyPortalPath() && hasStudent && !hasInstructor) return true
@@ -129,7 +132,7 @@ export function logoutOnUnauthorizedResponse(
   if (isAuthFlowUrl(url)) return
   if (isIgnorableUnauthorizedUrl(url)) return
   const headers = requestHeaders(input, init)
-  if (isCrossPortalUnauthorized(headers)) return
+  if (isCrossPortalUnauthorized(headers, url)) return
   if (lacksCurrentPortalIdentity(headers)) return
   void recoverOrLogout()
 }

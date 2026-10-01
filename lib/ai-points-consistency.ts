@@ -15,7 +15,7 @@ import {
 } from "@/lib/circuit-submission"
 import { applyCircuitDisplayScoreFloor } from "@/lib/circuit-submission-grading-policy"
 
-const AI_CODE_QUESTION_TYPES = new Set([
+export const AI_CODE_QUESTION_TYPES = new Set([
   "code_write",
   "code_problem",
   "debug_code",
@@ -26,16 +26,24 @@ const AI_CODE_QUESTION_TYPES = new Set([
 
 const MULTI_PART_QT = "multi_part"
 
-/** Interpret AI score: 0–100 as percent; (0,1] non-integers as fraction of 100; 1 → 100%. */
+/**
+ * Interpret AI score on the 0–100 scale. Only non-integer values in (0,1) are treated as fractions
+ * (0.7 → 70%); integer 1 is 1% — the grading prompt scores near-empty work 0–5.
+ */
 export function normalizeAiPercentScore(raw: unknown): number | null {
   if (raw === undefined || raw === null || raw === "") return null
   const n = Number(raw)
   if (!Number.isFinite(n)) return null
-  if (n === 0) return 0
-  // >1 must be 0–100 scale (e.g. 70 = 70%)
-  if (n > 1) return Math.max(0, Math.min(100, n))
-  // 0 < n <= 1: treat as fraction (0.7 → 70%). Integer 1 → 100%.
-  return Math.max(0, Math.min(100, n * 100))
+  if (n <= 0) return 0
+  if (n >= 1) return Math.min(100, n)
+  return Math.min(100, n * 100)
+}
+
+/** Client posts `{ feedback: "Processing..." }` before AI grading returns; it carries no real grade. */
+export function isAiProcessingPlaceholder(aiFeedback: unknown): boolean {
+  if (!aiFeedback || typeof aiFeedback !== "object") return false
+  const fb = (aiFeedback as Record<string, unknown>).feedback
+  return typeof fb === "string" && /^processing\.{0,3}$/i.test(fb.trim())
 }
 
 function finalScoreFromFeedback(aiFeedback: Record<string, unknown> | null | undefined): number | null {

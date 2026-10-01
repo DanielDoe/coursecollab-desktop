@@ -4,7 +4,7 @@
 import { studentApiFetch } from "@/lib/auth"
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Lock, Crown, Gift, Heart, Clock, ArrowRight, X, Sparkles, Gamepad2, Brain } from "lucide-react"
+import { Lock, Crown, Clock, ArrowRight, X, Sparkles, Gamepad2, Brain } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -42,20 +42,12 @@ export function PlaygroundAccessModal({
   const explorerPlan = MEMBERSHIP_PLANS.find((p) => p.id === "Explorer")
   const trailblazerPlan = MEMBERSHIP_PLANS.find((p) => p.id === "Trailblazer")
 
-  const handleDonate = () => {
-    onClose()
-    // Store return path so donation success page can redirect back
-    const currentPath = window.location.pathname
-    sessionStorage.setItem("retakeModalReturnPath", currentPath)
-    router.push("/student/donate")
-  }
-
   const handleUpgrade = () => {
     onClose()
     router.push("/student/dashboard-v2/membership")
   }
   
-  // Refresh membership data when modal closes (in case user upgraded/donated in another tab)
+  // Refresh membership data when modal closes (in case the student upgraded in another tab)
   useEffect(() => {
     if (!open) {
       const studentId = sessionStorage.getItem("studentDatabaseId")
@@ -179,58 +171,6 @@ export function PlaygroundAccessModal({
 
           {(errorType === "upgrade_required" || errorType === "no_access") && (
           <>
-          {/* Donation Option */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="relative overflow-hidden rounded-2xl border-2 border-rose-300 dark:border-rose-700 bg-gradient-to-br from-rose-50 via-pink-50 to-rose-50 dark:from-rose-900/30 dark:via-pink-900/30 dark:to-rose-900/30 shadow-lg"
-          >
-            <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-rose-400/20 to-transparent rounded-full blur-3xl -mr-32 -mt-32" />
-            <div className="relative p-6">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="p-3 bg-gradient-to-br from-rose-500 to-pink-500 rounded-xl shadow-lg">
-                  <Heart className="h-6 w-6 text-white" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Support CourseCollab</h3>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">Unlock 14 days of premium access</p>
-                </div>
-                <Badge className="bg-rose-600 text-white px-3 py-1 text-sm font-semibold">14 Days</Badge>
-              </div>
-
-              <p className="text-slate-700 dark:text-slate-300 mb-5 leading-relaxed">
-                Donate any amount to unlock <strong>14 days of Trailblazer-level access</strong>, including unlimited playground and AI tutor!
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-                <div className="flex items-start gap-2 p-3 bg-white/60 dark:bg-slate-800/60 rounded-lg">
-                  <Gamepad2 className="h-5 w-5 text-rose-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="font-semibold text-sm">Unlimited Playground</div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400">No credit limits</div>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2 p-3 bg-white/60 dark:bg-slate-800/60 rounded-lg">
-                  <Brain className="h-5 w-5 text-rose-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="font-semibold text-sm">High-capacity Cora</div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400">No credit limits</div>
-                  </div>
-                </div>
-              </div>
-
-              <Button
-                onClick={handleDonate}
-                size="lg"
-                className="w-full bg-gradient-to-r from-rose-600 via-pink-600 to-rose-600 hover:from-rose-700 hover:via-pink-700 hover:to-rose-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
-              >
-                <Gift className="h-5 w-5 mr-2" />
-                Donate Now - Unlock Premium
-              </Button>
-            </div>
-          </motion.div>
-
           {/* Membership Plans */}
           <div className="grid md:grid-cols-2 gap-6">
             {/* Explorer */}

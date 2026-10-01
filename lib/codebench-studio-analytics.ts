@@ -78,6 +78,19 @@ export type StudioSnapshot = {
   coraBrief: string
   workshopLog: StudioLogItem[]
   recent: StudioEvent[]
+  runRows: StudioRunRow[]
+}
+
+export type StudioRunRow = {
+  id: string
+  at: number
+  outcome: "error" | "clean" | "runtime"
+  title: string
+  fileName?: string
+  message?: string
+  meaning: string
+  nextStep: string
+  repeatCount: number
 }
 
 const STORAGE_PREFIX = "codebench_studio_analytics_v1_"
@@ -253,6 +266,47 @@ export function saveStudioEvents(studentId: string, events: StudioEvent[]) {
 }
 
 let liveAssignmentId: string | null = null
+let remoteStudioEvents: StudioEvent[] = []
+
+function studioEventKey(event: StudioEvent) {
+  const bucket = Math.floor(event.at / 8000)
+  return `${event.type}|${bucket}|${event.errorFamily ?? ""}|${(event.errorMessage ?? "").slice(0, 80)}|${event.fileName ?? ""}|${event.tool ?? ""}`
+}
+
+/** Local runs plus the saved server log, without counting the same compile twice. */
+export function mergeStudioEvents(local: StudioEvent[], remote: StudioEvent[]) {
+  const seen = new Set<string>()
+  const merged: StudioEvent[] = []
+  for (const event of [...remote, ...local].sort((a, b) => a.at - b.at)) {
+    const key = studioEventKey(event)
+    if (seen.has(key)) continue
+    seen.add(key)
+    merged.push(event)
+  }
+  return merged.slice(-MAX_EVENTS)
+}
+
+export function rememberRemoteStudioEvents(events: StudioEvent[]) {
+  remoteStudioEvents = events.slice(-MAX_EVENTS)
+}
+
+export async function pullRemoteStudioEvents(studentId: string) {
+  if (typeof window === "undefined" || !studentId || studentId === "local") return
+  try {
+    const res = await fetch(`/api/codebench/studio-events?studentId=${encodeURIComponent(studentId)}`)
+    if (!res.ok) return
+    const payload = (await res.json()) as { events?: StudioEvent[] }
+    if (!Array.isArray(payload.events)) return
+    rememberRemoteStudioEvents(
+      payload.events.filter(
+        (event) => event && typeof event.type === "string" && typeof event.at === "number",
+      ),
+    )
+    window.dispatchEvent(new CustomEvent("codebench-studio-analytics"))
+  } catch {
+    // The on-device log still feeds Cora and the analytics page.
+  }
+}
 
 /** Tag studio events with the live classroom the editor is streaming to (null when not live). */
 export function setStudioLiveAssignment(assignmentId: string | null) {
@@ -368,7 +422,44 @@ export function buildStudioSnapshot(events: StudioEvent[]): StudioSnapshot {
     coraBrief,
     workshopLog: buildWorkshopLog(events),
     recent: events.slice(-12).reverse(),
+    runRows: buildRunRows(events, counts),
   }
+}
+
+function buildRunRows(events: StudioEvent[], counts: Map<StudioErrorFamily, number>): StudioRunRow[] {
+  const rows: StudioRunRow[] = []
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]
+    if (!event) continue
+    if (event.type === "compile_success") {
+      rows.push({
+        id: event.id,
+        at: event.at,
+        outcome: "clean",
+        title: "Clean compile",
+        fileName: event.fileName,
+        meaning: "This run compiled.",
+        nextStep: "Change one thing, then Run again.",
+        repeatCount: 0,
+      })
+    } else if (event.type === "compile_error" || event.type === "runtime_exit") {
+      const family = event.type === "runtime_exit" ? "runtime" : event.errorFamily ?? "other"
+      const guide = FAMILY_COPY[family] ?? FAMILY_COPY.other
+      rows.push({
+        id: event.id,
+        at: event.at,
+        outcome: event.type === "runtime_exit" ? "runtime" : "error",
+        title: guide.label,
+        fileName: event.fileName,
+        message: event.errorMessage,
+        meaning: guide.tip,
+        nextStep: guide.nextMove,
+        repeatCount: counts.get(family) ?? 1,
+      })
+    }
+    if (rows.length >= 200) break
+  }
+  return rows
 }
 
 function buildCoachCopy(input: {
@@ -502,7 +593,7 @@ function buildCoraBrief(input: {
 }
 
 export function getStudioSnapshot(studentId: string) {
-  return buildStudioSnapshot(loadStudioEvents(studentId))
+  return buildStudioSnapshot(mergeStudioEvents(loadStudioEvents(studentId), remoteStudioEvents))
 }
 
 export function studioContextForPrompts(studentId: string) {

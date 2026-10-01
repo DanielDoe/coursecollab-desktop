@@ -278,24 +278,64 @@ function runVersion(executablePath: string, family: CompilerFamily): Promise<str
   })
 }
 
+async function compilerInfoFromCandidate(candidate: {
+  family: CompilerFamily
+  path: string
+}): Promise<CompilerInfo | null> {
+  // /usr/bin/clang++ on a Mac without Command Line Tools is a stub. Probing it
+  // pops Apple's install dialog and then times out.
+  if (isUnusable(candidate.path, candidate.family, null)) return null
+  const version = await runVersion(candidate.path, candidate.family)
+  if (!version && candidate.family !== 'cl') return null
+  if (isUnusable(candidate.path, candidate.family, version)) return null
+  return {
+    ...emptyInfo(),
+    available: true,
+    compiler: candidate.family,
+    path: candidate.path,
+    version: version ?? candidate.family,
+    setupGuidance: '',
+    source: classifySource(candidate.path),
+    canInstall: false,
+  }
+}
+
 async function firstUsable(candidates: { family: CompilerFamily; path: string }[]): Promise<CompilerInfo | null> {
-  const base = emptyInfo()
   for (const candidate of candidates) {
-    // /usr/bin/clang++ on a Mac without Command Line Tools is a stub. Probing it
-    // pops Apple's install dialog and then times out.
-    if (isUnusable(candidate.path, candidate.family, null)) continue
-    const version = await runVersion(candidate.path, candidate.family)
-    if (!version && candidate.family !== 'cl') continue
-    if (isUnusable(candidate.path, candidate.family, version)) continue
-    return {
-      ...base,
-      available: true,
-      compiler: candidate.family,
-      path: candidate.path,
-      version: version ?? candidate.family,
-      setupGuidance: '',
-      source: classifySource(candidate.path),
-      canInstall: false,
+    const info = await compilerInfoFromCandidate(candidate)
+    if (info) return info
+  }
+  return null
+}
+
+const MAX_COMPILER_PROBES = 6
+
+/**
+ * Compilers that answer --version, system tools first. A managed copy that only
+ * prints a version must not hide a system compiler that can actually compile.
+ */
+export async function firstDetectedCppCompiler(
+  scope: 'all' | 'managed' | 'system',
+  accept: (info: CompilerInfo) => Promise<boolean>,
+): Promise<CompilerInfo | null> {
+  const groups =
+    scope === 'managed'
+      ? [collectManagedPortable()]
+      : scope === 'system'
+        ? [collectSystemCandidates(), collectPathZig()]
+        : [collectSystemCandidates(), collectManagedPortable(), collectPathZig()]
+  const seen = new Set<string>()
+  let probes = 0
+  for (const group of groups) {
+    for (const candidate of group) {
+      const key = candidate.path.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      const info = await compilerInfoFromCandidate(candidate)
+      if (!info) continue
+      probes += 1
+      if (await accept(info)) return info
+      if (probes >= MAX_COMPILER_PROBES) return null
     }
   }
   return null

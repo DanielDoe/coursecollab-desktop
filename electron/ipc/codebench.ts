@@ -57,8 +57,9 @@ export function registerCodebenchIpc(): void {
     return codeBenchProcessManager.warmupToolchain()
   })
 
-  ipcMain.handle('codebench:ensure-toolchain', async () => {
-    return codeBenchProcessManager.ensureToolchain()
+  ipcMain.handle('codebench:ensure-toolchain', async (_event, options?: { force?: boolean }) => {
+    const force = Boolean(options && typeof options === 'object' && options.force === true)
+    return codeBenchProcessManager.ensureToolchain(force)
   })
 
   ipcMain.handle('codebench:run', async (event, request: CodeBenchRunRequest) => {

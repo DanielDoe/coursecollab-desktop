@@ -568,17 +568,37 @@ function verifySelectAll(studentAnswers: string[], questionData: any): Verificat
 /**
  * Verify Fill in the Blank Question
  */
-function verifyFillBlank(studentAnswer: string, questionData: any): VerificationResult {
-  const normalizedStudent = normalizeAnswer(studentAnswer)
+/** Keeps punctuation between digits so "3.14" ≠ "314" and "1,2" ≠ "12". */
+function normalizeFillAnswer(answer: string): string {
+  return answer
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/(?<!\d)[.,;:!?]|[.,;:!?](?!\d)/g, '')
+    .trim()
+}
+
+function looksNumeric(value: string): boolean {
+  return /^[-+]?\d[\d.,eE+-]*$/.test(value)
+}
+
+function verifyFillBlank(
+  studentAnswer: string,
+  questionData: any,
+  options: { exactOutput?: boolean } = {},
+): VerificationResult {
+  const normalizedStudent = options.exactOutput
+    ? studentAnswer.trim().replace(/\s+/g, ' ')
+    : normalizeFillAnswer(studentAnswer)
   
   // Get correct answer(s) - could be array, JSON string, or plain string
   let correctAnswer = questionData.correctAnswer
   
-  // If it's a JSON string, parse it
-  if (typeof correctAnswer === 'string') {
+  // Only a JSON array of strings lists alternatives; an expected output like "[1, 2, 3]" is literal.
+  if (typeof correctAnswer === 'string' && !options.exactOutput) {
     try {
       const parsed = JSON.parse(correctAnswer)
-      if (Array.isArray(parsed)) {
+      if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((a) => typeof a === 'string')) {
         correctAnswer = parsed
       }
     } catch {
@@ -587,25 +607,28 @@ function verifyFillBlank(studentAnswer: string, questionData: any): Verification
   }
   
   // Handle multiple acceptable answers
-  const acceptableAnswers = Array.isArray(correctAnswer) 
-    ? correctAnswer.map(a => normalizeAnswer(String(a)))
-    : [normalizeAnswer(String(correctAnswer))]
+  const normalizeKey = (a: unknown) =>
+    options.exactOutput ? String(a).trim().replace(/\s+/g, ' ') : normalizeFillAnswer(String(a))
+  const acceptableAnswers = Array.isArray(correctAnswer)
+    ? correctAnswer.map(normalizeKey)
+    : [normalizeKey(correctAnswer)]
   
+  const allowFuzzy = (answer: string) =>
+    !options.exactOutput && !looksNumeric(answer) && !looksNumeric(normalizedStudent)
+
   const isCorrect = acceptableAnswers.some(answer => {
-    // Exact match
     if (normalizedStudent === answer) return true
-    
-    // Contains match (for partial answers)
+    if (!allowFuzzy(answer)) return false
     if (answer.includes(normalizedStudent) || normalizedStudent.includes(answer)) {
-      return normalizedStudent.length >= answer.length * 0.8 // 80% similarity
+      return normalizedStudent.length >= answer.length * 0.8
     }
-    
     return false
   })
   
-  // Calculate similarity score for partial credit
+  // Partial credit only for near-miss spelling on text answers — never for numbers or program output.
   let maxSimilarity = 0
   acceptableAnswers.forEach(answer => {
+    if (!allowFuzzy(answer)) return
     const similarity = calculateSimilarity(normalizedStudent, answer)
     maxSimilarity = Math.max(maxSimilarity, similarity)
   })
@@ -721,9 +744,10 @@ export function verifyAnswerLocally(
       case 'shortanswer':
       case 'fillcode':
       case 'tracelogic':
+        return verifyFillBlank(String(parsedStudentAnswer), questionData)
       case 'traceoutput':
       case 'codeoutput':
-        return verifyFillBlank(String(parsedStudentAnswer), questionData)
+        return verifyFillBlank(String(parsedStudentAnswer), questionData, { exactOutput: true })
 
       case 'circuitnumeric':
         return verifyCircuitNumeric(parsedStudentAnswer, parseCircuitSpec(questionData?.circuitSpec))

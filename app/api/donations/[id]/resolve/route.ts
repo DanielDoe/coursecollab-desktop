@@ -222,7 +222,7 @@ export async function POST(
               type: "donation",
               title: "Donation Confirmed",
               message: `Your donation of $${actualAmount.toFixed(2)} has been confirmed and processed successfully! Thank you for your support!`,
-              link: "/student/donate"
+              link: "/student/dashboard-v2/membership"
             })
           } catch (error) {
             console.error("[Resolve Donation] Failed to send notification:", error)
@@ -304,8 +304,8 @@ export async function POST(
             studentId: donation.student_id,
             type: "donation",
             title: "Payment Not Completed",
-            message: `Your donation payment was not completed. ${errorMessage}. If you'd like to donate, please try again.`,
-            link: "/student/donate"
+            message: `Your donation payment was not completed. ${errorMessage}. New donations are closed. Upgrade to Explorer or Trailblazer if you still need access.`,
+            link: "/student/dashboard-v2/membership"
           })
         } catch (error) {
           console.error("[Resolve Donation] Failed to send notification:", error)

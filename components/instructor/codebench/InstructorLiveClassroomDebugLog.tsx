@@ -244,7 +244,7 @@ export function InstructorLiveClassroomDebugLog() {
           Loading log…
         </p>
       ) : rows.length === 0 ? (
-        <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>No live classroom events for this course yet.</p>
+        <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>No live classroom events for this section yet.</p>
       ) : (
         <div className="max-h-80 space-y-2 overflow-y-auto overscroll-contain pr-1">
           {rows.map((row) => (

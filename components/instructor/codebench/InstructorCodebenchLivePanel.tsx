@@ -81,6 +81,7 @@ export function InstructorCodebenchLivePanel({
     reload: reloadSessions,
   } = useInstructorLiveClassroomSessions()
   const [startingId, setStartingId] = useState<number | null>(null)
+  const [closingAll, setClosingAll] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [startLiveAfterCreate, setStartLiveAfterCreate] = useState(true)
@@ -328,6 +329,42 @@ export function InstructorCodebenchLivePanel({
       setCreating(false)
     }
   }, [formValues, handleStart, reload, reloadSessions, sessionFilter, startLiveAfterCreate, toast])
+
+  const closeAllLiveSessions = useCallback(async () => {
+    if (openSessions.length === 0 || closingAll) return
+    setClosingAll(true)
+    try {
+      const allResponse = await instructorApiFetch("/api/instructor/codebench/live-session?all=1", {
+        method: "DELETE",
+      })
+      if (!allResponse.ok) {
+        const results = await Promise.all(
+          openSessions.map((session) =>
+            instructorApiFetch(
+              `/api/instructor/codebench/live-session?assignmentId=${session.assignmentId}`,
+              { method: "DELETE" },
+            ),
+          ),
+        )
+        if (results.some((response) => !response.ok)) {
+          throw new Error("Some live sessions could not be closed.")
+        }
+      }
+      toast({
+        title: "Live sessions closed",
+        description: "Students can still submit the questions. Nothing is on air.",
+      })
+      await reloadSessions(true)
+    } catch (error) {
+      toast({
+        title: "Could not close live sessions",
+        description: error instanceof Error ? error.message : "Try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setClosingAll(false)
+    }
+  }, [closingAll, openSessions, reloadSessions, toast])
 
   const instructor = getInstructorData()
   const scopeChip = [instructor?.selectedCourseCode, instructor?.selectedSessionCode]
@@ -587,6 +624,17 @@ export function InstructorCodebenchLivePanel({
                   <Badge variant="secondary" className="text-[10px]">
                     {liveRows.length} live
                   </Badge>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="ml-auto h-7 px-2.5 text-xs"
+                    onClick={() => void closeAllLiveSessions()}
+                    disabled={closingAll}
+                  >
+                    {closingAll ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                    Close all
+                  </Button>
                 </div>
                 <div className="instructor-challenges-grid grid grid-cols-1 gap-3">
                   {liveRows.map((row) => renderLiveAssignmentCard(row))}

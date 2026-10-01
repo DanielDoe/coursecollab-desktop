@@ -3,6 +3,9 @@
 import { useEffect } from "react"
 import { useNativeApp } from "@/hooks/use-native-app"
 
+/** The file input the native shell was just asked to fill. */
+let pendingNativeFileInput: HTMLInputElement | null = null
+
 /** Lets the native shell pick files/camera and inject results into file inputs. */
 export function NativeWebBridgeListener() {
   const isNative = useNativeApp()
@@ -19,7 +22,14 @@ export function NativeWebBridgeListener() {
         if (!data || data.type !== "NATIVE_FILE_RESULT") return
 
         const inputId = data.inputId as string | undefined
-        const input = inputId ? document.getElementById(inputId) : null
+        const byId = inputId ? document.getElementById(inputId) : null
+        const input =
+          byId instanceof HTMLInputElement
+            ? byId
+            : pendingNativeFileInput instanceof HTMLInputElement
+              ? pendingNativeFileInput
+              : null
+        pendingNativeFileInput = null
         if (!(input instanceof HTMLInputElement) || input.type !== "file") return
 
         const filePayload = data.files?.[0]
@@ -54,6 +64,7 @@ export function NativeWebBridgeListener() {
 
       const accept = input.accept || "image/*"
       const capture = input.hasAttribute("capture")
+      pendingNativeFileInput = input
       e.preventDefault()
       e.stopPropagation()
 

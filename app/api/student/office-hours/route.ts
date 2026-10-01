@@ -3,7 +3,7 @@ import { sql } from "@/lib/db"
 import {
   ensureOfficeHoursCourseScopeColumns,
   hasOfficeHourRequestsCourseIdColumn,
-  resolveStudentCourseIdForOfficeHours,
+  resolveActiveOfficeHourEnrollment,
 } from "@/lib/office-hours-course-scope"
 import { createInstructorNotification } from "@/lib/create-instructor-notification"
 import { requireBoundStudentCaller } from "@/lib/student-api-auth"
@@ -22,6 +22,14 @@ export async function GET(request: NextRequest) {
       SELECT ohr.*
       FROM office_hour_requests ohr
       WHERE ohr.student_id = ${internalId}
+        OR EXISTS (
+          SELECT 1
+          FROM students self
+          JOIN students sib ON lower(btrim(sib.email)) = lower(btrim(self.email))
+          WHERE self.id = ${internalId}
+            AND sib.id = ohr.student_id
+            AND NULLIF(btrim(self.email), '') IS NOT NULL
+        )
       ORDER BY ohr.created_at DESC
     `
     let withAttachments = requests
@@ -67,7 +75,9 @@ export async function POST(request: NextRequest) {
 
     await ensureOfficeHoursCourseScopeColumns()
     const hasCourseCol = await hasOfficeHourRequestsCourseIdColumn()
-    const studentCourseId = hasCourseCol ? await resolveStudentCourseIdForOfficeHours(internalId) : null
+    const enrollment = await resolveActiveOfficeHourEnrollment(internalId)
+    const requestStudentId = enrollment.studentId
+    const studentCourseId = hasCourseCol ? enrollment.courseId : null
 
     const [inserted] = hasCourseCol
       ? await sql`
@@ -75,7 +85,7 @@ export async function POST(request: NextRequest) {
             student_id, course_id, topic, area_of_concern, description, priority, status
           )
           VALUES (
-            ${internalId},
+            ${requestStudentId},
             ${studentCourseId},
             ${topic.trim()},
             ${areaOfConcern || null},
@@ -87,7 +97,7 @@ export async function POST(request: NextRequest) {
         `
       : await sql`
           INSERT INTO office_hour_requests (student_id, topic, area_of_concern, description, priority, status)
-          VALUES (${internalId}, ${topic.trim()}, ${areaOfConcern || null}, ${description || null}, ${priority}, 'pending')
+          VALUES (${requestStudentId}, ${topic.trim()}, ${areaOfConcern || null}, ${description || null}, ${priority}, 'pending')
           RETURNING *
         `
     const requestId = (inserted as any).id
@@ -111,7 +121,7 @@ export async function POST(request: NextRequest) {
         `
       }
     }
-    const student = await sql`SELECT full_name, student_id FROM students WHERE id = ${internalId} LIMIT 1`
+    const student = await sql`SELECT full_name, student_id FROM students WHERE id = ${requestStudentId} LIMIT 1`
     const name = student[0]?.full_name || student[0]?.student_id || "A student"
 
     try {

@@ -427,8 +427,8 @@ export async function POST(request: NextRequest) {
                   studentId: donation.student_id,
                   type: "donation",
                   title: "Payment Not Completed",
-                  message: `Your donation payment was not completed. The checkout session expired. If you'd like to donate, please try again.`,
-                  link: "/student/donate"
+                  message: `Your donation payment was not completed. The checkout session expired. New donations are closed. Upgrade to Explorer or Trailblazer if you still need access.`,
+                  link: "/student/dashboard-v2/membership"
                 })
                 console.log(`[Sync Pending] ✅ Notification sent to student ${donation.student_id} about abandoned donation`)
               } catch (error) {

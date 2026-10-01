@@ -331,6 +331,59 @@ export function getSQL() {
   return getOrCreateNeonSql()
 }
 
+export type TransactionSql = {
+  (strings: TemplateStringsArray, ...values: any[]): any
+  query: (queryWithPlaceholders: string, params?: any[]) => any
+}
+
+/**
+ * Run a non-interactive transaction (Neon HTTP `transaction()`, or pg BEGIN/COMMIT).
+ * SET LOCAL / set_config(..., true) applied inside `build` lasts only for this batch.
+ */
+export async function runSqlTransaction<T = Record<string, unknown>>(
+  build: (tx: TransactionSql) => unknown[],
+): Promise<T[][]> {
+  const isEdgeRuntime = checkIsEdgeRuntime()
+  const isProduction = getIsProduction()
+  const usePgPool =
+    process.env.USE_PG_POOL === "true" && !isEdgeRuntime && isProduction && productionPool
+
+  if (usePgPool && productionPool) {
+    const client = await productionPool.connect()
+    try {
+      await client.query("BEGIN")
+      const collected: { text: string; params: any[] }[] = []
+      const tx = ((strings: TemplateStringsArray, ...values: any[]) => {
+        collected.push(convertTemplateLiteral(strings, values))
+        return collected[collected.length - 1]
+      }) as TransactionSql
+      tx.query = (queryWithPlaceholders: string, params: any[] = []) => {
+        collected.push({ text: queryWithPlaceholders, params })
+        return collected[collected.length - 1]
+      }
+      build(tx)
+      const results: T[][] = []
+      for (const q of collected) {
+        results.push((await client.query(q.text, q.params)).rows as T[])
+      }
+      await client.query("COMMIT")
+      return results
+    } catch (error) {
+      try {
+        await client.query("ROLLBACK")
+      } catch {
+        /* ignore */
+      }
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  const neonClient = getOrCreateNeonSql()
+  return (await neonClient.transaction((tx) => build(tx as TransactionSql) as any)) as T[][]
+}
+
 // Export sql as a tagged template function (like neon() returns)
 // This allows us to use sql`SELECT * FROM table` syntax
 // CRITICAL: All queries automatically use Central Time (America/Chicago)

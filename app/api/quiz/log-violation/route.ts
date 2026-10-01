@@ -34,58 +34,9 @@ export async function POST(request: NextRequest) {
     const ownership = await requireAttemptOwnership(request, Number(attemptId))
     if (!ownership.ok) return ownership.response
 
-    // Update violation counts based on type
-    let updateQuery = ""
-    switch (violation.type) {
-      case "tab_switch":
-        updateQuery = `
-          UPDATE quiz_attempts 
-          SET 
-            tab_switch_count = tab_switch_count + 1,
-            violation_log = violation_log || $1::jsonb
-          WHERE id = $2
-          RETURNING tab_switch_count, copy_paste_attempts, mouse_leave_count
-        `
-        break
-      case "copy_attempt":
-      case "paste_attempt":
-      case "copy_paste":
-        updateQuery = `
-          UPDATE quiz_attempts 
-          SET 
-            copy_paste_attempts = copy_paste_attempts + 1,
-            violation_log = violation_log || $1::jsonb
-          WHERE id = $2
-          RETURNING tab_switch_count, copy_paste_attempts, mouse_leave_count
-        `
-        break
-      case "mouse_leave":
-        updateQuery = `
-          UPDATE quiz_attempts 
-          SET 
-            mouse_leave_count = mouse_leave_count + 1,
-            violation_log = violation_log || $1::jsonb
-          WHERE id = $2
-          RETURNING tab_switch_count, copy_paste_attempts, mouse_leave_count
-        `
-        break
-      case "gemini_window":
-        updateQuery = `
-          UPDATE quiz_attempts 
-          SET 
-            violation_log = violation_log || $1::jsonb
-          WHERE id = $2
-          RETURNING tab_switch_count, copy_paste_attempts, mouse_leave_count
-        `
-        break
-      default:
-        updateQuery = `
-          UPDATE quiz_attempts 
-          SET violation_log = violation_log || $1::jsonb
-          WHERE id = $2
-          RETURNING tab_switch_count, copy_paste_attempts, mouse_leave_count
-        `
-    }
+    // Informational focus facts (instructor policy) are logged but must not count toward the
+    // server-side violation lock, and completed attempts no longer accumulate violations.
+    const punitive = violation.punitive !== false
 
     // Execute the appropriate query based on violation type
     let result
@@ -94,9 +45,9 @@ export async function POST(request: NextRequest) {
         result = await sql`
           UPDATE quiz_attempts 
           SET 
-            tab_switch_count = tab_switch_count + 1,
-            violation_log = violation_log || ${JSON.stringify([violation])}::jsonb
-          WHERE id = ${attemptId}
+            tab_switch_count = tab_switch_count + ${punitive ? 1 : 0},
+            violation_log = COALESCE(violation_log, '[]'::jsonb) || ${JSON.stringify([violation])}::jsonb
+          WHERE id = ${attemptId} AND completed_at IS NULL
           RETURNING tab_switch_count, copy_paste_attempts, mouse_leave_count
         `
         break
@@ -108,7 +59,7 @@ export async function POST(request: NextRequest) {
           SET 
             copy_paste_attempts = copy_paste_attempts + 1,
             violation_log = violation_log || ${JSON.stringify([violation])}::jsonb
-          WHERE id = ${attemptId}
+          WHERE id = ${attemptId} AND completed_at IS NULL
           RETURNING tab_switch_count, copy_paste_attempts, mouse_leave_count
         `
         break
@@ -118,7 +69,7 @@ export async function POST(request: NextRequest) {
           SET 
             mouse_leave_count = mouse_leave_count + 1,
             violation_log = violation_log || ${JSON.stringify([violation])}::jsonb
-          WHERE id = ${attemptId}
+          WHERE id = ${attemptId} AND completed_at IS NULL
           RETURNING tab_switch_count, copy_paste_attempts, mouse_leave_count
         `
         break
@@ -135,8 +86,10 @@ export async function POST(request: NextRequest) {
           violation: violation
         })
         
-        // Only increment strike count on 'detected' events, not on 'dismissed' or 'active' events
-        if (eventType === "detected") {
+        // Only increment strike count on 'detected' events, not on 'dismissed' or 'active' events.
+        // A punitive:false detection (e.g. the client's one-time sustained-focus-loss warning) is
+        // still recorded in violation_log for instructor visibility but must not cost a strike.
+        if (eventType === "detected" && punitive) {
           result = await sql`
             UPDATE quiz_attempts 
             SET 
@@ -146,7 +99,7 @@ export async function POST(request: NextRequest) {
                 eventType: eventType,
                 timestamp: new Date().toISOString()
               }])}::jsonb
-            WHERE id = ${attemptId}
+            WHERE id = ${attemptId} AND completed_at IS NULL
             RETURNING tab_switch_count, copy_paste_attempts, mouse_leave_count, gemini_strikes_count
           `
         } else {
@@ -159,7 +112,7 @@ export async function POST(request: NextRequest) {
                 eventType: eventType,
                 timestamp: new Date().toISOString()
               }])}::jsonb
-            WHERE id = ${attemptId}
+            WHERE id = ${attemptId} AND completed_at IS NULL
             RETURNING tab_switch_count, copy_paste_attempts, mouse_leave_count, gemini_strikes_count
           `
         }
@@ -168,7 +121,7 @@ export async function POST(request: NextRequest) {
         result = await sql`
           UPDATE quiz_attempts 
           SET violation_log = violation_log || ${JSON.stringify([violation])}::jsonb
-          WHERE id = ${attemptId}
+          WHERE id = ${attemptId} AND completed_at IS NULL
           RETURNING tab_switch_count, copy_paste_attempts, mouse_leave_count
         `
     }
@@ -188,4 +141,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Failed to log violation" }, { status: 500 })
   }
 }
-

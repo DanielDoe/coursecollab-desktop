@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { User, Lock, Moon, Sun, HelpCircle, LogOut, Crown, Heart, Award, Star, Palette } from "lucide-react"
+import { User, Lock, Moon, Sun, HelpCircle, LogOut, Crown, Award, Star, Palette } from "lucide-react"
 import { logoutStudent, getStudentData, studentApiFetch } from "@/lib/auth"
 import { useTheme } from "@/hooks/use-theme"
 import { useAppearance } from "@/components/appearance/AppearanceProvider"
@@ -219,17 +219,6 @@ export function StudentProfileDropdown() {
             >
               <Crown className="mr-3 h-4 w-4 text-amber-600" />
               <span>Membership & plans</span>
-            </button>
-
-            <button
-              onClick={() => {
-                console.log("[v0] StudentProfileDropdown: Donate button clicked")
-                handleNavigation("/student/donate")
-              }}
-              className="w-full flex items-center px-6 py-3 text-sm hover:bg-slate-50/80 dark:hover:bg-slate-700/80 transition-all duration-200 text-slate-700 dark:text-slate-300"
-            >
-              <Heart className="mr-3 h-4 w-4 text-red-500" />
-              <span>Support Development</span>
             </button>
 
             <button

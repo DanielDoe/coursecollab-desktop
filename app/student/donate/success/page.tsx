@@ -336,13 +336,13 @@ export default function DonationSuccessPage() {
                   </Button>
                 )}
                 <Button 
-                  onClick={() => router.push("/student/donate")} 
+                  onClick={() => router.push("/student/dashboard-v2/membership")} 
                   variant="outline" 
                   className="flex-1"
                   disabled={isVerifying}
                 >
-                  <Heart className="mr-2 h-4 w-4" />
-                  Donate Again
+                  <Crown className="mr-2 h-4 w-4" />
+                  View membership
                 </Button>
               </div>
 

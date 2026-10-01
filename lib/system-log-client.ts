@@ -262,7 +262,7 @@ export function isBrowserExtensionDomNoise(message: string, stack?: string): boo
 /** Benign browser noise — not an application bug. */
 function isBenignBrowserError(message: string, stack?: string): boolean {
   if (isBrowserExtensionDomNoise(message, stack)) return true
-  if (/ResizeObserver loop completed with undelivered notifications/i.test(message)) return true
+  if (/ResizeObserver loop (limit exceeded|completed with undelivered notifications)/i.test(message)) return true
   // Cross-origin scripts hide details — filename/lineno are empty
   if (/^Script error\.?$/i.test(message.trim())) return true
   // Suspense hydration race from notification deep links (fixed client-side; suppress stale deploy noise)
@@ -332,6 +332,8 @@ export function installClientErrorCapture(options?: { captureWarnings?: boolean 
 
   const onRejection = (event: PromiseRejectionEvent) => {
     const reason = event.reason
+    // A failed image, script, or media element rejects with the DOM event itself.
+    if (reason instanceof Event && (reason.type === "error" || reason.type === "abort")) return
     const message = reason instanceof Error ? reason.message : String(reason)
     const errorName = reason instanceof Error ? reason.name : undefined
     const stack = reason instanceof Error ? reason.stack : undefined

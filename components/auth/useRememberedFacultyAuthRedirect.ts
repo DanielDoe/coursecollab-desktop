@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   hasRememberedFacultyUniversity,
   hydrateFacultySessionUniversityFromRemembered,
+  readRememberedFacultyUniversity,
 } from "@/lib/remembered-auth"
 import {
   facultySessionNeedsPasswordChange,
@@ -15,9 +16,11 @@ import { hasFacultyExplicitSignOut, tryRestoreFacultySessionFromRefresh } from "
 import { clearLeftoverClientSessions } from "@/lib/session-restore-guard"
 
 /** Skip university picker when faculty university is remembered — never leftover local session. */
-export function useRememberedFacultyAuthRedirect() {
+export function useRememberedFacultyAuthRedirect(userHasPicked?: () => boolean) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const userHasPickedRef = useRef(userHasPicked)
+  userHasPickedRef.current = userHasPicked
 
   useEffect(() => {
     if (searchParams.get("next") !== "faculty") return
@@ -26,8 +29,12 @@ export function useRememberedFacultyAuthRedirect() {
       return
     }
 
+    let cancelled = false
     void (async () => {
-      const restored = await tryRestoreFacultySessionFromRefresh()
+      const restored = await tryRestoreFacultySessionFromRefresh({
+        expectedUniversityId: () => readRememberedFacultyUniversity()?.id,
+      })
+      if (cancelled || userHasPickedRef.current?.()) return
       if (hasFacultyExplicitSignOut()) {
         clearLeftoverClientSessions()
         return
@@ -47,5 +54,8 @@ export function useRememberedFacultyAuthRedirect() {
       hydrateFacultySessionUniversityFromRemembered()
       router.replace("/faculty/login")
     })()
+    return () => {
+      cancelled = true
+    }
   }, [router, searchParams])
 }

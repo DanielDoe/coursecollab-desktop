@@ -95,10 +95,20 @@ export function RolloverConfirmModal({
               extensions left) or your instructor helps.
             </li>
             <li>
-              Self-service Extend closes on <strong>{deadlineLabel ?? "the posted cutoff date"}</strong> (
-              {policy?.cutoff_days_before_semester_end ?? 21} days before the semester end date
-              {semesterEndLabel ? ` of ${semesterEndLabel}` : ""}) so grades can be finalized. After that,
-              contact your instructor.
+              You can apply this for one month after the assessment deadline. Quizzes and homework close
+              when the semester ends
+              {semesterEndLabel ? (
+                <>
+                  {" "}
+                  (<strong>{semesterEndLabel}</strong>)
+                </>
+              ) : null}
+              {deadlineLabel ? (
+                <>
+                  . Self-service Extend stays open through <strong>{deadlineLabel}</strong>
+                </>
+              ) : null}
+              . After the semester ends, contact your instructor.
             </li>
             <li>
               You have used <strong>{membershipAppliesUsed}</strong> of <strong>{membershipAppliesMax}</strong>{" "}

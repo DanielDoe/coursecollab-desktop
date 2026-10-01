@@ -9,7 +9,7 @@ export default async function ResultsPage({
   searchParams: Promise<{ type?: string }>
 }) {
   const { id } = await params
-  const { type } = await searchParams
+  const { type } = (await searchParams) ?? {}
   const assessmentType = (type === "mid_semester" || type === "final" || type === "homework" || type === "quiz") ? type : "quiz"
   return (
     <div className="min-h-screen bg-[var(--cc-background)]">

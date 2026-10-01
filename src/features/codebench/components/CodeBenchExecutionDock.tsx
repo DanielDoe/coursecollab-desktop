@@ -244,6 +244,9 @@ export const CodeBenchExecutionDock = forwardRef<CodeBenchExecutionHandle, Props
       ref,
       () => ({
         run: async (sourceCode: string) => {
+          if (heightRef.current <= COLLAPSED_HEIGHT + 8) {
+            applyHeight(lastExpandedRef.current || DEFAULT_DOCK_HEIGHT, true)
+          }
           terminalApi.current?.clear()
           if (!canExecute) {
             write(`\r\n${unsupportedMessage || 'Local run currently supports C++. Switch the language to C++.'}\r\n`)
@@ -251,10 +254,14 @@ export const CodeBenchExecutionDock = forwardRef<CodeBenchExecutionHandle, Props
           }
           if (!runner.compiler?.available) {
             write('\r\nLooking for a C++ compiler…\r\n')
-            const installed = await runner.ensureToolchain()
+            const installed = await runner.ensureToolchain({ quiet: true })
             if (!installed?.available) {
-              write('\r\nCompiler not found. CourseCollab could not install one on this computer.\r\n')
-              if (runner.unavailableReason) write(`${runner.unavailableReason}\r\n`)
+              const detail =
+                installed?.setupGuidance ||
+                runner.unavailableReason ||
+                'Compiler not found. CourseCollab could not install one on this computer.'
+              write(`\r\n${detail}\r\n`)
+              onRunResult?.({ outcome: 'compile-error', diagnostics: [], stderr: detail })
               return
             }
           }
@@ -263,7 +270,7 @@ export const CodeBenchExecutionDock = forwardRef<CodeBenchExecutionHandle, Props
         stop: () => runner.stop(),
         clear: () => terminalApi.current?.clear(),
       }),
-      [canExecute, runner, unsupportedMessage, write],
+      [applyHeight, canExecute, onRunResult, runner, unsupportedMessage, write],
     )
 
     const busy =
@@ -301,7 +308,7 @@ export const CodeBenchExecutionDock = forwardRef<CodeBenchExecutionHandle, Props
           percent={runner.installProgress}
           compilerLabel={runner.compiler?.available ? compilerDisplayName(runner.compiler) : null}
           errorDetail={runner.unavailableReason}
-          onRetry={() => void runner.ensureToolchain()}
+          onRetry={() => void runner.ensureToolchain({ force: true })}
           onDismiss={runner.dismissToolchainSetup}
         />
         <section
@@ -402,7 +409,7 @@ export const CodeBenchExecutionDock = forwardRef<CodeBenchExecutionHandle, Props
                     'h-6 px-1.5 text-[10px]',
                     'text-[var(--cc-text-muted)] hover:bg-[var(--card)] hover:text-[var(--cc-text)]',
                   )}
-                  onClick={() => void (runner.compiler?.canInstall ? runner.ensureToolchain() : runner.checkCompiler())}
+                  onClick={() => void (runner.compiler?.canInstall ? runner.ensureToolchain({ force: true }) : runner.checkCompiler())}
                 >
                   <RefreshCw className="h-3 w-3" />
                   {runner.compiler?.canInstall ? 'Install' : 'Check'}

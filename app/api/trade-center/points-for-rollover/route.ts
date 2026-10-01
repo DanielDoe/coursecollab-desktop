@@ -74,13 +74,49 @@ export async function GET(request: NextRequest) {
     }
     const studentSection = studentRows[0].session_code || studentRows[0].section || session
 
-    // Recalculate grade to get fresh scores with deductions applied
-    const grade = await recalculateAndSaveGrade(studentIdNum, studentSection)
-    const weights = await getGradeWeights(studentSection)
-    const deductions = await getGradeRolloverDeductions(studentIdNum, studentSection)
-
-    if (!grade || !weights) {
-      return NextResponse.json({ error: "Grade data not available" }, { status: 500 })
+    // A grade lookup failure must not hide the assessment list.
+    let grade: Awaited<ReturnType<typeof recalculateAndSaveGrade>> | null = null
+    let weights: Awaited<ReturnType<typeof getGradeWeights>> | null = null
+    let deductions: Awaited<ReturnType<typeof getGradeRolloverDeductions>> | null = null
+    try {
+      grade = await recalculateAndSaveGrade(studentIdNum, studentSection)
+      weights = await getGradeWeights(studentSection)
+      deductions = await getGradeRolloverDeductions(studentIdNum, studentSection)
+    } catch (gradeError) {
+      console.error("[Points for Rollover] grade lookup failed:", gradeError)
+    }
+    const gradeUnavailable = !grade || !weights || !deductions
+    if (!grade || !weights || !deductions) {
+      grade = {
+        quiz_score: 0,
+        homework_score: 0,
+        midterm_score: 0,
+        final_score: 0,
+        attendance_score: 0,
+        project_score: 0,
+        classroom_score: 0,
+        engagement_credits: 0,
+      } as NonNullable<typeof grade>
+      weights = {
+        quiz_weight: 0,
+        homework_weight: 0,
+        midterm_weight: 0,
+        final_weight: 0,
+        attendance_weight: 0,
+        project_weight: 0,
+        classroom_weight: 0,
+        engagement_weight: 0,
+      } as NonNullable<typeof weights>
+      deductions = {
+        quiz: 0,
+        homework: 0,
+        midterm: 0,
+        final: 0,
+        attendance: 0,
+        project: 0,
+        classroom: 0,
+        engagement: 0,
+      }
     }
 
     // Build category breakdown (raw score on 100% scale, after deductions)
@@ -158,26 +194,27 @@ export async function GET(request: NextRequest) {
       const studentCourseId =
         studentRows[0].course_id != null ? Number(studentRows[0].course_id) : null
       const graceDays = await getAssessmentPerksGraceDaysForCourse(studentCourseId)
+      const graceStart = new Date(Date.now() - graceDays * 24 * 60 * 60 * 1000)
+      const courseAllowsTrade = await tradeCenterAssessmentBenefitsAllowedForStudent(studentIdNum)
       const rows = await sql`
-        SELECT q.id, q.title, q.assessment_type, q.rollover_hours, q.available_until
+        SELECT DISTINCT q.id, q.title, q.assessment_type, q.rollover_hours, q.available_until
         FROM quizzes q
         JOIN quiz_session_access qsa ON q.id = qsa.quiz_id AND qsa.session_id = ${sessionId} AND qsa.is_active = true
-        LEFT JOIN course_policies cp ON cp.course_id = q.course_id
         WHERE q.deleted_at IS NULL
-          AND COALESCE(q.rollover_enabled, false) = true
+          AND (COALESCE(q.rollover_enabled, false) = true OR ${courseAllowsTrade})
           AND q.assessment_type IS NOT NULL
           AND LOWER(TRIM(q.assessment_type::text)) NOT IN ('final', 'finals', 'final_exam', 'mid_semester', 'mid-semester', 'midsem')
           AND q.available_until IS NOT NULL
           AND q.available_until < NOW()
-          AND NOW() <= q.available_until + (
-            COALESCE(
-              (cp.grading_policy->>'assessment_perks_grace_days_after_deadline')::int,
-              ${graceDays}::int
-            ) * INTERVAL '1 day'
-          )
+          AND q.available_until >= ${graceStart}
         ORDER BY q.assessment_type, q.title
       `
       assessments = rows as typeof assessments
+    }
+
+    // Semester end closes every quiz and homework, even inside the one-month rollover window.
+    if (await isRegularAssessmentSemesterHardCloseBlockingStudent(studentIdNum)) {
+      assessments = []
     }
 
     // Filter to assessments student doesn't already have active rollover for
@@ -190,6 +227,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       categories,
+      ...(gradeUnavailable
+        ? {
+            gradeUnavailable: true,
+            warning:
+              "Your grade breakdown isn't available yet, so points can't be traded until grades are ready. The assessments you can extend are still listed.",
+          }
+        : {}),
       assessments: availableAssessments.map((a) => ({
         id: a.id,
         title: a.title,
@@ -300,8 +344,21 @@ export async function POST(request: NextRequest) {
         { status: 403 },
       )
     }
-    if (!quiz.rollover_enabled) {
+    const courseAllowsTrade = await tradeCenterAssessmentBenefitsAllowedForStudent(studentIdNum)
+    if (!quiz.rollover_enabled && !courseAllowsTrade) {
       return NextResponse.json({ error: "Assessment does not support rollover" }, { status: 400 })
+    }
+
+    const inStudentSection = await sql`
+      SELECT 1
+      FROM quiz_session_access qsa
+      JOIN students s ON s.id = ${studentIdNum}
+      WHERE qsa.quiz_id = ${quizIdNum} AND qsa.is_active = true
+        AND qsa.session_id = s.session_id
+      LIMIT 1
+    `
+    if (inStudentSection.length === 0) {
+      return NextResponse.json({ error: "This assessment is not assigned to your section." }, { status: 403 })
     }
 
     const perksGraceDays = await getAssessmentPerksGraceDaysForQuiz(quizIdNum)

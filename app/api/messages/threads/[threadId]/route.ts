@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { stripHtmlToPlain } from "@/lib/direct-messages/html"
+import { LOCAL_DEVICE_FILE_PASTE_ERROR, messageIsOnlyLocalDeviceFile } from "@/lib/direct-messages/local-device-file"
 import { resolveMessageActor } from "@/lib/direct-messages/auth"
 import { getThreadForActor, sendDirectMessage } from "@/lib/direct-messages/service"
 
@@ -50,8 +51,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
         fileSize?: number | null
       }>
     }
-    if (!stripHtmlToPlain(body.body ?? "") && (!body.attachments || body.attachments.length === 0)) {
+    const plainBody = stripHtmlToPlain(body.body ?? "")
+    if (!plainBody && (!body.attachments || body.attachments.length === 0)) {
       return NextResponse.json({ error: "Message body or attachment is required" }, { status: 400 })
+    }
+    if (
+      messageIsOnlyLocalDeviceFile(plainBody) &&
+      (!body.attachments || body.attachments.length === 0)
+    ) {
+      return NextResponse.json({ error: LOCAL_DEVICE_FILE_PASTE_ERROR }, { status: 400 })
     }
 
     const thread = await getThreadForActor(threadId, actor)

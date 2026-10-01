@@ -130,11 +130,11 @@ export async function getRetakeAccessInfo(studentId: number): Promise<{
     if (isBeta) {
       reason = "You have beta user access"
     } else if (hasDonation) {
-      reason = "You have active donation access (14 days)"
+      reason = "You have Trailblazer access"
     } else if (hasMembership) {
       reason = `You have ${tier} membership`
     } else {
-      reason = "You need Explorer or Trailblazer membership, or an active donation to retake assessments"
+      reason = "You need Explorer or Trailblazer membership to retake assessments"
     }
 
     return {

@@ -3,7 +3,7 @@
 
 import { studentApiFetch } from "@/lib/auth"
 import { useState } from "react"
-import { Sparkles, Crown, Gift, X, Brain, Code2, CheckCircle2, Lightbulb } from "lucide-react"
+import { Sparkles, Crown, X, Brain, Code2, CheckCircle2, Lightbulb } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -177,35 +177,6 @@ export function AIAssistantUpgradeModal({ open, onClose, studentId }: AIAssistan
               </div>
             </motion.div>
           )}
-
-          {/* Donation Option - Compact */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="relative overflow-hidden rounded-xl border-2 border-rose-300 dark:border-rose-700 bg-gradient-to-br from-rose-50 via-pink-50 to-rose-50 dark:from-rose-900/30 dark:via-pink-900/30 dark:to-rose-900/30"
-          >
-            <div className="p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 bg-gradient-to-br from-rose-500 to-pink-500 rounded-lg">
-                  <Gift className="h-5 w-5 text-white" />
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-bold text-slate-900 dark:text-white">Support CourseCollab</h4>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">14 days premium access</p>
-                </div>
-              </div>
-              <Button
-                onClick={handleRemindMeLater}
-                disabled={isSaving}
-                className="w-full bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white"
-                size="sm"
-              >
-                <Gift className="h-4 w-4 mr-2" />
-                {isSaving ? "Setting Reminder..." : "Remind Me Later"}
-              </Button>
-            </div>
-          </motion.div>
 
           {/* Close Button */}
           <div className="flex justify-center pt-2">

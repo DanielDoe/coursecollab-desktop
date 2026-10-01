@@ -324,6 +324,12 @@ export async function scanHealCandidates(options?: {
       AND q.available_until IS NOT NULL
       AND q.available_until < NOW()
       AND q.available_until > NOW() - INTERVAL '14 days'
+      AND NOT EXISTS (
+        SELECT 1 FROM student_assessment_rollovers sar
+        WHERE sar.student_id = att.student_id
+          AND sar.quiz_id = att.quiz_id
+          AND sar.expires_at > NOW()
+      )
     GROUP BY att.id, att.quiz_id, q.title, s.full_name, q.available_until
     HAVING COUNT(qa.id) > 0
     ORDER BY q.available_until DESC

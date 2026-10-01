@@ -34,7 +34,8 @@ export function applySuperpowerOverrides(
   const hasSuperpowers = overrides?.superpowers && overrides.superpowers.length > 0
   const hasColumnOverrides = overrides?.disableTabTracking === true ||
     overrides?.disableAIDetection === true ||
-    overrides?.allowCopyPaste === true
+    overrides?.allowCopyPaste === true ||
+    (overrides?.strikeLimitOverride != null && Number(overrides.strikeLimitOverride) > 0)
   if (!hasSuperpowers && !hasColumnOverrides) return base
 
   const result = { ...base }
@@ -56,10 +57,16 @@ export function applySuperpowerOverrides(
     result.maxTabSwitches = overrides.strikeLimitOverride ?? 10
     result.maxGeminiStrikes = overrides.strikeLimitOverride ?? 10
   }
+  const strikeOverride = Number(overrides?.strikeLimitOverride)
+  if (Number.isFinite(strikeOverride) && strikeOverride > 0) {
+    result.maxTabSwitches = Math.max(result.maxTabSwitches ?? 0, strikeOverride)
+    result.maxGeminiStrikes = Math.max(result.maxGeminiStrikes ?? 0, strikeOverride)
+  }
   if (overrides.allowCopyPaste === true) result.blockCopyPaste = false
   if (overrides.disableTabTracking === true) {
     result.trackTabSwitches = false
     result.warnOnTabSwitch = false
+    result.requireFullscreen = false
   }
   if (overrides.disableAIDetection === true) result.trackGeminiWindow = false
 

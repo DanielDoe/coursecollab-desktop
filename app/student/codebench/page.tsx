@@ -40,7 +40,12 @@ import { CodebenchExplorer } from "@/components/codebench/CodebenchExplorer"
 import { useCodebenchIde } from "@/hooks/use-codebench-ide"
 import { useCodebenchIdeCloudSave } from "@/hooks/use-codebench-ide-cloud"
 import { saveLiveEditorCode, sendLiveEditorLeave, useCodebenchLiveSnapshot } from "@/hooks/use-codebench-live-snapshot"
-import { forgetLiveJoin, readRememberedLiveJoin, rememberLiveJoin } from "@/lib/codebench-live-join-memory"
+import {
+  editorHoldsOtherLiveAssignment,
+  forgetLiveJoin,
+  readRememberedLiveJoin,
+  rememberLiveJoin,
+} from "@/lib/codebench-live-join-memory"
 import { useCodebenchLiveInstructorPush } from "@/hooks/use-codebench-live-instructor-push"
 import { useStudentLiveClassroomSessions } from "@/hooks/use-student-live-classroom-sessions"
 import { StudentLiveClassroomBanner } from "@/components/codebench/StudentLiveClassroomBanner"
@@ -53,6 +58,7 @@ import {
   assignmentHasOpenLiveSession,
   LIVE_JOIN_GRACE_MS,
   shouldReplaceLiveEditorBuffer,
+  replacementLiveSession,
   shouldRestoreLiveStudentCode,
   shouldTreatLiveSessionAsEnded,
   studentLiveSnapshotShouldRun,
@@ -90,6 +96,7 @@ import type { StudioDiagnostic } from "@/lib/codebench-compiler-diagnostics"
 import {
   classifyCompilerMessage,
   diagnosticsToFamilies,
+  pullRemoteStudioEvents,
   recordStudioEvent,
   studioContextForPrompts,
 } from "@/lib/codebench-studio-analytics"
@@ -240,7 +247,17 @@ export default function CodeBenchPage({
     (nextCode: string, meta?: { restore?: boolean }) => {
       const current = readLiveEditorValue(editorRef, liveEditorCodeRef.current)
       if (current === nextCode) return
-      if (meta?.restore && !shouldRestoreLiveStudentCode(current, nextCode, languageId)) return
+      if (
+        meta?.restore &&
+        !shouldRestoreLiveStudentCode(
+          current,
+          nextCode,
+          languageId,
+          editorHoldsOtherLiveAssignment(studentId, classroomSubmissionId, current),
+        )
+      ) {
+        return
+      }
       if (!meta?.restore && !shouldReplaceLiveEditorBuffer(current, nextCode, languageId)) return
 
       liveEditorOriginRef.current = "external"
@@ -254,7 +271,7 @@ export default function CodeBenchPage({
         })
       }
     },
-    [editorRef, languageId, setCode, toast],
+    [classroomSubmissionId, editorRef, languageId, setCode, studentId, toast],
   )
   useEffect(() => {
     if (!editorRef) return
@@ -566,6 +583,29 @@ export default function CodeBenchPage({
     })
   }, [markLiveJoinGrace])
 
+  const movedLiveAssignmentRef = useRef<string | null>(null)
+  const moveOntoLiveSession = useCallback(
+    (session: StudentLiveClassroomSession) => {
+      const id = String(session.assignmentId)
+      const fromId = String(classroomSubmissionId ?? "")
+      if (!id || id === fromId) return
+      const moveKey = `${fromId}->${id}`
+      if (movedLiveAssignmentRef.current === moveKey) return
+      movedLiveAssignmentRef.current = moveKey
+      bindLiveAssignment(session)
+      window.dispatchEvent(
+        new CustomEvent("codebench-join-live-session", { detail: { assignmentId: id } }),
+      )
+      toast({
+        title: "Live classroom moved",
+        description: session.title
+          ? `Your instructor opened ${session.title}.`
+          : "Your instructor opened a new assignment.",
+      })
+    },
+    [bindLiveAssignment, classroomSubmissionId, toast],
+  )
+
   const leaveLiveAssignment = useCallback(
     (session?: StudentLiveClassroomSession) => {
       setLiveSharing(false)
@@ -712,6 +752,12 @@ export default function CodeBenchPage({
     })
     liveMissCountRef.current = result.nextMissCount
     if (!result.ended) return
+    const replacement = replacementLiveSession(liveSessions, classroomSubmissionId)
+    if (replacement) {
+      moveOntoLiveSession(replacement)
+      return
+    }
+    movedLiveAssignmentRef.current = null
     setLiveSharing(false)
     setClassroomQuestion((current) =>
       current?.isLive ? null : current,
@@ -725,7 +771,7 @@ export default function CodeBenchPage({
       title: "Live classroom ended",
       description: "Your instructor closed this session.",
     })
-  }, [classroomSubmissionId, listSupported, liveSessions, liveSessionsLoading, liveSharing, toast])
+  }, [classroomSubmissionId, listSupported, liveSessions, liveSessionsLoading, liveSharing, moveOntoLiveSession, toast])
 
   // The server is the authority on whether this editor is in the room. A 403 (section
   // mismatch) or repeated 410 (session closed) must drop ON AIR even when the
@@ -733,6 +779,15 @@ export default function CodeBenchPage({
   useEffect(() => {
     if (!liveSharing) return
     if (liveConnection.state !== "rejected" && liveConnection.state !== "ended") return
+    if (liveConnection.state === "ended") {
+      const replacement =
+        liveConnection.follow ?? replacementLiveSession(liveSessions, classroomSubmissionId)
+      if (replacement && String(replacement.assignmentId) !== String(classroomSubmissionId)) {
+        moveOntoLiveSession(replacement)
+        return
+      }
+    }
+    movedLiveAssignmentRef.current = null
     setLiveSharing(false)
     setClassroomQuestion((current) => (current?.isLive ? null : current))
     window.dispatchEvent(
@@ -752,7 +807,7 @@ export default function CodeBenchPage({
         variant: "destructive",
       })
     }
-  }, [classroomSubmissionId, liveConnection, liveSharing, toast])
+  }, [classroomSubmissionId, liveConnection, liveSessions, liveSharing, moveOntoLiveSession, toast])
 
   useEffect(() => {
     setClassroomSubmissions((current) => mergeLiveAssignments(current))
@@ -1011,6 +1066,7 @@ export default function CodeBenchPage({
         }
 
         setStudentId(studentDatabaseId)
+        void pullRemoteStudioEvents(studentDatabaseId)
 
         setHasAccess(true)
 
@@ -1717,7 +1773,9 @@ export default function CodeBenchPage({
           language: "cpp",
           fileName,
           errorFamily: first.family,
-          errorMessage: first.message,
+          errorMessage: /unknown architecture/i.test(first.message)
+            ? "unknown architecture — this Mac’s system library list (libSystem.tbd) uses a CPU type the compiler cannot read"
+            : first.message,
           line: result.diagnostics[0]?.line,
           success: false,
         })
@@ -1735,11 +1793,18 @@ export default function CodeBenchPage({
       }
       recordStudioEvent(sid, { type: "compile_success", language: "cpp", fileName, success: true })
       if (result.outcome === "failed" || (result.exitCode != null && result.exitCode !== 0)) {
+        const runtimeMessage =
+          result.stderr
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .find(Boolean) ||
+          (result.exitCode != null ? `Exited with code ${result.exitCode}` : "Program exited with a failure")
         recordStudioEvent(sid, {
           type: "runtime_exit",
           language: "cpp",
           fileName,
           errorFamily: "runtime",
+          errorMessage: runtimeMessage.slice(0, 400),
           exitCode: result.exitCode,
           success: false,
         })

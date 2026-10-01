@@ -33,7 +33,7 @@ function sqlStudentSubmissionIsActive() {
     AND (
       CASE
         WHEN cps.due_at IS NOT NULL THEN cps.due_at > NOW()
-        WHEN cps.duration_hours IS NULL THEN false
+        WHEN cps.duration_hours IS NULL THEN true
         ELSE (cps.created_at + ((cps.duration_hours + 72) * INTERVAL '1 hour')) > NOW()
       END
     )
@@ -95,7 +95,7 @@ async function loadStudentClassroomPointSubmissions(opts: {
       END as expires_at,
       CASE
         WHEN cps.due_at IS NOT NULL THEN cps.due_at > NOW()
-        WHEN cps.duration_hours IS NULL THEN false
+        WHEN cps.duration_hours IS NULL THEN true
         WHEN (cps.created_at + ((cps.duration_hours + 72) * INTERVAL '1 hour')) > NOW() THEN true
         ELSE false
       END as is_active
@@ -303,7 +303,7 @@ export async function GET(request: NextRequest) {
           END as expires_at,
           CASE 
             WHEN due_at IS NOT NULL THEN due_at > NOW()
-            WHEN duration_hours IS NULL THEN false
+            WHEN duration_hours IS NULL THEN true
             WHEN (created_at + ((duration_hours + 72) * INTERVAL '1 hour')) > NOW() THEN true
             ELSE false
           END as is_active
@@ -311,7 +311,7 @@ export async function GET(request: NextRequest) {
         WHERE (
           CASE
             WHEN due_at IS NOT NULL THEN due_at > NOW()
-            WHEN duration_hours IS NULL THEN false
+            WHEN duration_hours IS NULL THEN true
             ELSE (created_at + ((duration_hours + 72) * INTERVAL '1 hour')) > NOW()
           END
         )
@@ -338,7 +338,7 @@ export async function GET(request: NextRequest) {
           END as expires_at,
           CASE 
             WHEN due_at IS NOT NULL THEN due_at > NOW()
-            WHEN duration_hours IS NULL THEN false
+            WHEN duration_hours IS NULL THEN true
             WHEN (created_at + ((duration_hours + 72) * INTERVAL '1 hour')) > NOW() THEN true
             ELSE false
           END as is_active
@@ -346,7 +346,7 @@ export async function GET(request: NextRequest) {
         WHERE (
           CASE
             WHEN due_at IS NOT NULL THEN due_at > NOW()
-            WHEN duration_hours IS NULL THEN false
+            WHEN duration_hours IS NULL THEN true
             ELSE (created_at + ((duration_hours + 72) * INTERVAL '1 hour')) > NOW()
           END
         )
@@ -399,7 +399,7 @@ export async function GET(request: NextRequest) {
           END as expires_at,
           CASE
             WHEN due_at IS NOT NULL THEN due_at > NOW()
-            WHEN duration_hours IS NULL THEN false
+            WHEN duration_hours IS NULL THEN true
             WHEN (created_at + ((duration_hours + 72) * INTERVAL '1 hour')) > NOW() THEN true
             ELSE false
           END as is_active
@@ -408,7 +408,7 @@ export async function GET(request: NextRequest) {
           AND (
             CASE
               WHEN due_at IS NOT NULL THEN due_at > NOW()
-              WHEN duration_hours IS NULL THEN false
+              WHEN duration_hours IS NULL THEN true
               ELSE (created_at + ((duration_hours + 72) * INTERVAL '1 hour')) > NOW()
             END
           )

@@ -4,7 +4,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import { buildStudioSnapshot } from "@/lib/codebench-studio-analytics"
-import { buildCodebenchCoraRead } from "@/lib/codebench-analytics-read"
+import { buildCodebenchCoraRead, buildStudentCodingInsight } from "@/lib/codebench-analytics-read"
 
 const emptyPerf = {
   submissionCount: 0,
@@ -68,5 +68,18 @@ describe("buildCodebenchCoraRead", () => {
     assert.ok(read.weaknesses.some((w) => /Count Balanced Prefixes scored 0/.test(w)))
     assert.ok(read.strengths.some((s) => /Suggest fix/.test(s)))
     assert.ok(!read.tasks.some((t) => /90 min|study time|Loops|Pointers/.test(t)))
+    const insight = buildStudentCodingInsight(studio, {
+      ...emptyPerf,
+      submissionCount: 1,
+      recent: [{ title: "Count Balanced Prefixes", score: 0, status: "pending", source: "challenge" }],
+    })
+    assert.match(insight.summary, /missing semicolon/i)
+    assert.equal(insight.problemTitle, "Missing semicolon")
+    assert.match(insight.compilerNote ?? "", /expected ';'/i)
+    assert.ok(insight.improve.length > 0)
+    assert.ok(insight.watchOuts.some((item) => /watch out for missing semicolon/i.test(item)))
+    assert.ok(insight.strengths.some((item) => /running your code/i.test(item)))
+    assert.equal(studio.runRows.filter((row) => row.outcome === "error").length, 1)
+    assert.equal(studio.runRows[0]?.title, "Missing semicolon")
   })
 })

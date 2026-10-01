@@ -43,7 +43,10 @@ function parseResumeDeadline(value: ResumeDeadlineInput): Date | null {
 
 /**
  * Latest moment a student may resume an incomplete attempt.
- * Uses the assessment due date when set; otherwise falls back to start + grace minutes.
+ * Uses the assessment due date when that date is still after the sitting started.
+ * A due date that already passed before the attempt began (a rollover sitting)
+ * does not expire the attempt immediately; that sitting uses start + grace minutes,
+ * unless the caller passes the rollover expiry as the deadline.
  */
 export function getResumeCutoffDate(
   startedAt: Date,
@@ -54,7 +57,8 @@ export function getResumeCutoffDate(
   graceCutoff.setMinutes(graceCutoff.getMinutes() + graceMinutes)
 
   const deadline = parseResumeDeadline(availableUntil)
-  return deadline ?? graceCutoff
+  if (!deadline || deadline.getTime() <= startedAt.getTime()) return graceCutoff
+  return deadline
 }
 
 /**

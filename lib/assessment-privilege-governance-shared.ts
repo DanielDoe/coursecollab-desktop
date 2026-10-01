@@ -39,9 +39,13 @@ export function membershipAssessmentBenefitsAllowed(source: AssessmentPrivilegeS
   return source === "membership_enabled" || source === "hybrid"
 }
 
-/** Trade Center may grant assessment-related redemptions (rollovers, extra attempts). */
+/**
+ * Trade Center point trades (rollover, extra attempts).
+ * Membership mode still lets students without a membership buy these with grade points.
+ * Instructor-only mode does not.
+ */
 export function tradeCenterAssessmentBenefitsAllowed(source: AssessmentPrivilegeSource): boolean {
-  return source === "hybrid"
+  return source === "hybrid" || source === "membership_enabled"
 }
 
 /** Summary of which platform / Trade Center perk lanes are active for a course. */

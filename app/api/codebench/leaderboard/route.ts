@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireCodebenchStudent } from "@/lib/codebench-request-auth"
+import { codebenchLeaderboardTermPredicateSql } from "@/lib/codebench-leaderboard-scope"
 import { sql } from "@/lib/db"
+
+export const dynamic = "force-dynamic"
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,7 +14,8 @@ export async function GET(request: NextRequest) {
     const callerScope = await sql`
       SELECT
         s.section,
-        COALESCE(s.course_id, sess.course_id) as course_id
+        COALESCE(s.course_id, sess.course_id) as course_id,
+        sess.academic_term_id
       FROM students s
       LEFT JOIN sessions sess ON sess.id = s.session_id
       WHERE s.id = ${bound.studentDbId}
@@ -23,6 +27,13 @@ export async function GET(request: NextRequest) {
       typeof callerScope[0]?.section === "string" && callerScope[0].section.trim()
         ? callerScope[0].section
         : null
+    const academicTermId =
+      callerScope[0]?.academic_term_id != null ? Number(callerScope[0].academic_term_id) : null
+    const sameTerm = sql.unsafe(
+      codebenchLeaderboardTermPredicateSql(
+        Number.isFinite(academicTermId) && (academicTermId ?? 0) > 0 ? academicTermId : null,
+      ),
+    )
 
     if (!Number.isFinite(courseId) && !section) {
       return NextResponse.json({ leaderboard: [] })
@@ -35,14 +46,9 @@ export async function GET(request: NextRequest) {
           s.full_name as student_name,
           s.section,
           COUNT(DISTINCT cs.id) as submissions_count,
-          SUM(COALESCE(cp.points, 0)) as total_points,
           MAX(cs.submitted_at) as last_submission
         FROM codebench_submissions cs
         JOIN students s ON cs.student_id = s.id
-        LEFT JOIN classroom_points cp ON cp.student_id = cs.student_id 
-          AND cp.category = 'code_submission' 
-          AND cp.status = 'approved'
-          AND cp.reason LIKE '%CodeBench%'
         WHERE cs.status = 'approved'
           AND (
             (
@@ -61,6 +67,7 @@ export async function GET(request: NextRequest) {
               AND s.section = ${section}
             )
           )
+          AND ${sameTerm}
         GROUP BY cs.student_id, s.full_name, s.section
       ),
       practice_xp AS (
@@ -93,18 +100,59 @@ export async function GET(request: NextRequest) {
               AND s.section = ${section}
             )
           )
+          AND ${sameTerm}
         GROUP BY ps.student_id, s.full_name, s.section
       ),
-      combined_stats AS (
+      award_xp AS (
+        SELECT
+          cp.student_id,
+          SUM(cp.points) as total_points
+        FROM classroom_points cp
+        JOIN students s ON s.id = cp.student_id
+        WHERE cp.category = 'code_submission'
+          AND cp.status = 'approved'
+          AND (
+            (
+              ${courseId}::int IS NOT NULL
+              AND (
+                s.course_id = ${courseId}
+                OR EXISTS (
+                  SELECT 1 FROM sessions scoped
+                  WHERE scoped.id = s.session_id AND scoped.course_id = ${courseId}
+                )
+              )
+            )
+            OR (
+              ${courseId}::int IS NULL
+              AND ${section}::text IS NOT NULL
+              AND s.section = ${section}
+            )
+          )
+          AND ${sameTerm}
+        GROUP BY cp.student_id
+      ),
+      activity_stats AS (
         SELECT 
           COALESCE(c.student_id, p.student_id) as student_id,
           COALESCE(c.student_name, p.student_name) as student_name,
           COALESCE(c.section, p.section) as section,
           COALESCE(c.submissions_count, 0) + COALESCE(p.practice_count, 0) as total_activities,
-          COALESCE(c.total_points, 0) + COALESCE(p.practice_points, 0) as total_xp,
+          COALESCE(p.practice_points, 0) as practice_points,
           GREATEST(COALESCE(c.last_submission, '1970-01-01'), COALESCE(p.last_practice, '1970-01-01')) as last_activity
         FROM codebench_xp c
         FULL OUTER JOIN practice_xp p ON c.student_id = p.student_id
+      ),
+      combined_stats AS (
+        SELECT
+          COALESCE(a.student_id, w.student_id) as student_id,
+          COALESCE(a.student_name, s.full_name) as student_name,
+          COALESCE(a.section, s.section) as section,
+          COALESCE(a.total_activities, 0) as total_activities,
+          COALESCE(w.total_points, 0) + COALESCE(a.practice_points, 0) as total_xp,
+          COALESCE(a.last_activity, '1970-01-01') as last_activity
+        FROM activity_stats a
+        FULL OUTER JOIN award_xp w ON w.student_id = a.student_id
+        LEFT JOIN students s ON s.id = COALESCE(a.student_id, w.student_id)
       )
       SELECT 
         student_id,

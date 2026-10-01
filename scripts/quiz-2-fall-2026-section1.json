@@ -1,0 +1,152 @@
+[
+  {
+    "title": "Assignment Hidden Inside an If Condition",
+    "question_type": "mcq",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "What is the output of the following C++ code?\n\n```cpp\nint x = 7;\nif (x = 0)\n    cout << \"A\";\nelse if (x == 7)\n    cout << \"B\";\nelse\n    cout << \"C\";\n```",
+    "options": [
+      {"id": "A", "text": "`A`"},
+      {"id": "B", "text": "`B`"},
+      {"id": "C", "text": "`C`"},
+      {"id": "D", "text": "Compilation error because assignment cannot appear inside an `if` condition"}
+    ],
+    "correct_answer": "C",
+    "explanation": "`x = 0` is an assignment, not a comparison. It assigns 0 to `x`, and the resulting value 0 is converted to `false`. The first branch is skipped. Because `x` is now 0, `x == 7` is also false, so the final `else` executes and prints `C`."
+  },
+  {
+    "title": "The Dangling Else Trap",
+    "question_type": "mcq",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "What is printed by the following C++ code?\n\n```cpp\nint x = 8, y = 3;\n\nif (x > 5)\n    if (y > 5)\n        cout << \"A\";\n    else\n        cout << \"B\";\nelse\n    cout << \"C\";\n```",
+    "options": [
+      {"id": "A", "text": "`A`"},
+      {"id": "B", "text": "`B`"},
+      {"id": "C", "text": "`C`"},
+      {"id": "D", "text": "Nothing is printed"}
+    ],
+    "correct_answer": "B",
+    "explanation": "The first `else` belongs to the nearest unmatched `if`, which is `if (y > 5)`. Since `x > 5` is true, the nested `if` is reached. `y > 5` is false, so its `else` executes and prints `B`."
+  },
+  {
+    "title": "Impossible Chained Comparison",
+    "question_type": "mcq",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "A programmer intends to print `Valid` only when 0 < x < 10. What does this program actually print?\n\n```cpp\nint x = 50;\n\nif (0 < x < 10)\n    cout << \"Valid\";\nelse\n    cout << \"Invalid\";\n```",
+    "options": [
+      {"id": "A", "text": "`Valid`, because the expression is evaluated as `(0 < x) < 10`"},
+      {"id": "B", "text": "`Invalid`, because `50 < 10` is false"},
+      {"id": "C", "text": "Compilation error because C++ prohibits chained comparisons"},
+      {"id": "D", "text": "Undefined behavior because the comparisons conflict"}
+    ],
+    "correct_answer": "A",
+    "explanation": "C++ evaluates the comparisons from left to right here. `0 < 50` produces `true`, which behaves numerically as 1. The remaining comparison becomes `1 < 10`, which is true. Therefore `Valid` is printed. The intended test should be `x > 0 && x < 10`."
+  },
+  {
+    "title": "Semicolon That Silently Breaks an If Statement",
+    "question_type": "mcq",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "What happens when the following code is compiled and executed?\n\n```cpp\nint score = 40;\n\nif (score >= 60);\n    cout << \"Pass\";\nelse\n    cout << \"Fail\";\n```",
+    "options": [
+      {"id": "A", "text": "It prints `Pass`"},
+      {"id": "B", "text": "It prints `Fail`"},
+      {"id": "C", "text": "It prints `PassFail`"},
+      {"id": "D", "text": "Compilation error because the `else` has no matching `if`"}
+    ],
+    "correct_answer": "D",
+    "explanation": "The semicolon immediately after the `if` forms the complete body of that `if` as an empty statement. The following `cout << \"Pass\";` is a separate statement. Therefore the subsequent `else` has no unmatched `if` to which it can attach, causing a compilation error."
+  },
+  {
+    "title": "Switch Fall-Through Prediction",
+    "question_type": "mcq",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "Predict the exact output of this program.\n\n```cpp\nint n = 2;\n\nswitch (n) {\n    case 1:\n        cout << \"A\";\n    case 2:\n        cout << \"B\";\n    case 3:\n        cout << \"C\";\n        break;\n    default:\n        cout << \"D\";\n}\n```",
+    "options": [
+      {"id": "A", "text": "`B`"},
+      {"id": "B", "text": "`BC`"},
+      {"id": "C", "text": "`ABC`"},
+      {"id": "D", "text": "`BCD`"}
+    ],
+    "correct_answer": "B",
+    "explanation": "Execution jumps directly to `case 2`, so `A` is not printed. `B` is printed, but there is no `break`, so execution falls through into `case 3`, which prints `C`. The `break` then exits the switch. The output is `BC`."
+  },
+  {
+    "title": "Duplicate Switch Cases Hidden by Constant Expressions",
+    "question_type": "mcq",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "What is wrong with the following program?\n\n```cpp\nint choice = 4;\n\nswitch (choice) {\n    case 2 + 2:\n        cout << \"A\";\n        break;\n    case 4:\n        cout << \"B\";\n        break;\n    default:\n        cout << \"C\";\n}\n```",
+    "options": [
+      {"id": "A", "text": "Nothing is wrong; it prints `A`"},
+      {"id": "B", "text": "Nothing is wrong; it prints `AB`"},
+      {"id": "C", "text": "Compilation error because both case labels represent the same constant value"},
+      {"id": "D", "text": "Runtime error because C++ cannot evaluate arithmetic in a case label"}
+    ],
+    "correct_answer": "C",
+    "explanation": "`2 + 2` is a constant expression whose value is 4. Therefore `case 2 + 2:` and `case 4:` are duplicate case values. A switch cannot contain duplicate case values, so the program fails to compile."
+  },
+  {
+    "title": "Ternary Operator and Integer Division",
+    "question_type": "mcq",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "What is the output of the following code?\n\n```cpp\nint a = 7, b = 2;\ndouble result = (a > b) ? a / b : b / a;\ncout << result;\n```",
+    "options": [
+      {"id": "A", "text": "`3`"},
+      {"id": "B", "text": "`3.5`"},
+      {"id": "C", "text": "`0.285714`"},
+      {"id": "D", "text": "Compilation error because the ternary branches have integer operands"}
+    ],
+    "correct_answer": "A",
+    "explanation": "Since `a > b` is true, only `a / b` is selected. Both operands are integers, so `7 / 2` performs integer division and produces 3. That integer is then converted to `double` when assigned to `result`, giving `3.0`; with default `cout` formatting it prints `3`."
+  },
+  {
+    "title": "Comparison Assignment and Ternary Precedence",
+    "question_type": "mcq",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "What is printed by this code?\n\n```cpp\nint x = 5;\nint y = 8;\nint z = 0;\n\nz = x > y ? x : y == 8 ? 20 : 30;\ncout << z;\n```",
+    "options": [
+      {"id": "A", "text": "`5`"},
+      {"id": "B", "text": "`8`"},
+      {"id": "C", "text": "`20`"},
+      {"id": "D", "text": "`30`"}
+    ],
+    "correct_answer": "C",
+    "explanation": "The conditional operator is right-associative, so the expression is interpreted as `x > y ? x : (y == 8 ? 20 : 30)`. Since `5 > 8` is false, the second ternary expression is evaluated. `y == 8` is true, so `z` becomes 20."
+  },
+  {
+    "title": "Else-If Boundary Logic Error",
+    "question_type": "mcq",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "The programmer wants scores from 90 through 100 to receive `A`, scores from 80 through 89 to receive `B`, and everything below 80 to receive `C`. Which statement best describes the bug in this code?\n\n```cpp\nint score = 90;\n\nif (score > 90 && score <= 100)\n    cout << \"A\";\nelse if (score >= 80 && score < 90)\n    cout << \"B\";\nelse\n    cout << \"C\";\n```",
+    "options": [
+      {"id": "A", "text": "There is no bug; a score of 90 prints `A`"},
+      {"id": "B", "text": "A score of 90 falls through both conditions and incorrectly prints `C`"},
+      {"id": "C", "text": "A score of 90 satisfies both conditions, producing ambiguous output"},
+      {"id": "D", "text": "The program does not compile because `&&` cannot combine comparisons"}
+    ],
+    "correct_answer": "B",
+    "explanation": "For `score = 90`, the first condition `score > 90` is false, and the second condition requires `score < 90`, which is also false. Therefore the final `else` executes and incorrectly prints `C`. The first condition should include 90, such as `score >= 90 && score <= 100`."
+  },
+  {
+    "title": "Nested Selection with Short-Circuit Evaluation",
+    "question_type": "mcq",
+    "difficulty": "extremely_hard",
+    "points": 1,
+    "question_text": "What is the exact output of the following program?\n\n```cpp\nint x = 0;\nint y = 4;\n\nif (x != 0 && y / x > 2)\n    cout << \"A\";\nelse if (x == 0 || ++y > 4)\n    cout << y;\nelse\n    cout << \"C\";\n```",
+    "options": [
+      {"id": "A", "text": "`4`"},
+      {"id": "B", "text": "`5`"},
+      {"id": "C", "text": "Runtime error caused by division by zero"},
+      {"id": "D", "text": "`C`"}
+    ],
+    "correct_answer": "A",
+    "explanation": "In the first condition, `x != 0` is false, so `&&` short-circuits and `y / x` is never evaluated; therefore there is no division by zero. In the `else if`, `x == 0` is true, so `||` short-circuits and `++y` is not evaluated. Thus `y` remains 4 and the program prints `4`."
+  }
+]

@@ -148,7 +148,17 @@ export function codebenchDevPlugin(): Plugin {
             return
           }
           if (req.method === "POST" && url === "/__codebench/ensure") {
-            sendJson(res, 200, await ensureCppToolchain({ installIfMissing: true, mode: "full" }))
+            const raw = await readBody(req)
+            const body = raw ? (JSON.parse(raw) as { force?: boolean }) : {}
+            sendJson(
+              res,
+              200,
+              await ensureCppToolchain({
+                installIfMissing: true,
+                mode: "full",
+                forceInstall: body.force === true,
+              }),
+            )
             return
           }
           if (req.method === "POST" && url === "/__codebench/run") {

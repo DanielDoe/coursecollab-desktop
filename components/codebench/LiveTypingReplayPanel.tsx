@@ -445,8 +445,12 @@ export function LiveTypingReplayPanel({
                 size="sm"
                 className="h-8 gap-1.5 px-3 text-[11px]"
                 onClick={onRunStudentCode}
-                disabled={runStudentDisabled || runStudentLoading || !hasCode}
-                title="Run what you see in the editor (C++) in the panel on the right"
+                disabled={runStudentDisabled || !hasCode}
+                title={
+                  runStudentLoading
+                    ? "Stop the current program and run this code"
+                    : "Run what you see in the editor (C++) in the panel on the right"
+                }
               >
                 {runStudentLoading ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

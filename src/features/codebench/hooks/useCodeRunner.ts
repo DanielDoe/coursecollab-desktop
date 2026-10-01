@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { parseCompilerDiagnosticsText, type StudioDiagnostic } from '@/lib/codebench-compiler-diagnostics'
-import { compileCppInCloud } from '@/lib/codebench-cloud-compile'
 import { isDesktopElectronShell } from '@/lib/desktop-notifications'
 import type { CodeBenchRunState } from '../types/codebench'
 import type { ToolchainSetupOutcome, ToolchainSetupPhase } from '../types/toolchain-setup'
@@ -15,6 +14,13 @@ export type CodeBenchRunResult = {
 export type UseCodeRunnerOptions = {
   onWrite: (text: string) => void
   onRunResult?: (result: CodeBenchRunResult) => void
+}
+
+function explainCompilerFailure(text: string): string | null {
+  if (/unknown architecture/i.test(text)) {
+    return 'This Mac’s system libraries name a CPU type the compiler cannot read (unknown architecture, usually inside libSystem.tbd). CourseCollab points the compiler at a compatible macOS SDK. Run again after Retry setup.'
+  }
+  return null
 }
 
 function getApi() {
@@ -67,12 +73,12 @@ export function useCodeRunner({ onWrite, onRunResult }: UseCodeRunnerOptions) {
   const userRequestedRef = useRef(false)
   const sawVisibleWorkRef = useRef(false)
   const sessionRef = useRef<string | null>(null)
+  const runTokenRef = useRef(0)
   const eventQueueRef = useRef<CodeBenchEvent[]>([])
   const dispatchEventRef = useRef<(event: CodeBenchEvent) => void>(() => {})
   const sawOutputRef = useRef(false)
   const waitHintRef = useRef<number | null>(null)
   const stderrRef = useRef('')
-  const lastSourceRef = useRef('')
   const onWriteRef = useRef(onWrite)
   const onRunResultRef = useRef(onRunResult)
   onWriteRef.current = onWrite
@@ -166,16 +172,20 @@ export function useCodeRunner({ onWrite, onRunResult }: UseCodeRunnerOptions) {
     return compilerRef.current
   }, [])
 
-  const ensureToolchain = useCallback(async () => {
+  const ensureToolchain = useCallback(async (options?: { force?: boolean; quiet?: boolean }) => {
     const api = getApi()
-    userRequestedRef.current = true
+    if (!options?.quiet) userRequestedRef.current = true
     setInstalling(true)
     try {
       if (api) {
-        return applyCompiler(await api.ensureToolchain())
+        return applyCompiler(await api.ensureToolchain(options?.force ? { force: true } : undefined))
       }
       if (canUseViteBridge()) {
-        const res = await fetch('/__codebench/ensure', { method: 'POST' })
+        const res = await fetch('/__codebench/ensure', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ force: options?.force === true }),
+        })
         return applyCompiler((await res.json()) as CodeBenchCompilerInfo)
       }
       setSetupOutcome('error')
@@ -299,51 +309,12 @@ export function useCodeRunner({ onWrite, onRunResult }: UseCodeRunnerOptions) {
             setRunState('idle')
             setSessionId(null)
             sessionRef.current = null
-            const missingLocal = /compiler not found/i.test(stderrRef.current)
-            if (missingLocal && lastSourceRef.current) {
-              void (async () => {
-                onWriteRef.current('\r\nNo local C++ compiler. Trying the cloud compiler…\r\n')
-                const cloud = await compileCppInCloud(lastSourceRef.current)
-                if (!cloud) {
-                  onRunResultRef.current?.({
-                    outcome: 'compile-error',
-                    diagnostics,
-                    stderr: stderrRef.current,
-                    exitCode: event.exitCode,
-                  })
-                  return
-                }
-                const cloudStderr = cloud.stderr || cloud.compileOutput || cloud.error || ''
-                const cloudDiagnostics = parseCompilerDiagnosticsText(cloudStderr)
-                setLastDiagnostics(cloudDiagnostics)
-                setLastStderr(cloudStderr)
-                if (cloudStderr) onWriteRef.current(cloudStderr.replace(/\n/g, '\r\n'))
-                if (cloud.ok) {
-                  setLastFailed(false)
-                  if (cloud.stdout) onWriteRef.current(cloud.stdout.replace(/\n/g, '\r\n'))
-                  onWriteRef.current('\r\n\x1b[90mRan in the cloud compiler.\x1b[0m\r\n')
-                  onRunResultRef.current?.({
-                    outcome: 'ran',
-                    diagnostics: cloudDiagnostics,
-                    stderr: cloudStderr,
-                    exitCode: 0,
-                  })
-                  return
-                }
-                setLastFailed(true)
-                onRunResultRef.current?.({
-                  outcome: cloudDiagnostics.length ? 'compile-error' : 'failed',
-                  diagnostics: cloudDiagnostics,
-                  stderr: cloudStderr,
-                  exitCode: null,
-                })
-              })()
-              break
-            }
+            const hint = explainCompilerFailure(stderrRef.current)
+            if (hint) onWriteRef.current(`\r\n${hint}\r\n`)
             onRunResultRef.current?.({
               outcome: 'compile-error',
               diagnostics,
-              stderr: stderrRef.current,
+              stderr: hint ? `${stderrRef.current}\n${hint}` : stderrRef.current,
               exitCode: event.exitCode,
             })
           }
@@ -381,10 +352,11 @@ export function useCodeRunner({ onWrite, onRunResult }: UseCodeRunnerOptions) {
           sessionRef.current = null
           const failed = event.exitCode != null && event.exitCode !== 0
           setLastFailed(failed)
+          const stderr = [stderrRef.current, event.message].filter(Boolean).join('\n')
           onRunResultRef.current?.({
             outcome: failed ? 'failed' : 'ran',
             diagnostics: [],
-            stderr: stderrRef.current,
+            stderr,
             exitCode: event.exitCode,
           })
           break
@@ -404,64 +376,61 @@ export function useCodeRunner({ onWrite, onRunResult }: UseCodeRunnerOptions) {
     })
   }, [clearWaitHint])
 
+  const releaseSession = useCallback(async () => {
+    const api = getApi()
+    const id = sessionRef.current
+    if (!id) return
+    clearWaitHint()
+    try {
+      if (api) await api.stop({ sessionId: id })
+    } catch {
+      /* the process is already gone */
+    }
+    // The exit event normally clears the session and writes "Process terminated."
+    // If that event never arrives, finish the same way so Run cannot stay stuck.
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+    if (sessionRef.current !== id) return
+    sessionRef.current = null
+    setSessionId(null)
+    setRunState("idle")
+    onWriteRef.current("\r\n\x1b[90mProcess terminated.\x1b[0m\r\n")
+    onRunResultRef.current?.({
+      outcome: "ran",
+      diagnostics: [],
+      stderr: stderrRef.current,
+      exitCode: null,
+    })
+  }, [clearWaitHint])
+
   useEffect(() => {
     return () => {
+      runTokenRef.current += 1
       const id = sessionRef.current
+      sessionRef.current = null
       if (id) void getApi()?.stop({ sessionId: id })
     }
   }, [])
 
   const run = useCallback(
     async (sourceCode: string) => {
-      if (runState === "compiling" || runState === "running" || runState === "stopping") return
+      const token = ++runTokenRef.current
+      await releaseSession()
+      if (token !== runTokenRef.current) return
       setLastDiagnostics([])
       setLastStderr("")
       setLastFailed(false)
       stderrRef.current = ""
-      lastSourceRef.current = sourceCode
-      const applyCloudResult = async (prefix?: string) => {
-        if (prefix) onWriteRef.current(prefix)
-        setRunState("compiling")
-        const cloud = await compileCppInCloud(sourceCode)
-        if (!cloud) return false
-        const stderr = cloud.stderr || cloud.compileOutput || cloud.error || ""
-        const diagnostics = parseCompilerDiagnosticsText(stderr)
-        setLastDiagnostics(diagnostics)
-        setLastStderr(stderr)
-        if (stderr) onWriteRef.current(stderr.replace(/\n/g, "\r\n"))
-        if (cloud.ok) {
-          setLastFailed(false)
-          if (cloud.stdout) onWriteRef.current(cloud.stdout.replace(/\n/g, "\r\n"))
-          onWriteRef.current("\r\n\x1b[90mRan in the cloud compiler.\x1b[0m\r\n")
-          onRunResultRef.current?.({
-            outcome: "ran",
-            diagnostics,
-            stderr,
-            exitCode: 0,
-          })
-        } else {
-          setLastFailed(true)
-          onRunResultRef.current?.({
-            outcome: diagnostics.length ? "compile-error" : "failed",
-            diagnostics,
-            stderr,
-            exitCode: null,
-          })
-        }
-        setRunState("idle")
-        return true
-      }
+      const stale = () => token !== runTokenRef.current
 
       const api = getApi()
       if (api) {
         const result = await api.run({ sourceCode, language: "cpp" })
+        if (token !== runTokenRef.current) {
+          if (result.ok) void api.stop({ sessionId: result.sessionId })
+          return
+        }
         if (!result.ok) {
-          if (result.code === "no-compiler") {
-            const usedCloud = await applyCloudResult(
-              "\r\nNo local C++ compiler. Trying the cloud compiler…\r\n",
-            )
-            if (usedCloud) return
-          }
+          if (stale()) return
           onWriteRef.current(`\r\n${result.error}\r\n`)
           setLastFailed(true)
           onRunResultRef.current?.({ outcome: "failed", diagnostics: [], stderr: result.error })
@@ -483,6 +452,7 @@ export function useCodeRunner({ onWrite, onRunResult }: UseCodeRunnerOptions) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sourceCode }),
         })
+        if (stale()) return
         const data = (await res.json()) as {
           success?: boolean
           stdout?: string
@@ -490,6 +460,7 @@ export function useCodeRunner({ onWrite, onRunResult }: UseCodeRunnerOptions) {
           exitCode?: number | null
           error?: string
         }
+        if (stale()) return
         if (!res.ok) {
           onWriteRef.current(`${data.error || "Compile request failed."}\r\n`)
           setLastFailed(true)
@@ -527,10 +498,10 @@ export function useCodeRunner({ onWrite, onRunResult }: UseCodeRunnerOptions) {
         setLastFailed(true)
         onRunResultRef.current?.({ outcome: "failed", diagnostics: [], stderr: "" })
       } finally {
-        setRunState("idle")
+        if (!stale()) setRunState("idle")
       }
     },
-    [runState],
+    [releaseSession],
   )
 
   const writeInput = useCallback(async (data: string) => {
@@ -541,12 +512,15 @@ export function useCodeRunner({ onWrite, onRunResult }: UseCodeRunnerOptions) {
   }, [])
 
   const stop = useCallback(async () => {
-    const api = getApi()
-    const id = sessionRef.current
-    if (!api || !id) return
-    setRunState('stopping')
-    await api.stop({ sessionId: id })
-  }, [])
+    runTokenRef.current += 1
+    if (!sessionRef.current) {
+      clearWaitHint()
+      setRunState("idle")
+      return
+    }
+    setRunState("stopping")
+    await releaseSession()
+  }, [clearWaitHint, releaseSession])
 
   const resize = useCallback(async (cols: number, rows: number) => {
     const api = getApi()

@@ -101,6 +101,70 @@ export function buildOfficeHourStudentInOfferingSqlFragmentFromRequest(
   return sql.unsafe(studentInOfferingSqlFromRequest(request, courseId, studentAlias))
 }
 
+/**
+ * The request's student, or another row with the same email in the selected offering.
+ * Section codes are reused across terms, so a Spring login can book while the
+ * instructor is looking at the Fall roster for the same person.
+ */
+export function officeHourStudentVisibleInOfferingSql(input: {
+  courseId: number
+  sessionId?: number | null
+  academicTermId?: number | null
+  studentAlias?: string
+}): string {
+  const alias = /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(input.studentAlias ?? "")
+    ? (input.studentAlias as string)
+    : "s"
+  const direct = studentInInstructorSessionScopeSql({
+    courseId: input.courseId,
+    sessionId: input.sessionId,
+    academicTermId: input.academicTermId,
+    studentAlias: alias,
+  })
+  const current = studentInInstructorSessionScopeSql({
+    courseId: input.courseId,
+    sessionId: input.sessionId,
+    academicTermId: input.academicTermId,
+    studentAlias: "s_oh_current",
+  })
+  return `(
+    ${direct}
+    OR (
+      NULLIF(btrim(${alias}.email), '') IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM students s_oh_current
+        WHERE s_oh_current.id <> ${alias}.id
+          AND lower(btrim(s_oh_current.email)) = lower(btrim(${alias}.email))
+          AND ${current}
+      )
+    )
+  )`
+}
+
+export function buildOfficeHourStudentVisibleInOfferingSqlFragment(input: {
+  courseId: number
+  sessionId?: number | null
+  academicTermId?: number | null
+  studentAlias?: string
+}) {
+  return sql.unsafe(officeHourStudentVisibleInOfferingSql(input))
+}
+
+export function buildOfficeHourStudentVisibleInOfferingSqlFragmentFromRequest(
+  request: NextRequest,
+  courseId: number,
+  studentAlias = "s",
+) {
+  const scope = readInstructorSessionScopeFromRequest(request)
+  return buildOfficeHourStudentVisibleInOfferingSqlFragment({
+    courseId,
+    sessionId: scope.sessionId,
+    academicTermId: scope.sessionId != null ? null : scope.academicTermId,
+    studentAlias,
+  })
+}
+
 export async function studentBelongsToOfficeHourOffering(input: {
   studentId: number
   courseId: number
@@ -172,6 +236,66 @@ export async function resolveStudentCourseIdForOfficeHours(studentInternalId: nu
   return Number.isFinite(fromSession) && fromSession! > 0 ? fromSession : null
 }
 
+/**
+ * Prefer the active-term enrollment that shares this student's email.
+ * A reused section code can leave an older login row that instructors never list.
+ */
+export async function resolveActiveOfficeHourEnrollment(studentInternalId: number): Promise<{
+  studentId: number
+  courseId: number | null
+}> {
+  const studentId = Math.trunc(Number(studentInternalId))
+  const courseId = await resolveStudentCourseIdForOfficeHours(studentId)
+  if (!Number.isFinite(studentId) || studentId < 1) {
+    return { studentId, courseId }
+  }
+
+  const current = await sql`
+    SELECT s.email, sess.code AS session_code, COALESCE(at.is_active, false) AS term_active
+    FROM students s
+    LEFT JOIN sessions sess ON sess.id = s.session_id
+    LEFT JOIN academic_terms at ON at.id = sess.academic_term_id
+    WHERE s.id = ${studentId}
+    LIMIT 1
+  `
+  const row = current[0] as
+    | { email?: string | null; session_code?: string | null; term_active?: boolean }
+    | undefined
+  if (!row || row.term_active) return { studentId, courseId }
+
+  const email = String(row.email ?? "").trim()
+  if (!email) return { studentId, courseId }
+
+  const sessionCode = String(row.session_code ?? "").trim()
+  const active = await sql`
+    SELECT s.id, s.course_id, sess.course_id AS session_course_id
+    FROM students s
+    JOIN sessions sess ON sess.id = s.session_id
+    JOIN academic_terms at ON at.id = sess.academic_term_id
+    WHERE lower(btrim(s.email)) = lower(${email})
+      AND COALESCE(at.is_active, false) = true
+    ORDER BY
+      CASE WHEN ${sessionCode} <> '' AND TRIM(sess.code) = ${sessionCode} THEN 0 ELSE 1 END,
+      s.id DESC
+    LIMIT 1
+  `
+  const match = active[0] as
+    | { id: number; course_id: number | null; session_course_id: number | null }
+    | undefined
+  if (!match) return { studentId, courseId }
+
+  const activeId = Number(match.id)
+  const sessionCourse = match.session_course_id != null ? Number(match.session_course_id) : null
+  const directCourse = match.course_id != null ? Number(match.course_id) : null
+  const activeCourse =
+    Number.isFinite(sessionCourse) && sessionCourse! > 0
+      ? sessionCourse
+      : Number.isFinite(directCourse) && directCourse! > 0
+        ? directCourse
+        : courseId
+  return { studentId: activeId, courseId: activeCourse }
+}
+
 export async function officeHourRequestInCourseScope(
   requestId: number,
   courseId: number,
@@ -180,7 +304,7 @@ export async function officeHourRequestInCourseScope(
   await ensureOfficeHoursCourseScopeColumns()
   const hasCol = await hasOfficeHourRequestsCourseIdColumn()
   const scopeWhere = buildOfficeHourRequestCourseScopeSqlFragment("ohr", courseId, hasCol)
-  const studentScope = buildOfficeHourStudentInOfferingSqlFragment({
+  const studentScope = buildOfficeHourStudentVisibleInOfferingSqlFragment({
     studentAlias: "s",
     courseId,
     sessionId: offering?.sessionId,

@@ -2,11 +2,12 @@
  * Membership rollover and tier retakes stay available until N days after
  * the assessment `available_until` deadline, then expire for grade finalization.
  *
- * Platform default: ASSESSMENT_PERKS_GRACE_DAYS_AFTER_DEADLINE (7).
+ * Platform default: one month (30 days) after the assessment deadline.
+ * The semester end still closes every quiz and homework, even if this window is still open.
  * Per course: course_policies.grading_policy.assessment_perks_grace_days_after_deadline
  */
 
-export const DEFAULT_ASSESSMENT_PERKS_GRACE_DAYS_AFTER_DEADLINE = 7
+export const DEFAULT_ASSESSMENT_PERKS_GRACE_DAYS_AFTER_DEADLINE = 30
 
 /** Platform-wide fallback when a course has no override. */
 export function getPlatformDefaultAssessmentPerksGraceDays(): number {

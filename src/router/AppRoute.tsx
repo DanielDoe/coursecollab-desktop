@@ -94,6 +94,15 @@ export function AppRoute() {
     return extractRouteParams(pageModule, resolvedPath)
   }, [pageModule, pathname])
 
+  const search = location.search
+  const pageProps = useMemo(
+    () => ({
+      params: Promise.resolve(routeParams),
+      searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(search))),
+    }),
+    [routeParams, search],
+  )
+
   const Page = useMemo(() => {
     if (!pageModule) return null
     const pageLoader = getPageLoader(pageModule)
@@ -108,10 +117,11 @@ export function AppRoute() {
     return <NotFound />
   }
 
+  const RoutePage = Page as unknown as ComponentType<typeof pageProps>
   const page = (
     <RouteModuleShell>
       <Suspense key={pageModule} fallback={<LoadingFallback />}>
-        <Page params={Promise.resolve(routeParams)} />
+        <RoutePage {...pageProps} />
       </Suspense>
     </RouteModuleShell>
   )

@@ -14,8 +14,10 @@ export function formatEvaluateApiResponse(args: {
   aiFeedback?: Record<string, unknown> | null
   questionType: string
   maxPoints: number
+  /** Anti-tamper receipt binding this score to (attemptId, questionId, answer); see lib/evaluation-receipt.ts. */
+  receipt?: string
 }) {
-  const { result, aiFeedback, questionType, maxPoints } = args
+  const { result, aiFeedback, questionType, maxPoints, receipt } = args
   const qtLower = (questionType || "").toLowerCase()
   const isCodeAi = ["code_write", "code_debug", "code_problem", "code_write_plot", "code_explain"].includes(
     qtLower,
@@ -80,6 +82,9 @@ export function formatEvaluateApiResponse(args: {
     status: aiFeedback?.status,
     statusMessage: aiFeedback?.statusMessage,
     ...circuitSpread,
+    // Top-level so it survives the client's flatten-then-resubmit round trip (see
+    // lib/evaluation-receipt.ts); `submit` verifies it before trusting a re-posted score.
+    ...(receipt ? { receipt } : {}),
     ...(isMultiPartWithAi
       ? {
           questionType: "multi_part",

@@ -23,6 +23,9 @@ type LiveInstructorRunTerminalApi = {
 
 export type LiveInstructorRunPanelHandle = {
   run: (sourceCode: string) => Promise<void>
+  /** Kill the local C++ process and clear the running state. */
+  stop: () => Promise<void>
+  clear: () => void
 }
 
 type Props = {
@@ -78,7 +81,7 @@ export const LiveInstructorRunPanel = forwardRef<LiveInstructorRunPanelHandle, P
         }
         if (!compilerInfo?.available) {
           write("\r\nLooking for a C++ compiler…\r\n")
-          compilerInfo = (await runner.ensureToolchain()) ?? compilerInfo
+          compilerInfo = (await runner.ensureToolchain({ quiet: true })) ?? compilerInfo
         }
         if (!compilerInfo?.available) {
           write(
@@ -102,7 +105,16 @@ export const LiveInstructorRunPanel = forwardRef<LiveInstructorRunPanelHandle, P
       ],
     )
 
-    useImperativeHandle(ref, () => ({ run }), [run])
+    const stop = useCallback(() => runner.stop(), [runner.stop])
+    const clear = useCallback(() => {
+      terminalApi.current?.clear()
+    }, [])
+
+    useImperativeHandle(ref, () => ({ run, stop, clear }), [clear, run, stop])
+
+    const handleClose = useCallback(() => {
+      void stop().finally(onClose)
+    }, [onClose, stop])
 
     const handleReady = useCallback(
       (api: LiveInstructorRunTerminalApi) => {
@@ -140,6 +152,12 @@ export const LiveInstructorRunPanel = forwardRef<LiveInstructorRunPanelHandle, P
       onBusyChange?.(busy)
     }, [busy, onBusyChange])
 
+    useEffect(() => {
+      return () => {
+        onBusyChange?.(false)
+      }
+    }, [onBusyChange])
+
     const status = runner.installing
       ? runner.installProgress != null
         ? `Installing C++ compiler… ${runner.installProgress}%`
@@ -168,7 +186,7 @@ export const LiveInstructorRunPanel = forwardRef<LiveInstructorRunPanelHandle, P
           percent={runner.installProgress}
           compilerLabel={runner.compiler?.available ? compilerDisplayName(runner.compiler) : null}
           errorDetail={runner.unavailableReason}
-          onRetry={() => void runner.ensureToolchain()}
+          onRetry={() => void runner.ensureToolchain({ force: true })}
           onDismiss={runner.dismissToolchainSetup}
         />
         <section
@@ -184,7 +202,7 @@ export const LiveInstructorRunPanel = forwardRef<LiveInstructorRunPanelHandle, P
               size="sm"
               variant="ghost"
               className="h-7 px-2 text-[11px] text-[var(--cc-text-muted)]"
-              onClick={onClose}
+              onClick={handleClose}
             >
               <X className="mr-1 h-3.5 w-3.5" />
               Close

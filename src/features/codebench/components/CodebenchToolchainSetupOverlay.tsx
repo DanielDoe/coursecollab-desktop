@@ -72,11 +72,14 @@ export function CodebenchToolchainSetupOverlay({
   const overall = outcome === 'success' ? 100 : toolchainOverallPercent(phase, percent)
   const isError = outcome === 'error'
   const isSuccess = outcome === 'success'
+  const downloadedButFailed = /test compile failed|unknown architecture/i.test(errorDetail ?? '')
 
   const headline = isSuccess
     ? 'Your C++ compiler is ready'
     : isError
-      ? 'We need a moment more'
+      ? downloadedButFailed
+        ? 'The compiler downloaded, but the test run failed'
+        : 'The C++ compiler could not be set up'
       : 'Setting up your C++ environment'
 
   const subhead = isSuccess
@@ -84,7 +87,7 @@ export function CodebenchToolchainSetupOverlay({
       ? `${compilerLabel} is configured — you can run and submit code now.`
       : 'Everything checked out — you can run code now.'
     : isError
-      ? 'CourseCollab could not finish setup automatically.'
+      ? 'This is the error from this computer.'
       : 'Sit back and relax — we are switching or installing the compiler for you.'
 
   const liveMessage =
@@ -234,10 +237,10 @@ export function CodebenchToolchainSetupOverlay({
 
               {isError ? (
                 <div className="space-y-4" aria-live="assertive">
-                  <p className="text-sm leading-relaxed text-[var(--cc-text-secondary,var(--cc-text))]">
+                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-xl border border-[var(--border)] bg-[var(--cc-ui-surface-muted,var(--muted))] p-3 font-mono text-xs leading-relaxed text-[var(--cc-text)]">
                     {errorDetail ||
-                      'Try again with a stable connection. You can also install g++ or LLVM yourself, then click Retry.'}
-                  </p>
+                      'The compiler did not print an error. Retry setup, then try Run again.'}
+                  </pre>
                   <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <Button type="button" variant="ghost" onClick={onDismiss} className="text-[var(--cc-text)]">
                       Continue without local run

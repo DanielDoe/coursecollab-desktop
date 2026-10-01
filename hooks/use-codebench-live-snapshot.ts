@@ -9,7 +9,12 @@ import {
   shiftTypingReplayClock,
 } from "@/lib/codebench-live-replay"
 import { studentApiFetch } from "@/lib/auth"
-import { codebenchLiveCodeToPersist, isCodebenchBoilerplate, normalizeCodebenchLanguageId } from "@/lib/codebench-languages"
+import {
+  codebenchLiveCodeToPersist,
+  getCodebenchLanguage,
+  isCodebenchBoilerplate,
+  normalizeCodebenchLanguageId,
+} from "@/lib/codebench-languages"
 import { stripCodebenchProbeComments } from "@/lib/codebench-strip-probe-comments"
 import {
   LIVE_STUDENT_SNAPSHOT_DEBOUNCE_MS,
@@ -21,7 +26,8 @@ import {
 import { seedLiveInstructorPushBaseline } from "@/lib/codebench-live-instructor-push-state"
 import { useImmediateLivePoll } from "@/hooks/use-immediate-live-poll"
 import { setStudioLiveAssignment } from "@/lib/codebench-studio-analytics"
-import { readRememberedLiveJoin } from "@/lib/codebench-live-join-memory"
+import { readRememberedLiveJoin, rememberLiveSyncedCode } from "@/lib/codebench-live-join-memory"
+import type { StudentLiveClassroomSession } from "@/lib/codebench-live-classroom-types"
 
 type EditorLike = {
   getModel?: () => {
@@ -51,7 +57,7 @@ export type LiveEditorConnection =
   | { state: "connecting" }
   | { state: "live" }
   | { state: "rejected"; httpStatus: number; message: string }
-  | { state: "ended" }
+  | { state: "ended"; follow: StudentLiveClassroomSession | null }
 
 export const LIVE_EDITOR_CONNECTION_EVENT = "codebench-live-connection"
 
@@ -63,14 +69,81 @@ export type LiveEditorConnectionEventDetail = {
 /** Consecutive 410s before the student is told the session ended. */
 const LIVE_SESSION_GONE_CONFIRM = 2
 
-type LiveSignalResult = { status: number | null; error: string | null }
+/**
+ * Snapshots are single-flight, so one request that never settles would silence the
+ * heartbeat for the rest of the join while the page still looks live.
+ */
+const LIVE_REQUEST_TIMEOUT_MS = 8000
 
-async function readLiveError(response: Response): Promise<string | null> {
+function fetchLiveWithTimeout(input: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), LIVE_REQUEST_TIMEOUT_MS)
+  return studentApiFetch(input, { ...init, signal: controller.signal }).finally(() =>
+    window.clearTimeout(timer),
+  )
+}
+
+/** Worker timers keep firing in background tabs, where page timers drop to once a minute. */
+function startLiveHeartbeatTicker(intervalMs: number, tick: () => void): () => void {
+  let worker: Worker | null = null
+  let url: string | null = null
   try {
-    const data = (await response.json()) as { error?: unknown }
-    return typeof data?.error === "string" ? data.error : null
+    url = URL.createObjectURL(
+      new Blob([`setInterval(function(){postMessage(0)},${intervalMs})`], { type: "text/javascript" }),
+    )
+    worker = new Worker(url)
+    worker.onmessage = tick
   } catch {
-    return null
+    worker = null
+  }
+  if (worker) {
+    const active = worker
+    const activeUrl = url
+    return () => {
+      active.terminate()
+      if (activeUrl) URL.revokeObjectURL(activeUrl)
+    }
+  }
+  if (url) URL.revokeObjectURL(url)
+  const id = window.setInterval(tick, intervalMs)
+  return () => window.clearInterval(id)
+}
+
+type LiveSignalResult = {
+  status: number | null
+  error: string | null
+  follow: StudentLiveClassroomSession | null
+}
+
+function liveSessionFollowFromBody(value: unknown): StudentLiveClassroomSession | null {
+  if (!value || typeof value !== "object") return null
+  const row = value as Record<string, unknown>
+  const assignmentId = Number(row.assignmentId)
+  const sessionId = Number(row.sessionId)
+  if (!Number.isFinite(assignmentId) || assignmentId <= 0) return null
+  if (!Number.isFinite(sessionId) || sessionId <= 0) return null
+  return {
+    sessionId,
+    assignmentId,
+    title: typeof row.title === "string" ? row.title : "Live coding",
+    questionText: typeof row.questionText === "string" ? row.questionText : "",
+    session: typeof row.session === "string" ? row.session : null,
+    startedAt: typeof row.startedAt === "string" ? row.startedAt : "",
+  }
+}
+
+async function readLiveDenial(response: Response): Promise<{
+  error: string | null
+  follow: StudentLiveClassroomSession | null
+}> {
+  try {
+    const data = (await response.json()) as { error?: unknown; movedTo?: unknown }
+    return {
+      error: typeof data?.error === "string" ? data.error : null,
+      follow: liveSessionFollowFromBody(data?.movedTo),
+    }
+  } catch {
+    return { error: null, follow: null }
   }
 }
 
@@ -89,11 +162,12 @@ function sendLiveEditorSignal(
     }),
     keepalive: true,
   })
-    .then(async (response) => ({
-      status: response.status,
-      error: response.ok ? null : await readLiveError(response),
-    }))
-    .catch(() => ({ status: null, error: null }))
+    .then(async (response) => {
+      if (response.ok) return { status: response.status, error: null, follow: null }
+      const denial = await readLiveDenial(response)
+      return { status: response.status, error: denial.error, follow: denial.follow }
+    })
+    .catch(() => ({ status: null, error: null, follow: null }))
 }
 
 export function sendLiveEditorLeave(studentId: string, assignmentId: string): Promise<void> {
@@ -201,7 +275,19 @@ export function useCodebenchLiveSnapshot({
   codeRef.current = code
   editorRefStable.current = editorRef
 
+  const previousAssignmentRef = useRef<string | null>(assignmentId)
+  const foreignBufferRef = useRef<string | null>(null)
   useEffect(() => {
+    const previous = previousAssignmentRef.current
+    if (previous && assignmentId && previous !== assignmentId) {
+      // Keep the previous problem's text from being saved as this assignment.
+      foreignBufferRef.current = stripCodebenchProbeComments(
+        readEditorCode(editorRefStable.current, codeRef.current),
+      )
+    } else {
+      foreignBufferRef.current = null
+    }
+    previousAssignmentRef.current = assignmentId
     replayRef.current = { startTime: 0, events: [] }
     lastPostedCodeRef.current = null
     lastReplayPostRef.current = 0
@@ -213,14 +299,22 @@ export function useCodebenchLiveSnapshot({
 
   const [connection, setConnection] = useState<LiveEditorConnection>({ state: "idle" })
   const goneCountRef = useRef(0)
+  const followRef = useRef<StudentLiveClassroomSession | null>(null)
+  const stopHeartbeatRef = useRef(false)
+  const activeAssignmentRef = useRef(assignmentId)
   const noteServerAccepted = useCallback(() => {
     goneCountRef.current = 0
     setConnection((current) => (current.state === "live" ? current : { state: "live" }))
   }, [])
-  const noteServerRejected = useCallback((httpStatus: number, message: string | null) => {
+  const noteServerRejected = useCallback(
+    (httpStatus: number, message: string | null, follow: StudentLiveClassroomSession | null = null) => {
     if (httpStatus === 410) {
       goneCountRef.current += 1
-      if (goneCountRef.current >= LIVE_SESSION_GONE_CONFIRM) setConnection({ state: "ended" })
+      if (follow) followRef.current = follow
+      if (goneCountRef.current >= LIVE_SESSION_GONE_CONFIRM) {
+        stopHeartbeatRef.current = true
+        setConnection({ state: "ended", follow: followRef.current })
+      }
       return
     }
     if (httpStatus === 403 || httpStatus === 404) {
@@ -231,10 +325,14 @@ export function useCodebenchLiveSnapshot({
       })
     }
     // 5xx and network errors keep the current state; the heartbeat retries.
-  }, [])
+    },
+    [],
+  )
 
   useEffect(() => {
     goneCountRef.current = 0
+    followRef.current = null
+    stopHeartbeatRef.current = false
     setConnection(enabled && studentId && assignmentId ? { state: "connecting" } : { state: "idle" })
   }, [assignmentId, enabled, studentId])
 
@@ -256,6 +354,7 @@ export function useCodebenchLiveSnapshot({
   postSnapshotRef.current = async (force = false, includeReplay = false, saveAfterStop = false) => {
     if (!studentId || !assignmentId) return
     if ((!sharingRef.current || !enabled) && !saveAfterStop) return
+    if (stopHeartbeatRef.current && !saveAfterStop) return
     if (!restoreDoneRef.current) {
       needsRetryRef.current = true
       return
@@ -277,6 +376,10 @@ export function useCodebenchLiveSnapshot({
       return
     }
     const unchanged = latestCode === lastPostedCodeRef.current
+    const holdingPreviousAssignment =
+      foreignBufferRef.current != null &&
+      latestCode.trim() !== "" &&
+      latestCode.trim() === foreignBufferRef.current.trim()
     if (!force && unchanged) return
     if (!force && !latestCode.trim()) return
 
@@ -284,17 +387,21 @@ export function useCodebenchLiveSnapshot({
     const replayToSend = trimTypingReplay(replayRef.current, MAX_LIVE_REPLAY_EVENTS)
     const replayMark = replayMarkOf(replayRef.current)
     const sendReplay =
+      !holdingPreviousAssignment &&
       includeReplay &&
       replayToSend.events.length > 0 &&
       replayMark !== lastReplayMarkRef.current &&
       now - lastReplayPostRef.current >= LIVE_STUDENT_SNAPSHOT_REPLAY_MS &&
       replayReconstructsTo(replayToSend, latestCode)
     // An unchanged buffer is a heartbeat: the server already has this code.
-    const presenceOnly = unchanged && !sendReplay && !saveAfterStop
+    const presenceOnly = holdingPreviousAssignment || (unchanged && !sendReplay && !saveAfterStop)
 
     pendingRef.current = true
+    // keepalive requests share a small per-page quota (64 KB in Chromium); reserve them
+    // for the save that may outlive the page.
+    const send = saveAfterStop ? studentApiFetch : fetchLiveWithTimeout
     try {
-      const response = await studentApiFetch("/api/codebench/live-snapshot", {
+      const response = await send("/api/codebench/live-snapshot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -309,10 +416,12 @@ export function useCodebenchLiveSnapshot({
           intent: presenceOnly ? "presence" : "code",
           keepJoined: saveAfterStop ? false : true,
         }),
-        keepalive: true,
+        keepalive: saveAfterStop,
       })
       if (response.ok) {
+        void response.body?.cancel().catch(() => undefined)
         lastPostRef.current = Date.now()
+        if (!presenceOnly) rememberLiveSyncedCode(studentId, assignmentId, latestCode)
         lastPostedCodeRef.current = latestCode
         if (!isCodebenchBoilerplate(latestCode, languageId)) protectedCodeRef.current = latestCode
         if (sendReplay) {
@@ -321,8 +430,9 @@ export function useCodebenchLiveSnapshot({
         }
         if (!saveAfterStop) noteServerAccepted()
       } else {
-        const message = await readLiveError(response)
-        if (!saveAfterStop) noteServerRejected(response.status, message)
+        const denial = await readLiveDenial(response)
+        if (!saveAfterStop) noteServerRejected(response.status, denial.error, denial.follow)
+        const message = denial.error
         if (process.env.NODE_ENV === "development") {
           console.warn("[codebench live-snapshot]", response.status, message ?? "")
         }
@@ -447,8 +557,9 @@ export function useCodebenchLiveSnapshot({
     setRestoreReady(false)
     void (async () => {
       try {
-        const response = await studentApiFetch(
+        const response = await fetchLiveWithTimeout(
           `/api/codebench/live-snapshot?studentId=${encodeURIComponent(studentId)}&assignmentId=${encodeURIComponent(assignmentId)}`,
+          {},
         )
         if (!response.ok || cancelled) return
         const data = (await response.json()) as {
@@ -467,6 +578,16 @@ export function useCodebenchLiveSnapshot({
           protectedCodeRef.current = saved
         }
         if (saved.trim()) onRestoreRef.current?.(saved)
+        else {
+          const foreign = foreignBufferRef.current
+          const editorNow = stripCodebenchProbeComments(
+            readEditorCode(editorRefStable.current, codeRef.current),
+          ).trim()
+          if (foreign && editorNow && editorNow === foreign.trim()) {
+            const template = getCodebenchLanguage(normalizeCodebenchLanguageId(language)).defaultCode
+            if (template.trim()) onRestoreRef.current?.(template)
+          }
+        }
         const restoredReplay = selectFaithfulTypingReplay(data.typingReplay, saved)
         if (restoredReplay) {
           replayRef.current = trimTypingReplay(shiftTypingReplayClock(restoredReplay, serverClockOffsetMs))
@@ -486,14 +607,17 @@ export function useCodebenchLiveSnapshot({
     }
   }, [assignmentId, enabled, studentId])
 
-  useImmediateLivePoll(
-    () => {
-      const includeReplay = Date.now() - lastReplayPostRef.current >= LIVE_STUDENT_SNAPSHOT_REPLAY_MS
-      void postSnapshotRef.current(true, includeReplay)
-    },
-    LIVE_STUDENT_SNAPSHOT_INTERVAL_MS,
-    Boolean(enabled && studentId && assignmentId),
-  )
+  const heartbeat = useCallback(() => {
+    const includeReplay = Date.now() - lastReplayPostRef.current >= LIVE_STUDENT_SNAPSHOT_REPLAY_MS
+    void postSnapshotRef.current(true, includeReplay)
+  }, [])
+  const heartbeatOn = Boolean(enabled && studentId && assignmentId)
+  // Focus/visible/pageshow pulls only; the interval runs on a worker below.
+  useImmediateLivePoll(heartbeat, 60_000, heartbeatOn)
+  useEffect(() => {
+    if (!heartbeatOn) return
+    return startLiveHeartbeatTicker(LIVE_STUDENT_SNAPSHOT_INTERVAL_MS, heartbeat)
+  }, [heartbeat, heartbeatOn])
 
   useEffect(() => {
     if (!enabled || !studentId || !assignmentId) return
@@ -511,7 +635,9 @@ export function useCodebenchLiveSnapshot({
 
   useEffect(() => {
     if (!enabled || !studentId || !assignmentId) return
+    activeAssignmentRef.current = assignmentId
     const generation = ++editorPresenceRef.current
+    const joinedAssignmentId = assignmentId
     void sendLiveEditorJoin(studentId, assignmentId).then((result) => {
       if (!sharingRef.current) {
         void sendLiveEditorLeave(studentId, assignmentId)
@@ -519,16 +645,21 @@ export function useCodebenchLiveSnapshot({
       }
       if (editorPresenceRef.current !== generation) return
       if (result.status != null && result.status >= 200 && result.status < 300) noteServerAccepted()
-      else if (result.status != null) noteServerRejected(result.status, result.error)
+      else if (result.status != null) noteServerRejected(result.status, result.error, result.follow)
     })
     return () => {
-      // Same-document remount: the next effect already bumped generation, so skip.
+      // Same-document remount of this assignment keeps the join. Switching to a
+      // different assignment still has to leave the one we were in.
       // Full page refresh: keep the join if this window is about to resume it.
-      // Leaving the editor tab (no pagehide) still sends leave.
       queueMicrotask(() => {
-        if (editorPresenceRef.current !== generation) return
-        if (unloadingRef.current && shouldKeepJoinAcrossUnload(studentId, assignmentId)) return
-        void sendLiveEditorLeave(studentId, assignmentId)
+        if (editorPresenceRef.current !== generation) {
+          if (activeAssignmentRef.current !== joinedAssignmentId) {
+            void sendLiveEditorLeave(studentId, joinedAssignmentId)
+          }
+          return
+        }
+        if (unloadingRef.current && shouldKeepJoinAcrossUnload(studentId, joinedAssignmentId)) return
+        void sendLiveEditorLeave(studentId, joinedAssignmentId)
       })
     }
   }, [assignmentId, enabled, noteServerAccepted, noteServerRejected, studentId])

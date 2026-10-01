@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getResumeGraceMinutes, isWithinResumeGrace } from "@/lib/quiz-resume-utils"
+import { getActiveRolloverExpiresAt } from "@/lib/deadline-extension"
 import { hasSaveAndFinishLaterAccess } from "@/lib/retake-access"
 import { normalizeSuperpowerListFromUnknown } from "@/lib/superpowers-json"
 import { ensureSectionTimerSchema } from "@/lib/ensure-section-timer-schema"
@@ -90,7 +91,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         const quizMeta = await sql`
           SELECT available_until FROM quizzes WHERE id = ${quizId} LIMIT 1
         `
-        const availableUntil = quizMeta[0]?.available_until
+        const rolloverExpiresAt = await getActiveRolloverExpiresAt(
+          studentDatabaseId,
+          parseInt(String(quizId), 10),
+        )
+        const availableUntil = rolloverExpiresAt ?? quizMeta[0]?.available_until
         const cutoff = availableUntil
           ? new Date(availableUntil)
           : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -116,7 +121,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         const nq = Number(quizMeta[0]?.num_questions || 1)
         const graceMinutes = getResumeGraceMinutes(tp, nq)
         const startedAt = attempt.started_at instanceof Date ? attempt.started_at : new Date(attempt.started_at)
-        if (!isWithinResumeGrace(startedAt, graceMinutes, quizMeta[0]?.available_until)) {
+        const rolloverExpiresAt = await getActiveRolloverExpiresAt(
+          studentDatabaseId,
+          parseInt(String(quizId), 10),
+        )
+        const resumeUntil = rolloverExpiresAt ?? quizMeta[0]?.available_until
+        if (!isWithinResumeGrace(startedAt, graceMinutes, resumeUntil)) {
           const hasSaveLaterAccess = await hasSaveAndFinishLaterAccess(studentDatabaseId)
           return NextResponse.json({
             attemptId: null,

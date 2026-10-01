@@ -15,7 +15,7 @@ import { automateStudyPlanFromChat } from "@/lib/cora/automate-study-plan"
 import {
   ensureOfficeHoursCourseScopeColumns,
   hasOfficeHourRequestsCourseIdColumn,
-  resolveStudentCourseIdForOfficeHours,
+  resolveActiveOfficeHourEnrollment,
 } from "@/lib/office-hours-course-scope"
 import { createInstructorNotification } from "@/lib/create-instructor-notification"
 import { logSupportTicketToSystemLog } from "@/lib/system-log-support-ticket"
@@ -206,7 +206,9 @@ async function handleOfficeHoursBook(ctx: CapabilityExecutionContext): Promise<C
 
   await ensureOfficeHoursCourseScopeColumns()
   const hasCourseCol = await hasOfficeHourRequestsCourseIdColumn()
-  const studentCourseId = hasCourseCol ? await resolveStudentCourseIdForOfficeHours(studentDbId) : null
+  const enrollment = await resolveActiveOfficeHourEnrollment(studentDbId)
+  const requestStudentId = enrollment.studentId
+  const studentCourseId = hasCourseCol ? enrollment.courseId : null
 
   const inserted = hasCourseCol
     ? ((await sql`
@@ -214,7 +216,7 @@ async function handleOfficeHoursBook(ctx: CapabilityExecutionContext): Promise<C
           student_id, course_id, topic, area_of_concern, description, priority, status
         )
         VALUES (
-          ${studentDbId},
+          ${requestStudentId},
           ${studentCourseId},
           ${topic},
           ${ctx.args.areaOfConcern ?? null},
@@ -227,7 +229,7 @@ async function handleOfficeHoursBook(ctx: CapabilityExecutionContext): Promise<C
     : ((await sql`
         INSERT INTO office_hour_requests (student_id, topic, area_of_concern, description, priority, status)
         VALUES (
-          ${studentDbId},
+          ${requestStudentId},
           ${topic},
           ${ctx.args.areaOfConcern ?? null},
           ${ctx.args.description ?? null},

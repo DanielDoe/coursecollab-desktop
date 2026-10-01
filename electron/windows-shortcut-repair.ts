@@ -1,8 +1,55 @@
-import { app } from 'electron'
+import { app, dialog, shell } from 'electron'
 import { execFile } from 'node:child_process'
+import { mkdirSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
+
+/** Passed by the "Create Desktop Shortcut" link the installer drops in the install folder. */
+export const CREATE_SHORTCUT_FLAG = '--create-desktop-shortcut'
+
+export function wantsShortcutCreation(argv: string[]): boolean {
+  return process.platform === 'win32' && argv.includes(CREATE_SHORTCUT_FLAG)
+}
+
+/**
+ * Uses Electron's native .lnk writer rather than PowerShell, so it still works on
+ * PCs where script execution is locked down.
+ */
+export async function createWindowsShortcutsFromLauncher(): Promise<void> {
+  if (process.platform !== 'win32') return
+  const exe = process.execPath
+  const targets = [
+    join(app.getPath('desktop'), 'CourseCollab.lnk'),
+    join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'CourseCollab', 'CourseCollab.lnk'),
+  ]
+  const failed: string[] = []
+  for (const lnk of targets) {
+    try {
+      mkdirSync(dirname(lnk), { recursive: true })
+      const ok = shell.writeShortcutLink(lnk, 'create', {
+        target: exe,
+        cwd: dirname(exe),
+        icon: exe,
+        iconIndex: 0,
+        description: 'CourseCollab',
+        appUserModelId: 'com.coursecollab.desktop',
+      })
+      if (!ok) failed.push(lnk)
+    } catch {
+      failed.push(lnk)
+    }
+  }
+  await dialog.showMessageBox({
+    type: failed.length ? 'warning' : 'info',
+    title: 'CourseCollab',
+    message: failed.length ? 'Some shortcuts could not be created.' : 'CourseCollab shortcuts are ready.',
+    detail: failed.length
+      ? `Could not write:\n${failed.join('\n')}`
+      : 'You can now open CourseCollab from your Desktop and the Start menu.',
+  })
+}
 
 /**
  * After OTA or a moved install folder, desktop/Start shortcuts may still point at an old

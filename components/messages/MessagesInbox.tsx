@@ -32,6 +32,7 @@ import { getMessagesPortalTheme } from "@/lib/messages-portal-theme"
 import { MessagesThemeProvider } from "@/components/messages/messages-theme-context"
 import { getMessageAuthHeaders, messageApiFetch } from "@/lib/direct-messages/client"
 import { looksLikeHtml, sanitizeMessageHtml, stripHtmlToPlain } from "@/lib/direct-messages/html"
+import { messageIsOnlyLocalDeviceFile } from "@/lib/direct-messages/local-device-file"
 import {
   MessageComposer,
   isComposerEmpty,
@@ -127,9 +128,10 @@ function MessageBody({ message, isMine }: { message: ThreadMessage; isMine: bool
     )
   }
   const plain = messagePlainText(message.body)
-  const html = plain && looksLikeHtml(message.body) ? sanitizeMessageHtml(message.body) : null
+  const localFileOnly = messageIsOnlyLocalDeviceFile(plain)
+  const html = plain && !localFileOnly && looksLikeHtml(message.body) ? sanitizeMessageHtml(message.body) : null
   const hasAttachments = message.attachments.length > 0
-  const emptyShell = !plain && !hasAttachments
+  const emptyShell = (!plain || localFileOnly) && !hasAttachments
 
   return (
     <div className="space-y-2">
@@ -140,9 +142,13 @@ function MessageBody({ message, isMine }: { message: ThreadMessage; isMine: bool
             isMine ? "text-white/90" : "text-slate-600 dark:text-slate-300",
           )}
         >
-          {isMine
-            ? "Attachment missing — the photo or file may not have finished uploading. Open the + menu → Photo and send again."
-            : "Attachment missing — ask them to resend using the + button → Photo."}
+          {localFileOnly
+            ? isMine
+              ? "Photo didn't upload. Tap the photo button and choose the picture."
+              : "Photo didn't upload. Ask them to tap the photo button and choose the picture."
+            : isMine
+              ? "Attachment missing — the photo or file may not have finished uploading. Open the + menu → Photo and send again."
+              : "Attachment missing — ask them to resend using the + button → Photo."}
         </p>
       ) : null}
       {html ? (
@@ -150,7 +156,7 @@ function MessageBody({ message, isMine }: { message: ThreadMessage; isMine: bool
           className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-0.5 [&_a]:underline break-words"
           dangerouslySetInnerHTML={{ __html: html }}
         />
-      ) : plain ? (
+      ) : plain && !localFileOnly ? (
         <p className="whitespace-pre-wrap break-words">{plain}</p>
       ) : null}
       {hasAttachments && (
@@ -787,7 +793,9 @@ export function MessagesInbox({
                               )}
                             >
                               {lastFromMe ? "You: " : ""}
-                              {t.lastMessage.body}
+                              {messageIsOnlyLocalDeviceFile(messagePlainText(t.lastMessage.body))
+                                ? "Photo didn't upload"
+                                : messagePlainText(t.lastMessage.body)}
                             </p>
                           ) : (
                             <p className="text-xs mt-0.5 text-slate-400 italic">No messages yet</p>

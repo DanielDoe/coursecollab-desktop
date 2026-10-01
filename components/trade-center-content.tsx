@@ -40,6 +40,7 @@ import {
 import { CLASSROOM_POINTS_FOR_FULL_GRADE } from "@/lib/classroom-points-grade-scale"
 import { getPointsPerEc, type TradeCenterPointCaps } from "@/lib/engagement-points-system"
 import { DEFAULT_TRADE_CENTER_CONFIG } from "@/lib/trade-center-shared"
+import { studentApiFetch } from "@/lib/auth"
 import type { AssessmentPrivilegeSource } from "@/lib/assessment-privilege-governance-shared"
 import { cn } from "@/lib/utils"
 import { getStudentModuleTheme, studentModuleSpinnerClass } from "@/lib/student-module-themes"
@@ -56,6 +57,143 @@ import {
 
 interface TradeCenterContentProps {
   embedInDashboard?: boolean
+}
+
+type RolloverPickerAssessment = {
+  id: number
+  title: string
+  assessment_type: string
+  rollover_hours?: number
+  available_until?: string | null
+}
+
+const SINGLE_SITTING_TYPES = new Set([
+  "final",
+  "finals",
+  "final_exam",
+  "mid_semester",
+  "mid-semester",
+  "midsem",
+])
+
+function pastDueAssessmentsFromQuizList(data: unknown, typeFallback: string): RolloverPickerAssessment[] {
+  const quizzes = Array.isArray((data as { quizzes?: unknown })?.quizzes)
+    ? ((data as { quizzes: unknown[] }).quizzes)
+    : []
+  const now = Date.now()
+  const out: RolloverPickerAssessment[] = []
+  for (const raw of quizzes) {
+    const q = raw as {
+      id?: number
+      title?: string
+      assessment_type?: string
+      available_until?: string | null
+      assessment_perks_expires_at?: string | null
+      semester_assessments_closed?: boolean
+      rollover_active?: boolean
+      rollover_hours?: number
+    }
+    if (!q?.id || !q.title || q.semester_assessments_closed || q.rollover_active) continue
+    const until = q.available_until ? new Date(q.available_until).getTime() : NaN
+    if (!Number.isFinite(until) || until >= now) continue
+    if (q.assessment_perks_expires_at) {
+      const expires = new Date(q.assessment_perks_expires_at).getTime()
+      if (Number.isFinite(expires) && expires <= now) continue
+    }
+    const assessmentType = String(q.assessment_type || typeFallback).toLowerCase()
+    if (SINGLE_SITTING_TYPES.has(assessmentType)) continue
+    out.push({
+      id: Number(q.id),
+      title: String(q.title),
+      assessment_type: String(q.assessment_type || typeFallback),
+      rollover_hours: Number(q.rollover_hours) || 24,
+      available_until: q.available_until ?? null,
+    })
+  }
+  return out
+}
+
+async function loadPastDueQuizAndHomework(studentId: string | number): Promise<RolloverPickerAssessment[]> {
+  const lists = await Promise.all(
+    (["quiz", "homework"] as const).map(async (type) => {
+      try {
+        const response = await studentApiFetch(
+          `/api/student/quizzes?studentDatabaseId=${encodeURIComponent(String(studentId))}&type=${type}`,
+        )
+        if (!response.ok) return []
+        return pastDueAssessmentsFromQuizList(await response.json(), type)
+      } catch {
+        return []
+      }
+    }),
+  )
+  const byId = new Map<number, RolloverPickerAssessment>()
+  for (const row of lists.flat()) byId.set(row.id, row)
+  return [...byId.values()]
+}
+
+async function resolveRolloverPicker(studentId: string | number, session: string) {
+  let categories: Record<string, { score: number; deduction: number; available: number; weight: number }> = {}
+  let assessments: RolloverPickerAssessment[] = []
+  let costs: { "12": number; "24": number } = { "12": 10, "24": 20 }
+  let warning: string | undefined
+  let error: string | null = null
+  try {
+    const response = await studentApiFetch(
+      `/api/trade-center/points-for-rollover?studentId=${studentId}&session=${encodeURIComponent(session)}`,
+    )
+    const data = await response.json()
+    if (data?.error) {
+      error = String(data.error)
+    } else {
+      categories = data?.categories ?? {}
+      costs = data?.costs ?? costs
+      warning = typeof data?.warning === "string" ? data.warning : undefined
+      assessments = Array.isArray(data?.assessments) ? data.assessments : []
+    }
+  } catch {
+    error = "Couldn't load rollover options. Check your connection and try again."
+  }
+  if (assessments.length === 0) {
+    const fallback = await loadPastDueQuizAndHomework(studentId)
+    if (fallback.length > 0) {
+      assessments = fallback
+      error = null
+    }
+  }
+  return { categories, assessments, costs, warning, error }
+}
+
+function applyRolloverPicker(
+  result: Awaited<ReturnType<typeof resolveRolloverPicker>>,
+  setError: (value: string | null) => void,
+  setData: (value: {
+    categories: Record<string, { score: number; deduction: number; available: number; weight: number }>
+    assessments: RolloverPickerAssessment[]
+    costs: { "12": number; "24": number }
+    warning?: string
+  }) => void,
+  setQuizId: (value: string) => void,
+  setTab: (value: string) => void,
+) {
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "rollover") {
+    setTab("rollover")
+  }
+  if (result.error && result.assessments.length === 0) {
+    setError(result.error)
+    return
+  }
+  setError(null)
+  setData({
+    categories: result.categories,
+    assessments: result.assessments,
+    costs: result.costs,
+    warning: result.warning,
+  })
+  const preferred = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("quizId") : null
+  if (preferred && result.assessments.some((row) => String(row.id) === preferred)) {
+    setQuizId(preferred)
+  }
 }
 
 function formatPointsDisplay(n: number): string {
@@ -118,7 +256,9 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
     categories: Record<string, { score: number; deduction: number; available: number; weight: number }>
     assessments: { id: number; title: string; assessment_type: string; rollover_hours: number }[]
     costs: { "12": number; "24": number }
+    warning?: string
   } | null>(null)
+  const [rolloverError, setRolloverError] = useState<string | null>(null)
   const [rolloverLoading, setRolloverLoading] = useState(false)
   const [rolloverQuizId, setRolloverQuizId] = useState("")
   const [rolloverSourceCategory, setRolloverSourceCategory] = useState("")
@@ -128,7 +268,17 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
     categories: Record<string, { score: number; deduction: number; available: number; weight: number }>
     assessments: { id: number; title: string; assessment_type: string; available_until: string | null }[]
     costs: { "1": number; "2": number }
+    warning?: string
   } | null>(null)
+  const [extraAttemptsError, setExtraAttemptsError] = useState<string | null>(null)
+  const applyExtraAttemptsResponse = (d: any) => {
+    if (d?.error) {
+      setExtraAttemptsError(String(d.error))
+      return
+    }
+    setExtraAttemptsError(null)
+    setExtraAttemptsData({ ...d, categories: d?.categories ?? {}, assessments: d?.assessments ?? [] })
+  }
   const [extraAttemptsLoading, setExtraAttemptsLoading] = useState(false)
   const [extraAttemptsQuizId, setExtraAttemptsQuizId] = useState("")
   const [extraAttemptsSourceCategory, setExtraAttemptsSourceCategory] = useState("")
@@ -176,10 +326,10 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
           return
         }
         try {
-          await fetch("/api/admin/playground/sync-points", {
+          await fetch("/api/trade-center/sync", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ studentDbId: dbId, fixCompletedAt: true }),
+            body: JSON.stringify({ studentId: dbId, session }),
           })
         } catch {
           // ignore
@@ -199,18 +349,17 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
             .then((r) => r.json())
             .then((d) => setPointRequests(d.requests || []))
             .catch(() => {})
-          fetch(`/api/trade-center/points-for-rollover?studentId=${dbId}&session=${encodeURIComponent(sess)}`)
-            .then((r) => r.json())
-            .then((d) => {
-              if (!d.error) setRolloverData(d)
-            })
-            .catch(() => {})
+          setRolloverLoading(true)
+          resolveRolloverPicker(dbId, sess)
+            .then((result) =>
+              applyRolloverPicker(result, setRolloverError, setRolloverData, setRolloverQuizId, setActiveTab),
+            )
+            .catch(() => setRolloverError("Couldn't load rollover options. Check your connection and try again."))
+            .finally(() => setRolloverLoading(false))
           fetch(`/api/trade-center/points-for-extra-attempts?studentId=${dbId}&session=${encodeURIComponent(sess)}`)
             .then((r) => r.json())
-            .then((d) => {
-              if (!d.error) setExtraAttemptsData(d)
-            })
-            .catch(() => {})
+            .then(applyExtraAttemptsResponse)
+            .catch(() => setExtraAttemptsError("Couldn't load extra-attempt options. Check your connection and try again."))
           fetchClassroomPeerEligibility(dbId, sess)
           fetch(`/api/trade-center/my-history?studentId=${dbId}`)
             .then((r) => r.json())
@@ -297,14 +446,14 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
     if (!studentId || !studentSession) return
     setSyncing(true)
     try {
-      const response = await fetch("/api/admin/playground/sync-points", {
+      const response = await fetch("/api/trade-center/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentDbId: studentId, fixCompletedAt: true }),
+        body: JSON.stringify({ studentId, session: studentSession }),
       })
       const data = await response.json()
       if (response.ok && data.success) {
-        toast({ title: "Sync Successful! ✅", description: `Playground points synced! You now have ${data.syncResult?.playgroundPoints || 0} playground points.` })
+        toast({ title: "Sync Successful! ✅", description: `Playground points synced! You now have ${data.points?.playgroundPoints || 0} playground points.` })
         await fetchPoints()
         await fetchClassroomPeerEligibility()
         await refreshTradeHistory()
@@ -511,11 +660,10 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
     if (!studentId || !studentSession) return
     setRolloverLoading(true)
     try {
-      const r = await fetch(`/api/trade-center/points-for-rollover?studentId=${studentId}&session=${encodeURIComponent(studentSession)}`)
-      const d = await r.json()
-      if (!d.error) setRolloverData(d)
+      const result = await resolveRolloverPicker(studentId, studentSession)
+      applyRolloverPicker(result, setRolloverError, setRolloverData, setRolloverQuizId, setActiveTab)
     } catch {
-      // ignore
+      setRolloverError("Couldn't load rollover options. Check your connection and try again.")
     } finally {
       setRolloverLoading(false)
     }
@@ -528,10 +676,9 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
       const r = await fetch(
         `/api/trade-center/points-for-extra-attempts?studentId=${studentId}&session=${encodeURIComponent(studentSession)}`,
       )
-      const d = await r.json()
-      if (!d.error) setExtraAttemptsData(d)
+      applyExtraAttemptsResponse(await r.json())
     } catch {
-      // ignore
+      setExtraAttemptsError("Couldn't load extra-attempt options. Check your connection and try again.")
     } finally {
       setExtraAttemptsLoading(false)
     }
@@ -1133,6 +1280,11 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
             ) : rolloverData ? (
               <div className={tabContentNarrow}>
                 {governanceBlockedBanner}
+                {rolloverData.warning ? (
+                  <p className="rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                    {rolloverData.warning}
+                  </p>
+                ) : null}
                 {/* Header - centered */}
                 <div className="text-center space-y-2">
                   <div className="inline-flex p-3 rounded-2xl bg-[var(--cc-accent-soft)] ring-1 ring-[var(--cc-accent-border)]">
@@ -1180,20 +1332,32 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-[var(--cc-text)]">1. Assessment to extend</Label>
-                    <Select value={rolloverQuizId} onValueChange={setRolloverQuizId}>
-                      <SelectTrigger className="rounded-xl border-[var(--border)] h-11">
-                        <SelectValue placeholder="Select assessment..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {rolloverData.assessments.map((a) => (
-                          <SelectItem key={a.id} value={String(a.id)}>
-                            {a.title} ({a.assessment_type.replace("_", " ")})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {rolloverData.assessments.length === 0 && (
+                    {rolloverData.assessments.length === 0 ? (
                       <p className="text-xs text-[var(--cc-text-muted)]">No past-due assessments with rollover available.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {rolloverData.assessments.map((a) => {
+                          const selected = rolloverQuizId === String(a.id)
+                          return (
+                            <button
+                              key={a.id}
+                              type="button"
+                              onClick={() => setRolloverQuizId(String(a.id))}
+                              className={cn(
+                                "flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-colors",
+                                selected
+                                  ? "border-[var(--cc-accent)] bg-[var(--cc-accent-soft)]"
+                                  : "border-[var(--border)] bg-[var(--card)] hover:bg-[var(--muted)]",
+                              )}
+                            >
+                              <span className="font-medium text-[var(--cc-text)]">{a.title}</span>
+                              <span className="shrink-0 text-xs capitalize text-[var(--cc-text-muted)]">
+                                {a.assessment_type.replaceAll("_", " ")}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
                     )}
                   </div>
 
@@ -1287,7 +1451,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <FileQuestion className="h-12 w-12 text-[var(--cc-text-muted)] opacity-50 mb-3" />
-                <p className="text-sm text-[var(--cc-text-muted)]">Grade data loading...</p>
+                <p className="text-sm text-[var(--cc-text-muted)]">{rolloverError || "Grade data loading..."}</p>
               </div>
             )}
           </div>
@@ -1304,6 +1468,11 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
             ) : extraAttemptsData ? (
               <div className={tabContentNarrow}>
                 {governanceBlockedBanner}
+                {extraAttemptsData.warning ? (
+                  <p className="rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                    {extraAttemptsData.warning}
+                  </p>
+                ) : null}
                 <div className="text-center space-y-2">
                   <div className={cn("inline-flex p-3 rounded-2xl ring-1 ring-[var(--cc-accent-border)]", theme.page.iconBg)}>
                     <RotateCw className={cn("h-8 w-8", theme.page.iconText)} />
@@ -1442,7 +1611,7 @@ export function TradeCenterContent({ embedInDashboard = false }: TradeCenterCont
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <RotateCw className="h-12 w-12 text-[var(--cc-text-muted)] opacity-50 mb-3" />
-                <p className="text-sm text-[var(--cc-text-muted)]">Grade data loading...</p>
+                <p className="text-sm text-[var(--cc-text-muted)]">{extraAttemptsError || "Grade data loading..."}</p>
               </div>
             )}
           </div>

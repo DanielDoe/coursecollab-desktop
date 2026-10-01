@@ -77,3 +77,26 @@ export async function hasDeadlineExtensionForStudentQuiz(
   const s = await getQuizIdsWithDeadlineExtensionForStudent(studentId, [quizId])
   return s.has(quizId)
 }
+
+/** Expiry of an active membership/instructor rollover, when the student can still sit this assessment. */
+export async function getActiveRolloverExpiresAt(
+  studentId: number,
+  quizId: number,
+): Promise<Date | null> {
+  if (!Number.isFinite(studentId) || studentId <= 0 || !Number.isFinite(quizId) || quizId <= 0) {
+    return null
+  }
+  const rows = (await sql`
+    SELECT expires_at
+    FROM student_assessment_rollovers
+    WHERE student_id = ${studentId}
+      AND quiz_id = ${quizId}
+      AND expires_at > NOW()
+    ORDER BY expires_at DESC
+    LIMIT 1
+  `) as { expires_at?: Date | string | null }[]
+  const raw = rows[0]?.expires_at
+  if (!raw) return null
+  const expiresAt = raw instanceof Date ? raw : new Date(raw)
+  return Number.isFinite(expiresAt.getTime()) ? expiresAt : null
+}

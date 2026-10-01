@@ -234,6 +234,7 @@ export async function fetchCodebenchStudentActivity(
           AND cs.submitted_at > NOW() - (${windowDaysSafe}::int * INTERVAL '1 day')
       ) sub ON TRUE
       WHERE ${sql.unsafe(scopeWhere)}
+        AND s.deleted_at IS NULL
       GROUP BY
         s.id,
         s.student_id,
@@ -266,6 +267,7 @@ export async function fetchCodebenchStudentActivity(
       WHERE ${sql.unsafe(eventCourseMatch)}
         AND e.created_at > NOW() - (${windowDaysSafe}::int * INTERVAL '1 day')
         AND ${sql.unsafe(scopeWhere.replace(/\bs\./g, "s."))}
+        AND s.deleted_at IS NULL
       ORDER BY e.created_at DESC
       LIMIT 40
     `.catch(() => []),
@@ -282,6 +284,7 @@ export async function fetchCodebenchStudentActivity(
       LEFT JOIN classroom_point_submissions cps ON cps.id = cs.assignment_id
       WHERE cs.submitted_at > NOW() - (${windowDaysSafe}::int * INTERVAL '1 day')
         AND ${sql.unsafe(scopeWhere.replace(/\bs\./g, "s."))}
+        AND s.deleted_at IS NULL
       ORDER BY cs.submitted_at DESC
       LIMIT 20
     `.catch(() => []),

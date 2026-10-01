@@ -6,7 +6,11 @@ import { codebenchDevPlugin } from './vite-plugins/codebench-dev'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const apiTarget = (env.VITE_API_URL || 'https://course-collab.com').replace(/\/+$/, '')
-  const processEnv = { NODE_ENV: mode, ...env }
+  // The desktop renderer is shipped to students. Only public build flags belong in the bundle.
+  const processEnv: Record<string, string> = { NODE_ENV: mode }
+  for (const [key, value] of Object.entries(env)) {
+    if (key.startsWith('VITE_') || key.startsWith('NEXT_PUBLIC_')) processEnv[key] = value
+  }
 
   return {
     plugins: [react(), codebenchDevPlugin()],
