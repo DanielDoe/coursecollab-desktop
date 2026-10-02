@@ -475,14 +475,57 @@ export default function CodeBenchPage({
   }, [loadClassroomAssignments])
 
   useEffect(() => {
-    if (!studentId || !classroomSubmissionId || !liveSharing) {
-      if (!liveSharing) setClassroomQuestion(null)
+    if (!studentId || !classroomSubmissionId) {
+      setClassroomQuestion(null)
       return
     }
 
     const liveSession = liveSessions.find((session) => String(session.assignmentId) === classroomSubmissionId)
-    let cancelled = false
+    const listed = classroomSubmissions.find(
+      (row: { id?: string | number }) => String(row.id) === classroomSubmissionId,
+    ) as
+      | {
+          title?: string
+          description?: string | null
+          session?: string | null
+          question_config?: unknown
+          submission_kind?: string
+        }
+      | undefined
 
+    const applyQuestion = (row: {
+      title?: string
+      description?: string | null
+      session?: string | null
+      question_config?: unknown
+      submission_kind?: string
+    }) => {
+      const questionText =
+        extractClassroomQuestionText({
+          id: Number(classroomSubmissionId),
+          title: String(row.title ?? liveSession?.title ?? "Classroom assignment"),
+          description: row.description ?? null,
+          created_at: "",
+          session: row.session ?? liveSession?.session ?? null,
+          submission_kind: row.submission_kind ?? "code",
+          question_config: row.question_config,
+          due_at: null,
+          expires_at: null,
+          is_active: true,
+        }) || liveSession?.questionText || row.description || row.title || ""
+      setClassroomQuestion({
+        title: String(row.title ?? liveSession?.title ?? "Classroom assignment"),
+        questionText,
+        description: row.description ?? null,
+        session: row.session ?? liveSession?.session ?? null,
+        isLive: Boolean(liveSession && liveSharing),
+        questionConfig: row.question_config,
+      })
+    }
+
+    if (listed) applyQuestion(listed)
+
+    let cancelled = false
     void (async () => {
       try {
         const res = await studentApiFetch(`/api/classroom-points/submissions/${classroomSubmissionId}`)
@@ -497,43 +540,21 @@ export default function CodeBenchPage({
               submission_kind?: string
             }
           }
-          const row = data.submission
-          if (row) {
-            const questionText =
-              extractClassroomQuestionText({
-                id: Number(classroomSubmissionId),
-                title: String(row.title ?? liveSession?.title ?? "Live classroom"),
-                description: row.description ?? null,
-                created_at: "",
-                session: row.session ?? liveSession?.session ?? null,
-                submission_kind: row.submission_kind ?? "code",
-                question_config: row.question_config,
-                due_at: null,
-                expires_at: null,
-                is_active: true,
-              }) || liveSession?.questionText || row.description || row.title || ""
-            if (cancelled) return
-            setClassroomQuestion({
-              title: String(row.title ?? liveSession?.title ?? "Live classroom"),
-              questionText,
-              description: row.description ?? null,
-              session: row.session ?? liveSession?.session ?? null,
-              isLive: Boolean(liveSession),
-              questionConfig: row.question_config,
-            })
+          if (data.submission) {
+            applyQuestion(data.submission)
             return
           }
         }
       } catch {
-        // fall through to live session text
+        // The assignment list already has the prompt when the detail request fails.
       }
 
-      if (liveSession && !cancelled) {
+      if (!listed && liveSession && !cancelled) {
         setClassroomQuestion({
           title: liveSession.title,
           questionText: liveSession.questionText,
           session: liveSession.session,
-          isLive: true,
+          isLive: liveSharing,
         })
       }
     })()
@@ -541,10 +562,10 @@ export default function CodeBenchPage({
     return () => {
       cancelled = true
     }
-  }, [classroomSubmissionId, liveSessions, liveSharing, studentId])
+  }, [classroomSubmissionId, classroomSubmissions, liveSessions, liveSharing, studentId])
 
   useEffect(() => {
-    if (!liveSharing || !classroomQuestion || !classroomSubmissionId) return
+    if (!classroomQuestion || !classroomSubmissionId) return
     const key = `cc-codebench-auto-question:${classroomSubmissionId}`
     try {
       if (sessionStorage.getItem(key) === "1") return
@@ -553,7 +574,7 @@ export default function CodeBenchPage({
       /* ignore */
     }
     setQuestionDrawerOpen(true)
-  }, [classroomQuestion, classroomSubmissionId, liveSharing])
+  }, [classroomQuestion, classroomSubmissionId])
 
   const activeLiveSession = useMemo(
     () =>
@@ -759,9 +780,7 @@ export default function CodeBenchPage({
     }
     movedLiveAssignmentRef.current = null
     setLiveSharing(false)
-    setClassroomQuestion((current) =>
-      current?.isLive ? null : current,
-    )
+    setClassroomQuestion((current) => (current ? { ...current, isLive: false } : current))
     window.dispatchEvent(
       new CustomEvent("codebench-leave-live-session", {
         detail: { assignmentId: classroomSubmissionId },
@@ -789,7 +808,7 @@ export default function CodeBenchPage({
     }
     movedLiveAssignmentRef.current = null
     setLiveSharing(false)
-    setClassroomQuestion((current) => (current?.isLive ? null : current))
+    setClassroomQuestion((current) => (current ? { ...current, isLive: false } : current))
     window.dispatchEvent(
       new CustomEvent("codebench-leave-live-session", {
         detail: { assignmentId: classroomSubmissionId },
@@ -2344,12 +2363,18 @@ export default function CodeBenchPage({
             classroomSubmitLoading={isLoading.submit}
             questionOpen={questionDrawerOpen}
             onToggleQuestion={
-              liveSharing && classroomQuestion
+              classroomQuestion
                 ? () => setQuestionDrawerOpen((open) => !open)
                 : undefined
             }
             liveClassroomTitle={activeLiveSession?.title ?? null}
           />
+
+          {classroomSubmissions.length > 0 && !classroomSubmissionId ? (
+            <p className="shrink-0 border-b border-[var(--border)] px-3 py-2 text-xs text-[var(--cc-text-secondary,var(--cc-text-muted))]">
+              Choose an assignment to see the question while you write.
+            </p>
+          ) : null}
 
           <div
             className={cn(

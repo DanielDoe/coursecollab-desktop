@@ -1,3 +1,2 @@
-- Classroom questions show rules, samples, and a syntax reference for the concepts that question uses.
+- Classroom questions stay open in CodeBench after you choose an assignment, even when class is not live.
 - Instructors can close every open live session from Live now.
-- Student donations are removed. Upgrade with Explorer or Trailblazer.
