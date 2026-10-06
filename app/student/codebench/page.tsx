@@ -81,7 +81,12 @@ import { CodebenchCoraUpgradeModal } from "@/components/codebench/CodebenchCoraU
 import { useCodebenchCoraGate } from "@/hooks/use-codebench-cora-gate"
 import type { MembershipTier } from "@/lib/membership-constants"
 import { enrichReplaySteps, type CodeReplayStep } from "@/lib/codebench-replay"
-import { loadCodebenchAiCache, persistCodebenchAiCacheEntry } from "@/lib/codebench-ai-cache"
+import {
+  clearReplayProgress,
+  loadCodebenchAiCache,
+  persistCodebenchAiCacheEntry,
+  removeCodebenchAiCacheEntry,
+} from "@/lib/codebench-ai-cache"
 import {
   type CodebenchLanguageId,
   CODEBENCH_LANGUAGE_STORAGE_KEY,
@@ -1747,6 +1752,23 @@ export default function CodeBenchPage({
   }
 
   const handleCoraClear = () => {
+    const explainKey = code ? getCacheKey("explain", code) : ""
+    if (explainKey) {
+      setResponseCache((prev) => {
+        if (!prev.has(explainKey)) return prev
+        const next = new Map(prev)
+        next.delete(explainKey)
+        return next
+      })
+      removeCodebenchAiCacheEntry(studentId, explainKey)
+      setChatCache((prev) => {
+        if (!prev.has(explainKey)) return prev
+        const next = new Map(prev)
+        next.delete(explainKey)
+        return next
+      })
+    }
+    clearReplayProgress(studentId, hashCode(code))
     setAITab(null)
     setExplanation("")
     setDebugResult(null)
@@ -2585,6 +2607,7 @@ export default function CodeBenchPage({
                   }}
                   onWalkWithCora={handleWalkWithCora}
                   onTrySampleWalkthrough={handleTrySampleWalkthrough}
+                  onClearWalkthrough={handleCoraClear}
                   coraAccess={coraGate.coraAccess}
                   onLockedCora={showCoraUpgrade}
                 />
