@@ -23,11 +23,14 @@ import {
   defaultLectureSamplePracticeConfig,
   emptySamplePracticeQuestion,
   normalizeSamplePracticeQuestion,
+  parseLectureSamplePractice,
   type LectureSamplePracticeConfig,
   type LectureSamplePracticeQuestion,
 } from "@/lib/lecture-sample-practice"
 import { normalizeStructuredOptions } from "@/lib/question-type-schema"
 import { SamplePracticeMcqOptionsEditor } from "@/components/sample-practice-mcq-options-editor"
+import { QuestionTextRenderer } from "@/components/question-text-renderer"
+import { formatSamplePracticeTitle, unescapeSamplePracticeText } from "@/lib/lecture-sample-practice"
 
 type EditorProps = {
   lectureId: number
@@ -49,11 +52,13 @@ export function LectureSamplePracticeQuestionEditor({
 }) {
   const structuredOptions = normalizeStructuredOptions(question.options)
   const correctAnswer = (question.correct_answer ?? "A").trim().toUpperCase()
+  const questionText = unescapeSamplePracticeText(question.question_text)
+  const title = formatSamplePracticeTitle(question.title, questionText)
 
   return (
     <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 space-y-4 dark:border-white/[0.08] dark:bg-white/[0.02]">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-semibold text-slate-900 dark:text-white">{question.title || "Untitled"}</p>
+        <p className="text-sm font-semibold text-slate-900 dark:text-white">{title || "Untitled"}</p>
         <Button type="button" variant="ghost" size="icon" onClick={onRemove} aria-label="Remove question">
           <Trash2 className="h-4 w-4 text-red-500" />
         </Button>
@@ -62,7 +67,7 @@ export function LectureSamplePracticeQuestionEditor({
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label>Title</Label>
-          <Input value={question.title} onChange={(e) => onChange({ ...question, title: e.target.value })} />
+          <Input value={title} onChange={(e) => onChange({ ...question, title: e.target.value })} />
         </div>
         <div className="space-y-1.5">
           <Label>Topic</Label>
@@ -73,10 +78,17 @@ export function LectureSamplePracticeQuestionEditor({
       <div className="space-y-1.5">
         <Label>Question text</Label>
         <Textarea
-          rows={4}
-          value={question.question_text}
+          rows={6}
+          value={questionText}
           onChange={(e) => onChange({ ...question, question_text: e.target.value })}
+          className="font-mono text-sm"
         />
+        {questionText.trim() ? (
+          <div className="rounded-lg border border-slate-200/80 bg-white px-3 py-3 dark:border-white/[0.08] dark:bg-slate-950/40">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Preview</p>
+            <QuestionTextRenderer text={questionText} className="text-sm" />
+          </div>
+        ) : null}
         <p className="text-xs text-muted-foreground">
           Standard MCQ — question text, structured options (A–F), and letter correct answer.
         </p>
@@ -94,7 +106,7 @@ export function LectureSamplePracticeQuestionEditor({
         <Label>Explanation (shown after submit)</Label>
         <Textarea
           rows={8}
-          value={question.explanation ?? ""}
+          value={unescapeSamplePracticeText(question.explanation ?? "")}
           onChange={(e) => onChange({ ...question, explanation: e.target.value })}
           placeholder="Use markdown headings (### Step 1), bullet lists, and formulas."
         />
@@ -184,7 +196,7 @@ export function LectureSamplePracticeConfigFields({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold text-[var(--cc-text)]">
-                      {q.title || `Question ${idx + 1}`}
+                      {formatSamplePracticeTitle(q.title, q.question_text) || `Question ${idx + 1}`}
                     </span>
                     <span className="block truncate text-xs text-[var(--cc-text-muted)]">
                       {q.topic?.trim() || "Tap to edit fields"}
@@ -258,7 +270,7 @@ export function useLectureSamplePracticeConfig(lectureId: number, active: boolea
       })
       const data = (await res.json()) as { config?: LectureSamplePracticeConfig; error?: string }
       if (!res.ok) throw new Error(data.error || "Failed to load")
-      const next = data.config ?? defaultLectureSamplePracticeConfig()
+      const next = parseLectureSamplePractice(data.config ?? defaultLectureSamplePracticeConfig())
       setConfig(next)
       return next
     } catch (err) {

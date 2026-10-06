@@ -31,6 +31,28 @@ describe("classroom points student question_config redact", () => {
     assert.equal("solution" in redacted, false)
     assert.equal("reference_answer" in redacted, false)
     assert.equal("answer_key" in redacted, false)
+    assert.equal(redacted.solution_available, true)
+    assert.equal(redacted.solution_unlocked, false)
+    assert.equal("sample_solution" in redacted, false)
+  })
+
+  it("hides a locked worked solution and reveals it after unlock", () => {
+    const locked = redactClassroomPointsStudentQuestionConfig({
+      question_text: "Enter scores until -1.",
+      sample_solution: "int total = 0;",
+      solution_unlocked: false,
+    }) as Record<string, unknown>
+    assert.equal(locked.solution_available, true)
+    assert.equal(locked.solution_unlocked, false)
+    assert.equal("sample_solution" in locked, false)
+
+    const unlocked = redactClassroomPointsStudentQuestionConfig({
+      question_text: "Enter scores until -1.",
+      sample_solution: "int total = 0;",
+      solution_unlocked: true,
+    }) as Record<string, unknown>
+    assert.equal(unlocked.solution_unlocked, true)
+    assert.equal(unlocked.sample_solution, "int total = 0;")
   })
 
   it("redacts a JSON string question_config", () => {

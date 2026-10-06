@@ -287,10 +287,10 @@ export function InstructorPlaygroundPerformanceTab({
                               className={cn(
                                 "h-full rounded-full",
                                 stat.accuracyPercentage >= 80
-                                  ? "bg-emerald-500"
+                                  ? "bg-[var(--cc-sem-success)]"
                                   : stat.accuracyPercentage >= 60
-                                    ? "bg-amber-500"
-                                    : "bg-red-500",
+                                    ? "bg-[var(--cc-sem-warning)]"
+                                    : "bg-[var(--cc-sem-danger)]",
                               )}
                               style={{ width: `${Math.min(stat.accuracyPercentage, 100)}%` }}
                             />

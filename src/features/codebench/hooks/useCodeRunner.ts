@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { parseCompilerDiagnosticsText, type StudioDiagnostic } from '@/lib/codebench-compiler-diagnostics'
+import { silentCompilerExitMessage } from '@/electron/codebench/compiler-exit'
 import { isDesktopElectronShell } from '@/lib/desktop-notifications'
 import type { CodeBenchRunState } from '../types/codebench'
 import type { ToolchainSetupOutcome, ToolchainSetupPhase } from '../types/toolchain-setup'
@@ -16,10 +17,11 @@ export type UseCodeRunnerOptions = {
   onRunResult?: (result: CodeBenchRunResult) => void
 }
 
-function explainCompilerFailure(text: string): string | null {
+function explainCompilerFailure(text: string, exitCode?: number | null): string | null {
   if (/unknown architecture/i.test(text)) {
     return 'This Mac’s system libraries name a CPU type the compiler cannot read (unknown architecture, usually inside libSystem.tbd). CourseCollab points the compiler at a compatible macOS SDK. Run again after Retry setup.'
   }
+  if (!text.trim()) return silentCompilerExitMessage(exitCode ?? null)
   return null
 }
 
@@ -309,7 +311,7 @@ export function useCodeRunner({ onWrite, onRunResult }: UseCodeRunnerOptions) {
             setRunState('idle')
             setSessionId(null)
             sessionRef.current = null
-            const hint = explainCompilerFailure(stderrRef.current)
+            const hint = explainCompilerFailure(stderrRef.current, event.exitCode)
             if (hint) onWriteRef.current(`\r\n${hint}\r\n`)
             onRunResultRef.current?.({
               outcome: 'compile-error',

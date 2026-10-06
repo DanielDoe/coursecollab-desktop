@@ -44,6 +44,21 @@ export function loadCodebenchAiCache(studentId: string | null): Map<string, Code
   }
 }
 
+export function removeCodebenchAiCacheEntry(studentId: string | null, cacheKey: string): void {
+  if (typeof window === "undefined" || !cacheKey) return
+  try {
+    const storageKey = cacheStorageKey(studentId)
+    const raw = localStorage.getItem(storageKey)
+    if (!raw) return
+    const store: Record<string, StoredCacheEntry> = JSON.parse(raw)
+    if (!(cacheKey in store)) return
+    delete store[cacheKey]
+    localStorage.setItem(storageKey, JSON.stringify(store))
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
 export function persistCodebenchAiCacheEntry(
   studentId: string | null,
   cacheKey: string,
@@ -84,6 +99,21 @@ export function loadReplayProgress(studentId: string | null, codeHash: string): 
     }
   } catch {
     return null
+  }
+}
+
+export function clearReplayProgress(studentId: string | null, codeHash: string): void {
+  if (typeof window === "undefined" || !codeHash) return
+  try {
+    const storageKey = progressStorageKey(studentId)
+    const raw = localStorage.getItem(storageKey)
+    if (!raw) return
+    const all = JSON.parse(raw) as Record<string, ReplayProgress>
+    if (!(codeHash in all)) return
+    delete all[codeHash]
+    localStorage.setItem(storageKey, JSON.stringify(all))
+  } catch {
+    // ignore
   }
 }
 

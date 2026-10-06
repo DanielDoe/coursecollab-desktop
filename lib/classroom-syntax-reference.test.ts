@@ -69,6 +69,28 @@ describe("syntaxCardsForClassroomPrompt", () => {
     assert.ok(picked.includes("nested-for"))
   })
 
+  it("shows comparison and a while loop when the prompt repeats with a condition", () => {
+    const picked = ids(
+      "While Loop — Rocket Launch Countdown",
+      "Write a C++ program. Use a while loop. Start at 10 and keep going while the count is greater than 0. Then display LIFTOFF!",
+    )
+    assert.ok(picked.includes("while"))
+    assert.ok(picked.includes("comparison"))
+    assert.ok(picked.includes("variables"))
+    assert.equal(picked.includes("if-else"), false)
+    assert.equal(picked.includes("for"), false)
+  })
+
+  it("adds if/else inside a while loop when the prompt branches", () => {
+    const picked = ids(
+      "While Loop — Password Attempt",
+      "Write a C++ program. Use a while loop while attempts are greater than 0. If the password matches, display Access granted. Otherwise display Access denied.",
+    )
+    assert.ok(picked.includes("while"))
+    assert.ok(picked.includes("if-else"))
+    assert.ok(picked.includes("comparison"))
+  })
+
   it("does not treat do-while as a while loop", () => {
     const picked = ids("Password Retry", "Use a do-while loop to keep asking until the password is correct.")
     assert.ok(picked.includes("do-while"))
@@ -103,10 +125,26 @@ describe("syntaxCardsForClassroomPrompt", () => {
     assert.ok(picked.includes("if-else"))
   })
 
-  it("skips C++ patterns for MATLAB prompts", () => {
-    assert.deepEqual(
-      ids("Classroom Points (MATLAB): Flow Control — If Statement", "Write a MATLAB if statement."),
-      [],
+  it("shows MATLAB patterns instead of C++ patterns", () => {
+    const picked = ids(
+      "Classroom Points (MATLAB): Flow Control — If Statement",
+      "Write a MATLAB if statement.",
+    )
+    assert.deepEqual(picked, ["matlab-commands", "matlab-if"])
+  })
+
+  it("adds an if / else if card for tiered and overtime prompts", () => {
+    assert.ok(
+      ids(
+        "Electricity Bill Calculator (Tiered Pricing)",
+        "The first 500 kWh costs $0.12. Any electricity used above 500 kWh costs $0.18.",
+      ).includes("else-if"),
+    )
+    assert.ok(
+      ids(
+        "Employee Salary with Overtime",
+        "Any hours worked beyond 40 are paid at 1.5 times the regular hourly rate.",
+      ).includes("else-if"),
     )
   })
 })

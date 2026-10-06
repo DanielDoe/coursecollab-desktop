@@ -25,7 +25,7 @@ export async function loadAttendanceScorePolicy(courseId: number | null) {
   if (!courseId) return parseAttendancePolicy(null)
   try {
     const rows = await sql`
-      SELECT attendance_policy FROM courses WHERE id = ${courseId} LIMIT 1
+      SELECT attendance_policy FROM course_policies WHERE course_id = ${courseId} LIMIT 1
     `
     return parseAttendancePolicy((rows[0] as { attendance_policy?: unknown } | undefined)?.attendance_policy)
   } catch {

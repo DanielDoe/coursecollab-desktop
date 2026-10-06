@@ -1,20 +1,27 @@
 import { getStudentData, studentApiFetch } from "@/lib/auth"
 
+/** Session ids are stored as strings, but older sessions saved the numeric students.id. */
+export function sessionIdText(value: unknown): string | null {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value)
+  if (typeof value !== "string") return null
+  const text = value.trim()
+  return text || null
+}
+
 /** Numeric `students.id` for API calls — localStorage session first, then sessionStorage. */
 export function getStudentDatabaseId(): string | null {
   if (typeof window === "undefined") return null
   const session = getStudentData()
-  const fromSession = session?.databaseId?.trim()
+  const fromSession = sessionIdText(session?.databaseId)
   if (fromSession) return fromSession
-  const fromStorage = sessionStorage.getItem("studentDatabaseId")?.trim()
-  return fromStorage || null
+  return sessionIdText(sessionStorage.getItem("studentDatabaseId"))
 }
 
 /** Roster login id used by /api/student/* lecture routes (`students.student_id`). */
 export function getStudentLoginId(): string | null {
   if (typeof window === "undefined") return null
   const session = getStudentData()
-  const fromSession = session?.id?.trim()
+  const fromSession = sessionIdText(session?.id)
   if (fromSession) return fromSession
   return sessionStorage.getItem("studentId")
 }

@@ -45,6 +45,7 @@ import {
   facultyOfferingKey,
   groupFacultyOfferings,
   facultyOfferingChipCode,
+  facultyOfferingPrimaryLabel,
   facultyOfferingShowsAsSection,
   type FacultyCourseOffering,
 } from "@/lib/faculty-course-offerings-shared"
@@ -133,7 +134,7 @@ function CourseOfferingRow({
           <div className="mb-1.5 flex flex-wrap items-center gap-2">
             <span className={cn("text-xs font-semibold tracking-wide", chrome.p.iconText)}>
               {facultyOfferingShowsAsSection(offering)
-                ? (offering.session_code ?? offering.course_code)
+                ? facultyOfferingPrimaryLabel(offering)
                 : facultyOfferingChipCode(offering)}
             </span>
             {offering.is_active_term ? (

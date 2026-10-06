@@ -68,6 +68,47 @@ function normalizeComparableText(text: string): string {
   return text.toLowerCase().trim().replace(/\s+/g, " ")
 }
 
+/** True when a stem was saved as a JSON string (`\n`, `\"`) instead of real text. */
+function looksJsonEscaped(input: string): boolean {
+  const escapedNewlines = input.split("\\n").length - 1
+  const escapedQuotes = input.split('\\"').length - 1
+  const realNewlines = input.split("\n").length - 1
+  return (escapedNewlines >= 2 && escapedNewlines > realNewlines) || escapedQuotes >= 2
+}
+
+/** Turn dumped JSON escapes into real newlines and quotes. Already-clean text is unchanged. */
+export function unescapeSamplePracticeText(input: string): string {
+  if (!input || !looksJsonEscaped(input)) return input
+  const placeholder = "\u0000"
+  return input
+    .replace(/\\\\/g, placeholder)
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "\n")
+    .replace(/\\t/g, "\t")
+    .replace(/\\"/g, '"')
+    .replace(new RegExp(placeholder, "g"), "\\")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+}
+
+/** Header label: the prompt, without the code fence or leftover escape sequences. */
+export function formatSamplePracticeTitle(title: string, questionText = ""): string {
+  const unescapedTitle = unescapeSamplePracticeText(title).trim()
+  const unescapedBody = unescapeSamplePracticeText(questionText).trim()
+  const source = unescapedTitle || unescapedBody
+  const beforeFence = (source.split("```")[0] ?? source).trim()
+  const line =
+    beforeFence
+      .split("\n")
+      .map((part) => part.trim())
+      .find((part) => part.length > 0) ?? beforeFence
+  const cleaned = line.replace(/\s+/g, " ").trim()
+  if (!cleaned) return "Question"
+  if (cleaned.length > 160) return `${cleaned.slice(0, 157).trimEnd()}…`
+  return cleaned
+}
+
 function isGenericLegacyPartPrompt(prompt: string, type?: string): boolean {
   const p = normalizeComparableText(prompt)
   if (!p) return true
@@ -208,8 +249,10 @@ export function normalizeSamplePracticeQuestion(
   const o = raw as Record<string, unknown>
   const id =
     typeof o.id === "string" && o.id.trim() ? o.id.trim() : `q${fallbackIndex + 1}`
-  const title = String(o.title ?? o.question_text ?? `Question ${fallbackIndex + 1}`).trim()
-  const stem = String(o.question_text ?? title).trim()
+  const rawTitle = String(o.title ?? o.question_text ?? `Question ${fallbackIndex + 1}`).trim()
+  const rawStem = String(o.question_text ?? rawTitle).trim()
+  const stem = unescapeSamplePracticeText(rawStem)
+  const title = formatSamplePracticeTitle(rawTitle, stem)
 
   const questionMedia = parseQuestionMedia(o.question_media)
   const hasMedia = Boolean((questionMedia.media_url || "").trim())
@@ -225,9 +268,13 @@ export function normalizeSamplePracticeQuestion(
       correct_answer: o.correct_answer,
       correct_answers: o.correct_answers,
     })
-    const explanation =
+    const explanationSource =
       markdownLatexExplanationToMarkdown(o.explanation) ??
       (typeof o.explanation === "string" ? o.explanation : undefined)
+    const explanation =
+      typeof explanationSource === "string"
+        ? unescapeSamplePracticeText(explanationSource)
+        : explanationSource
     const question_text = stem || title
     if (!question_text) return null
     return {
@@ -258,20 +305,24 @@ export function normalizeSamplePracticeQuestion(
   const sq = allSubs[0]
   const questionType = inferQuestionType(o, sq)
   const flat = flattenLegacySubquestion(stem || title, sq, questionType)
-  if (!flat.question_text.trim()) return null
+  const legacyText = unescapeSamplePracticeText(flat.question_text)
+  if (!legacyText.trim()) return null
 
   return {
     id,
-    title,
+    title: formatSamplePracticeTitle(title, legacyText),
     topic: typeof o.topic === "string" ? o.topic : undefined,
     difficulty: typeof o.difficulty === "string" ? o.difficulty : undefined,
     points: typeof o.points === "number" ? o.points : Number(o.points) || sq.points || 1,
     question_type: questionType,
-    question_text: flat.question_text,
+    question_text: legacyText,
     options: flat.options,
     correct_answer: flat.correct_answer,
     correct_answers: flat.correct_answers,
-    explanation: flat.explanation,
+    explanation:
+      typeof flat.explanation === "string"
+        ? unescapeSamplePracticeText(flat.explanation)
+        : flat.explanation,
     question_media: hasMedia ? questionMedia : undefined,
     solution_upload_config: { enabled: false, require_solution_upload: false },
   }

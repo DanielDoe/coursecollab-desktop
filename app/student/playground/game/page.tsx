@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -79,7 +79,9 @@ export default function PlaygroundGame() {
   const [readyCountdown, setReadyCountdown] = useState(3)
   const [canAnswer, setCanAnswer] = useState(false)
   const [accumulatedPoints, setAccumulatedPoints] = useState<number | null>(null)
+  const pathname = usePathname()
   const [fromDashboardV2, setFromDashboardV2] = useState(false)
+  const embeddedInDashboard = fromDashboardV2 || Boolean(pathname?.includes("/dashboard-v2/"))
   const startCountdownTimerRef = useRef<NodeJS.Timeout | null>(null)
   const readyCountdownTimerRef = useRef<NodeJS.Timeout | null>(null)
   const sessionEndedRef = useRef(false)
@@ -699,9 +701,16 @@ export default function PlaygroundGame() {
     }
   }, [isLoading, gameEnded, questions.length])
 
+  const stageFill = embeddedInDashboard
+    ? "flex min-h-[70vh] w-full items-center justify-center text-[var(--cc-text)]"
+    : "flex min-h-[100dvh] items-center justify-center bg-[var(--cc-background)] text-[var(--cc-text)]"
+  const pageFill = embeddedInDashboard
+    ? "min-h-[70vh] w-full text-[var(--cc-text)]"
+    : "min-h-[100dvh] bg-[var(--cc-background)] text-[var(--cc-text)]"
+
   if (showStartCountdown && !isLoading && questions.length > 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
+      <div className={stageFill}>
         <motion.div
           key={startCountdown}
           initial={{ scale: 0.5, opacity: 0 }}
@@ -711,13 +720,13 @@ export default function PlaygroundGame() {
         >
           {startCountdown > 0 ? (
             <>
-              <div className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-bold text-[var(--cc-accent-dark)] mb-3 sm:mb-4">{startCountdown}</div>
-              <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-muted-foreground">Game starting in...</p>
+              <div className="mb-3 text-6xl font-bold tabular-nums text-[var(--cc-accent)] sm:mb-4 sm:text-7xl md:text-8xl lg:text-9xl">{startCountdown}</div>
+              <p className="text-base text-[var(--cc-text-muted)] sm:text-lg md:text-xl lg:text-2xl">Game starting in...</p>
             </>
           ) : (
             <>
-              <div className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-bold text-accent mb-3 sm:mb-4">GO!</div>
-              <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-muted-foreground">Let's play!</p>
+              <div className="mb-3 text-6xl font-bold text-[var(--cc-accent)] sm:mb-4 sm:text-7xl md:text-8xl lg:text-9xl">GO!</div>
+              <p className="text-base text-[var(--cc-text-muted)] sm:text-lg md:text-xl lg:text-2xl">Let's play!</p>
             </>
           )}
         </motion.div>
@@ -727,7 +736,7 @@ export default function PlaygroundGame() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
+      <div className={stageFill}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--cc-accent)] mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading questions...</p>
@@ -741,8 +750,8 @@ export default function PlaygroundGame() {
       ? "/student/dashboard-v2/playground"
       : "/student/playground"
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
-        <Card className="max-w-md">
+      <div className={stageFill}>
+        <Card className="max-w-md border-[var(--border)] bg-[var(--card)] text-[var(--cc-text)]">
           <CardContent className="pt-6 text-center">
             <p className="text-muted-foreground mb-4">No questions available for the playground.</p>
             <Button onClick={() => router.push(lobbyLink)}>Back to Lobby</Button>
@@ -754,17 +763,19 @@ export default function PlaygroundGame() {
 
   if (gameEnded) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
-        <header className="border-b border-border bg-background/80 backdrop-blur-sm">
+      <div className={pageFill}>
+        {embeddedInDashboard ? null : (
+        <header className="border-b border-[var(--border)] bg-[var(--card)]">
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-between">
               <Link href={homeLink} className="flex items-center gap-2">
                 <GraduationCap className="h-8 w-8 text-[var(--cc-accent-dark)]" />
-                <h1 className="text-2xl font-bold text-[var(--cc-accent-dark)]">CourseCollab</h1>
+                <h1 className="text-2xl font-bold text-[var(--cc-text)]">CourseCollab</h1>
               </Link>
             </div>
           </div>
         </header>
+        )}
 
         <main className="container mx-auto px-4 py-12">
           <motion.div
@@ -772,11 +783,11 @@ export default function PlaygroundGame() {
             animate={{ scale: 1, opacity: 1 }}
             className="mx-auto max-w-2xl text-center"
           >
-            <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-accent/10 mb-6">
-              <Trophy className="h-12 w-12 text-accent" />
+            <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-[var(--cc-accent-soft)] mb-6">
+              <Trophy className="h-12 w-12 text-[var(--cc-accent)]" />
             </div>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-3 sm:mb-4">Game Complete!</h2>
-            <Card className="border-2 mb-4 sm:mb-5 md:mb-6">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[var(--cc-text)] mb-3 sm:mb-4">Game Complete!</h2>
+            <Card className="mb-4 border border-[var(--border)] bg-[var(--card)] text-[var(--cc-text)] sm:mb-5 md:mb-6">
               <CardContent className="pt-4 sm:pt-5 md:pt-6 px-4 sm:px-6">
                 <div className="text-4xl sm:text-5xl md:text-6xl font-bold text-[var(--cc-accent-dark)] mb-1 sm:mb-2">{score}</div>
                 <p className="text-base sm:text-lg text-muted-foreground">Total Points</p>
@@ -811,7 +822,7 @@ export default function PlaygroundGame() {
   if (!currentQuestion) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500" />
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[var(--cc-accent)]" />
       </div>
     )
   }
@@ -857,23 +868,23 @@ export default function PlaygroundGame() {
   )
 
   const statsBar = (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white/75 px-3 py-2.5 backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.04] sm:px-4 sm:py-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 sm:px-4 sm:py-3">
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-        <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-100/90 px-3 py-1.5 dark:bg-white/[0.06]">
-          <Trophy className={cn("h-4 w-4 shrink-0", timeLeft <= 5 ? "text-red-500" : "text-slate-500")} />
+        <div className="inline-flex items-center gap-2 rounded-2xl bg-[var(--muted)] px-3 py-1.5">
+          <Trophy className={cn("h-4 w-4 shrink-0", timeLeft <= 5 ? "text-red-500" : "text-[var(--cc-text-muted)]")} />
           <div className="leading-tight">
-            <p className={cn("text-sm font-bold tabular-nums", timeLeft <= 5 ? "text-red-600" : "text-slate-800 dark:text-slate-100")}>
+            <p className={cn("text-sm font-bold tabular-nums", timeLeft <= 5 ? "text-red-600" : "text-[var(--cc-text)]")}>
               {score}
             </p>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400">This session</p>
+            <p className="text-[10px] text-[var(--cc-text-muted)]">This session</p>
           </div>
         </div>
         {accumulatedPoints !== null && (
-          <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-100/90 px-3 py-1.5 dark:bg-white/[0.06]">
-            <Sparkles className="h-4 w-4 shrink-0 text-[#582c83] dark:text-[#b8a0e0]" />
+          <div className="inline-flex items-center gap-2 rounded-2xl bg-[var(--muted)] px-3 py-1.5">
+            <Sparkles className="h-4 w-4 shrink-0 text-[var(--cc-accent)]" />
             <div className="leading-tight">
-              <p className="text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">{accumulatedPoints}</p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400">Total points</p>
+              <p className="text-sm font-bold tabular-nums text-[var(--cc-text)]">{accumulatedPoints}</p>
+              <p className="text-[10px] text-[var(--cc-text-muted)]">Total points</p>
             </div>
           </div>
         )}
@@ -917,15 +928,15 @@ export default function PlaygroundGame() {
 
   return (
     <>
-    <div className="min-h-screen bg-gradient-to-br from-slate-50/80 via-background to-slate-100/40 dark:from-[#0B1120] dark:via-background dark:to-slate-950/50">
-      <header className="border-b border-slate-200/70 bg-white/75 backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.04]">
+    <div className={pageFill}>
+      <header className="border-b border-[var(--border)] bg-[var(--card)]">
         <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
             <div className="flex items-center gap-2">
-              <div className="flex size-10 items-center justify-center rounded-2xl bg-orange-500/10 dark:bg-orange-500/15">
-                <GraduationCap className="h-5 w-5 text-orange-600 dark:text-orange-400 shrink-0" />
+              <div className="flex size-10 items-center justify-center rounded-2xl bg-[var(--cc-accent-soft)]">
+                <GraduationCap className="h-5 w-5 text-[var(--cc-accent-dark)] shrink-0" />
               </div>
-              <h1 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-slate-100">Playground</h1>
+              <h1 className="text-lg sm:text-xl font-bold text-[var(--cc-text)]">Playground</h1>
             </div>
             <div className="w-full sm:w-auto">{statsBar}</div>
           </div>

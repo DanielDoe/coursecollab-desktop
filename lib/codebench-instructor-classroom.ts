@@ -1,3 +1,4 @@
+import { readClassroomCodeSolution } from "@/lib/classroom-points-student-question-config"
 import {
   CLASSROOM_SUBMISSION_KIND_CODE,
   CLASSROOM_SUBMISSION_KIND_SOLUTION,
@@ -41,6 +42,8 @@ export type InstructorClassroomHandoff = {
   starterCode: string
   starterFileName: string
   questionConfig: ClassroomSolutionQuestionConfig | null
+  solutionCode?: string | null
+  solutionUnlocked?: boolean
   isActive: boolean
   dueAt: string | null
   pointsHint?: number
@@ -75,6 +78,7 @@ export function classroomAssignmentToHandoff(row: ClassroomAssignmentRow): Instr
       ? parseClassroomSolutionQuestionConfig(row.question_config)
       : null
   const questionText = extractClassroomQuestionText(row)
+  const solution = readClassroomCodeSolution(row.question_config)
   const languageId = inferLanguageId(questionText)
   const language = CODEBENCH_LANGUAGES.find((entry) => entry.id === languageId) ?? CODEBENCH_LANGUAGES[0]!
 
@@ -89,6 +93,8 @@ export function classroomAssignmentToHandoff(row: ClassroomAssignmentRow): Instr
     starterCode: language.defaultCode,
     starterFileName: language.fileName,
     questionConfig,
+    solutionCode: solution.code,
+    solutionUnlocked: solution.unlocked,
     isActive: classroomAssignmentIsOpen(row),
     dueAt: row.due_at ?? row.expires_at ?? null,
     pointsHint: questionConfig?.points_hint,

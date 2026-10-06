@@ -81,6 +81,10 @@ async function loadQuizState(studentId: number, quizId: number, attemptId?: numb
 
   let policyRaw: unknown = null
   try {
+    await sql`
+      ALTER TABLE quizzes
+      ADD COLUMN IF NOT EXISTS cora_assistance_policy TEXT
+    `
     const policyRows = (await sql`
       SELECT cora_assistance_policy
       FROM quizzes

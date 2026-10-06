@@ -168,20 +168,20 @@ export default function PlaygroundLeaderboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-purple-900/20 dark:via-pink-900/20 dark:to-blue-900/20 flex items-center justify-center">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-[var(--cc-background)] text-[var(--cc-text)]">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           className="text-center space-y-4"
         >
           <div className="relative w-16 h-16 mx-auto">
-            <div className="absolute inset-0 border-4 border-purple-200 dark:border-purple-900 rounded-full"></div>
-            <div className="absolute inset-0 border-4 border-transparent border-t-purple-600 dark:border-t-purple-400 rounded-full animate-spin"></div>
-            <Trophy className="h-8 w-8 text-purple-600 dark:text-purple-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+            <div className="absolute inset-0 rounded-full border-4 border-[var(--border)]"></div>
+            <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-[var(--cc-accent)]"></div>
+            <Trophy className="absolute top-1/2 left-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 text-[var(--cc-accent)]" />
           </div>
           <div className="space-y-2">
-            <p className="text-lg font-semibold text-slate-700 dark:text-slate-300">Loading leaderboard</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Preparing rankings...</p>
+            <p className="text-lg font-semibold text-[var(--cc-text)]">Loading leaderboard</p>
+            <p className="text-sm text-[var(--cc-text-muted)]">Preparing rankings...</p>
           </div>
         </motion.div>
       </div>
@@ -189,7 +189,7 @@ export default function PlaygroundLeaderboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-purple-900/20 dark:via-pink-900/20 dark:to-blue-900/20">
+    <div className="min-h-[100dvh] bg-[var(--cc-background)] text-[var(--cc-text)]">
       <StudentHeader />
 
       {/* Main Content */}
@@ -208,7 +208,7 @@ export default function PlaygroundLeaderboard() {
                   initial={{ scale: 0, rotate: -180 }}
                   animate={{ scale: 1, rotate: 0 }}
                   transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-                  className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg shadow-purple-500/30"
+                  className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-[var(--cc-accent)]"
                 >
                   {mode === "CLASSROOM" ? (
                     <Users className="h-10 w-10 text-white" />
@@ -222,11 +222,11 @@ export default function PlaygroundLeaderboard() {
                     animate={{ scale: 1 }}
                     transition={{ delay: 0.3 }}
                   >
-                    <Badge variant="outline" className="border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 text-sm px-3 py-1.5">
+                    <Badge variant="outline" className="border-[var(--cc-sem-success-border)] bg-[var(--cc-sem-success-soft)] px-3 py-1.5 text-sm text-[var(--cc-sem-success-text)]">
                       <motion.div
                         animate={{ scale: [1, 1.2, 1] }}
                         transition={{ repeat: Infinity, duration: 2 }}
-                        className="w-2 h-2 rounded-full bg-green-500 mr-2 inline-block"
+                        className="mr-2 inline-block h-2 w-2 rounded-full bg-[var(--cc-sem-success)]"
                       />
                       Live
                     </Badge>
@@ -237,7 +237,7 @@ export default function PlaygroundLeaderboard() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-                className="text-4xl lg:text-5xl font-extrabold mb-4 bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 bg-clip-text text-transparent"
+                className="mb-4 text-4xl font-semibold tracking-tight text-[var(--cc-text)] lg:text-5xl"
               >
                 {mode === "CLASSROOM" ? "Classroom Leaderboard" : "Performance Analytics"}
               </motion.h1>
@@ -245,7 +245,7 @@ export default function PlaygroundLeaderboard() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.4 }}
-                className="text-lg text-slate-600 dark:text-slate-400"
+                className="text-lg text-[var(--cc-text-muted)]"
               >
                 {mode === "CLASSROOM" 
                   ? `${leaderboard.length} ${leaderboard.length === 1 ? "participant" : "participants"} competing`
@@ -261,15 +261,8 @@ export default function PlaygroundLeaderboard() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
             >
-              <Card className="border-0 shadow-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl overflow-hidden">
-                <CardHeader className="relative pb-6 pt-8 px-8">
-                  {/* Decorative background elements */}
-                  <div className="absolute inset-0 overflow-hidden rounded-t-lg">
-                    <div className="absolute top-0 left-0 w-64 h-64 bg-gradient-to-br from-purple-500/5 to-transparent rounded-full blur-3xl" />
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-pink-500/5 to-transparent rounded-full blur-3xl" />
-                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-96 h-32 bg-gradient-to-t from-blue-500/5 to-transparent rounded-full blur-3xl" />
-                  </div>
-                  
+              <Card className="overflow-hidden border border-[var(--border)] bg-[var(--card)] text-[var(--cc-text)] shadow-sm">
+                <CardHeader className="relative px-8 pb-6 pt-8">
                   <div className="relative z-10 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <motion.div
@@ -278,16 +271,15 @@ export default function PlaygroundLeaderboard() {
                         transition={{ type: "spring", stiffness: 200 }}
                         className="relative"
                       >
-                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl blur-lg opacity-50" />
-                        <div className="relative p-3 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg shadow-purple-500/30">
+                        <div className="relative rounded-2xl bg-[var(--cc-accent)] p-3">
                           <Trophy className="h-7 w-7 text-white" />
                         </div>
                       </motion.div>
                       <div>
-                        <CardTitle className="text-3xl font-extrabold mb-1.5 bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 bg-clip-text text-transparent">
+                        <CardTitle className="mb-1.5 text-3xl font-semibold text-[var(--cc-text)]">
                           Rankings
                         </CardTitle>
-                        <CardDescription className="text-base font-medium text-slate-600 dark:text-slate-400">
+                        <CardDescription className="text-base font-medium text-[var(--cc-text-muted)]">
                           Sorted by total score
                         </CardDescription>
                       </div>
@@ -298,7 +290,7 @@ export default function PlaygroundLeaderboard() {
                         animate={{ scale: 1 }}
                         transition={{ delay: 0.2, type: "spring" }}
                       >
-                        <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0 shadow-lg shadow-green-500/30 px-4 py-1.5 text-sm font-semibold">
+                        <Badge className="border-0 bg-[var(--cc-success)] px-4 py-1.5 text-sm font-semibold text-white">
                           <motion.div
                             animate={{ scale: [1, 1.2, 1] }}
                             transition={{ repeat: Infinity, duration: 2 }}
@@ -320,16 +312,16 @@ export default function PlaygroundLeaderboard() {
                       <motion.div
                         animate={{ rotate: [0, 10, -10, 0] }}
                         transition={{ repeat: Infinity, duration: 3 }}
-                        className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 mb-6"
+                        className="mb-6 inline-flex h-24 w-24 items-center justify-center rounded-full bg-[var(--cc-accent-soft)]"
                       >
-                        <Trophy className="h-12 w-12 text-purple-400 dark:text-purple-500" />
+                        <Trophy className="h-12 w-12 text-[var(--cc-accent)]" />
                       </motion.div>
-                      <h3 className="text-2xl font-bold text-slate-700 dark:text-slate-300 mb-2">No players yet</h3>
+                      <h3 className="mb-2 text-2xl font-bold text-[var(--cc-text)]">No players yet</h3>
                       <p className="text-muted-foreground mb-6">Be the first to join and claim the top spot!</p>
                       <Button 
                         onClick={() => router.push("/student/playground")} 
                         size="lg"
-                        className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-lg shadow-purple-500/30"
+                        className="bg-[var(--cc-accent)] text-white hover:bg-[var(--cc-accent-hover)]"
                       >
                         <Zap className="h-4 w-4 mr-2" />
                         Start Playing
@@ -386,29 +378,12 @@ export default function PlaygroundLeaderboard() {
                               whileHover={{ scale: 1.02, y: -2 }}
                               className={cn(
                                 "group relative overflow-hidden rounded-2xl border-2 transition-all duration-300",
-                                isTopThree
-                                  ? entry.rank === 1
-                                    ? "bg-gradient-to-r from-yellow-50/50 via-amber-50/50 to-orange-50/50 dark:from-yellow-900/20 dark:via-amber-900/20 dark:to-orange-900/20 border-yellow-300/50 dark:border-yellow-700/50 shadow-lg shadow-yellow-500/20"
-                                    : entry.rank === 2
-                                    ? "bg-gradient-to-r from-slate-50/50 via-gray-50/50 to-slate-100/50 dark:from-slate-800/30 dark:via-gray-800/30 dark:to-slate-800/30 border-slate-300/50 dark:border-slate-700/50 shadow-md shadow-slate-400/20"
-                                    : "bg-gradient-to-r from-amber-50/50 via-orange-50/50 to-amber-100/50 dark:from-amber-900/20 dark:via-orange-900/20 dark:to-amber-900/20 border-amber-300/50 dark:border-amber-700/50 shadow-md shadow-amber-500/20"
-                                  : "bg-gradient-to-r from-purple-50/30 via-pink-50/30 to-blue-50/30 dark:from-purple-900/10 dark:via-pink-900/10 dark:to-blue-900/10 border-purple-200/50 dark:border-purple-800/50 hover:border-purple-400 dark:hover:border-purple-600 hover:shadow-lg"
+                                isMe
+                                  ? "border-[var(--cc-accent)] bg-[var(--cc-accent-soft)]"
+                                  : "border-[var(--border)] bg-[var(--card)]"
                               )}
                             >
-                              {/* Animated glow effect */}
-                              <motion.div
-                                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100"
-                                animate={{
-                                  x: ['-100%', '100%'],
-                                }}
-                                transition={{
-                                  repeat: Infinity,
-                                  duration: 2,
-                                  ease: "linear"
-                                }}
-                              />
-
-                              <div className="relative p-3 sm:p-5 md:p-6 z-10">
+                              <div className="relative z-10 p-3 sm:p-5 md:p-6">
                                 <div className="flex items-center gap-3 sm:gap-4 md:gap-6">
                                   {/* Rank */}
                                   <motion.div
@@ -418,18 +393,18 @@ export default function PlaygroundLeaderboard() {
                                   >
                                     {isTopThree ? (
                                       <div className={cn(
-                                        "flex items-center justify-center w-full h-full rounded-xl shadow-lg",
-                                        entry.rank === 1 && "bg-gradient-to-br from-yellow-400 to-yellow-600",
-                                        entry.rank === 2 && "bg-gradient-to-br from-slate-400 to-slate-600",
-                                        entry.rank === 3 && "bg-gradient-to-br from-amber-500 to-amber-700"
+                                        "flex h-full w-full items-center justify-center rounded-xl",
+                                        entry.rank === 1 && "bg-[var(--cc-accent)] text-white",
+                                        entry.rank === 2 && "border border-[var(--border)] bg-[var(--muted)] text-[var(--cc-text)]",
+                                        entry.rank === 3 && "bg-[var(--cc-accent-soft)] text-[var(--cc-accent-dark)]"
                                       )}>
-                                        {entry.rank === 1 && <Crown className="h-7 w-7 text-yellow-50 fill-yellow-50" />}
-                                        {entry.rank === 2 && <Medal className="h-7 w-7 text-slate-50 fill-slate-50" />}
-                                        {entry.rank === 3 && <Award className="h-7 w-7 text-amber-50 fill-amber-50" />}
+                                        {entry.rank === 1 && <Crown className="h-7 w-7" />}
+                                        {entry.rank === 2 && <Medal className="h-7 w-7" />}
+                                        {entry.rank === 3 && <Award className="h-7 w-7" />}
                                       </div>
                                     ) : (
-                                      <div className="flex items-center justify-center w-full h-full rounded-xl bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 border-2 border-purple-200 dark:border-purple-800">
-                                        <span className="text-lg font-bold text-purple-700 dark:text-purple-300">{entry.rank}</span>
+                                      <div className="flex h-full w-full items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--muted)]">
+                                        <span className="text-lg font-bold text-[var(--cc-text)]">{entry.rank}</span>
                                       </div>
                                     )}
                                   </motion.div>
@@ -437,9 +412,9 @@ export default function PlaygroundLeaderboard() {
                                   {/* Student Info */}
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-3 mb-2">
-                                      <h3 className="text-lg md:text-xl font-bold text-slate-900 dark:text-white truncate">
+                                      <h3 className="truncate text-lg font-bold text-[var(--cc-text)] md:text-xl">
                                         {entry.displayName}
-                                        {isMe && <span className="ml-1 text-xs text-purple-600">(You)</span>}
+                                        {isMe && <span className="ml-1 text-xs text-[var(--cc-accent)]">(You)</span>}
                                       </h3>
                                       {isTopThree && (
                                         <motion.div
@@ -448,10 +423,10 @@ export default function PlaygroundLeaderboard() {
                                           transition={{ delay: index * 0.1 + 0.5, type: "spring" }}
                                         >
                                           <Badge className={cn(
-                                            "text-xs px-2.5 py-1 font-semibold shadow-sm",
-                                            entry.rank === 1 && "bg-yellow-500 text-yellow-950",
-                                            entry.rank === 2 && "bg-slate-400 text-slate-950",
-                                            entry.rank === 3 && "bg-amber-600 text-amber-950"
+                                            "px-2.5 py-1 text-xs font-semibold",
+                                            entry.rank === 1 && "bg-[var(--cc-accent)] text-white",
+                                            entry.rank === 2 && "bg-[var(--muted)] text-[var(--cc-text)]",
+                                            entry.rank === 3 && "bg-[var(--cc-accent-soft)] text-[var(--cc-accent-dark)]"
                                           )}>
                                             Top {entry.rank}
                                           </Badge>
@@ -462,8 +437,8 @@ export default function PlaygroundLeaderboard() {
                                       {showDetails ? (
                                       <div className="flex items-center gap-2">
                                         <div className="flex items-center gap-1.5">
-                                          <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                                          <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                          <Star className="h-4 w-4 text-[var(--cc-accent)]" />
+                                          <span className="text-sm font-semibold text-[var(--cc-text)]">
                                             {accuracy}%
                                           </span>
                                         </div>
@@ -499,16 +474,8 @@ export default function PlaygroundLeaderboard() {
                                     {showDetails ? (
                                     <>
                                     <div className="flex items-baseline gap-1.5 mb-1">
-                                      <TrendingUp className={cn(
-                                        "h-5 w-5",
-                                        isTopThree ? "text-purple-600 dark:text-purple-400" : "text-purple-400 dark:text-purple-500"
-                                      )} />
-                                      <p className={cn(
-                                        "text-3xl md:text-4xl font-extrabold tabular-nums",
-                                        isTopThree 
-                                          ? "bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent"
-                                          : "text-slate-700 dark:text-slate-300"
-                                      )}>
+                                      <TrendingUp className="h-5 w-5 text-[var(--cc-accent)]" />
+                                      <p className="text-3xl font-semibold tabular-nums text-[var(--cc-text)] md:text-4xl">
                                         {entry.score.toLocaleString()}
                                       </p>
                                     </div>
@@ -517,7 +484,7 @@ export default function PlaygroundLeaderboard() {
                                     </p>
                                     </>
                                     ) : (
-                                    <p className="text-2xl font-bold text-slate-400 blur-[6px] select-none">•••</p>
+                                    <p className="select-none text-2xl font-semibold text-[var(--cc-text-muted)] blur-[6px]">•••</p>
                                     )}
                                   </motion.div>
                                 </div>
@@ -551,25 +518,24 @@ export default function PlaygroundLeaderboard() {
                   transition={{ delay: 0.4, type: "spring" }}
                   whileHover={{ scale: 1.05, y: -5 }}
                 >
-                  <Card className="border-0 shadow-xl bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 hover:shadow-2xl transition-all duration-300 overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-yellow-400/20 to-transparent rounded-full blur-2xl group-hover:scale-150 transition-transform" />
-                    <CardContent className="pt-6 text-center relative z-10">
+                  <Card className="overflow-hidden border border-[var(--border)] bg-[var(--card)] text-[var(--cc-text)] shadow-sm">
+                    <CardContent className="relative z-10 pt-6 text-center">
                       <motion.div
                         whileHover={{ rotate: 360 }}
                         transition={{ duration: 0.5 }}
-                        className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-yellow-500 to-orange-500 mb-4 shadow-lg"
+                        className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--cc-accent-soft)]"
                       >
-                        <Trophy className="h-8 w-8 text-white" />
+                        <Trophy className="h-8 w-8 text-[var(--cc-accent)]" />
                       </motion.div>
                       <motion.p
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
                         transition={{ delay: 0.6, type: "spring" }}
-                        className="text-4xl font-extrabold bg-gradient-to-r from-yellow-600 to-orange-600 bg-clip-text text-transparent mb-2"
+                        className="mb-2 text-4xl font-semibold text-[var(--cc-text)]"
                       >
                         {personalStats.bestScore.toLocaleString()}
                       </motion.p>
-                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Best Score</p>
+                      <p className="text-sm font-semibold uppercase tracking-wide text-[var(--cc-text-muted)]">Best Score</p>
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -579,25 +545,24 @@ export default function PlaygroundLeaderboard() {
                   transition={{ delay: 0.5, type: "spring" }}
                   whileHover={{ scale: 1.05, y: -5 }}
                 >
-                  <Card className="border-0 shadow-xl bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 hover:shadow-2xl transition-all duration-300 overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-400/20 to-transparent rounded-full blur-2xl group-hover:scale-150 transition-transform" />
-                    <CardContent className="pt-6 text-center relative z-10">
+                  <Card className="overflow-hidden border border-[var(--border)] bg-[var(--card)] text-[var(--cc-text)] shadow-sm">
+                    <CardContent className="relative z-10 pt-6 text-center">
                       <motion.div
                         whileHover={{ rotate: 360 }}
                         transition={{ duration: 0.5 }}
-                        className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 mb-4 shadow-lg"
+                        className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--cc-accent-soft)]"
                       >
-                        <BarChart3 className="h-8 w-8 text-white" />
+                        <BarChart3 className="h-8 w-8 text-[var(--cc-accent)]" />
                       </motion.div>
                       <motion.p
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
                         transition={{ delay: 0.7, type: "spring" }}
-                        className="text-4xl font-extrabold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent mb-2"
+                        className="mb-2 text-4xl font-semibold text-[var(--cc-text)]"
                       >
                         {personalStats.avgScore.toLocaleString()}
                       </motion.p>
-                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Average Score</p>
+                      <p className="text-sm font-semibold uppercase tracking-wide text-[var(--cc-text-muted)]">Average Score</p>
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -607,35 +572,34 @@ export default function PlaygroundLeaderboard() {
                   transition={{ delay: 0.6, type: "spring" }}
                   whileHover={{ scale: 1.05, y: -5 }}
                 >
-                  <Card className="border-0 shadow-xl bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 hover:shadow-2xl transition-all duration-300 overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-400/20 to-transparent rounded-full blur-2xl group-hover:scale-150 transition-transform" />
-                    <CardContent className="pt-6 text-center relative z-10">
+                  <Card className="overflow-hidden border border-[var(--border)] bg-[var(--card)] text-[var(--cc-text)] shadow-sm">
+                    <CardContent className="relative z-10 pt-6 text-center">
                       <motion.div
                         whileHover={{ rotate: 360 }}
                         transition={{ duration: 0.5 }}
-                        className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 mb-4 shadow-lg"
+                        className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--cc-accent-soft)]"
                       >
-                        <Users className="h-8 w-8 text-white" />
+                        <Users className="h-8 w-8 text-[var(--cc-accent)]" />
                       </motion.div>
                       <motion.p
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
                         transition={{ delay: 0.8, type: "spring" }}
-                        className="text-4xl font-extrabold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-2"
+                        className="mb-2 text-4xl font-semibold text-[var(--cc-text)]"
                       >
                         {personalStats.totalGames.toLocaleString()}
                       </motion.p>
-                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Games Played</p>
+                      <p className="text-sm font-semibold uppercase tracking-wide text-[var(--cc-text-muted)]">Games Played</p>
                     </CardContent>
                   </Card>
                 </motion.div>
               </div>
 
               {/* Recent Games */}
-              <Card className="border-0 shadow-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl">
-                <CardHeader className="bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-blue-500/10 border-b border-purple-200/50 dark:border-purple-900/50">
-                  <CardTitle className="text-2xl font-bold flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              <Card className="border border-[var(--border)] bg-[var(--card)] text-[var(--cc-text)] shadow-sm">
+                <CardHeader className="border-b border-[var(--border)]">
+                  <CardTitle className="flex items-center gap-2 text-2xl font-semibold">
+                    <Sparkles className="h-5 w-5 text-[var(--cc-accent)]" />
                     Recent Games
                   </CardTitle>
                   <CardDescription>Your latest playground sessions</CardDescription>
@@ -646,11 +610,11 @@ export default function PlaygroundLeaderboard() {
                       <motion.div
                         animate={{ rotate: [0, 10, -10, 0] }}
                         transition={{ repeat: Infinity, duration: 3 }}
-                        className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 mb-4"
+                        className="mb-4 inline-flex h-20 w-20 items-center justify-center rounded-full bg-[var(--cc-accent-soft)]"
                       >
-                        <Trophy className="h-10 w-10 text-purple-400 dark:text-purple-500" />
+                        <Trophy className="h-10 w-10 text-[var(--cc-accent)]" />
                       </motion.div>
-                      <p className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">No games played yet</p>
+                      <p className="mb-2 text-lg font-semibold text-[var(--cc-text)]">No games played yet</p>
                       <p className="text-muted-foreground">Start playing to see your history here!</p>
                     </div>
                   ) : (
@@ -666,23 +630,23 @@ export default function PlaygroundLeaderboard() {
                               exit={{ x: 20, opacity: 0 }}
                               transition={{ delay: index * 0.05 }}
                               whileHover={{ scale: 1.02, x: 5 }}
-                              className="group relative overflow-hidden rounded-xl border-2 border-purple-200/50 dark:border-purple-800/50 bg-gradient-to-r from-purple-50/50 to-pink-50/50 dark:from-purple-900/10 dark:to-pink-900/10 hover:border-purple-400 dark:hover:border-purple-600 hover:shadow-lg transition-all duration-300"
+                              className="group relative overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--cc-background)]"
                             >
                               <div className="p-5">
                                 <div className="flex items-center justify-between">
                                   <div className="flex-1">
                                     <div className="flex items-center gap-3 mb-2">
-                                      <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                                      <h3 className="text-lg font-bold text-[var(--cc-text)]">
                                         Game {personalStats.totalGames - index}
                                       </h3>
-                                      <Badge variant="outline" className="text-xs border-purple-300 dark:border-purple-700">
+                                      <Badge variant="outline" className="border-[var(--border)] text-xs text-[var(--cc-text)]">
                                         {accuracy}% accuracy
                                       </Badge>
                                     </div>
                                     <div className="flex items-center gap-4">
                                       <div className="flex items-center gap-2">
-                                        <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                                        <span className="text-sm text-slate-600 dark:text-slate-400">
+                                        <Star className="h-4 w-4 text-[var(--cc-accent)]" />
+                                        <span className="text-sm text-[var(--cc-text-muted)]">
                                           {game.correctAnswers}/{game.questionsAnswered} correct
                                         </span>
                                       </div>
@@ -695,8 +659,8 @@ export default function PlaygroundLeaderboard() {
                                   </div>
                                   <div className="text-right ml-4">
                                     <div className="flex items-baseline gap-1 mb-1">
-                                      <TrendingUp className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                                      <p className="text-2xl font-extrabold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                                      <TrendingUp className="h-5 w-5 text-[var(--cc-accent)]" />
+                                      <p className="text-2xl font-semibold text-[var(--cc-text)]">
                                         {game.score.toLocaleString()}
                                       </p>
                                     </div>
@@ -727,7 +691,7 @@ export default function PlaygroundLeaderboard() {
             <Button
               onClick={() => router.push("/student/playground")}
               size="lg"
-              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40 transition-all duration-300"
+              className="bg-[var(--cc-accent)] text-white hover:bg-[var(--cc-accent-hover)]"
             >
               <Zap className="h-5 w-5 mr-2" />
               Play Again
@@ -736,7 +700,7 @@ export default function PlaygroundLeaderboard() {
               onClick={() => router.push("/student/dashboard")}
               variant="outline"
               size="lg"
-              className="border-2 border-purple-300 dark:border-purple-700 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all duration-300"
+              className="border-[var(--border)] text-[var(--cc-text)]"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Dashboard

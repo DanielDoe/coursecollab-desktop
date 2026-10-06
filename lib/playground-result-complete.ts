@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db"
+import { ensurePlaygroundLearningProfile } from "@/lib/ensure-playground-learning-profile"
 import { ensurePlaygroundResultsSchema } from "@/lib/ensure-playground-results-schema"
 
 type CompleteRow = { student_id: string | number; id: number }
@@ -21,6 +22,7 @@ export async function markPlaygroundResultComplete(
   opts?: { byStudentId?: string },
 ): Promise<CompleteRow[]> {
   await ensurePlaygroundResultsSchema()
+  await ensurePlaygroundLearningProfile()
 
   const byIdVariants: Array<() => Promise<CompleteRow[]>> = [
     () =>

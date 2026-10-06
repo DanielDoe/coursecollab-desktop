@@ -86,8 +86,8 @@ function studentInitials(name: string): string {
 function RankBadge({ rank }: { rank: number | null }) {
   if (rank === 1) {
     return (
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15">
-        <Crown className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--cc-accent-soft)]">
+        <Crown className="h-5 w-5 text-[var(--cc-accent-dark)]" />
       </div>
     )
   }
@@ -100,8 +100,8 @@ function RankBadge({ rank }: { rank: number | null }) {
   }
   if (rank === 3) {
     return (
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/15">
-        <Medal className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--muted)]">
+        <Medal className="h-5 w-5 text-[var(--cc-text-secondary)]" />
       </div>
     )
   }
@@ -117,19 +117,21 @@ function StatusPill({ status }: { status: LeaderboardEntry["status"] }) {
     status === "completed"
       ? {
           label: "Finished",
-          dot: "bg-emerald-400",
-          className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25",
+          dot: "bg-[var(--cc-sem-success)]",
+          className:
+            "border-[var(--cc-sem-success-border)] bg-[var(--cc-sem-success-soft)] text-[var(--cc-sem-success-text)]",
         }
       : status === "waiting"
         ? {
             label: "Waiting",
-            dot: "bg-amber-400",
-            className: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25",
+            dot: "bg-[var(--cc-sem-warning)]",
+            className:
+              "border-[var(--cc-sem-warning-border)] bg-[var(--cc-sem-warning-soft)] text-[var(--cc-sem-warning-text)]",
           }
         : {
             label: "Playing",
-            dot: "bg-blue-400 animate-pulse",
-            className: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/25",
+            dot: "animate-pulse bg-[var(--cc-accent)]",
+            className: "border-[var(--cc-accent-border)] bg-[var(--cc-accent-soft)] text-[var(--cc-accent-dark)]",
           }
 
   return (
@@ -352,7 +354,7 @@ export function InstructorPlaygroundLeaderboardTab({
                               </div>
                               <div className="hidden min-w-[44px] text-center sm:block">
                                 <p className={cn("text-[10px] uppercase tracking-wide", PORTAL_TEXT_MUTED)}>Correct</p>
-                                <p className="text-sm font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                                <p className="text-sm font-semibold tabular-nums text-[var(--cc-sem-success-text)]">
                                   {entry.correctAnswers}
                                 </p>
                               </div>
@@ -369,10 +371,10 @@ export function InstructorPlaygroundLeaderboardTab({
                                       className={cn(
                                         "h-full rounded-full",
                                         entry.accuracyPercentage >= 80
-                                          ? "bg-emerald-500"
+                                          ? "bg-[var(--cc-sem-success)]"
                                           : entry.accuracyPercentage >= 60
-                                            ? "bg-amber-500"
-                                            : "bg-red-500",
+                                            ? "bg-[var(--cc-sem-warning)]"
+                                            : "bg-[var(--cc-sem-danger)]",
                                       )}
                                     />
                                   </div>

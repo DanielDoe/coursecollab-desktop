@@ -514,6 +514,9 @@ export function QuizTaker({
   const [quizStarted, setQuizStarted] = useState(false) // Track if quiz loading has been initiated
   const [loadingStep, setLoadingStep] = useState(0) // Track which loading step we're on (0-3)
   const [submitting, setSubmitting] = useState(false)
+  /** Continue Later / quiz break — not a final submit. Drives overlay copy and releases exam lock. */
+  const [savingForLater, setSavingForLater] = useState(false)
+  const [saveLeaveSlow, setSaveLeaveSlow] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
   const [isCorrect, setIsCorrect] = useState(false)
   const [attemptId, setAttemptId] = useState<number | null>(null)
@@ -524,12 +527,21 @@ export function QuizTaker({
     const id = setTimeout(() => setIsSubmittingAnswer(false), 90000)
     return () => clearTimeout(id)
   }, [isSubmittingAnswer])
+  useEffect(() => {
+    if (!savingForLater) {
+      setSaveLeaveSlow(false)
+      return
+    }
+    const id = setTimeout(() => setSaveLeaveSlow(true), 8000)
+    return () => clearTimeout(id)
+  }, [savingForLater])
   const [showExitDialog, setShowExitDialog] = useState(false)
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const [showSubmitConfirmDialog, setShowSubmitConfirmDialog] = useState(false)
   const [showWaterBreakPicker, setShowWaterBreakPicker] = useState(false)
   const [coraDrawerOpen, setCoraDrawerOpen] = useState(false)
   const [waterBreakActive, setWaterBreakActive] = useState(false)
+  const [leavingAssessment, setLeavingAssessment] = useState(false)
   const [waterBreakTotalSeconds, setWaterBreakTotalSeconds] = useState(0)
   const [showSubmissionStalledModal, setShowSubmissionStalledModal] = useState(false)
   const [submissionStalledFinalizeSucceeded, setSubmissionStalledFinalizeSucceeded] = useState(false)
@@ -624,6 +636,8 @@ export function QuizTaker({
   const expiredSectionsRef = useRef<Set<number>>(new Set())
   const globalTimerTickRef = useRef<NodeJS.Timeout | null>(null)
   const waterBreakPausedRef = useRef(false)
+  const leaveSaveInProgressRef = useRef(false)
+  const forceLeaveQuizRef = useRef<(() => void) | null>(null)
   const resumeFromSaveLaterRef = useRef(false)
   const quizForTimerRef = useRef<typeof quiz>(null)
   const currentQuestionIndexForTimerRef = useRef(0)
@@ -893,6 +907,8 @@ export function QuizTaker({
 
   const desktopNativeLockdownActive = useMemo(
     () =>
+      !waterBreakActive &&
+      !leavingAssessment &&
       isDesktopNativeAssessmentLockdownActive({
         disabledForTesting: antiCheatDisabledForTesting,
         quizStarted,
@@ -901,6 +917,8 @@ export function QuizTaker({
         config: activeAntiCheatConfig,
       }),
     [
+      waterBreakActive,
+      leavingAssessment,
       antiCheatDisabledForTesting,
       quizStarted,
       loading,
@@ -2497,6 +2515,7 @@ export function QuizTaker({
 
   useEffect(() => {
     if (!quiz?.id || !attemptId || isQuizFinalized) return
+    if (leaveSaveInProgressRef.current || waterBreakPausedRef.current) return
     const { questionTimeRemaining: qtr, sectionTimeRemaining: str } = getSanitizedTimerPayload()
     const payload = {
       attemptId,
@@ -3908,12 +3927,14 @@ export function QuizTaker({
   }, [waterBreakActive])
 
   const handleStartWaterBreak = useCallback((minutes: number) => {
+    waterBreakPausedRef.current = true
     setWaterBreakTotalSeconds(Math.max(60, minutes * 60))
     setShowWaterBreakPicker(false)
     setWaterBreakActive(true)
   }, [])
 
   const handleResumeFromWaterBreak = useCallback(() => {
+    waterBreakPausedRef.current = false
     setWaterBreakActive(false)
   }, [])
 
@@ -3930,7 +3951,7 @@ export function QuizTaker({
     if (globalTimerTickRef.current) return
 
     globalTimerTickRef.current = setInterval(() => {
-      if (waterBreakPausedRef.current) return
+      if (waterBreakPausedRef.current || leaveSaveInProgressRef.current) return
 
       const quizData = quizForTimerRef.current
       if (!quizData?.questions?.length) return
@@ -6904,10 +6925,50 @@ export function QuizTaker({
     setSelectedMultiAnswers([])
   }, [quiz, currentQuestionIndex, pendingEvaluations, applyEvalFeedbackForQuestion, applyObjectiveGradeForQuestion])
 
-  /** Same behavior as before: save progress and navigate away. Extracted so we can show a 24h notice first. */
+  /** Save progress and leave. Pauses the exam clock and releases the desktop lock so a slow save cannot trap the student. */
   const executeContinueLaterSaveAndLeave = async () => {
     if (!attemptId || !quiz) return
+    if (leaveSaveInProgressRef.current) return
+    leaveSaveInProgressRef.current = true
+    setSavingForLater(true)
+    setLeavingAssessment(true)
     setSubmitting(true)
+    void window.courseCollabDesktop?.exitAssessmentLockdown?.()
+
+    const exitPath = effectiveType === "practice" ? getPracticePath() :
+      effectiveType === "mid_semester" ? getMidSemesterExamsPath() :
+      effectiveType === "final" ? getFinalExamsPath() :
+      effectiveType === "homework" ? getHomeworkPath() :
+      getDashboardPath()
+
+    let left = false
+    const leaveNow = () => {
+      if (left) return
+      left = true
+      void window.courseCollabDesktop?.exitAssessmentLockdown?.()
+      router.push(exitPath)
+      window.setTimeout(() => {
+        const path = window.location.pathname
+        const arrived = path === exitPath || path === `${exitPath}/`
+        if (!arrived) window.location.assign(exitPath)
+      }, 1200)
+    }
+    forceLeaveQuizRef.current = leaveNow
+
+    const withTimeout = async <T,>(promise: Promise<T>, ms: number): Promise<T> => {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        return await Promise.race([
+          promise,
+          new Promise<T>((_, reject) => {
+            timer = setTimeout(() => reject(new Error("timeout")), ms)
+          }),
+        ])
+      } finally {
+        if (timer) clearTimeout(timer)
+      }
+    }
+
     try {
       const codeTypes = ["code_write", "code_problem", "debug_code", "code_write_plot", "code_explain", "code_debug"]
       const savePromises: Promise<void>[] = []
@@ -6952,15 +7013,17 @@ export function QuizTaker({
           }
         }
       }
-      if (savePromises.length > 0) await Promise.allSettled(savePromises)
-      const timerPayload = await flushQuizProgressNow()
+      if (savePromises.length > 0) {
+        await withTimeout(Promise.allSettled(savePromises), 20000).catch(() => {})
+      }
+      const timerPayload = await withTimeout(flushQuizProgressNow(), 15000).catch(() => undefined)
       const perQuestionRemaining =
         currentQ && questionUsesPerQuestionTimer(currentQ.question_type, currentQuestionIndex)
           ? (globalQuestionTimersRef.current[currentQ.id] ??
             questionTimeRemainingRef.current[currentQ.id] ??
             (timeLeft > 0 ? timeLeft : currentQ.time_limit || quiz.time_per_question || 60))
           : null
-      const res = await studentApiFetch("/api/student/save-and-finish-later", {
+      const res = await withTimeout(studentApiFetch("/api/student/save-and-finish-later", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -6970,7 +7033,7 @@ export function QuizTaker({
           questionTimeRemaining: timerPayload?.questionTimeRemaining,
           sectionTimeRemaining: timerPayload?.sectionTimeRemaining,
         }),
-      })
+      }), 20000)
       const data = await res.json()
       if (!res.ok) {
         if (res.status === 403 && data.upgradeRequired) {
@@ -6978,6 +7041,10 @@ export function QuizTaker({
         } else {
           toast({ title: "Error", description: formatApiErrorMessage(data.error, "Failed to save"), variant: "destructive" })
         }
+        leaveSaveInProgressRef.current = false
+        forceLeaveQuizRef.current = null
+        setSavingForLater(false)
+        setLeavingAssessment(false)
         setSubmitting(false)
         return
       }
@@ -6986,14 +7053,23 @@ export function QuizTaker({
         description: getContinueLaterSavedToastDescription(quiz?.available_until),
         variant: "default",
       })
-      const exitPath = effectiveType === "practice" ? getPracticePath() :
-        effectiveType === "mid_semester" ? getMidSemesterExamsPath() :
-        effectiveType === "final" ? getFinalExamsPath() :
-        effectiveType === "homework" ? getHomeworkPath() :
-        getDashboardPath()
-      router.push(exitPath)
+      leaveNow()
     } catch (e) {
+      const timedOut = e instanceof Error && e.message === "timeout"
+      if (timedOut) {
+        toast({
+          title: "Progress Saved",
+          description: "Saving took longer than expected. You can close the app and resume this quiz later.",
+          variant: "default",
+        })
+        leaveNow()
+        return
+      }
       toast({ title: "Error", description: "Failed to save progress", variant: "destructive" })
+      leaveSaveInProgressRef.current = false
+      forceLeaveQuizRef.current = null
+      setSavingForLater(false)
+      setLeavingAssessment(false)
       setSubmitting(false)
     }
   }
@@ -9279,11 +9355,21 @@ export function QuizTaker({
             >
               <Loader2 className="h-12 w-12 sm:h-14 sm:w-14 animate-spin text-purple-400" />
               <p className="text-base sm:text-lg font-medium text-slate-100">
-                Submitting your results...
+                {savingForLater ? "Saving your progress..." : "Submitting your results..."}
               </p>
               <p className="text-sm text-slate-400">
                 Please wait while we save your answers.
               </p>
+              {savingForLater && saveLeaveSlow ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-2 border-white/40 bg-white/10 text-white hover:bg-white/20"
+                  onClick={() => forceLeaveQuizRef.current?.()}
+                >
+                  Leave and resume later
+                </Button>
+              ) : null}
             </motion.div>
           </div>
         )}

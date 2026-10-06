@@ -1,6 +1,7 @@
 import { Pool } from "pg"
 import { neon, neonConfig } from "@neondatabase/serverless"
 import { trackDbQuery } from "@/lib/perf/context"
+import { composeSql, isAlreadyAppliedSchemaDdl, isSqlFragment } from "@/lib/sql-compose"
 
 // GLOBAL TIMEZONE CONVENTION: naive DB timestamps are UTC wall-clock; UI converts
 // to Central via lib/timezone.ts. Force the server process to UTC so the Neon
@@ -164,6 +165,10 @@ export async function executeParameterizedSql(
   const isEdgeRuntime = checkIsEdgeRuntime()
   const isProduction = getIsProduction()
 
+  if (isProduction && process.env.USE_PG_POOL === "true" && !isEdgeRuntime && !productionPool) {
+    getSQL()
+  }
+
   return await withTransientDbRetry(async () => {
     if (isProduction && productionPool && !isEdgeRuntime) {
       const result = await productionPool.query(queryText, params)
@@ -184,46 +189,24 @@ export async function executeParameterizedSql(
 
 // Helper function to convert template literal to parameterized query for pg.Pool
 function convertTemplateLiteral(strings: TemplateStringsArray, values: any[]): { text: string; params: any[] } {
-  let text = strings[0]
-  const params: any[] = []
-  
-  for (let i = 0; i < values.length; i++) {
-    const value = values[i]
-    // Check if this is an sql.unsafe() fragment
-    if (value && typeof value === 'object' && '__unsafe' in value && value.__unsafe) {
-      // Inject raw SQL without parameterization
-      text += value.__sql + strings[i + 1]
-    } else {
-      // Normal parameterized value
-      params.push(value)
-      text += `$${params.length}` + strings[i + 1]
+  const fragment = composeSql(strings, adoptSqlFragments(values))
+  return { text: fragment.text, params: fragment.params }
+}
+
+function adoptSqlFragments(values: any[]): any[] {
+  return values.map((value) => {
+    if (isSqlFragment(value) && typeof (value as { adopt?: () => void }).adopt === "function") {
+      ;(value as { adopt: () => void }).adopt()
     }
-  }
-  
-  return { text, params }
+    return value
+  })
 }
 
 // Create a pg.Pool-compatible SQL function
 function createPoolSQL(pool: Pool) {
   return async (strings: TemplateStringsArray, ...values: any[]) => {
-    // Handle sql.unsafe() fragments
-    let text = strings[0]
-    const params: any[] = []
-    
-    for (let i = 0; i < values.length; i++) {
-      const value = values[i]
-      // Check if this is an sql.unsafe() fragment
-      if (value && typeof value === 'object' && '__unsafe' in value && value.__unsafe) {
-        // Inject raw SQL without parameterization
-        text += value.__sql + strings[i + 1]
-      } else {
-        // Normal parameterized value
-        params.push(value)
-        text += `$${params.length}` + strings[i + 1]
-      }
-    }
-    
-    const result = await pool.query(text, params)
+    const fragment = composeSql(strings, adoptSqlFragments(values))
+    const result = await pool.query(fragment.text, fragment.params)
     return result.rows
   }
 }
@@ -324,11 +307,12 @@ export function getSQL() {
       }, 30000) // Check every 30 seconds
     }
     
-    return createPoolSQL(productionPool) as ReturnType<typeof neon>
+    return sql as unknown as ReturnType<typeof neon>
   }
 
   // Development, or production without USE_PG_POOL — Neon's HTTP driver (same path as typical school WiFi allowlist: 443)
-  return getOrCreateNeonSql()
+  getOrCreateNeonSql()
+  return sql as unknown as ReturnType<typeof neon>
 }
 
 export type TransactionSql = {
@@ -388,68 +372,18 @@ export async function runSqlTransaction<T = Record<string, unknown>>(
 // This allows us to use sql`SELECT * FROM table` syntax
 // CRITICAL: All queries automatically use Central Time (America/Chicago)
 // The database connection is configured to use Central Time globally
-export const sql = async (strings: TemplateStringsArray, ...values: any[]) => {
-  const sqlFunction = getSQL()
-  
-  // Handle sql.unsafe() fragments for neon() client
-  // Check if we're using neon (not pg.Pool)
-  const isEdgeRuntime = checkIsEdgeRuntime()
-  const isProduction = getIsProduction()
-  
-  // Check if we have any sql.unsafe() fragments
-  const hasUnsafe = values.some(v => v && typeof v === 'object' && '__unsafe' in v && v.__unsafe)
-  
-  const queryPreview = strings.join("?").slice(0, 500)
+function pgErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== "object" || !("code" in error)) return undefined
+  const code = (error as { code?: unknown }).code
+  return code == null ? undefined : String(code)
+}
 
-  if (hasUnsafe) {
-    try {
-      return await trackDbQuery(() => withTransientDbRetry(async () => {
-        // Build query with unsafe fragments injected
-        let queryText = strings[0]
-        const safeParams: any[] = []
-
-        for (let i = 0; i < values.length; i++) {
-          const value = values[i]
-          if (value && typeof value === "object" && "__unsafe" in value && value.__unsafe) {
-            queryText += value.__sql + strings[i + 1]
-          } else {
-            safeParams.push(value)
-            queryText += `$${safeParams.length}` + strings[i + 1]
-          }
-        }
-
-        if (isProduction && productionPool && !isEdgeRuntime) {
-          const result = await productionPool.query(queryText, safeParams)
-          return result.rows
-        }
-
-        const neonClient = getOrCreateNeonSql()
-        let finalQuery = queryText
-        for (let idx = safeParams.length; idx >= 1; idx--) {
-          const paramValue = formatValueForNeonUnsafeInline(safeParams[idx - 1])
-          finalQuery = finalQuery.replaceAll(new RegExp(`\\$${idx}(?!\\d)`, "g"), paramValue)
-        }
-        // @ts-ignore
-        const template = Object.assign([finalQuery], { raw: [finalQuery] })
-        return await neonClient(template as any)
-      }))
-    } catch (error) {
-      void import("@/lib/system-log")
-        .then((m) =>
-          m.logDatabaseError(error, {
-            operation: "sql.unsafe",
-            metadata: { queryPreview },
-          }),
-        )
-        .catch(() => {})
-      throw error
-    }
-  }
-
-  // No unsafe fragments - use normal processing
+async function runComposedSql(text: string, params: unknown[]) {
+  const queryPreview = text.slice(0, 500)
   try {
-    return await trackDbQuery(() => withTransientDbRetry(() => sqlFunction(strings, ...values)))
+    return await trackDbQuery(() => executeParameterizedSql(text, params))
   } catch (error) {
+    if (isAlreadyAppliedSchemaDdl(pgErrorCode(error), queryPreview)) return []
     void import("@/lib/system-log")
       .then((m) =>
         m.logDatabaseError(error, {
@@ -460,6 +394,49 @@ export const sql = async (strings: TemplateStringsArray, ...values: any[]) => {
       .catch(() => {})
     throw error
   }
+}
+
+/**
+ * Tagged SQL. Nested `sql` snippets are spliced into the parent query.
+ * Execution starts when the query is awaited. A snippet that is never awaited
+ * and never spliced still runs on the next microtask, so fire-and-forget writes keep working.
+ */
+export function sql(strings: TemplateStringsArray, ...values: any[]) {
+  const fragment = composeSql(strings, adoptSqlFragments(values))
+  let adopted = false
+  let pending: Promise<unknown> | null = null
+  const run = () => {
+    pending ??= runComposedSql(fragment.text, fragment.params)
+    return pending
+  }
+  const query = {
+    __sqlFragment: true as const,
+    text: fragment.text,
+    params: fragment.params,
+    adopt() {
+      adopted = true
+    },
+    then(onFulfilled?: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) {
+      adopted = true
+      return run().then(onFulfilled, onRejected)
+    },
+    catch(onRejected?: (reason: unknown) => unknown) {
+      return this.then(undefined, onRejected)
+    },
+    finally(onFinally?: () => void) {
+      return this.then(
+        (value) => Promise.resolve(onFinally?.()).then(() => value),
+        (error) =>
+          Promise.resolve(onFinally?.()).then(() => {
+            throw error
+          }),
+      )
+    },
+  }
+  queueMicrotask(() => {
+    if (!adopted) void run()
+  })
+  return query
 }
 
 // Add unsafe method for executing raw SQL

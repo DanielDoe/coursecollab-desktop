@@ -15,7 +15,7 @@ export type EnrollmentAttendanceWindow = {
  * instead; a date-only column parses as local midnight, so UTC conversion can
  * land on the wrong day.
  */
-function toDateOnly(value: string | Date | null | undefined): string | null {
+export function toDateOnly(value: string | Date | null | undefined): string | null {
   if (value == null) return null
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) return null
@@ -28,6 +28,9 @@ function toDateOnly(value: string | Date | null | undefined): string | null {
   if (!text) return null
   const iso = text.match(/^\d{4}-\d{2}-\d{2}/)
   if (iso) return iso[0]
+  // "Tue Aug 25" is what String(date).slice(0, 10) used to produce. JavaScript
+  // parses that as year 2001, which is not the term date.
+  if (!/\d{4}/.test(text)) return null
   const parsed = new Date(text)
   return Number.isNaN(parsed.getTime()) ? null : toDateOnly(parsed)
 }
@@ -37,9 +40,10 @@ export function termStartWithGrace(
   termStart: string | null | undefined,
   graceDays = 14,
 ): string | null {
-  if (!termStart) return null
-  const d = new Date(`${termStart}T12:00:00`)
-  if (Number.isNaN(d.getTime())) return termStart
+  const iso = toDateOnly(termStart)
+  if (!iso) return null
+  const d = new Date(`${iso}T12:00:00`)
+  if (Number.isNaN(d.getTime())) return null
   d.setDate(d.getDate() - graceDays)
   return toDateOnly(d)
 }

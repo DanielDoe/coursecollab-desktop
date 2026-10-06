@@ -26,6 +26,8 @@ import type {
 } from "@/lib/lecture-sample-practice"
 import {
   evaluateSamplePracticeQuestion,
+  formatSamplePracticeTitle,
+  unescapeSamplePracticeText,
 } from "@/lib/lecture-sample-practice"
 import {
   samplePracticeHasSelection,
@@ -82,6 +84,17 @@ function QuestionCard({
   } | null
   isInstructorPreview?: boolean
 }) {
+  const displayQuestion = useMemo(
+    () => ({
+      ...question,
+      title: formatSamplePracticeTitle(question.title, question.question_text),
+      question_text: unescapeSamplePracticeText(question.question_text),
+      explanation: question.explanation
+        ? unescapeSamplePracticeText(question.explanation)
+        : question.explanation,
+    }),
+    [question],
+  )
   const restoredAnswer = savedAttempt?.student_answer ?? null
   const initialSelection = samplePracticeRestoreSelection(question, restoredAnswer)
 
@@ -98,8 +111,8 @@ function QuestionCard({
   const [error, setError] = useState<string | null>(null)
 
   const rendererQuestion = useMemo(
-    () => samplePracticeQuestionToRendererRow(question),
-    [question],
+    () => samplePracticeQuestionToRendererRow(displayQuestion),
+    [displayQuestion],
   )
 
   const submitAnswer = samplePracticeSubmitAnswer(
@@ -189,7 +202,7 @@ function QuestionCard({
           {index + 1}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-900 dark:text-white">{question.title}</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">{displayQuestion.title}</p>
           {question.topic ? (
             <p className="mt-0.5 line-clamp-1 text-xs text-slate-500 dark:text-slate-400">{question.topic}</p>
           ) : null}
@@ -215,7 +228,7 @@ function QuestionCard({
           <QuestionMediaDisplay question={question} size="medium" />
 
           <QuestionTextRenderer
-            text={question.question_text}
+            text={displayQuestion.question_text}
             className="text-sm leading-relaxed text-slate-800 dark:text-slate-100"
           />
 
@@ -226,9 +239,9 @@ function QuestionCard({
                 assessmentState="practice"
                 problem={coraContextFromQuestion({
                   source: "lecture_practice",
-                  title: question.title,
+                  title: displayQuestion.title,
                   topic: question.topic,
-                  questionText: question.question_text,
+                  questionText: displayQuestion.question_text,
                   questionType: question.question_type,
                   explanation: result?.explanation ?? null,
                   mediaUrl: question.question_media?.media_url ?? null,

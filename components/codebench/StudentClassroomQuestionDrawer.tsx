@@ -1,15 +1,19 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { BookOpenCheck, Code2, Radio, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ClassroomQuestionContent } from "@/components/codebench/ClassroomQuestionContent"
+import { ClassroomSolutionPanel } from "@/components/codebench/ClassroomSolutionPanel"
 import { QuestionMediaDisplay } from "@/components/question-media-display"
+import { studentApiFetch } from "@/lib/auth"
+import { readClassroomCodeSolution } from "@/lib/classroom-points-student-question-config"
 import { parseClassroomSolutionQuestionConfig } from "@/lib/classroom-solution-submission"
 
 export type StudentClassroomQuestionView = {
+  assignmentId?: number
   title: string
   questionText: string
   description?: string | null
@@ -34,9 +38,37 @@ export function StudentClassroomQuestionDrawer({ open, onClose, assignment }: Pr
     return () => window.removeEventListener("keydown", onKey)
   }, [open, onClose])
 
-  const questionConfig = assignment?.questionConfig
-    ? parseClassroomSolutionQuestionConfig(assignment.questionConfig)
+  const [questionConfigRaw, setQuestionConfigRaw] = useState<unknown>(assignment?.questionConfig ?? null)
+
+  useEffect(() => {
+    setQuestionConfigRaw(assignment?.questionConfig ?? null)
+  }, [assignment?.assignmentId, assignment?.questionConfig])
+
+  useEffect(() => {
+    if (!open || !assignment?.assignmentId) return
+    let cancelled = false
+    const load = async () => {
+      try {
+        const res = await studentApiFetch(`/api/classroom-points/submissions/${assignment.assignmentId}`)
+        if (!res.ok || cancelled) return
+        const data = (await res.json()) as { submission?: { question_config?: unknown } }
+        if (!cancelled) setQuestionConfigRaw(data.submission?.question_config ?? null)
+      } catch {
+        /* keep the last prompt */
+      }
+    }
+    void load()
+    const timer = window.setInterval(() => void load(), 8000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [assignment?.assignmentId, open])
+
+  const questionConfig = questionConfigRaw
+    ? parseClassroomSolutionQuestionConfig(questionConfigRaw)
     : null
+  const solution = readClassroomCodeSolution(questionConfigRaw)
 
   return (
     <AnimatePresence>
@@ -107,6 +139,13 @@ export function StudentClassroomQuestionDrawer({ open, onClose, assignment }: Pr
                   title={assignment.title}
                   questionText={assignment.questionText}
                   showSyntaxReference
+                />
+
+                <ClassroomSolutionPanel
+                  mode="student"
+                  available={solution.available}
+                  unlocked={solution.unlocked}
+                  code={solution.code}
                 />
 
                 {assignment.description &&

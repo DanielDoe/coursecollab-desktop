@@ -33,6 +33,7 @@ import {
 } from "@/lib/playground-session-lock"
 import { cn } from "@/lib/utils"
 import { studentModuleSpinnerClass } from "@/lib/student-module-themes"
+import { StudentPlaygroundLobbyNotice } from "@/components/playground/StudentPlaygroundLobbyBanner"
 
 const DASHBOARD_V2_PLAYGROUND = "/student/dashboard-v2/playground"
 
@@ -318,7 +319,7 @@ export function PlaygroundLobbyDashboardV2() {
   if (!mounted || !studentData) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className={cn("animate-spin rounded-full h-10 w-10 border-2 border-slate-200 dark:border-slate-700", studentModuleSpinnerClass("playground"))} />
+        <div className={cn("h-10 w-10 animate-spin rounded-full border-2 border-[var(--border)]", studentModuleSpinnerClass("playground"))} />
       </div>
     )
   }
@@ -376,6 +377,7 @@ export function PlaygroundLobbyDashboardV2() {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-4 w-full min-w-0 overflow-x-hidden"
     >
+      <StudentPlaygroundLobbyNotice />
       <div className="min-w-0">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cc-text-muted)]">
           Playground

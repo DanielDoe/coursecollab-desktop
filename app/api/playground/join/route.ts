@@ -5,13 +5,16 @@ import { normalizePlaygroundPasscode } from "@/lib/playground-passcode"
 import { deductPlaygroundJoinCredit } from "@/lib/playground-join-credits"
 import { resolvePlaygroundStudentName } from "@/lib/playground-display-name"
 import { PLAYGROUND_ALREADY_JOINED_MESSAGE, isPlaygroundWaitingRoomResult } from "@/lib/playground-join-guard"
+import { studentMayEnterPlaygroundLobby } from "@/lib/playground-open-lobby"
 import { requireBoundStudentCaller } from "@/lib/student-api-auth"
+import { resolveStudentCourseContextForRequest } from "@/lib/student-course-scope"
 
 export const dynamic = "force-dynamic"
 
 export async function POST(request: NextRequest) {
   try {
-    const { studentName, studentId, mode, nickname, passcode, practiceSetId } = await request.json()
+    const { studentName, studentId, mode, nickname, passcode, practiceSetId, inviteSessionId } =
+      await request.json()
 
     const bound = await requireBoundStudentCaller(request, studentId)
     if (!bound.ok) return bound.response
@@ -42,19 +45,14 @@ export async function POST(request: NextRequest) {
 
     if (mode === "CLASSROOM") {
       const studentInfo = await sql`
-        SELECT session_id FROM students WHERE id = ${studentDatabaseId} LIMIT 1
+        SELECT session_id, course_id FROM students WHERE id = ${studentDatabaseId} LIMIT 1
       `
-      const studentSessionId = studentInfo.length > 0 ? studentInfo[0].session_id : null
+      const studentRow = studentInfo[0] as { session_id: number | null; course_id: number | null } | undefined
+      const parsedInvite = Number(inviteSessionId)
+      const useInvite = Number.isFinite(parsedInvite) && parsedInvite > 0
 
-      const joinCode = normalizePlaygroundPasscode(passcode)
-      if (joinCode.length !== 5) {
-        return NextResponse.json(
-          { error: "Enter the 5-character passcode from your instructor" },
-          { status: 400 },
-        )
-      }
-
-      const matchedSessions = await sql`
+      const matchedSessions = useInvite
+        ? await sql`
         SELECT
           id,
           duration_sec,
@@ -62,18 +60,46 @@ export async function POST(request: NextRequest) {
           allowed_sessions,
           game_started,
           is_active,
-          join_passcode,
+          course_id,
+          question_count
+        FROM playground_sessions
+        WHERE id = ${parsedInvite}
+          AND mode = 'CLASSROOM'
+          AND is_active = true
+          AND game_started = false
+        LIMIT 1
+      `
+        : await sql`
+        SELECT
+          id,
+          duration_sec,
+          current_question_index,
+          allowed_sessions,
+          game_started,
+          is_active,
+          course_id,
           question_count
         FROM playground_sessions
         WHERE mode = 'CLASSROOM'
           AND is_active = true
-          AND UPPER(join_passcode) = ${joinCode}
+          AND UPPER(join_passcode) = ${normalizePlaygroundPasscode(passcode)}
         LIMIT 1
       `
 
+      if (!useInvite && normalizePlaygroundPasscode(passcode).length !== 5) {
+        return NextResponse.json(
+          { error: "Enter the 5-character passcode from your instructor" },
+          { status: 400 },
+        )
+      }
+
       if (matchedSessions.length === 0) {
         return NextResponse.json(
-          { error: "Invalid passcode. Check with your instructor and try again." },
+          {
+            error: useInvite
+              ? "This playground lobby is no longer open."
+              : "Invalid passcode. Check with your instructor and try again.",
+          },
           { status: 404 },
         )
       }
@@ -85,18 +111,38 @@ export async function POST(request: NextRequest) {
         allowed_sessions: number[] | null
         game_started: boolean
         is_active: boolean
+        course_id: number | null
         question_count: number
       }
 
-      if (
-        matched.allowed_sessions !== null &&
-        Array.isArray(matched.allowed_sessions) &&
-        matched.allowed_sessions.length > 0 &&
-        studentSessionId !== null &&
-        !matched.allowed_sessions.includes(studentSessionId)
-      ) {
+      const courseCtx = useInvite
+        ? await resolveStudentCourseContextForRequest(request, studentDatabaseId)
+        : null
+      const studentSessionId = useInvite
+        ? (courseCtx?.sessionId ?? studentRow?.session_id ?? null)
+        : (studentRow?.session_id ?? null)
+      const studentCourseId = useInvite
+        ? (courseCtx?.courseId ?? studentRow?.course_id ?? null)
+        : (studentRow?.course_id ?? null)
+
+      const sectionAllowed = useInvite
+        ? studentMayEnterPlaygroundLobby({
+            allowedSessions: matched.allowed_sessions,
+            playgroundCourseId: matched.course_id,
+            studentSessionId,
+            studentCourseId,
+          })
+        : !(
+            matched.allowed_sessions !== null &&
+            Array.isArray(matched.allowed_sessions) &&
+            matched.allowed_sessions.length > 0 &&
+            studentSessionId !== null &&
+            !matched.allowed_sessions.includes(studentSessionId)
+          )
+
+      if (!sectionAllowed) {
         return NextResponse.json(
-          { error: "This passcode is not available for your class section" },
+          { error: "This playground session is not open for your class section" },
           { status: 403 },
         )
       }

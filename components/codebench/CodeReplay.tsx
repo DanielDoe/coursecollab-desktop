@@ -17,6 +17,7 @@ import {
   Check,
   Maximize2,
   Minimize2,
+  X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -298,6 +299,7 @@ interface CodeReplayProps {
   onHighlightLine: (lineNumber: number) => void
   onClearHighlight: () => void
   onShowExplanation?: () => void
+  onExit?: () => void
   isLoading?: boolean
   theme?: "light" | "dark"
   progressCacheKey?: string
@@ -310,6 +312,7 @@ export function CodeReplay({
   onHighlightLine,
   onClearHighlight,
   onShowExplanation,
+  onExit,
   isLoading = false,
   theme = "dark",
   progressCacheKey,
@@ -464,6 +467,22 @@ export function CodeReplay({
           className="h-10 w-10 rounded-full border-2 border-violet-500/30 border-t-violet-400"
         />
         <p className={cn("text-sm", t.muted)}>Building step-by-step walkthrough…</p>
+        {onExit ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn("rounded-full", t.outlineBtn)}
+            onClick={() => {
+              setIsPlaying(false)
+              onClearHighlight()
+              onExit()
+            }}
+          >
+            <X className="mr-1.5 h-3.5 w-3.5" />
+            Exit
+          </Button>
+        ) : null}
       </div>
     )
   }
@@ -519,7 +538,7 @@ export function CodeReplay({
           ))}
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex shrink-0 items-center gap-2">
             <Button
               size="sm"
@@ -536,6 +555,23 @@ export function CodeReplay({
               {isPlaying ? <Pause className="mr-1.5 h-3.5 w-3.5" /> : <Play className="mr-1.5 h-3.5 w-3.5" />}
               {isPlaying ? "Pause" : currentStep >= steps.length - 1 ? "Replay" : "Play"}
             </Button>
+            {onExit ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={cn("rounded-full", t.outlineBtn)}
+                onClick={() => {
+                  setIsPlaying(false)
+                  setExpanded(false)
+                  onClearHighlight()
+                  onExit()
+                }}
+              >
+                <X className="mr-1.5 h-3.5 w-3.5" />
+                Exit
+              </Button>
+            ) : null}
             <Button variant="outline" size="icon" className={cn("h-8 w-8 rounded-full", t.outlineBtn)} onClick={() => goTo(currentStep - 1)} disabled={currentStep === 0}>
               <SkipBack className="h-3.5 w-3.5" />
             </Button>

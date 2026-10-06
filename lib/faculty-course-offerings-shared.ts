@@ -61,6 +61,27 @@ export function parseFacultyOfferingKey(key: string): {
   }
 }
 
+/** ELEG1301P02 → "1301 P02". Null when the code is not an ELEG section. */
+export function formatElegSectionChip(sessionCode: string | null | undefined): string | null {
+  const match = String(sessionCode ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .match(/^(?:ELEG|E)(1301|1304)P(\d+)$/)
+  if (!match) return null
+  return `${match[1]} P${match[2]}`
+}
+
+/** ELEG1301P02 → "ELEG 1301 P02". */
+export function formatElegSectionPrimary(sessionCode: string | null | undefined): string | null {
+  const chip = formatElegSectionChip(sessionCode)
+  return chip ? `ELEG ${chip}` : null
+}
+
+function sectionFacingCode(sessionCode: string | null | undefined, fallback: string): string {
+  return formatElegSectionChip(sessionCode) ?? sessionCode ?? fallback
+}
+
 /** True when the switcher should show a lab section code instead of the umbrella course. */
 export function facultyOfferingShowsAsSection(o: FacultyCourseOffering): boolean {
   const catalog = o.catalog_course_code ?? o.course_code
@@ -75,18 +96,18 @@ export function facultyOfferingShowsAsSection(o: FacultyCourseOffering): boolean
 
 export function facultyOfferingPrimaryLabel(o: FacultyCourseOffering): string {
   if (facultyOfferingShowsAsSection(o)) {
-    return o.session_code ?? o.course_code
+    return formatElegSectionPrimary(o.session_code) ?? o.session_code ?? o.course_code
   }
   return o.course_title
 }
 
 export function facultyOfferingChipCode(o: FacultyCourseOffering): string {
   if (facultyOfferingShowsAsSection(o)) {
-    return o.session_code ?? o.course_code
+    return sectionFacingCode(o.session_code, o.course_code)
   }
   const catalog = o.catalog_course_code ?? o.course_code
   if (o.session_id && o.session_code && courseUsesLabSections(catalog)) {
-    return o.session_code
+    return sectionFacingCode(o.session_code, o.course_code)
   }
   return catalog
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import { AIChatInterface } from "./AIChatInterface"
 import { CoraBotMark } from "@/components/cora/CoraBotMark"
 import { CodeReplay } from "./CodeReplay"
@@ -53,6 +53,7 @@ interface AIResponsePanelProps {
   theme?: "light" | "dark"
   onWalkWithCora?: () => void
   onTrySampleWalkthrough?: () => void
+  onClearWalkthrough?: () => void
   isExplainLoading?: boolean
   isDebugLoading?: boolean
   isImproveLoading?: boolean
@@ -88,6 +89,7 @@ export function AIResponsePanel({
   theme = "dark",
   onWalkWithCora,
   onTrySampleWalkthrough,
+  onClearWalkthrough,
   isExplainLoading = false,
   isDebugLoading = false,
   isImproveLoading = false,
@@ -100,6 +102,7 @@ export function AIResponsePanel({
   const isLight = theme === "light"
   const { roles } = useCodebenchChrome()
   const [showReplay, setShowReplay] = useState(replaySteps.length > 0)
+  const replayDismissedRef = useRef(false)
   const [showErrorSpotting, setShowErrorSpotting] = useState(false)
   const [showStyleReview, setShowStyleReview] = useState(false)
   const [showWhatIf, setShowWhatIf] = useState(false)
@@ -111,9 +114,19 @@ export function AIResponsePanel({
     return cachedChats.get(cacheKey)
   }
   
+  useEffect(() => {
+    if (replaySteps.length === 0 && !isExplainLoading) {
+      replayDismissedRef.current = false
+    }
+  }, [replaySteps.length, isExplainLoading])
+
   // Auto-show replay when explain tab is active and we have steps
   useEffect(() => {
-    if (activeTab === "explain" && (replaySteps.length > 0 || isExplainLoading)) {
+    if (
+      activeTab === "explain" &&
+      (replaySteps.length > 0 || isExplainLoading) &&
+      !replayDismissedRef.current
+    ) {
       setShowReplay(true)
     }
   }, [activeTab, replaySteps.length, isExplainLoading])
@@ -186,6 +199,11 @@ export function AIResponsePanel({
                 onHighlightLine={onHighlightLine || (() => {})}
                 onClearHighlight={onClearHighlight || (() => {})}
                 onShowExplanation={() => setShowReplay(false)}
+                onExit={() => {
+                  replayDismissedRef.current = true
+                  setShowReplay(false)
+                  onClearWalkthrough?.()
+                }}
               />
             ) : (
               <AIChatInterface

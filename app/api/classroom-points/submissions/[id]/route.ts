@@ -229,6 +229,24 @@ export async function PUT(
       }
     }
 
+    const solutionUnlocked = (body as { solutionUnlocked?: unknown }).solutionUnlocked;
+    if (solutionUnlocked === true || solutionUnlocked === false) {
+      let current: Record<string, unknown> = {};
+      const source = nextQuestionConfig ?? (row.question_config != null ? JSON.stringify(row.question_config) : null);
+      if (source) {
+        try {
+          const parsed = JSON.parse(source) as unknown;
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            current = { ...(parsed as Record<string, unknown>) };
+          }
+        } catch {
+          current = {};
+        }
+      }
+      current.solution_unlocked = solutionUnlocked === true;
+      nextQuestionConfig = JSON.stringify(current);
+    }
+
     try {
       await sqlInstance`ALTER TABLE classroom_point_submissions ADD COLUMN IF NOT EXISTS submission_kind TEXT NOT NULL DEFAULT 'code'`
       await sqlInstance`ALTER TABLE classroom_point_submissions ADD COLUMN IF NOT EXISTS question_config JSONB`

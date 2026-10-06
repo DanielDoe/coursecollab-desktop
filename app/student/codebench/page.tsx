@@ -49,6 +49,7 @@ import {
 import { useCodebenchLiveInstructorPush } from "@/hooks/use-codebench-live-instructor-push"
 import { useStudentLiveClassroomSessions } from "@/hooks/use-student-live-classroom-sessions"
 import { StudentLiveClassroomBanner } from "@/components/codebench/StudentLiveClassroomBanner"
+import { StudentPlaygroundLobbyNotice } from "@/components/playground/StudentPlaygroundLobbyBanner"
 import {
   StudentClassroomQuestionDrawer,
   type StudentClassroomQuestionView,
@@ -481,51 +482,8 @@ export default function CodeBenchPage({
     }
 
     const liveSession = liveSessions.find((session) => String(session.assignmentId) === classroomSubmissionId)
-    const listed = classroomSubmissions.find(
-      (row: { id?: string | number }) => String(row.id) === classroomSubmissionId,
-    ) as
-      | {
-          title?: string
-          description?: string | null
-          session?: string | null
-          question_config?: unknown
-          submission_kind?: string
-        }
-      | undefined
-
-    const applyQuestion = (row: {
-      title?: string
-      description?: string | null
-      session?: string | null
-      question_config?: unknown
-      submission_kind?: string
-    }) => {
-      const questionText =
-        extractClassroomQuestionText({
-          id: Number(classroomSubmissionId),
-          title: String(row.title ?? liveSession?.title ?? "Classroom assignment"),
-          description: row.description ?? null,
-          created_at: "",
-          session: row.session ?? liveSession?.session ?? null,
-          submission_kind: row.submission_kind ?? "code",
-          question_config: row.question_config,
-          due_at: null,
-          expires_at: null,
-          is_active: true,
-        }) || liveSession?.questionText || row.description || row.title || ""
-      setClassroomQuestion({
-        title: String(row.title ?? liveSession?.title ?? "Classroom assignment"),
-        questionText,
-        description: row.description ?? null,
-        session: row.session ?? liveSession?.session ?? null,
-        isLive: Boolean(liveSession && liveSharing),
-        questionConfig: row.question_config,
-      })
-    }
-
-    if (listed) applyQuestion(listed)
-
     let cancelled = false
+
     void (async () => {
       try {
         const res = await studentApiFetch(`/api/classroom-points/submissions/${classroomSubmissionId}`)
@@ -540,32 +498,59 @@ export default function CodeBenchPage({
               submission_kind?: string
             }
           }
-          if (data.submission) {
-            applyQuestion(data.submission)
+          const row = data.submission
+          if (row) {
+            const questionText =
+              extractClassroomQuestionText({
+                id: Number(classroomSubmissionId),
+                title: String(row.title ?? liveSession?.title ?? "Live classroom"),
+                description: row.description ?? null,
+                created_at: "",
+                session: row.session ?? liveSession?.session ?? null,
+                submission_kind: row.submission_kind ?? "code",
+                question_config: row.question_config,
+                due_at: null,
+                expires_at: null,
+                is_active: true,
+              }) || liveSession?.questionText || row.description || row.title || ""
+            if (cancelled) return
+            setClassroomQuestion({
+              assignmentId: Number(classroomSubmissionId),
+              title: String(row.title ?? liveSession?.title ?? "Live classroom"),
+              questionText,
+              description: row.description ?? null,
+              session: row.session ?? liveSession?.session ?? null,
+              isLive: Boolean(liveSession),
+              questionConfig: row.question_config,
+            })
             return
           }
         }
       } catch {
-        // The assignment list already has the prompt when the detail request fails.
+        // fall through to live session text
       }
 
-      if (!listed && liveSession && !cancelled) {
+      if (liveSession && !cancelled) {
         setClassroomQuestion({
+          assignmentId: Number(classroomSubmissionId),
           title: liveSession.title,
           questionText: liveSession.questionText,
           session: liveSession.session,
-          isLive: liveSharing,
+          isLive: true,
         })
+        return
       }
+
+      if (!cancelled) setClassroomQuestion(null)
     })()
 
     return () => {
       cancelled = true
     }
-  }, [classroomSubmissionId, classroomSubmissions, liveSessions, liveSharing, studentId])
+  }, [classroomSubmissionId, liveSessions, studentId])
 
   useEffect(() => {
-    if (!classroomQuestion || !classroomSubmissionId) return
+    if (!classroomQuestion?.questionText?.trim() || !classroomSubmissionId) return
     const key = `cc-codebench-auto-question:${classroomSubmissionId}`
     try {
       if (sessionStorage.getItem(key) === "1") return
@@ -592,6 +577,7 @@ export default function CodeBenchPage({
     setAssignmentSelectionConfirmed(true)
     setLiveSharing(true)
     setClassroomQuestion({
+      assignmentId: Number(id),
       title: session.title,
       questionText: session.questionText,
       session: session.session,
@@ -2295,6 +2281,7 @@ export default function CodeBenchPage({
                 ),
           )}
         >
+          <StudentPlaygroundLobbyNotice compact />
           <StudentLiveClassroomBanner
             compact
             sessions={liveSessions}
@@ -2363,18 +2350,12 @@ export default function CodeBenchPage({
             classroomSubmitLoading={isLoading.submit}
             questionOpen={questionDrawerOpen}
             onToggleQuestion={
-              classroomQuestion
+              classroomQuestion?.questionText?.trim()
                 ? () => setQuestionDrawerOpen((open) => !open)
                 : undefined
             }
             liveClassroomTitle={activeLiveSession?.title ?? null}
           />
-
-          {classroomSubmissions.length > 0 && !classroomSubmissionId ? (
-            <p className="shrink-0 border-b border-[var(--border)] px-3 py-2 text-xs text-[var(--cc-text-secondary,var(--cc-text-muted))]">
-              Choose an assignment to see the question while you write.
-            </p>
-          ) : null}
 
           <div
             className={cn(

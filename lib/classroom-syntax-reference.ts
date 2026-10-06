@@ -18,6 +18,12 @@ export type ClassroomSyntaxTopicId =
   | "do-while"
   | "arrays"
   | "pointers"
+  | "functions"
+  | "matlab-commands"
+  | "matlab-if"
+  | "matlab-function"
+  | "matlab-plot"
+  | "matlab-arrays"
 
 export type ClassroomSyntaxCard = {
   id: ClassroomSyntaxTopicId
@@ -175,6 +181,67 @@ int* ptr = &value;
 cout << *ptr;
 *ptr = 20;`,
   },
+  functions: {
+    id: "functions",
+    title: "Functions",
+    note: "A function takes inputs and returns a result. main calls it.",
+    code: `double calculateArea(double length, double width) {
+    return length * width;
+}
+
+double area = calculateArea(8, 5);
+cout << area << endl;`,
+  },
+  "matlab-commands": {
+    id: "matlab-commands",
+    title: "MATLAB commands",
+    note: "A script runs from top to bottom. A semicolon hides the result.",
+    code: `a = 15;
+b = 7;
+c = a^2 + b^2;
+disp(c)`,
+  },
+  "matlab-if": {
+    id: "matlab-if",
+    title: "MATLAB if",
+    note: "elseif and else are optional. end closes the decision.",
+    code: `if value > 0
+    disp("Positive")
+elseif value < 0
+    disp("Negative")
+else
+    disp("Zero")
+end`,
+  },
+  "matlab-function": {
+    id: "matlab-function",
+    title: "MATLAB function",
+    note: "The file name matches the function name. Outputs are listed on the left.",
+    code: `function result = squareValue(number)
+    result = number^2;
+end`,
+  },
+  "matlab-plot": {
+    id: "matlab-plot",
+    title: "MATLAB plot",
+    note: "Use element-wise operators (.*, ./, .^) when a vector is in the formula.",
+    code: `x = -2:0.1:2;
+y = x.^3 - 2*x + 1;
+plot(x, y, 'b--', 'LineWidth', 2)
+title('Function plot')
+xlabel('x')
+ylabel('y')
+grid on`,
+  },
+  "matlab-arrays": {
+    id: "matlab-arrays",
+    title: "MATLAB vectors and matrices",
+    note: "A colon builds a vector. A semicolon starts the next matrix row.",
+    code: `x = 0:2:10;
+A = [3 2 1; 5 1 0; 2 1 7];
+secondRow = A(2, :);
+element = A(2, 3);`,
+  },
 }
 
 const ORDER: ClassroomSyntaxTopicId[] = [
@@ -192,6 +259,12 @@ const ORDER: ClassroomSyntaxTopicId[] = [
   "nested-for",
   "arrays",
   "pointers",
+  "functions",
+  "matlab-commands",
+  "matlab-if",
+  "matlab-function",
+  "matlab-plot",
+  "matlab-arrays",
 ]
 
 const MAX_CARDS = 7
@@ -203,15 +276,27 @@ function mentions(text: string, pattern: RegExp): boolean {
 /** Pick only the blank patterns this classroom prompt needs. */
 export function syntaxCardsForClassroomPrompt(title: string, questionText: string): ClassroomSyntaxCard[] {
   const text = `${title}\n${questionText}`.toLowerCase()
-  if (/\bmatlab\b/.test(text)) return []
+  if (/\bmatlab\b/.test(text)) {
+    const selected = new Set<ClassroomSyntaxTopicId>(["matlab-commands"])
+    if (mentions(text, /\bif\b|elseif|else/)) selected.add("matlab-if")
+    if (mentions(text, /\bfunctions?\b/)) selected.add("matlab-function")
+    if (mentions(text, /\b(plot|fplot|graph)\b/)) selected.add("matlab-plot")
+    if (mentions(text, /\b(vector|matrix|matrices|colon|array|element-by-element)\b/)) {
+      selected.add("matlab-arrays")
+    }
+    return ORDER.filter((id) => selected.has(id)).map((id) => CARDS[id])
+  }
 
-  const wantsProgram = mentions(text, /\b(c\+\+|cpp|program|cin|cout|input|output|enter|display|print)\b/)
+  const wantsProgram = mentions(text, /\b(c\+\+|cpp|program|cin|cout|inputs?|outputs?|enter|display|print|calculate|formula|task)\b/)
   const hasNestedIf = mentions(text, /\bnested\b|\bonly if\b|\bfirst check\b|\bthen check\b/)
   const numberedMenu = (text.match(/`\d+`\s*(?:→|->)/g) ?? []).length
   const arrowCount = (text.match(/→|->/g) ?? []).length
   const hasSwitch = mentions(text, /\bswitch\b|\bcase\s+\d/)
   const rangeChain = !hasSwitch && numberedMenu < 2 && arrowCount >= 2
-  const hasElseIf = mentions(text, /else\s*-?\s*if/) || rangeChain
+  const hasElseIf =
+    mentions(text, /else\s*-?\s*if/) ||
+    rangeChain ||
+    mentions(text, /\btiered\b|\bovertime\b|\bbeyond\b/)
   const ifIsOnlySwitchDefault =
     hasSwitch &&
     !hasElseIf &&
@@ -243,7 +328,7 @@ export function syntaxCardsForClassroomPrompt(title: string, questionText: strin
     selected.add("variables")
     selected.add("input-output")
   }
-  if (hasComparison && (hasIf || hasTernary)) selected.add("comparison")
+  if (hasComparison && (hasIf || hasTernary || hasWhile || hasDoWhile || hasFor)) selected.add("comparison")
   if (hasElseIf) selected.add("else-if")
   else if (hasNestedIf || hasIfElse) selected.add("if-else")
   else if (hasIf) selected.add("if-else")
@@ -256,6 +341,7 @@ export function syntaxCardsForClassroomPrompt(title: string, questionText: strin
   if (hasNestedFor) selected.add("nested-for")
   if (hasArray) selected.add("arrays")
   if (hasPointer) selected.add("pointers")
+  if (mentions(text, /\bfunctions?\b/)) selected.add("functions")
 
   const ranked = ORDER.filter((id) => selected.has(id))
   if (ranked.length <= MAX_CARDS) return ranked.map((id) => CARDS[id])

@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { CONTROLLED_COMPILE_ARGS, CONTROLLED_MSVC_ARGS, CODEBENCH_LIMITS, SOURCE_FILE_NAME } from './limits'
+import { silentCompilerExitMessage } from './compiler-exit'
 import { parseCompilerDiagnostics, sanitizeStudentOutput } from './diagnostics'
 import { buildCompilerChildEnv } from './process-env'
 import { getExecutableName, writeLiveFlushHeader } from './workspace'
@@ -52,14 +53,20 @@ export async function compileCppSource(
       if (settled) return
       settled = true
       const durationMs = Date.now() - started
-      const combined = `${stdout}${stderr}${errorMessage ? `\n${errorMessage}` : ''}`
-      const diagnostics = parseCompilerDiagnostics(combined)
+      let stderrText = errorMessage ? `${stderr}\n${errorMessage}`.trim() : stderr
+      const combined = `${stdout}${stderrText}`
+      if (exitCode !== 0 && !combined.trim()) {
+        const message = silentCompilerExitMessage(exitCode)
+        stderrText = message
+        input.emit({ type: 'compile:error', sessionId: input.sessionId, message })
+      }
+      const diagnostics = parseCompilerDiagnostics(`${stdout}${stderrText}`)
       resolve({
         success: exitCode === 0,
         exitCode,
         durationMs,
         stdout,
-        stderr: errorMessage ? `${stderr}\n${errorMessage}`.trim() : stderr,
+        stderr: stderrText,
         diagnostics,
         outputPath: exitCode === 0 ? outputName : null,
       })

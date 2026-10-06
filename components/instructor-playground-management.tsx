@@ -88,6 +88,7 @@ import { getInstructorScopeHeaders } from "@/lib/instructor-client-scope-headers
 import { PlaygroundSessionCard } from "@/components/instructor/playground/playground-session-card"
 import { PlaygroundQuestionCard } from "@/components/instructor/playground/playground-question-card"
 import { PlaygroundPasscodeBanner } from "@/components/instructor/playground/playground-passcode-banner"
+import { InstructorPlaygroundLobbyRoster } from "@/components/instructor/playground/InstructorPlaygroundLobbyRoster"
 import { InstructorPlaygroundLeaderboardTab } from "@/components/instructor/playground/InstructorPlaygroundLeaderboardTab"
 import { InstructorPlaygroundPoliciesPanel } from "@/components/instructor/InstructorPlaygroundPoliciesPanel"
 import { InstructorAdminQuickLink } from "@/components/instructor/InstructorPolicySurfaceCard"
@@ -1224,7 +1225,7 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
       {!embedInDashboard && (
         <div className="flex justify-end mb-4">
           <Link href="/instructor/dashboard">
-            <Button variant="outline" className="gap-2 rounded-xl border-slate-200 dark:border-white/10">
+            <Button variant="outline" className="gap-2 rounded-xl">
               <ArrowLeft className="h-4 w-4" />
               Back to Dashboard
             </Button>
@@ -1284,11 +1285,11 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
                     </p>
                     <div className="mt-2">
                       {openedSession.is_active && openedSession.game_started ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--cc-sem-success-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--cc-sem-success-text)]">
                           Live
                         </span>
                       ) : openedSession.is_active ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--cc-sem-warning-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--cc-sem-warning-text)]">
                           Waiting
                         </span>
                       ) : (
@@ -1305,14 +1306,14 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
                     className={cn(
                       "flex flex-wrap items-center gap-2 rounded-xl border p-3",
                       openedSession.game_started
-                        ? "border-emerald-200/80 bg-emerald-50/80 dark:border-emerald-800/40 dark:bg-emerald-950/20"
-                        : "border-amber-200/80 bg-amber-50/80 dark:border-amber-800/40 dark:bg-amber-950/20",
+                        ? "border-[var(--cc-sem-success-border)] bg-[var(--cc-sem-success-soft)]"
+                        : "border-[var(--cc-sem-warning-border)] bg-[var(--cc-sem-warning-soft)]",
                     )}
                   >
                     <KeyRound
                       className={cn(
                         "h-4 w-4 shrink-0",
-                        openedSession.game_started ? "text-emerald-600" : "text-amber-600",
+                        openedSession.game_started ? "text-[var(--cc-sem-success-text)]" : "text-[var(--cc-sem-warning-text)]",
                       )}
                     />
                     <span className={cn("text-xs font-medium", PORTAL_TEXT_MUTED)}>Student passcode</span>
@@ -1330,6 +1331,13 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
                       Copy
                     </Button>
                   </div>
+                ) : null}
+
+                {openedSession.is_active ? (
+                  <InstructorPlaygroundLobbyRoster
+                    sessionId={openedSession.id}
+                    lobbyOpen={!openedSession.game_started}
+                  />
                 ) : null}
 
                 {openedSession.selected_topics && openedSession.selected_topics.length > 0 ? (
@@ -2006,7 +2014,7 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
                       Questions Selected: <span className="font-medium">{selectedQuestionIds.length}</span>
                     </div>
                     {selectedTopics.length === 0 && selectedQuestionIds.length === 0 && (
-                      <div className="text-amber-600 dark:text-amber-400 text-xs mt-2">
+                      <div className="mt-2 text-xs text-[var(--cc-sem-warning-text)]">
                         ⚠️ Please select topics or questions before starting
                       </div>
                     )}
@@ -2015,7 +2023,7 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
 
                 {/* Class Session Access Selection */}
                 <div className="space-y-2">
-                  <Label className="text-slate-800 dark:text-slate-100">Class Session Access</Label>
+                  <Label className="text-[var(--cc-text)]">Class Session Access</Label>
                   <p className="text-xs text-muted-foreground mb-2">
                     Select which class sections can join this game. Each section’s lobby runs independently — opening P01 does not affect P02 or P03.
                   </p>
@@ -2104,7 +2112,7 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
             </div>
           ) : (
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-              <div className="flex flex-col sm:flex-row sm:items-end gap-3 p-3 rounded-lg border bg-slate-50/80 dark:bg-slate-900/40">
+              <div className="flex flex-col gap-3 rounded-lg border border-[var(--border)] bg-[var(--muted)] p-3 sm:flex-row sm:items-end">
                 <div className="flex-1">
                   <Label htmlFor="editor-duration">Seconds per question</Label>
                   <Input
@@ -2121,7 +2129,7 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
                 <div className="text-sm text-muted-foreground">
                   {editorQuestions.length} question{editorQuestions.length === 1 ? "" : "s"} in session
                   {editorSession?.is_active && (
-                    <span className="block text-amber-600 dark:text-amber-400 mt-1">
+                    <span className="mt-1 block text-[var(--cc-sem-warning-text)]">
                       Stop this session to edit questions.
                     </span>
                   )}
@@ -2129,7 +2137,7 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
               </div>
 
               <div className="rounded-lg border overflow-hidden">
-                <div className="px-3 py-2 border-b bg-slate-50/80 dark:bg-slate-900/40 text-sm font-medium">
+                <div className="border-b border-[var(--border)] bg-[var(--muted)] px-3 py-2 text-sm font-medium text-[var(--cc-text)]">
                   Session question order
                 </div>
                 {editorQuestions.length === 0 ? (
@@ -2168,7 +2176,7 @@ export function InstructorPlaygroundManagement({ embedInDashboard }: { embedInDa
                             <Badge variant="secondary" className="text-xs">{formatQuestionType(q.questionType)}</Badge>
                             <Badge variant="outline" className="text-xs">{q.difficulty}</Badge>
                           </div>
-                          <p className="line-clamp-2 text-sm text-slate-800 dark:text-slate-200">
+                          <p className="line-clamp-2 text-sm text-[var(--cc-text)]">
                             {stripHtmlToPlain(q.questionText) || q.questionText}
                           </p>
                           {q.topic && (

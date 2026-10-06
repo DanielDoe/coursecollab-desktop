@@ -9,7 +9,6 @@ import { sanitizePlaygroundEntryForStudent } from "@/lib/student-privacy"
 import { resolvePlaygroundDisplayName } from "@/lib/playground-display-name"
 import { isPlaygroundAttemptFinished } from "@/lib/playground-attempt-status"
 import { requireInstructorCourse } from "@/lib/instructor-course-scope"
-import { sqlPlaygroundResultRosterScope } from "@/lib/playground-instructor-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -128,9 +127,15 @@ export async function GET(request: NextRequest) {
           `
         : await (async () => {
             const courseScope = await requireInstructorCourse(request)
-            const rosterScope = courseScope.ok
-              ? await sqlPlaygroundResultRosterScope(request, courseScope.course.id, "pr.student_id")
-              : sql``
+            if (!courseScope.ok) return []
+            const owned = await sql`
+              SELECT 1
+              FROM playground_sessions ps
+              WHERE ps.id = ${sessionId}
+                AND (ps.course_id = ${courseScope.course.id} OR ps.course_id IS NULL)
+              LIMIT 1
+            `
+            if (owned.length === 0) return []
             return sql`
               SELECT
                 pr.id AS result_id,
@@ -145,7 +150,6 @@ export async function GET(request: NextRequest) {
                 pr.correct_answers
               FROM playground_results pr
               WHERE pr.session_id = ${sessionId}
-                ${rosterScope}
               ORDER BY pr.id ASC
             `
           })()

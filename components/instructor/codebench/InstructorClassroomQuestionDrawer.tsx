@@ -6,13 +6,16 @@ import { BookOpenCheck, Calendar, Clock, Code2, PenLine, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ClassroomQuestionContent } from "@/components/codebench/ClassroomQuestionContent"
+import { ClassroomSolutionPanel } from "@/components/codebench/ClassroomSolutionPanel"
 import { QuestionTextRenderer } from "@/components/question-text-renderer"
 import { QuestionMediaDisplay } from "@/components/question-media-display"
 import {
   CLASSROOM_SUBMISSION_KIND_CODE,
   CLASSROOM_SUBMISSION_KIND_SOLUTION,
 } from "@/lib/classroom-solution-submission"
+import { readClassroomCodeSolution } from "@/lib/classroom-points-student-question-config"
 import type { InstructorClassroomHandoff } from "@/lib/codebench-instructor-classroom"
+import { buildInstructorApiHeaders, instructorApiFetch } from "@/lib/instructor-api-headers"
 import { cn } from "@/lib/utils"
 
 type Props = {
@@ -91,6 +94,62 @@ export function InstructorClassroomQuestionDrawer({ open, onClose, assignment }:
 
   const dueLabel = formatDueLabel(assignment?.dueAt ?? null)
   const isCode = assignment?.submissionKind === CLASSROOM_SUBMISSION_KIND_CODE
+  const [solutionCode, setSolutionCode] = useState<string | null>(assignment?.solutionCode ?? null)
+  const [solutionUnlocked, setSolutionUnlocked] = useState(assignment?.solutionUnlocked === true)
+  const [solutionSaving, setSolutionSaving] = useState(false)
+
+  useEffect(() => {
+    setSolutionCode(assignment?.solutionCode ?? null)
+    setSolutionUnlocked(assignment?.solutionUnlocked === true)
+  }, [assignment?.solutionCode, assignment?.solutionUnlocked, assignment?.submissionId])
+
+  useEffect(() => {
+    if (!open || !assignment?.submissionId) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await instructorApiFetch(`/api/classroom-points/submissions/${assignment.submissionId}`, {
+          headers: buildInstructorApiHeaders(),
+          cache: "no-store",
+        })
+        if (!res.ok || cancelled) return
+        const data = (await res.json()) as { submission?: { question_config?: unknown } }
+        const solution = readClassroomCodeSolution(data.submission?.question_config)
+        if (cancelled) return
+        setSolutionCode(solution.code)
+        setSolutionUnlocked(solution.unlocked)
+      } catch {
+        /* keep the handoff snapshot */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [assignment?.submissionId, open])
+
+  const toggleSolution = useCallback(
+    async (unlocked: boolean) => {
+      if (!assignment?.submissionId) return
+      setSolutionSaving(true)
+      setSolutionUnlocked(unlocked)
+      try {
+        const res = await instructorApiFetch(`/api/classroom-points/submissions/${assignment.submissionId}`, {
+          method: "PUT",
+          headers: {
+            ...buildInstructorApiHeaders(),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ solutionUnlocked: unlocked }),
+        })
+        if (!res.ok) setSolutionUnlocked(!unlocked)
+      } catch {
+        setSolutionUnlocked(!unlocked)
+      } finally {
+        setSolutionSaving(false)
+      }
+    },
+    [assignment?.submissionId],
+  )
 
   return (
     <AnimatePresence>
@@ -180,6 +239,15 @@ export function InstructorClassroomQuestionDrawer({ open, onClose, assignment }:
                   title={assignment.title}
                   questionText={assignment.questionText}
                   showSyntaxReference
+                />
+
+                <ClassroomSolutionPanel
+                  mode="instructor"
+                  available={Boolean(solutionCode)}
+                  unlocked={solutionUnlocked}
+                  code={solutionCode}
+                  saving={solutionSaving}
+                  onToggle={(unlocked) => void toggleSolution(unlocked)}
                 />
 
                 {assignment.description &&

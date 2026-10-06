@@ -125,9 +125,15 @@ export function useAIProtection(enabled: boolean = true) {
     })
 
     // Prevent copy/paste/right-click globally
+    const eventElement = (target: EventTarget | null): Element | null => {
+      if (target instanceof Element) return target
+      if (target instanceof Node) return target.parentElement
+      return null
+    }
+
     const handleContextMenu = (e: MouseEvent) => {
-      const target = e.target as Element
-      if (target.closest('[data-ai-protected="true"]')) {
+      const target = eventElement(e.target)
+      if (target?.closest('[data-ai-protected="true"]')) {
         e.preventDefault()
         e.stopPropagation()
         return false
@@ -135,8 +141,8 @@ export function useAIProtection(enabled: boolean = true) {
     }
 
     const handleCopy = (e: ClipboardEvent) => {
-      const target = e.target as Element
-      if (target.closest('[data-ai-protected="true"]')) {
+      const target = eventElement(e.target)
+      if (target?.closest('[data-ai-protected="true"]')) {
         e.preventDefault()
         e.stopPropagation()
         return false
@@ -144,8 +150,8 @@ export function useAIProtection(enabled: boolean = true) {
     }
 
     const handleCut = (e: ClipboardEvent) => {
-      const target = e.target as Element
-      if (target.closest('[data-ai-protected="true"]')) {
+      const target = eventElement(e.target)
+      if (target?.closest('[data-ai-protected="true"]')) {
         e.preventDefault()
         e.stopPropagation()
         return false
@@ -153,8 +159,8 @@ export function useAIProtection(enabled: boolean = true) {
     }
 
     const handlePaste = (e: ClipboardEvent) => {
-      const target = e.target as Element
-      if (target.closest('[data-ai-protected="true"]')) {
+      const target = eventElement(e.target)
+      if (target?.closest('[data-ai-protected="true"]')) {
         e.preventDefault()
         e.stopPropagation()
         return false
@@ -162,8 +168,8 @@ export function useAIProtection(enabled: boolean = true) {
     }
 
     const handleSelectStart = (e: Event) => {
-      const target = e.target as Element
-      if (target.closest('[data-ai-protected="true"]')) {
+      const target = eventElement(e.target)
+      if (target?.closest('[data-ai-protected="true"]')) {
         e.preventDefault()
         e.stopPropagation()
         return false

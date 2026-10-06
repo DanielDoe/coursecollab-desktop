@@ -55,6 +55,7 @@ import { ShellSidebarFooter } from "@/components/dashboard-v2/ShellSidebarFooter
 import { magnificShellCardClass, magnificSidebarNavIconClass, magnificSidebarNavItemActiveClass, magnificSidebarNavItemClass } from "@/lib/appearance/magnific-shell"
 import { useEffect, useState } from "react"
 import { getStudentData, studentApiFetch } from "@/lib/auth"
+import { StudentPlaygroundLobbyNoticeHost } from "@/components/playground/StudentPlaygroundLobbyBanner"
 import { COURSE_SWITCH_EVENT } from "@/lib/data/types"
 import { cachedFetchJson } from "@/lib/student-client-cache"
 import {
@@ -452,6 +453,7 @@ export function StudentSidebarV2() {
 
   return (
     <>
+      <StudentPlaygroundLobbyNoticeHost />
       <div
         className={cn(
           "fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] lg:hidden transition-opacity duration-300",

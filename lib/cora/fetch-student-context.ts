@@ -133,7 +133,10 @@ export async function getStudentContextForCora(studentIdNum: number): Promise<Co
       LEFT JOIN playground_answers pa ON pr.id = pa.result_id
       LEFT JOIN playground_questions pq ON COALESCE(pa.playground_question_id, pa.question_id) = pq.id
       LEFT JOIN question_bank qb ON pq.bank_question_id = qb.id
-      WHERE pr.student_id::INTEGER = ${studentIdNum}
+      WHERE (
+          pr.student_id = (SELECT student_id FROM students WHERE id = ${studentIdNum})
+          OR pr.student_id = ${String(studentIdNum)}
+        )
         AND pr.completed_at IS NOT NULL
       ORDER BY pr.completed_at DESC
       LIMIT 10

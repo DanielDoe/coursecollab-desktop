@@ -2318,8 +2318,8 @@ export function QuizResults({
     }
 
     const handleLinkClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      const link = target.closest('a')
+      const target = e.target instanceof Element ? e.target : e.target instanceof Node ? e.target.parentElement : null
+      const link = target?.closest("a")
       if (link && link.href && !hasDownloadedReport) {
         const url = new URL(link.href)
         if (url.pathname !== window.location.pathname) {

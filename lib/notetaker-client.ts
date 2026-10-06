@@ -1,13 +1,14 @@
 import { getStudentData } from "@/lib/auth"
 import { appendNativeAppQuery } from "@/lib/mobile-native-app"
+import { sessionIdText } from "@/lib/student-session-ids"
 
 /** Resolve numeric students.id for AI Notetaker API calls (WebView-safe). */
 export function resolveNotetakerStudentDbId(): string | null {
   if (typeof window === "undefined") return null
   const session = getStudentData()
-  const fromSession = session?.databaseId?.trim()
+  const fromSession = sessionIdText(session?.databaseId)
   if (fromSession) return fromSession
-  return sessionStorage.getItem("studentDatabaseId")?.trim() || null
+  return sessionIdText(sessionStorage.getItem("studentDatabaseId"))
 }
 
 export function notetakerAuthHeaders(studentDbId: string): HeadersInit {

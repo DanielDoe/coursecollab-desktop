@@ -184,7 +184,7 @@ export default function InstructorDashboardV2Layout({ children }: { children: Re
 
   useEffect(() => {
     const syncSession = () => {
-      if (isFacultyAuthenticated()) setSessionValid(true)
+      setSessionValid(isFacultyAuthenticated())
     }
     window.addEventListener("cc-session-restored", syncSession)
     window.addEventListener("faculty-session-ready", syncSession)

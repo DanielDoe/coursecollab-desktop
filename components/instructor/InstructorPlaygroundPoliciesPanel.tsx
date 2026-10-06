@@ -380,7 +380,7 @@ export function InstructorPlaygroundPoliciesPanel({
             </div>
             <div>
               <Label className="font-medium">Blur peer names & scores</Label>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              <p className="mt-0.5 text-xs text-[var(--cc-text-muted)]">
                 {policy.blur_leaderboard_peer_names
                   ? "Students only see their own row on live leaderboards (FERPA-style)."
                   : "Students see full rankings with names and points (default). Turn on to blur peers."}

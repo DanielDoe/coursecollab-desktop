@@ -118,8 +118,8 @@ function hydrateStudentSessionStorage(session: SessionData) {
   sessionStorage.setItem("studentId", session.id)
   sessionStorage.setItem("studentName", session.name)
   persistStudentSectionKeys(section)
-  if (session.databaseId) {
-    sessionStorage.setItem("studentDatabaseId", session.databaseId)
+  if (session.databaseId != null && String(session.databaseId).trim() !== "") {
+    sessionStorage.setItem("studentDatabaseId", String(session.databaseId).trim())
   }
   if (session.studentProgramRole) {
     sessionStorage.setItem("studentProgramRole", session.studentProgramRole)

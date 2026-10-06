@@ -15,9 +15,7 @@ import { buildPodiumEntries } from "@/lib/playground-podium"
 import { PlaygroundLeaderboardPodium } from "@/components/playground/PlaygroundLeaderboardPodium"
 import { usePlaygroundPodiumReveal } from "@/hooks/use-playground-podium-reveal"
 import { playgroundStudentLeaderboardFingerprint } from "@/lib/playground-leaderboard-utils"
-import { getStudentModuleTheme, studentModuleSpinnerClass } from "@/lib/student-module-themes"
-import { portalOutlineButtonClass } from "@/lib/portal-module-themes"
-
+import { getStudentModuleTheme } from "@/lib/student-module-themes"
 const playgroundTheme = getStudentModuleTheme("playground")
 
 interface LeaderboardEntry {
@@ -175,51 +173,46 @@ export default function DashboardV2PlaygroundLeaderboardPage() {
           className="text-center space-y-4"
         >
           <div className="relative w-16 h-16 mx-auto">
-            <div className="absolute inset-0 border-4 border-amber-200 dark:border-amber-900 rounded-full" />
-            <div className="absolute inset-0 border-4 border-transparent border-t-amber-600 dark:border-t-amber-400 rounded-full animate-spin" />
-            <Trophy className="h-8 w-8 text-amber-600 dark:text-amber-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+            <div className="absolute inset-0 rounded-full border-4 border-[var(--border)]" />
+            <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-[var(--cc-accent)]" />
+            <Trophy className="absolute top-1/2 left-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 text-[var(--cc-accent)]" />
           </div>
-          <p className="text-lg font-semibold text-slate-700 dark:text-slate-300">Loading leaderboard</p>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Preparing rankings...</p>
+          <p className="text-lg font-semibold text-[var(--cc-text)]">Loading leaderboard</p>
+          <p className="text-sm text-[var(--cc-text-muted)]">Preparing rankings...</p>
         </motion.div>
       </div>
     )
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="space-y-4 sm:space-y-6 w-full min-w-0 overflow-x-hidden"
-    >
+    <div className="w-full min-w-0 space-y-4 overflow-x-hidden sm:space-y-6">
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200/60 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.04] shadow-sm p-3 sm:p-4 md:p-5 lg:p-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 shadow-sm sm:p-4 md:p-5 lg:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 shrink-0">
+            <div className="shrink-0 rounded-xl bg-[var(--cc-accent-soft)] p-2">
               {mode === "CLASSROOM" ? (
-                <Users className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                <Users className="h-5 w-5 text-[var(--cc-accent-dark)]" />
               ) : (
-                <User className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                <User className="h-5 w-5 text-[var(--cc-accent-dark)]" />
               )}
             </div>
             <div>
-              <h2 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-slate-200">
+              <h2 className="text-lg font-semibold text-[var(--cc-text)] sm:text-xl">
                 {mode === "CLASSROOM" ? "Classroom Leaderboard" : "Performance Analytics"}
               </h2>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
+              <p className="text-sm text-[var(--cc-text-muted)]">
                 {mode === "CLASSROOM"
                   ? `${leaderboard.length} ${leaderboard.length === 1 ? "participant" : "participants"} competing`
                   : "Track your progress and improve your skills"}
               </p>
             </div>
             {mode === "CLASSROOM" && pollLeaderboard && leaderboard.length > 0 && (
-              <Badge className="border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 text-sm px-3 py-1.5">
+              <Badge className="border border-[var(--cc-sem-success-border)] bg-[var(--cc-sem-success-soft)] px-3 py-1.5 text-sm text-[var(--cc-sem-success-text)]">
                 <motion.div
                   animate={{ scale: [1, 1.2, 1] }}
                   transition={{ repeat: Infinity, duration: 2 }}
-                  className="w-2 h-2 rounded-full bg-green-500 mr-2 inline-block"
+                  className="mr-2 inline-block h-2 w-2 rounded-full bg-[var(--cc-sem-success)]"
                 />
                 Live
               </Badge>
@@ -230,26 +223,22 @@ export default function DashboardV2PlaygroundLeaderboardPage() {
 
       {/* Classroom Leaderboard */}
       {mode === "CLASSROOM" && (
-        <div className="rounded-2xl border border-slate-200/60 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.04] shadow-sm overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm">
           <div className="p-3 sm:p-4 md:p-5 lg:p-6 w-full min-w-0 overflow-x-hidden">
             {leaderboard.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="text-center py-16"
-              >
-                <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-amber-100 dark:bg-amber-900/30 mb-6">
-                  <Trophy className="h-12 w-12 text-amber-400 dark:text-amber-500" />
+              <div className="py-16 text-center">
+                <div className="mb-6 inline-flex h-24 w-24 items-center justify-center rounded-full bg-[var(--cc-accent-soft)]">
+                  <Trophy className="h-12 w-12 text-[var(--cc-accent)]" />
                 </div>
-                <h3 className="text-2xl font-bold text-slate-700 dark:text-slate-300 mb-2">No players yet</h3>
-                <p className="text-slate-600 dark:text-slate-400 mb-6">Be the first to join and claim the top spot!</p>
+                <h3 className="mb-2 text-2xl font-semibold text-[var(--cc-text)]">No players yet</h3>
+                <p className="mb-6 text-[var(--cc-text-muted)]">Be the first to join and claim the top spot!</p>
                 <Link href={PLAYGROUND_BASE}>
                   <Button className={playgroundTheme.page.cta}>
                     <Zap className="h-4 w-4 mr-2" />
                     Start Playing
                   </Button>
                 </Link>
-              </motion.div>
+              </div>
             ) : (
               <div className="space-y-4">
                 {podiumEntries.length > 0 ? (
@@ -287,13 +276,9 @@ export default function DashboardV2PlaygroundLeaderboardPage() {
                         whileHover={{ scale: 1.02, y: -2 }}
                         className={cn(
                           "group relative overflow-hidden rounded-2xl border-2 transition-all duration-300",
-                          isTopThree
-                            ? entry.rank === 1
-                              ? "bg-gradient-to-r from-yellow-50/50 via-amber-50/50 to-amber-50/50 dark:from-yellow-900/20 dark:via-amber-900/20 dark:to-amber-900/20 border-yellow-300/50 dark:border-yellow-700/50 shadow-lg shadow-yellow-500/20"
-                              : entry.rank === 2
-                                ? "bg-gradient-to-r from-slate-50/50 via-gray-50/50 to-slate-100/50 dark:from-slate-800/30 dark:via-gray-800/30 dark:to-slate-800/30 border-slate-300/50 dark:border-slate-700/50 shadow-md shadow-slate-400/20"
-                                : cn(playgroundTheme.page.softBg, playgroundTheme.page.border, "shadow-md shadow-amber-500/20")
-                            : cn(playgroundTheme.page.softBg, "border border-slate-200/70 dark:border-white/[0.08] hover:border-amber-500/40 dark:hover:border-amber-500/50 hover:shadow-lg")
+                          isMe
+                            ? "border-[var(--cc-accent)] bg-[var(--cc-accent-soft)]"
+                            : "border-[var(--border)] bg-[var(--card)]"
                         )}
                       >
                         <div className="relative p-3 sm:p-5 md:p-6 z-10">
@@ -307,14 +292,14 @@ export default function DashboardV2PlaygroundLeaderboardPage() {
                                 <div
                                   className={cn(
                                     "flex items-center justify-center w-full h-full rounded-xl shadow-lg",
-                                    entry.rank === 1 && "bg-gradient-to-br from-yellow-400 to-yellow-600",
-                                    entry.rank === 2 && "bg-gradient-to-br from-slate-400 to-slate-600",
-                                    entry.rank === 3 && "bg-gradient-to-br from-amber-500 to-amber-700"
+                                    entry.rank === 1 && "bg-[var(--cc-accent)] text-white",
+                                    entry.rank === 2 && "border border-[var(--border)] bg-[var(--muted)] text-[var(--cc-text)]",
+                                    entry.rank === 3 && "bg-[var(--cc-accent-soft)] text-[var(--cc-accent-dark)]"
                                   )}
                                 >
-                                  {entry.rank === 1 && <Crown className="h-7 w-7 text-yellow-50 fill-yellow-50" />}
-                                  {entry.rank === 2 && <Medal className="h-7 w-7 text-slate-50 fill-slate-50" />}
-                                  {entry.rank === 3 && <Award className="h-7 w-7 text-amber-50 fill-amber-50" />}
+                                  {entry.rank === 1 && <Crown className="h-7 w-7" />}
+                                  {entry.rank === 2 && <Medal className="h-7 w-7" />}
+                                  {entry.rank === 3 && <Award className="h-7 w-7" />}
                                 </div>
                               ) : (
                                 <div className={cn("flex items-center justify-center w-full h-full rounded-xl border-2", playgroundTheme.page.iconBg, playgroundTheme.page.border)}>
@@ -325,7 +310,7 @@ export default function DashboardV2PlaygroundLeaderboardPage() {
 
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-3 mb-2">
-                                <h3 className="text-lg md:text-xl font-bold text-slate-900 dark:text-white truncate">
+                                <h3 className="truncate text-lg font-semibold text-[var(--cc-text)] md:text-xl">
                                   {entry.displayName}
                                   {isMe && <span className={cn("ml-1 text-xs", playgroundTheme.page.iconText)}>(You)</span>}
                                 </h3>
@@ -333,9 +318,9 @@ export default function DashboardV2PlaygroundLeaderboardPage() {
                                   <Badge
                                     className={cn(
                                       "text-xs px-2.5 py-1 font-semibold shadow-sm",
-                                      entry.rank === 1 && "bg-yellow-500 text-yellow-950",
-                                      entry.rank === 2 && "bg-slate-400 text-slate-950",
-                                      entry.rank === 3 && "bg-amber-600 text-amber-950"
+                                      entry.rank === 1 && "bg-[var(--cc-accent)] text-white",
+                                      entry.rank === 2 && "bg-[var(--muted)] text-[var(--cc-text)]",
+                                      entry.rank === 3 && "bg-[var(--cc-accent-soft)] text-[var(--cc-accent-dark)]"
                                     )}
                                   >
                                     Top {entry.rank}
@@ -345,12 +330,12 @@ export default function DashboardV2PlaygroundLeaderboardPage() {
                               <div className="flex items-center gap-4 flex-wrap">
                                 <div className="flex items-center gap-2">
                                   <div className="flex items-center gap-1.5">
-                                    <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                    <Star className="h-4 w-4 text-[var(--cc-accent)]" />
+                                    <span className="text-sm font-semibold text-[var(--cc-text)]">
                                       {accuracy}%
                                     </span>
                                   </div>
-                                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                                  <span className="text-xs text-[var(--cc-text-muted)]">
                                     ({entry.correctAnswers}/{entry.questionsAnswered})
                                   </span>
                                 </div>
@@ -372,17 +357,12 @@ export default function DashboardV2PlaygroundLeaderboardPage() {
                               className="text-right flex-shrink-0"
                             >
                               <div className="flex items-baseline gap-1.5 mb-1">
-                                <TrendingUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                                <p
-                                  className={cn(
-                                    "text-3xl md:text-4xl font-extrabold tabular-nums",
-                                    isTopThree ? cn(playgroundTheme.page.iconText, "font-extrabold") : "text-slate-700 dark:text-slate-300"
-                                  )}
-                                >
+                                <TrendingUp className="h-5 w-5 text-[var(--cc-accent)]" />
+                                <p className="text-3xl font-semibold tabular-nums text-[var(--cc-text)] md:text-4xl">
                                   {entry.score.toLocaleString()}
                                 </p>
                               </div>
-                              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                              <p className="text-xs font-medium uppercase tracking-wide text-[var(--cc-text-muted)]">
                                 Points
                               </p>
                             </motion.div>
@@ -408,62 +388,62 @@ export default function DashboardV2PlaygroundLeaderboardPage() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               transition={{ delay: 0.2, type: "spring" }}
-              className={cn("rounded-2xl border-l-4 border border-slate-200/60 dark:border-white/[0.08] p-5 shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all", "border-l-amber-500/60 dark:border-l-amber-400/50", playgroundTheme.page.softBg)}
+              className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5"
             >
-              <div className="flex items-center gap-2 mb-3">
-                <div className="p-1.5 rounded-lg bg-amber-500/15 dark:bg-amber-500/25">
-                  <Trophy className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              <div className="mb-3 flex items-center gap-2">
+                <div className="rounded-lg bg-[var(--cc-accent-soft)] p-1.5">
+                  <Trophy className="h-5 w-5 text-[var(--cc-accent-dark)]" />
                 </div>
-                <p className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase">Best Score</p>
+                <p className="text-xs font-medium uppercase text-[var(--cc-text-muted)]">Best Score</p>
               </div>
-              <p className="text-3xl font-bold text-slate-800 dark:text-slate-200">{personalStats.bestScore.toLocaleString()}</p>
+              <p className="text-3xl font-semibold text-[var(--cc-text)]">{personalStats.bestScore.toLocaleString()}</p>
             </motion.div>
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               transition={{ delay: 0.3, type: "spring" }}
-              className="rounded-2xl border-l-4 border-l-amber-500/50 dark:border-l-amber-400/40 border border-slate-200/60 dark:border-white/[0.08] bg-amber-50/60 dark:bg-amber-950/20 p-5 shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
+              className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5"
             >
-              <div className="flex items-center gap-2 mb-3">
-                <div className="p-1.5 rounded-lg bg-amber-500/15 dark:bg-amber-500/25">
-                  <BarChart3 className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              <div className="mb-3 flex items-center gap-2">
+                <div className="rounded-lg bg-[var(--cc-accent-soft)] p-1.5">
+                  <BarChart3 className="h-5 w-5 text-[var(--cc-accent-dark)]" />
                 </div>
-                <p className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase">Average Score</p>
+                <p className="text-xs font-medium uppercase text-[var(--cc-text-muted)]">Average Score</p>
               </div>
-              <p className="text-3xl font-bold text-slate-800 dark:text-slate-200">{personalStats.avgScore.toLocaleString()}</p>
+              <p className="text-3xl font-semibold text-[var(--cc-text)]">{personalStats.avgScore.toLocaleString()}</p>
             </motion.div>
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               transition={{ delay: 0.4, type: "spring" }}
-              className={cn("rounded-2xl border-l-4 border border-slate-200/60 dark:border-white/[0.08] p-5 shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all", "border-l-amber-500/50 dark:border-l-amber-400/40", playgroundTheme.page.softBg)}
+              className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5"
             >
-              <div className="flex items-center gap-2 mb-3">
-                <div className="p-1.5 rounded-lg bg-amber-500/15 dark:bg-amber-500/25">
-                  <Users className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              <div className="mb-3 flex items-center gap-2">
+                <div className="rounded-lg bg-[var(--cc-accent-soft)] p-1.5">
+                  <Users className="h-5 w-5 text-[var(--cc-accent-dark)]" />
                 </div>
-                <p className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase">Games Played</p>
+                <p className="text-xs font-medium uppercase text-[var(--cc-text-muted)]">Games Played</p>
               </div>
-              <p className="text-3xl font-bold text-slate-800 dark:text-slate-200">{personalStats.totalGames.toLocaleString()}</p>
+              <p className="text-3xl font-semibold text-[var(--cc-text)]">{personalStats.totalGames.toLocaleString()}</p>
             </motion.div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200/60 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.04] shadow-sm overflow-hidden">
-            <div className={cn("p-4 sm:p-5 border-b border-slate-200/60 dark:border-white/[0.08]", playgroundTheme.page.softBg)}>
+          <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm">
+            <div className="border-b border-[var(--border)] p-4 sm:p-5">
               <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">Recent Games</h3>
+                <Sparkles className="h-5 w-5 text-[var(--cc-accent)]" />
+                <h3 className="text-base font-semibold text-[var(--cc-text)]">Recent Games</h3>
               </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Your latest playground sessions</p>
+              <p className="mt-1 text-sm text-[var(--cc-text-muted)]">Your latest playground sessions</p>
             </div>
             <div className="p-4 sm:p-6">
               {personalStats.recentGames.length === 0 ? (
                 <div className="text-center py-12">
-                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/30 mb-4">
-                    <Trophy className="h-10 w-10 text-amber-400 dark:text-amber-500" />
+                  <div className="mb-4 inline-flex h-20 w-20 items-center justify-center rounded-full bg-[var(--cc-accent-soft)]">
+                    <Trophy className="h-10 w-10 text-[var(--cc-accent)]" />
                   </div>
-                  <p className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">No games played yet</p>
-                  <p className="text-slate-600 dark:text-slate-400">Start playing to see your history here!</p>
+                  <p className="mb-2 text-lg font-semibold text-[var(--cc-text)]">No games played yet</p>
+                  <p className="text-[var(--cc-text-muted)]">Start playing to see your history here!</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -478,25 +458,25 @@ export default function DashboardV2PlaygroundLeaderboardPage() {
                           exit={{ x: 20, opacity: 0 }}
                           transition={{ delay: index * 0.05 }}
                           whileHover={{ scale: 1.02, x: 5 }}
-                          className={cn("rounded-xl border-2 hover:shadow-lg transition-all p-5", playgroundTheme.page.border, playgroundTheme.page.softBg, "hover:border-amber-500/40 dark:hover:border-amber-500/50")}
+                          className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/40 p-5"
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex-1">
                               <div className="flex items-center gap-3 mb-2">
-                                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Game {personalStats.totalGames - index}</h3>
+                                <h3 className="text-lg font-semibold text-[var(--cc-text)]">Game {personalStats.totalGames - index}</h3>
                                 <Badge variant="outline" className={cn("text-xs", playgroundTheme.page.border)}>
                                   {accuracy}% accuracy
                                 </Badge>
                               </div>
                               <div className="flex items-center gap-4">
                                 <div className="flex items-center gap-2">
-                                  <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                                  <span className="text-sm text-slate-600 dark:text-slate-400">
+                                  <Star className="h-4 w-4 text-[var(--cc-accent)]" />
+                                  <span className="text-sm text-[var(--cc-text-secondary)]">
                                     {game.correctAnswers}/{game.questionsAnswered} correct
                                   </span>
                                 </div>
                                 {game.completedAt && (
-                                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                                  <span className="text-xs text-[var(--cc-text-muted)]">
                                     {new Date(game.completedAt).toLocaleDateString()}
                                   </span>
                                 )}
@@ -504,12 +484,12 @@ export default function DashboardV2PlaygroundLeaderboardPage() {
                             </div>
                             <div className="text-right ml-4">
                               <div className="flex items-baseline gap-1 mb-1">
-                                <TrendingUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                                <TrendingUp className="h-5 w-5 text-[var(--cc-accent)]" />
                                 <p className={cn("text-2xl font-extrabold", playgroundTheme.page.iconText)}>
                                   {game.score.toLocaleString()}
                                 </p>
                               </div>
-                              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Points</p>
+                              <p className="text-xs font-medium uppercase text-[var(--cc-text-muted)]">Points</p>
                             </div>
                           </div>
                         </motion.div>
@@ -532,12 +512,12 @@ export default function DashboardV2PlaygroundLeaderboardPage() {
           </Button>
         </Link>
         <Link href="/student/dashboard-v2">
-          <Button variant="outline" size="lg" className="border-slate-200 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-200 dark:hover:bg-slate-700/50">
+          <Button variant="outline" size="lg">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Button>
         </Link>
       </div>
-    </motion.div>
+    </div>
   )
 }

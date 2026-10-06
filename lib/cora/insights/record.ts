@@ -106,6 +106,7 @@ export async function recordCoraInteractionEvent(input: RecordCoraInteractionInp
         ${input.sourceRef ?? null},
         ${JSON.stringify(input.metadata ?? {})}::jsonb
       )
+      ON CONFLICT (source, source_ref) WHERE source_ref IS NOT NULL DO NOTHING
       RETURNING id
     `) as Array<{ id: number }>
 

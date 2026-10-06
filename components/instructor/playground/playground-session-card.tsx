@@ -22,16 +22,16 @@ export type PlaygroundSessionCardData = {
 function StatusPill({ isActive, gameStarted }: { isActive: boolean; gameStarted?: boolean }) {
   if (isActive && gameStarted) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--cc-sem-success-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--cc-sem-success-text)]">
+        <span className="h-1.5 w-1.5 rounded-full bg-[var(--cc-sem-success)]" />
         Live
       </span>
     )
   }
   if (isActive) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
-        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--cc-sem-warning-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--cc-sem-warning-text)]">
+        <span className="h-1.5 w-1.5 rounded-full bg-[var(--cc-sem-warning)]" />
         Waiting
       </span>
     )

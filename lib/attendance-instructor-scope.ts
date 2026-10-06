@@ -9,6 +9,7 @@ import {
 import {
   getCourseSectionAttendanceWindow,
   termStartWithGrace,
+  toDateOnly,
   type EnrollmentAttendanceWindow,
 } from "@/lib/attendance-enrollment-scope"
 
@@ -114,10 +115,8 @@ export async function sqlAttendanceSessionTermWindowScope(
     `
     if (rows.length === 0) return sql``
     const row = rows[0] as { start_date: string | Date | null; end_date: string | Date | null }
-    termStart = row.start_date != null ? String(row.start_date).slice(0, 10) : null
-    termEnd = row.end_date != null ? String(row.end_date).slice(0, 10) : null
-    if (termStart?.match(/^\d{4}-\d{2}-\d{2}/)) termStart = termStart.match(/^\d{4}-\d{2}-\d{2}/)![0]
-    if (termEnd?.match(/^\d{4}-\d{2}-\d{2}/)) termEnd = termEnd.match(/^\d{4}-\d{2}-\d{2}/)![0]
+    termStart = toDateOnly(row.start_date)
+    termEnd = toDateOnly(row.end_date)
   }
 
   const col = tableAlias.trim() || "asess"

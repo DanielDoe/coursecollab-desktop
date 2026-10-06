@@ -1,2 +1,3 @@
 - Classroom questions stay open in CodeBench after you choose an assignment, even when class is not live.
 - Instructors can close every open live session from Live now.
+- Playground lobby and the game countdown follow the app theme in light and dark mode.

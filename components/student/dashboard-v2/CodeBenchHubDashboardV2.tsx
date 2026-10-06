@@ -37,6 +37,7 @@ import { useCodebenchCoraGate } from "@/hooks/use-codebench-cora-gate"
 import { CodebenchStudioCoach } from "@/components/codebench/CodebenchStudioCoach"
 import { DailyChallengeCard } from "@/components/codebench/DailyChallengeCard"
 import { StudentLiveClassroomBanner } from "@/components/codebench/StudentLiveClassroomBanner"
+import { StudentPlaygroundLobbyNotice } from "@/components/playground/StudentPlaygroundLobbyBanner"
 import { useStudentLiveClassroomSessions } from "@/hooks/use-student-live-classroom-sessions"
 import {
   LIVE_JOIN_GRACE_MS,
@@ -706,6 +707,7 @@ export function CodeBenchHubDashboardV2() {
     default:
       detail = (
         <div className="space-y-5">
+          <StudentPlaygroundLobbyNotice />
           <StudentLiveClassroomBanner
             sessions={liveSessions}
             activeAssignmentId={liveJoin?.assignmentId ?? null}

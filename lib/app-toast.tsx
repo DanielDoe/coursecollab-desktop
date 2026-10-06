@@ -33,20 +33,30 @@ function isToastAction(action: ExternalToast["action"]): action is ToastAction {
 
 const DEFAULT_DURATION = 5000
 
+function isToastOptions(value: ToastContent | ToastOptions): value is ToastOptions {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return false
+  return (
+    "description" in value ||
+    "duration" in value ||
+    "action" in value ||
+    "id" in value ||
+    "variant" in value
+  )
+}
+
 function normalizeOptions(
   descriptionOrOptions?: ToastContent | ToastOptions,
 ): ToastOptions | undefined {
   if (descriptionOrOptions == null) return undefined
-  if (
-    typeof descriptionOrOptions === "object" &&
-    ("description" in descriptionOrOptions ||
-      "duration" in descriptionOrOptions ||
-      "action" in descriptionOrOptions ||
-      "id" in descriptionOrOptions)
-  ) {
-    return descriptionOrOptions as ToastOptions
-  }
+  if (isToastOptions(descriptionOrOptions)) return descriptionOrOptions
   return { description: descriptionOrOptions as ToastContent }
+}
+
+function alertVariant(opts?: ToastOptions): SystemAlertVariant {
+  const raw = (opts as { variant?: string } | undefined)?.variant
+  if (raw === "destructive" || raw === "error") return "error"
+  if (raw === "success" || raw === "warning" || raw === "info" || raw === "loading") return raw
+  return "default"
 }
 
 function renderAction(
@@ -123,7 +133,16 @@ function showAlert(variant: SystemAlertVariant, title: ToastContent, opts?: Toas
   )
 }
 
-export const toast = {
+function showToast(title: ToastContent, descriptionOrOptions?: ToastContent | ToastOptions) {
+  const opts = normalizeOptions(descriptionOrOptions)
+  const variant = alertVariant(opts)
+  if (variant === "loading") {
+    return showAlert("loading", title, { ...opts, duration: Infinity })
+  }
+  return showAlert(variant, title, opts)
+}
+
+export const toast = Object.assign(showToast, {
   success: (title: ToastContent, descriptionOrOptions?: ToastContent | ToastOptions) =>
     showAlert("success", title, normalizeOptions(descriptionOrOptions)),
 
@@ -145,6 +164,6 @@ export const toast = {
   dismiss: sonnerToast.dismiss,
   promise: sonnerToast.promise,
   custom: sonnerToast.custom,
-}
+})
 
 export default toast
