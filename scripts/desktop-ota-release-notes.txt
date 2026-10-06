@@ -1,3 +1,3 @@
-- Classroom questions stay open in CodeBench after you choose an assignment, even when class is not live.
-- Instructors can close every open live session from Live now.
-- Playground lobby and the game countdown follow the app theme in light and dark mode.
+- Exit a Cora walkthrough from CodeBench or a lecture. Exit stops playback and clears the walkthrough.
+- Dismissing Cora no longer restores the previous explanation.
+- Leaving a quiz no longer traps the attempt, sample practice titles stay readable, and silent compiler, results, and attendance errors are fixed.

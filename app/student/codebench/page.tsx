@@ -328,6 +328,7 @@ export default function CodeBenchPage({
   })
   noteExternalApplyRef.current = noteExternalApply
   const [replaySteps, setReplaySteps] = useState<CodeReplayStep[]>([])
+  const explainRequestRef = useRef(0)
   const [suspiciousLines, setSuspiciousLines] = useState<any[]>([])
   const [styleIssues, setStyleIssues] = useState<any[]>([])
   const [whatIfScenarios, setWhatIfScenarios] = useState<any[]>([])
@@ -1215,6 +1216,7 @@ export default function CodeBenchPage({
       return
     }
 
+    const requestId = ++explainRequestRef.current
     setIsLoading((prev) => ({ ...prev, explain: true }))
     setAITab("explain")
     setReplaySteps([])
@@ -1257,6 +1259,8 @@ export default function CodeBenchPage({
         { steps: [] },
       )
 
+      if (explainRequestRef.current !== requestId) return
+
       if (explainData.accessDenied) {
         showCoraUpgrade("Explain with Cora")
       } else if (explainData.explanation) {
@@ -1285,7 +1289,9 @@ export default function CodeBenchPage({
       console.error("Explain error:", error)
       toastUnlessCoraUpgrade(error, "Explain with Cora", "Failed to get AI explanation")
     } finally {
-      setIsLoading((prev) => ({ ...prev, explain: false }))
+      if (explainRequestRef.current === requestId) {
+        setIsLoading((prev) => ({ ...prev, explain: false }))
+      }
     }
   }
 
@@ -1752,6 +1758,8 @@ export default function CodeBenchPage({
   }
 
   const handleCoraClear = () => {
+    explainRequestRef.current += 1
+    setIsLoading((prev) => ({ ...prev, explain: false }))
     const explainKey = code ? getCacheKey("explain", code) : ""
     if (explainKey) {
       setResponseCache((prev) => {
