@@ -447,6 +447,15 @@ export function CoraSolvePanel({
                 ) : null}
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full"
+                  onClick={resetWorkspace}
+                >
+                  Exit
+                </Button>
                 <CoraHintMenu
                   step={engine.current}
                   onHint={(level, text) => engine.useHint(level, text)}

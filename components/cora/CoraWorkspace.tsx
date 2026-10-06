@@ -96,6 +96,14 @@ export function CoraWorkspace({ open, problem, onClose }: Props) {
     if (problem) void loadSession(problem, next)
   }
 
+  const exitWalkthrough = () => {
+    setPlayback("paused")
+    setSession(null)
+    setError(null)
+    engine.reset()
+    onClose()
+  }
+
   const exportToNotes = useCallback(async () => {
     if (!session) {
       toast({ title: "Nothing to export", description: "Start the workspace first." })
@@ -202,7 +210,7 @@ export function CoraWorkspace({ open, problem, onClose }: Props) {
                 Export to Notes
               </Button>
             ) : null}
-            <Button type="button" variant="ghost" size="icon" className="rounded-xl" onClick={onClose}>
+            <Button type="button" variant="ghost" size="icon" className="rounded-xl" onClick={exitWalkthrough} aria-label="Exit walkthrough">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -292,6 +300,15 @@ export function CoraWorkspace({ open, problem, onClose }: Props) {
                   Notes
                 </Button>
                 <div className="ml-auto flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl"
+                    onClick={exitWalkthrough}
+                  >
+                    Exit
+                  </Button>
                   <Button
                     type="button"
                     variant="ghost"
