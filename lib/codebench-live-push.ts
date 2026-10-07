@@ -16,6 +16,8 @@ export type LiveInstructorPush = {
   language: string | null
   fileName: string | null
   pushedAt: string | null
+  holderClientId: string | null
+  holderClientLabel: string | null
 }
 
 export async function readStudentLiveInstructorPush(
@@ -24,7 +26,8 @@ export async function readStudentLiveInstructorPush(
 ): Promise<LiveInstructorPush> {
   await ensureCodebenchLiveSnapshotsSchema()
   const rows = await sql`
-    SELECT instructor_code, instructor_revision, instructor_updated_at, language, file_name
+    SELECT instructor_code, instructor_revision, instructor_updated_at, language, file_name,
+           holder_client_id, holder_client_label
     FROM codebench_live_snapshots
     WHERE student_id = ${studentDbId}
       AND assignment_id = ${assignmentId}
@@ -38,8 +41,10 @@ export async function readStudentLiveInstructorPush(
         instructor_updated_at?: string | null
         language?: string | null
         file_name?: string | null
+        holder_client_id?: string | null
+        holder_client_label?: string | null
       }
-    | undefined
+      | undefined
 
   return {
     revision: Number(row?.instructor_revision) || 0,
@@ -47,6 +52,8 @@ export async function readStudentLiveInstructorPush(
     language: row?.language ?? null,
     fileName: row?.file_name ?? null,
     pushedAt: row?.instructor_updated_at ?? null,
+    holderClientId: typeof row?.holder_client_id === "string" ? row.holder_client_id : null,
+    holderClientLabel: typeof row?.holder_client_label === "string" ? row.holder_client_label : null,
   }
 }
 

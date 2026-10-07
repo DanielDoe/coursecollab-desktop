@@ -37,6 +37,8 @@ import { useCodebenchCoraGate } from "@/hooks/use-codebench-cora-gate"
 import { CodebenchStudioCoach } from "@/components/codebench/CodebenchStudioCoach"
 import { DailyChallengeCard } from "@/components/codebench/DailyChallengeCard"
 import { StudentLiveClassroomBanner } from "@/components/codebench/StudentLiveClassroomBanner"
+import { LiveClassroomHandoffDialog } from "@/components/codebench/LiveClassroomHandoffDialog"
+import { rememberLiveClaim } from "@/lib/codebench-live-client"
 import { StudentPlaygroundLobbyNotice } from "@/components/playground/StudentPlaygroundLobbyBanner"
 import { useStudentLiveClassroomSessions } from "@/hooks/use-student-live-classroom-sessions"
 import {
@@ -187,10 +189,15 @@ export function CodeBenchHubDashboardV2() {
   const pullStartY = useRef<number | null>(null)
   const {
     sessions: liveSessions,
+    editorHold,
+    savedAssignmentIds,
     listSupported,
     loading: liveSessionsLoading,
     error: liveSessionsError,
   } = useStudentLiveClassroomSessions(studentId)
+  const [dismissedHoldKey, setDismissedHoldKey] = useState<string | null>(null)
+  const foreignHold = editorHold && !editorHold.yours ? editorHold : null
+  const foreignHoldKey = foreignHold ? `${foreignHold.assignmentId}:${foreignHold.clientId ?? "other"}` : null
   const liveJoinGraceUntilRef = useRef(0)
   const liveMissCountRef = useRef(0)
   const markLiveJoinGrace = useCallback(() => {
@@ -708,8 +715,23 @@ export function CodeBenchHubDashboardV2() {
       detail = (
         <div className="space-y-5">
           <StudentPlaygroundLobbyNotice />
+          <LiveClassroomHandoffDialog
+            hold={foreignHold}
+            open={Boolean(foreignHold) && foreignHoldKey !== dismissedHoldKey && browseView !== "editor"}
+            onKeepThere={() => {
+              if (foreignHoldKey) setDismissedHoldKey(foreignHoldKey)
+            }}
+            onMoveHere={() => {
+              if (!foreignHold || !foreignHoldKey) return
+              rememberLiveClaim(String(foreignHold.assignmentId))
+              setDismissedHoldKey(foreignHoldKey)
+              const session = liveSessions.find((row) => row.assignmentId === foreignHold.assignmentId)
+              if (session) joinLiveSession(session)
+            }}
+          />
           <StudentLiveClassroomBanner
             sessions={liveSessions}
+            savedAssignmentIds={savedAssignmentIds}
             activeAssignmentId={liveJoin?.assignmentId ?? null}
             // Overview never mounts the editor, and leaving the Editor tab sends a leave.
             // "Open editor" remounts it with the same assignment and rejoins.

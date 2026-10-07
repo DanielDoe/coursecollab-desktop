@@ -1,5 +1,5 @@
 /** Poll / debounce windows for live classroom sync. Student → instructor is the primary stream. */
-/** Presence heartbeat. Full code is posted on edit, not on this timer. */
+/** Presence heartbeat. Also checkpoints the open file so a killed app can resume. */
 export const LIVE_STUDENT_SNAPSHOT_INTERVAL_MS = 2000
 /** Fallback for code changes that don't come from Monaco keystrokes (restore, pushes). */
 export const LIVE_STUDENT_SNAPSHOT_DEBOUNCE_MS = 250

@@ -18,6 +18,8 @@ type Props = {
   connection?: StudentLiveBannerConnection
   onJoin: (session: StudentLiveClassroomSession) => void
   onLeave?: (session: StudentLiveClassroomSession) => void
+  /** Assignments whose code is already stored on the account. */
+  savedAssignmentIds?: number[]
   compact?: boolean
 }
 
@@ -75,8 +77,9 @@ function sessionAction(opts: {
   compact: boolean
   onJoin: (session: StudentLiveClassroomSession) => void
   onLeave?: (session: StudentLiveClassroomSession) => void
+  saved?: boolean
 }) {
-  const { session, joined, compact, onJoin, onLeave } = opts
+  const { session, joined, compact, onJoin, onLeave, saved = false } = opts
   if (joined && onLeave) {
     return (
       <div className="flex shrink-0 items-center gap-2">
@@ -113,10 +116,16 @@ function sessionAction(opts: {
       size="sm"
       variant={joined ? "outline" : "default"}
       className={cn("student-live-banner__cta rounded-full", compact && "h-7 px-3 text-xs")}
-      aria-label={joined ? `Stay in ${session.title}` : `Join live classroom ${session.title}`}
+      aria-label={
+        joined
+          ? `Stay in ${session.title}`
+          : saved
+            ? `Continue ${session.title} on this device`
+            : `Join live classroom ${session.title}`
+      }
       onClick={() => onJoin(session)}
     >
-      {joined ? (compact ? "Joined" : "Open editor") : "Join"}
+      {joined ? (compact ? "Joined" : "Open editor") : saved ? "Continue" : "Join"}
     </Button>
   )
 }
@@ -127,6 +136,7 @@ export function StudentLiveClassroomBanner({
   connection = "live",
   onJoin,
   onLeave,
+  savedAssignmentIds = [],
   compact = false,
 }: Props) {
   const joinedAny = sessions.some(
@@ -151,6 +161,8 @@ export function StudentLiveClassroomBanner({
   const single = sessions.length === 1 ? sessions[0] : null
   const singleJoined =
     Boolean(single) && String(activeAssignmentId ?? "") === String(single?.assignmentId)
+  const savedIds = new Set(savedAssignmentIds.map((id) => String(id)))
+  const singleSaved = Boolean(single && savedIds.has(String(single.assignmentId)))
 
   return (
     <div
@@ -183,7 +195,9 @@ export function StudentLiveClassroomBanner({
                 <p className="student-live-banner__hint">
                   {singleJoined
                     ? JOINED_HINT[connection]
-                    : "Join to open the assignment. Your instructor can watch your code."}
+                    : singleSaved
+                      ? "Your code is saved on your account. Continue on this device to pick up where you left off."
+                      : "Join to open the assignment. Your instructor can watch your code."}
                 </p>
               </>
             )}
@@ -194,6 +208,7 @@ export function StudentLiveClassroomBanner({
             compact,
             onJoin,
             onLeave,
+            saved: singleSaved,
           })}
         </div>
       ) : (
@@ -221,7 +236,9 @@ export function StudentLiveClassroomBanner({
                             ? connection === "live"
                               ? "You are in this session · instructor can see your keystrokes"
                               : JOINED_HINT[connection]
-                            : questionPreview(session.questionText)}
+                            : savedIds.has(String(session.assignmentId))
+                              ? "Your code is saved. Continue on this device."
+                              : questionPreview(session.questionText)}
                         </p>
                       ) : null}
                     </div>
@@ -231,6 +248,7 @@ export function StudentLiveClassroomBanner({
                       compact,
                       onJoin,
                       onLeave,
+                      saved: savedIds.has(String(session.assignmentId)),
                     })}
                   </div>
                 )

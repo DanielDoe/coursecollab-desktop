@@ -31,6 +31,9 @@ async function ensureCodebenchLiveSnapshotsSchemaOnce() {
     await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS student_joined_at timestamptz`
     await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS student_active_at timestamptz`
     await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS sync_requested_at timestamptz`
+    await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS holder_client_id text`
+    await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS holder_client_label text`
+    await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS holder_seen_at timestamptz`
   } catch {
     /* columns may already exist or migration unavailable */
   }

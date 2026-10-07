@@ -15,6 +15,14 @@ import {
 } from "@/lib/codebench-live-replay"
 import { codebenchLiveCodeToPersist } from "@/lib/codebench-languages"
 import { normalizeTypingReplay } from "@/lib/typing-replay"
+import {
+  cleanLiveClientId,
+  cleanLiveClientLabel,
+  heldByFromRow,
+  leaveShouldReleaseHolder,
+  liveHoldBlocksJoin,
+} from "@/lib/codebench-live-handoff"
+import { readLiveEditorHold } from "@/lib/codebench-live-handoff-db"
 
 export const dynamic = "force-dynamic"
 
@@ -181,13 +189,33 @@ export async function POST(request: NextRequest) {
     // A leave only stamps the student's own existing row, so it skips the access gate.
     // Leaves sent after the instructor ended the session (410) used to be dropped and
     // left the student Joined for the next session on this assignment.
+    const clientId = cleanLiveClientId(body.clientId)
+    const clientLabel = cleanLiveClientLabel(body.clientLabel)
+    const claim = body.claim === true
+
     if (body.intent === "leave") {
       await ensureCodebenchLiveSnapshotsSchema()
+      const holding = await readLiveEditorHold(auth.studentDbId, assignmentId)
+      if (holding && !leaveShouldReleaseHolder(holding.clientId, clientId)) {
+        return NextResponse.json({ ok: true, left: false, keptHolder: true })
+      }
+      const leavingCode = typeof body.code === "string" ? body.code.slice(0, MAX_CODE_CHARS) : ""
+      const leavingLanguage = typeof body.language === "string" ? body.language.slice(0, 32) : null
+      const leavingFile = typeof body.fileName === "string" ? body.fileName.slice(0, 80) : null
       const left = await platformSql`
         UPDATE codebench_live_snapshots
-        SET student_left_at = NOW()
+        SET student_left_at = NOW(),
+            holder_seen_at = NULL,
+            code = CASE WHEN ${leavingCode} <> '' THEN ${leavingCode} ELSE code END,
+            language = COALESCE(${leavingLanguage}, language),
+            file_name = COALESCE(${leavingFile}, file_name),
+            updated_at = NOW()
         WHERE student_id = ${auth.studentDbId}
           AND assignment_id = ${assignmentId}
+          AND (
+            holder_client_id IS NULL
+            OR holder_client_id = ${clientId}
+          )
         RETURNING course_id
       `
       if (left.length > 0) {
@@ -282,12 +310,54 @@ export async function POST(request: NextRequest) {
 
     await ensureCodebenchLiveSnapshotsSchema()
 
+    if (inRoom && intent !== "join") {
+      const holding = await readLiveEditorHold(auth.studentDbId, assignmentId)
+      if (
+        liveHoldBlocksJoin({
+          hold: holding,
+          myClientId: clientId,
+          now: Date.now(),
+          claim: false,
+        })
+      ) {
+        return NextResponse.json({
+          ok: true,
+          joined: false,
+          heldBy: heldByFromRow({
+            assignmentId,
+            clientId: holding?.clientId ?? null,
+            clientLabel: holding?.clientLabel ?? null,
+          }),
+        })
+      }
+    }
+
     if (intent === "join") {
+      const holding = await readLiveEditorHold(auth.studentDbId, assignmentId)
+      if (
+        liveHoldBlocksJoin({
+          hold: holding,
+          myClientId: clientId,
+          now: Date.now(),
+          claim,
+        })
+      ) {
+        return NextResponse.json({
+          ok: true,
+          joined: false,
+          heldBy: heldByFromRow({
+            assignmentId,
+            clientId: holding?.clientId ?? null,
+            clientLabel: holding?.clientLabel ?? null,
+          }),
+        })
+      }
       // Entering the room is its own signal. Do not touch the code clock, or
       // a join looks like Coding now before the student has typed or compiled.
       await platformSql`
         INSERT INTO codebench_live_snapshots (
-          student_id, assignment_id, course_id, code, student_joined_at, student_left_at, updated_at
+          student_id, assignment_id, course_id, code, student_joined_at, student_left_at,
+          holder_client_id, holder_client_label, holder_seen_at, updated_at
         ) VALUES (
           ${auth.studentDbId},
           ${assignmentId},
@@ -295,12 +365,18 @@ export async function POST(request: NextRequest) {
           '',
           NOW(),
           NULL,
+          ${clientId},
+          ${clientLabel},
+          NOW(),
           NOW()
         )
         ON CONFLICT (student_id, assignment_id)
         DO UPDATE SET
           student_joined_at = NOW(),
-          student_left_at = NULL
+          student_left_at = NULL,
+          holder_client_id = COALESCE(${clientId}, codebench_live_snapshots.holder_client_id),
+          holder_client_label = COALESCE(${clientLabel}, codebench_live_snapshots.holder_client_label),
+          holder_seen_at = NOW()
       `
       void recordLiveActivity({
         courseId: access.courseId,
@@ -368,11 +444,15 @@ export async function POST(request: NextRequest) {
           UPDATE codebench_live_snapshots
           SET
             student_cursor = COALESCE(${studentCursorJson}::jsonb, student_cursor),
+            code = CASE WHEN ${code} <> '' THEN ${code} ELSE code END,
             language = COALESCE(${language}, language),
             file_name = COALESCE(${fileName}, file_name),
             updated_at = NOW(),
             student_joined_at = CASE WHEN ${inRoom} THEN NOW() ELSE student_joined_at END,
-            student_left_at = CASE WHEN ${inRoom} THEN NULL ELSE student_left_at END
+            student_left_at = CASE WHEN ${inRoom} THEN NULL ELSE student_left_at END,
+            holder_client_id = CASE WHEN ${inRoom} AND ${clientId}::text IS NOT NULL THEN ${clientId} ELSE holder_client_id END,
+            holder_client_label = CASE WHEN ${inRoom} AND ${clientLabel}::text IS NOT NULL THEN ${clientLabel} ELSE holder_client_label END,
+            holder_seen_at = CASE WHEN ${inRoom} THEN NOW() ELSE holder_seen_at END
           WHERE student_id = ${auth.studentDbId}
             AND assignment_id = ${assignmentId}
           RETURNING student_id
@@ -424,7 +504,10 @@ export async function POST(request: NextRequest) {
               file_name = COALESCE(${fileName}, file_name),
               updated_at = NOW(),
               student_joined_at = CASE WHEN ${inRoom} THEN NOW() ELSE student_joined_at END,
-              student_left_at = CASE WHEN ${inRoom} THEN NULL ELSE student_left_at END
+              student_left_at = CASE WHEN ${inRoom} THEN NULL ELSE student_left_at END,
+              holder_client_id = CASE WHEN ${inRoom} AND ${clientId}::text IS NOT NULL THEN ${clientId} ELSE holder_client_id END,
+              holder_client_label = CASE WHEN ${inRoom} AND ${clientLabel}::text IS NOT NULL THEN ${clientLabel} ELSE holder_client_label END,
+              holder_seen_at = CASE WHEN ${inRoom} THEN NOW() ELSE holder_seen_at END
             WHERE student_id = ${auth.studentDbId}
               AND assignment_id = ${assignmentId}
           `
@@ -486,6 +569,9 @@ export async function POST(request: NextRequest) {
             updated_at = NOW(),
             student_joined_at = CASE WHEN ${inRoom} THEN NOW() ELSE codebench_live_snapshots.student_joined_at END,
             student_left_at = CASE WHEN ${inRoom} THEN NULL ELSE codebench_live_snapshots.student_left_at END,
+            holder_client_id = CASE WHEN ${inRoom} AND ${clientId}::text IS NOT NULL THEN ${clientId} ELSE codebench_live_snapshots.holder_client_id END,
+            holder_client_label = CASE WHEN ${inRoom} AND ${clientLabel}::text IS NOT NULL THEN ${clientLabel} ELSE codebench_live_snapshots.holder_client_label END,
+            holder_seen_at = CASE WHEN ${inRoom} THEN NOW() ELSE codebench_live_snapshots.holder_seen_at END,
             student_active_at = CASE
               WHEN ${intent === "code"}
                 AND EXCLUDED.code IS DISTINCT FROM codebench_live_snapshots.code
@@ -523,6 +609,9 @@ export async function POST(request: NextRequest) {
             updated_at = NOW(),
             student_joined_at = CASE WHEN ${inRoom} THEN NOW() ELSE codebench_live_snapshots.student_joined_at END,
             student_left_at = CASE WHEN ${inRoom} THEN NULL ELSE codebench_live_snapshots.student_left_at END,
+            holder_client_id = CASE WHEN ${inRoom} AND ${clientId}::text IS NOT NULL THEN ${clientId} ELSE codebench_live_snapshots.holder_client_id END,
+            holder_client_label = CASE WHEN ${inRoom} AND ${clientLabel}::text IS NOT NULL THEN ${clientLabel} ELSE codebench_live_snapshots.holder_client_label END,
+            holder_seen_at = CASE WHEN ${inRoom} THEN NOW() ELSE codebench_live_snapshots.holder_seen_at END,
             student_active_at = CASE
               WHEN ${intent === "code"}
                 AND EXCLUDED.code IS DISTINCT FROM codebench_live_snapshots.code

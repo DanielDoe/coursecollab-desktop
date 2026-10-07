@@ -27,6 +27,8 @@ import { seedLiveInstructorPushBaseline } from "@/lib/codebench-live-instructor-
 import { useImmediateLivePoll } from "@/hooks/use-immediate-live-poll"
 import { setStudioLiveAssignment } from "@/lib/codebench-studio-analytics"
 import { readRememberedLiveJoin, rememberLiveSyncedCode } from "@/lib/codebench-live-join-memory"
+import { codebenchLiveClientLabel, consumeLiveClaim, readCodebenchLiveClientId } from "@/lib/codebench-live-client"
+import type { LiveEditorHeldBy } from "@/lib/codebench-live-handoff"
 import type { StudentLiveClassroomSession } from "@/lib/codebench-live-classroom-types"
 
 type EditorLike = {
@@ -49,6 +51,8 @@ type Options = {
   editorRef: EditorLike
   enabled: boolean
   onRestore?: (code: string) => void
+  /** Set true for one join after the student confirms moving the session here. */
+  claimHoldRef?: { current: boolean }
 }
 
 /** Whether the classroom has actually accepted this editor. Drives ON AIR. */
@@ -58,6 +62,8 @@ export type LiveEditorConnection =
   | { state: "live" }
   | { state: "rejected"; httpStatus: number; message: string }
   | { state: "ended"; follow: StudentLiveClassroomSession | null }
+  | { state: "held"; heldBy: LiveEditorHeldBy }
+  | { state: "moved"; heldBy: LiveEditorHeldBy }
 
 export const LIVE_EDITOR_CONNECTION_EVENT = "codebench-live-connection"
 
@@ -113,6 +119,26 @@ type LiveSignalResult = {
   status: number | null
   error: string | null
   follow: StudentLiveClassroomSession | null
+  heldBy: LiveEditorHeldBy | null
+}
+
+function liveClientFields() {
+  return {
+    clientId: readCodebenchLiveClientId(),
+    clientLabel: codebenchLiveClientLabel(),
+  }
+}
+
+function heldByFromBody(value: unknown): LiveEditorHeldBy | null {
+  if (!value || typeof value !== "object") return null
+  const row = value as Record<string, unknown>
+  const assignmentId = Number(row.assignmentId)
+  if (!Number.isFinite(assignmentId) || assignmentId <= 0) return null
+  return {
+    assignmentId,
+    clientId: typeof row.clientId === "string" ? row.clientId : null,
+    clientLabel: typeof row.clientLabel === "string" && row.clientLabel.trim() ? row.clientLabel : "another device",
+  }
 }
 
 function liveSessionFollowFromBody(value: unknown): StudentLiveClassroomSession | null {
@@ -135,15 +161,17 @@ function liveSessionFollowFromBody(value: unknown): StudentLiveClassroomSession 
 async function readLiveDenial(response: Response): Promise<{
   error: string | null
   follow: StudentLiveClassroomSession | null
+  heldBy: LiveEditorHeldBy | null
 }> {
   try {
-    const data = (await response.json()) as { error?: unknown; movedTo?: unknown }
+    const data = (await response.json()) as { error?: unknown; movedTo?: unknown; joined?: unknown; heldBy?: unknown }
     return {
       error: typeof data?.error === "string" ? data.error : null,
       follow: liveSessionFollowFromBody(data?.movedTo),
+      heldBy: data?.joined === false ? heldByFromBody(data.heldBy) : null,
     }
   } catch {
-    return { error: null, follow: null }
+    return { error: null, follow: null, heldBy: null }
   }
 }
 
@@ -151,6 +179,8 @@ function sendLiveEditorSignal(
   studentId: string,
   assignmentId: string,
   intent: "join" | "leave",
+  claim = false,
+  code?: string,
 ): Promise<LiveSignalResult> {
   return studentApiFetch("/api/codebench/live-snapshot", {
     method: "POST",
@@ -159,19 +189,21 @@ function sendLiveEditorSignal(
       studentId,
       assignmentId: Number(assignmentId),
       intent,
+      claim: claim === true,
+      code: typeof code === "string" ? code : undefined,
+      ...liveClientFields(),
     }),
     keepalive: true,
   })
     .then(async (response) => {
-      if (response.ok) return { status: response.status, error: null, follow: null }
       const denial = await readLiveDenial(response)
-      return { status: response.status, error: denial.error, follow: denial.follow }
+      return { status: response.status, error: denial.error, follow: denial.follow, heldBy: denial.heldBy }
     })
-    .catch(() => ({ status: null, error: null, follow: null }))
+    .catch(() => ({ status: null, error: null, follow: null, heldBy: null }))
 }
 
-export function sendLiveEditorLeave(studentId: string, assignmentId: string): Promise<void> {
-  return sendLiveEditorSignal(studentId, assignmentId, "leave").then(() => undefined)
+export function sendLiveEditorLeave(studentId: string, assignmentId: string, code?: string): Promise<void> {
+  return sendLiveEditorSignal(studentId, assignmentId, "leave", false, code).then(() => undefined)
 }
 
 /**
@@ -184,9 +216,9 @@ function shouldKeepJoinAcrossUnload(studentId: string, assignmentId: string): bo
 }
 
 // keepalive fetch, not sendBeacon: student auth rides on headers a beacon cannot send.
-function sendLiveEditorLeaveOnUnload(studentId: string, assignmentId: string): void {
+function sendLiveEditorLeaveOnUnload(studentId: string, assignmentId: string, code?: string): void {
   if (shouldKeepJoinAcrossUnload(studentId, assignmentId)) return
-  void sendLiveEditorLeave(studentId, assignmentId)
+  void sendLiveEditorLeave(studentId, assignmentId, code)
 }
 
 /** Persist the open editor when the student is not in the live room. Does not join. */
@@ -215,8 +247,12 @@ export function saveLiveEditorCode(input: {
     .catch(() => undefined)
 }
 
-function sendLiveEditorJoin(studentId: string, assignmentId: string): Promise<LiveSignalResult> {
-  return sendLiveEditorSignal(studentId, assignmentId, "join")
+function sendLiveEditorJoin(
+  studentId: string,
+  assignmentId: string,
+  claim = false,
+): Promise<LiveSignalResult> {
+  return sendLiveEditorSignal(studentId, assignmentId, "join", claim)
 }
 
 function replayMarkOf(replay: TypingReplay): string {
@@ -251,6 +287,7 @@ export function useCodebenchLiveSnapshot({
   editorRef,
   enabled,
   onRestore,
+  claimHoldRef,
 }: Options) {
   const replayRef = useRef<TypingReplay>({ startTime: 0, events: [] })
   const lastPostRef = useRef(0)
@@ -407,7 +444,7 @@ export function useCodebenchLiveSnapshot({
         body: JSON.stringify({
           studentId,
           assignmentId: Number(assignmentId),
-          code: presenceOnly ? undefined : latestCode,
+          code: latestCode,
           language,
           fileName,
           studentCursor: readEditorCursor(editorRefStable.current),
@@ -415,11 +452,20 @@ export function useCodebenchLiveSnapshot({
           clientNow: sendReplay ? Date.now() : undefined,
           intent: presenceOnly ? "presence" : "code",
           keepJoined: saveAfterStop ? false : true,
+          ...liveClientFields(),
         }),
         keepalive: saveAfterStop,
       })
       if (response.ok) {
-        void response.body?.cancel().catch(() => undefined)
+        const body = await readLiveDenial(response)
+        if (body.heldBy && body.heldBy.clientId !== readCodebenchLiveClientId()) {
+          const heldBy = body.heldBy
+          stopHeartbeatRef.current = true
+          setConnection((current) =>
+            current.state === "live" ? { state: "moved", heldBy } : { state: "held", heldBy },
+          )
+          return
+        }
         lastPostRef.current = Date.now()
         if (!presenceOnly) rememberLiveSyncedCode(studentId, assignmentId, latestCode)
         lastPostedCodeRef.current = latestCode
@@ -445,7 +491,7 @@ export function useCodebenchLiveSnapshot({
       if (!sharingRef.current && studentId && assignmentId) {
         const retry = needsRetryRef.current
         needsRetryRef.current = false
-        void sendLiveEditorLeave(studentId, assignmentId)
+        void sendLiveEditorLeave(studentId, assignmentId, codeRef.current)
         if (retry) void postSnapshotRef.current(true, false, true)
         return
       }
@@ -638,12 +684,19 @@ export function useCodebenchLiveSnapshot({
     activeAssignmentRef.current = assignmentId
     const generation = ++editorPresenceRef.current
     const joinedAssignmentId = assignmentId
-    void sendLiveEditorJoin(studentId, assignmentId).then((result) => {
+    const claim = claimHoldRef?.current === true || consumeLiveClaim(assignmentId)
+    if (claimHoldRef) claimHoldRef.current = false
+    void sendLiveEditorJoin(studentId, assignmentId, claim).then((result) => {
       if (!sharingRef.current) {
-        void sendLiveEditorLeave(studentId, assignmentId)
+        void sendLiveEditorLeave(studentId, assignmentId, codeRef.current)
         return
       }
       if (editorPresenceRef.current !== generation) return
+      if (result.heldBy && result.heldBy.clientId !== readCodebenchLiveClientId()) {
+        stopHeartbeatRef.current = true
+        setConnection({ state: "held", heldBy: result.heldBy })
+        return
+      }
       if (result.status != null && result.status >= 200 && result.status < 300) noteServerAccepted()
       else if (result.status != null) noteServerRejected(result.status, result.error, result.follow)
     })
@@ -654,12 +707,12 @@ export function useCodebenchLiveSnapshot({
       queueMicrotask(() => {
         if (editorPresenceRef.current !== generation) {
           if (activeAssignmentRef.current !== joinedAssignmentId) {
-            void sendLiveEditorLeave(studentId, joinedAssignmentId)
+            void sendLiveEditorLeave(studentId, joinedAssignmentId, codeRef.current)
           }
           return
         }
         if (unloadingRef.current && shouldKeepJoinAcrossUnload(studentId, joinedAssignmentId)) return
-        void sendLiveEditorLeave(studentId, joinedAssignmentId)
+        void sendLiveEditorLeave(studentId, joinedAssignmentId, codeRef.current)
       })
     }
   }, [assignmentId, enabled, noteServerAccepted, noteServerRejected, studentId])
@@ -669,7 +722,7 @@ export function useCodebenchLiveSnapshot({
     const onPageHide = () => {
       unloadingRef.current = true
       editorPresenceRef.current += 1
-      sendLiveEditorLeaveOnUnload(studentId, assignmentId)
+      sendLiveEditorLeaveOnUnload(studentId, assignmentId, codeRef.current)
     }
     window.addEventListener("pagehide", onPageHide)
     return () => {

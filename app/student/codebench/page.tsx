@@ -40,6 +40,7 @@ import { CodebenchExplorer } from "@/components/codebench/CodebenchExplorer"
 import { useCodebenchIde } from "@/hooks/use-codebench-ide"
 import { useCodebenchIdeCloudSave } from "@/hooks/use-codebench-ide-cloud"
 import { saveLiveEditorCode, sendLiveEditorLeave, useCodebenchLiveSnapshot } from "@/hooks/use-codebench-live-snapshot"
+import { peekLiveClaim, rememberLiveClaim } from "@/lib/codebench-live-client"
 import {
   editorHoldsOtherLiveAssignment,
   forgetLiveJoin,
@@ -49,6 +50,7 @@ import {
 import { useCodebenchLiveInstructorPush } from "@/hooks/use-codebench-live-instructor-push"
 import { useStudentLiveClassroomSessions } from "@/hooks/use-student-live-classroom-sessions"
 import { StudentLiveClassroomBanner } from "@/components/codebench/StudentLiveClassroomBanner"
+import { LiveClassroomHandoffDialog } from "@/components/codebench/LiveClassroomHandoffDialog"
 import { StudentPlaygroundLobbyNotice } from "@/components/playground/StudentPlaygroundLobbyBanner"
 import {
   StudentClassroomQuestionDrawer,
@@ -196,6 +198,8 @@ export default function CodeBenchPage({
   // Starts off even with an assignment prop: sharing turns on only once the session
   // list confirms the session is open (see the initialAssignmentId effect).
   const [liveSharing, setLiveSharing] = useState(false)
+  const claimHoldRef = useRef(false)
+  const [dismissedHoldKey, setDismissedHoldKey] = useState<string | null>(null)
   const [questionDrawerOpen, setQuestionDrawerOpen] = useState(false)
   const [classroomQuestion, setClassroomQuestion] = useState<StudentClassroomQuestionView | null>(null)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
@@ -203,6 +207,8 @@ export default function CodeBenchPage({
   const [editorRef, setEditorRef] = useState<any>(null)
   const {
     sessions: liveSessions,
+    editorHold,
+    savedAssignmentIds,
     listSupported,
     loading: liveSessionsLoading,
     error: liveSessionsError,
@@ -215,6 +221,8 @@ export default function CodeBenchPage({
   )
   const liveSessionsRef = useRef(liveSessions)
   liveSessionsRef.current = liveSessions
+  const editorHoldRef = useRef(editorHold)
+  editorHoldRef.current = editorHold
 
   const mergeLiveAssignments = useCallback((rows: any[]) => {
     const next = [...rows]
@@ -307,6 +315,7 @@ export default function CodeBenchPage({
     editorRef,
     enabled: liveSnapshotEnabled,
     onRestore: (saved) => applyInstructorCode(saved, { restore: true }),
+    claimHoldRef,
   })
   useCodebenchLiveInstructorPush({
     studentId,
@@ -577,6 +586,11 @@ export default function CodeBenchPage({
 
   const bindLiveAssignment = useCallback((session: StudentLiveClassroomSession) => {
     const id = String(session.assignmentId)
+    const hold = editorHoldRef.current
+    if (!claimHoldRef.current && hold && !hold.yours && String(hold.assignmentId) === id) {
+      setDismissedHoldKey(null)
+      return
+    }
     markLiveJoinGrace()
     setPinnedAssignmentId(id)
     setClassroomSubmissionId(id)
@@ -666,6 +680,8 @@ export default function CodeBenchPage({
       // Never clear it here — a transient empty/alias-missed list poll used to drop
       // joined students off the faculty roster.
       if (!liveListSettled) return
+      const hold = editorHoldRef.current
+      if (!claimHoldRef.current && hold && !hold.yours && String(hold.assignmentId) === String(next)) return
       if (listSupported !== true || assignmentHasOpenLiveSession(liveSessions, next)) {
         setLiveSharing(true)
       }
@@ -700,6 +716,8 @@ export default function CodeBenchPage({
       void sendLiveEditorLeave(studentId, remembered)
       return
     }
+    const hold = editorHoldRef.current
+    if (!claimHoldRef.current && hold && !hold.yours && String(hold.assignmentId) === remembered) return
     markLiveJoinGrace()
     setPinnedAssignmentId(remembered)
     setClassroomSubmissionId(remembered)
@@ -731,6 +749,11 @@ export default function CodeBenchPage({
       const match = liveSessions.find((session) => String(session.assignmentId) === assignmentId)
       if (match) {
         bindLiveAssignment(match)
+        return
+      }
+      const hold = editorHoldRef.current
+      if (!claimHoldRef.current && hold && !hold.yours && String(hold.assignmentId) === assignmentId) {
+        setDismissedHoldKey(null)
         return
       }
       markLiveJoinGrace()
@@ -819,6 +842,33 @@ export default function CodeBenchPage({
       })
     }
   }, [classroomSubmissionId, liveConnection, liveSessions, liveSharing, moveOntoLiveSession, toast])
+
+  const movedHoldToastRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (liveConnection.state === "held") {
+      setLiveSharing(false)
+      return
+    }
+    if (liveConnection.state !== "moved") return
+    const held = liveConnection.heldBy
+    const key = `${held.assignmentId}:${held.clientId ?? "other"}`
+    if (movedHoldToastRef.current === key) return
+    movedHoldToastRef.current = key
+    setDismissedHoldKey(key)
+    setLiveSharing(false)
+    forgetLiveJoin(String(held.assignmentId))
+    toast({
+      title: "Live classroom moved",
+      description: `It continued on your ${held.clientLabel}.`,
+    })
+  }, [liveConnection, toast])
+
+  const foreignHold = editorHold && !editorHold.yours ? editorHold : null
+  const foreignHoldKey = foreignHold ? `${foreignHold.assignmentId}:${foreignHold.clientId ?? "other"}` : null
+  const handoffOpen =
+    foreignHoldKey != null &&
+    foreignHoldKey !== dismissedHoldKey &&
+    !(foreignHold && peekLiveClaim(String(foreignHold.assignmentId)))
 
   useEffect(() => {
     setClassroomSubmissions((current) => mergeLiveAssignments(current))
@@ -2312,9 +2362,35 @@ export default function CodeBenchPage({
           )}
         >
           <StudentPlaygroundLobbyNotice compact />
+          <LiveClassroomHandoffDialog
+            hold={foreignHold}
+            open={handoffOpen}
+            onKeepThere={() => {
+              if (foreignHoldKey) setDismissedHoldKey(foreignHoldKey)
+            }}
+            onMoveHere={() => {
+              if (!foreignHold || !foreignHoldKey) return
+              claimHoldRef.current = true
+              rememberLiveClaim(String(foreignHold.assignmentId))
+              setDismissedHoldKey(foreignHoldKey)
+              const session = liveSessions.find(
+                (row) => row.assignmentId === foreignHold.assignmentId,
+              )
+              if (session) {
+                bindLiveAssignment(session)
+                return
+              }
+              markLiveJoinGrace()
+              setPinnedAssignmentId(String(foreignHold.assignmentId))
+              setClassroomSubmissionId(String(foreignHold.assignmentId))
+              setAssignmentSelectionConfirmed(true)
+              setLiveSharing(true)
+            }}
+          />
           <StudentLiveClassroomBanner
             compact
             sessions={liveSessions}
+            savedAssignmentIds={savedAssignmentIds}
             activeAssignmentId={liveSharing ? classroomSubmissionId : null}
             connection={liveConnection.state === "live" ? "live" : "connecting"}
             onJoin={(session) => {
