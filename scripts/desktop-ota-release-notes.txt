@@ -1,3 +1,1 @@
-- Exit a Cora walkthrough from CodeBench or a lecture. Exit stops playback and clears the walkthrough.
-- Dismissing Cora no longer restores the previous explanation.
-- Leaving a quiz no longer traps the attempt, sample practice titles stay readable, and silent compiler, results, and attendance errors are fixed.
+- Quiz progress now saves every 15 seconds instead of every second, so exams and Ask Cora stay responsive.

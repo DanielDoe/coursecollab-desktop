@@ -2515,37 +2515,33 @@ export function QuizTaker({
 
   useEffect(() => {
     if (!quiz?.id || !attemptId || isQuizFinalized) return
-    if (leaveSaveInProgressRef.current || waterBreakPausedRef.current) return
-    const { questionTimeRemaining: qtr, sectionTimeRemaining: str } = getSanitizedTimerPayload()
-    const payload = {
-      attemptId,
-      currentQuestionIndex,
-      questionTimeRemaining: qtr,
-      sectionTimeRemaining: str,
-      sectionQuestionSelections: sectionQuestionSelectionsRef.current,
+
+    const postProgress = () => {
+      if (leaveSaveInProgressRef.current || waterBreakPausedRef.current) return
+      const { questionTimeRemaining: qtr, sectionTimeRemaining: str } = getSanitizedTimerPayload()
+      studentApiFetch("/api/student/quiz-progress", {
+        method: "POST",
+        headers: attemptApiHeaders(),
+        body: JSON.stringify({
+          attemptId,
+          currentQuestionIndex,
+          questionTimeRemaining: qtr,
+          sectionTimeRemaining: str,
+          sectionQuestionSelections: sectionQuestionSelectionsRef.current,
+        }),
+      }).catch(() => {})
     }
+
     if (lastSavedIndexRef.current !== currentQuestionIndex) {
       lastSavedIndexRef.current = currentQuestionIndex
-      studentApiFetch("/api/student/quiz-progress", {
-        method: "POST",
-        headers: attemptApiHeaders(),
-        body: JSON.stringify(payload),
-      }).catch(() => {})
-      return
+      postProgress()
     }
-    if (progressSaveRef.current) clearTimeout(progressSaveRef.current)
-    progressSaveRef.current = setTimeout(() => {
-      progressSaveRef.current = null
-      studentApiFetch("/api/student/quiz-progress", {
-        method: "POST",
-        headers: attemptApiHeaders(),
-        body: JSON.stringify(payload),
-      }).catch(() => {})
-    }, 800)
-    return () => {
-      if (progressSaveRef.current) clearTimeout(progressSaveRef.current)
-    }
-  }, [quiz?.id, attemptId, currentQuestionIndex, questionTimeRemaining, sectionTimeRemaining, isQuizFinalized, getSanitizedTimerPayload])
+
+    // Timer state changes every second. Saving on that tick flooded the API.
+    // Snapshot from refs on a slow interval instead.
+    const interval = window.setInterval(postProgress, 15_000)
+    return () => window.clearInterval(interval)
+  }, [quiz?.id, attemptId, currentQuestionIndex, isQuizFinalized, getSanitizedTimerPayload])
 
   // Save progress on visibilitychange / beforeunload so refresh/close preserves state
   useEffect(() => {
@@ -6857,17 +6853,20 @@ export function QuizTaker({
     if (!q) return
 
     // Drop stale submit/eval UI from the previous question; background evals persist via rememberEvalFeedback.
+    // Do not zero isCorrect before the stored grade is applied — that painted Incorrect, then Correct.
     setIsSubmittingAnswer(false)
-    setIsCorrect(false)
-    setPartialCreditPoints(null)
+    setAiGradingStatus("idle")
     if (!pendingEvaluations.has(q.id)) {
       applyEvalFeedbackForQuestion(q.id)
     } else {
       setShowFeedback(false)
       setAiFeedback(null)
     }
-    applyObjectiveGradeForQuestion(q.id, q.question_type, q.max_points || q.points)
-    setAiGradingStatus("idle")
+    const applied = applyObjectiveGradeForQuestion(q.id, q.question_type, q.max_points || q.points)
+    if (!applied) {
+      setIsCorrect(false)
+      setPartialCreditPoints(null)
+    }
 
     const questionType = (q.question_type || "").toLowerCase()
     const saved = answersRef.current[q.id]
@@ -8131,6 +8130,38 @@ export function QuizTaker({
     subquestionTypes: parseSubquestions(currentQuestion?.subquestions).map((sq) => sq.type),
   })
 
+  const studentDatabaseIdForRenderer = (() => {
+    if (typeof window === "undefined") return null
+    const raw = sessionStorage.getItem("studentDatabaseId")
+    if (!raw) return null
+    const parsed = Number.parseInt(raw, 10)
+    return Number.isFinite(parsed) ? parsed : null
+  })()
+
+  const coraProblem = useMemo(() => {
+    if (!currentQuestion || !quiz || !canAskCoraOnCurrentQuestion) return null
+    return coraContextFromQuestion({
+      source: "quiz",
+      questionText: currentQuestion.question_text,
+      title: `Question ${currentQuestionIndex + 1}`,
+      questionType: currentQuestion.question_type,
+      hint: hintTextByQuestionId[currentQuestion.id] ?? currentQuestion.hint ?? null,
+      questionId: currentQuestion.id,
+      bankQuestionId: currentQuestion.bank_question_id,
+      quizId: quiz.id,
+      attemptId: attemptId ?? undefined,
+      studentDatabaseId: studentDatabaseIdForRenderer,
+    })
+  }, [
+    canAskCoraOnCurrentQuestion,
+    currentQuestion,
+    currentQuestionIndex,
+    hintTextByQuestionId,
+    quiz,
+    attemptId,
+    studentDatabaseIdForRenderer,
+  ])
+
   // Lock questions if: timer expired OR (lockable type AND submitted) OR (AI-graded AND timer expired)
   const shouldLockQuestion =
     isQuestionLocked ||
@@ -8154,14 +8185,6 @@ export function QuizTaker({
   const currentSection = getSectionForQuestionIndex(currentQuestionIndex, sections)
   const isFirstInSection =
     currentSection !== null && currentQuestionIndex === currentSection.startIndex
-
-  const studentDatabaseIdForRenderer = (() => {
-    if (typeof window === "undefined") return null
-    const raw = sessionStorage.getItem("studentDatabaseId")
-    if (!raw) return null
-    const parsed = Number.parseInt(raw, 10)
-    return Number.isFinite(parsed) ? parsed : null
-  })()
 
   const isCompactObjectiveQuestion = ["mcq", "multiple_choice", "true_false", "select_all", "multi_output"].includes(
     questionType.toLowerCase(),
@@ -8833,7 +8856,7 @@ export function QuizTaker({
                     )}
 
                     <AnimatePresence>
-                      {showFeedback && !aiFeedback && !lockedObjectiveGrade && (
+                      {showFeedback && !aiFeedback && !lockedObjectiveGrade && !isCompactObjectiveQuestion && (
                         <motion.div
                           initial={{ opacity: 0, scale: 0.95 }}
                           animate={{ 
@@ -9699,18 +9722,7 @@ export function QuizTaker({
             title="Ask Cora"
             subtitle={`${quiz.title} · Question ${currentQuestionIndex + 1}`}
             theme={isDark ? "dark" : "light"}
-            problem={coraContextFromQuestion({
-              source: "quiz",
-              questionText: currentQuestion.question_text,
-              title: `Question ${currentQuestionIndex + 1}`,
-              questionType: currentQuestion.question_type,
-              hint: hintTextByQuestionId[currentQuestion.id] ?? currentQuestion.hint ?? null,
-              questionId: currentQuestion.id,
-              bankQuestionId: currentQuestion.bank_question_id,
-              quizId: quiz.id,
-              attemptId: attemptId ?? undefined,
-              studentDatabaseId: studentDatabaseIdForRenderer,
-            })}
+            problem={coraProblem}
           />
         ) : null}
       </div>
