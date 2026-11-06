@@ -1,5 +1,5 @@
 import type { CodebenchLanguageId } from "@/lib/codebench-languages"
-import { getCodebenchLanguage } from "@/lib/codebench-languages"
+import { getCodebenchLanguage, isCodebenchBoilerplate, normalizeCodebenchLanguageId } from "@/lib/codebench-languages"
 import {
   type IdeProject,
   type IdeWorkspace,
@@ -43,6 +43,26 @@ export function instructorProblemProjectId(scope: InstructorProblemScope): strin
 
 export function isInstructorProblemProjectId(projectId: string): boolean {
   return projectId.startsWith("iproblem_")
+}
+
+export function bufferHasUserCode(content: string, languageId: string | null | undefined): boolean {
+  if (!content.trim()) return false
+  return !isCodebenchBoilerplate(content, normalizeCodebenchLanguageId(languageId ?? "cpp"))
+}
+
+/**
+ * Opening a live assignment used to switch the editor onto a blank template and
+ * hide the file the instructor was already writing. Keep that buffer when the
+ * assignment does not already have its own saved work.
+ */
+export function shouldKeepInstructorWorkspace(input: {
+  currentProjectId: string
+  currentHasUserCode: boolean
+  destinationProjectId: string
+  destinationHasUserCode: boolean
+}): boolean {
+  if (input.currentProjectId === input.destinationProjectId) return false
+  return input.currentHasUserCode && !input.destinationHasUserCode
 }
 
 export function parseInstructorProblemProjectId(projectId: string): InstructorProblemScope | null {

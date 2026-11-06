@@ -3,8 +3,28 @@ import type { jsPDF } from "jspdf"
 /**
  * jsPDF standard fonts cannot render emoji reliably; leftover bytes break wrapping and can render as stray glyphs.
  */
+const SUPERSCRIPT_DIGITS = "⁰¹²³⁴⁵⁶⁷⁸⁹"
+
+/** jsPDF Helvetica is WinAnsi. One unencodable character desyncs the rest of the line into wide gaps. */
+function toWinAnsi(input: string) {
+  let s = input.normalize("NFKC")
+  s = s
+    .replace(/[\u2018\u2019\u2032]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014\u2212]/g, "-")
+    .replace(/[\u2190\u21D0]/g, "<-")
+    .replace(/[\u2192\u2192\u21D2\u27A1\u2794]/g, "->")
+    .replace(/[\u2022\u25CF\u25E6]/g, "-")
+    .replace(/\u00B0/g, " deg")
+    .replace(/[\u3010\uFF3B]/g, "[")
+    .replace(/[\u3011\uFF3D]/g, "]")
+  s = s.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (digit) => String(SUPERSCRIPT_DIGITS.indexOf(digit)))
+  s = s.replace(/[⁻⁺]/g, (sign) => (sign === "⁻" ? "-" : "+"))
+  return s.replace(/[^\u0000-\u00FF]/g, "")
+}
+
 export function sanitizePdfPlainText(input: string): string {
-  let s = String(input ?? "").normalize("NFKC")
+  let s = toWinAnsi(String(input ?? ""))
   s = s.replace(/\u200D/g, "").replace(/[\uFE00-\uFE0F]/g, "")
   try {
     s = s.replace(/\p{Extended_Pictographic}/gu, "")

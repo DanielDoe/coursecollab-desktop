@@ -93,6 +93,7 @@ export type FacultyCoraModuleId =
   | "playground-rules"
   | "ai-assistant-settings"
   | "team-project-policies"
+  | "project-settings"
   | "submission-issues"
   | "teaching-assistants"
   | "membership"

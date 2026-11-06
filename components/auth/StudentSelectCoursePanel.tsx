@@ -3,6 +3,7 @@
 import { Loader2 } from "lucide-react"
 import type { StudentSelectCourseOption } from "@/lib/student-select-course"
 import { studentSelectCoursePickerKey } from "@/lib/student-select-course"
+import { AuthStatusAlert } from "@/components/auth/AuthStatusAlert"
 
 export function StudentSelectCoursePanel({
   enrollments,
@@ -41,7 +42,11 @@ export function StudentSelectCoursePanel({
           </button>
         ))}
       </div>
-      {error ? <p className="text-sm text-red-600 text-center">{error}</p> : null}
+      {error ? (
+        <AuthStatusAlert tone="error" title="Couldn't continue">
+          {error}
+        </AuthStatusAlert>
+      ) : null}
       {loading ? (
         <div className="flex justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-violet-600" />

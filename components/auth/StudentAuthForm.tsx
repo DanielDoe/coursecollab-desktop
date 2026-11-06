@@ -12,7 +12,8 @@ import { setStudentSession } from "@/lib/auth"
 import { useAuth } from "@/lib/auth-context"
 import type { UniversityRecord } from "@/lib/universities-shared"
 import { cn } from "@/lib/utils"
-import { AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react"
+import { ChevronRight, Eye, EyeOff, Loader2 } from "lucide-react"
+import { AuthStatusAlert } from "@/components/auth/AuthStatusAlert"
 import {
   persistRememberedStudentAuth,
   readRememberedStudentLogin,
@@ -24,31 +25,6 @@ import { studentEnrollmentCount } from "@/lib/student-select-course"
 import { clearStudentExplicitSignOutFlag } from "@/lib/student-session-restore-client"
 import { MfaLoginStep, AuthProgressPanel, holdCompleteLoginSplash, parseMfaLoginResponse, type MfaLoginState } from "@/components/auth/MfaLoginStep"
 import { formatStudentLoginErrorMessage, isStudentAlreadyActivatedResponse } from "@/lib/student-login-errors"
-import { isDesktopAppShell } from "@/lib/desktop-auth-policy"
-
-function StudentOtherSignInNav() {
-  const portalHub = isDesktopAppShell() ? "/auth/welcome?change=1" : "/auth/university?change=1"
-
-  return (
-    <p className="text-center text-[12px] leading-relaxed text-[var(--cc-text-secondary)]">
-      <Link href="/faculty/login" className="font-semibold text-[var(--cc-accent)] hover:underline">
-        Faculty sign in
-      </Link>
-      <span aria-hidden className="mx-1.5 text-[var(--cc-text-muted)]">
-        ·
-      </span>
-      <Link href="/auth/university?change=1" className="font-medium text-[var(--cc-accent)] hover:underline">
-        Change university
-      </Link>
-      <span aria-hidden className="mx-1.5 text-[var(--cc-text-muted)]">
-        ·
-      </span>
-      <Link href={portalHub} className="font-medium text-[var(--cc-accent)] hover:underline">
-        More options
-      </Link>
-    </p>
-  )
-}
 
 type EnrollmentOption = {
   courseId: number
@@ -89,7 +65,7 @@ export function StudentAuthForm({ university, expired }: Props) {
   }, [])
 
   const inputClass =
-    "h-12 rounded-xl border-[var(--border)] bg-[var(--cc-surface)] text-[var(--cc-text)] placeholder:text-[var(--cc-text-muted)]"
+    "h-10 rounded-xl border-[var(--border)] bg-[var(--cc-surface)] text-[var(--cc-text)] placeholder:text-[var(--cc-text-muted)]"
 
   const finishLogin = async (data: {
     student: Record<string, unknown>
@@ -333,9 +309,9 @@ export function StudentAuthForm({ university, expired }: Props) {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col items-center text-center gap-2.5">
-        {university.logo ? <UniversityLogo university={university} size="md" /> : null}
+    <div className="space-y-3">
+      <div className="flex flex-col items-center text-center gap-1.5">
+        {university.logo ? <UniversityLogo university={university} size="sm" /> : null}
         <div>
           {!universityHasFullWordmark(university) ? (
             <p
@@ -345,47 +321,39 @@ export function StudentAuthForm({ university, expired }: Props) {
               {university.short_name}
             </p>
           ) : null}
-          <h2 className="mt-1 text-xl font-bold text-[var(--cc-text)]">
+          <h2 className="text-lg font-bold text-[var(--cc-text)]">
             {mode === "login" ? "Student Login" : "Activate Account"}
           </h2>
           {!universityHasFullWordmark(university) ? (
-            <p className="mt-1 text-sm text-[var(--cc-text-secondary)]">{university.name}</p>
+            <p className="text-xs text-[var(--cc-text-secondary)]">{university.name}</p>
           ) : null}
         </div>
       </div>
 
       {expired ? (
-        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3 flex gap-2 text-sm text-amber-900 dark:text-amber-100">
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          <span>Your session expired. Please sign in again.</span>
-        </div>
+        <AuthStatusAlert tone="warning" title="Session expired">
+          Please sign in again.
+        </AuthStatusAlert>
       ) : null}
 
       {info ? (
-        <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 p-3 flex gap-2 text-sm text-sky-950 dark:text-sky-100">
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          <span className="whitespace-pre-line">{info}</span>
-        </div>
+        <AuthStatusAlert tone="info">{info}</AuthStatusAlert>
       ) : null}
 
       {error ? (
-        <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-3 whitespace-pre-line">
+        <AuthStatusAlert tone="error" title="Couldn't sign in">
           {error}
-        </div>
+        </AuthStatusAlert>
       ) : null}
 
-      {mode === "login" && !info ? (
-        <div className="rounded-xl border border-violet-200/70 dark:border-violet-500/30 bg-violet-50/80 dark:bg-violet-500/10 p-2.5 flex gap-2 text-xs leading-snug text-[var(--cc-text-secondary)] sm:text-[13px] sm:leading-normal">
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-[var(--cc-accent)]" />
-          <span>
-            <strong className="font-semibold text-[var(--cc-text)]">Enrolled by your instructor?</strong> Sign in with
-            your Student ID or email and the temporary password from your welcome email.
-          </span>
-        </div>
+      {mode === "login" && !info && !error ? (
+        <AuthStatusAlert tone="info" title="Enrolled by your instructor?">
+          Sign in with your Student ID or email and the temporary password from your welcome email.
+        </AuthStatusAlert>
       ) : null}
 
       {mode === "login" ? (
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleLogin} className="space-y-3">
           <div className="space-y-2">
             <Label htmlFor="student-identifier" className="text-[var(--cc-text)]">
               Student ID or Email
@@ -449,26 +417,25 @@ export function StudentAuthForm({ university, expired }: Props) {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full h-12 rounded-2xl font-semibold text-white"
+            className="w-full h-10 rounded-xl font-semibold text-white"
             style={{ backgroundColor: university.primary_color }}
           >
-            {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Login"}
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Login"}
           </Button>
         </form>
       ) : (
-        <form onSubmit={handleActivate} className="space-y-4">
-          <div className="rounded-xl border border-amber-200/70 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 p-3 text-sm text-[var(--cc-text-secondary)]">
-            Only use this if your instructor did <strong className="font-semibold text-[var(--cc-text)]">not</strong>{" "}
-            enroll you or you were not sent a temporary password. Most students should{" "}
+        <form onSubmit={handleActivate} className="space-y-3">
+          <AuthStatusAlert tone="warning" title="Most students should sign in">
+            Only use this if your instructor did not enroll you or you were not sent a temporary password.{" "}
             <button
               type="button"
               onClick={() => switchAuthMode("login")}
-              className="font-semibold text-[var(--cc-accent)] underline underline-offset-2"
+              className="font-semibold underline underline-offset-2"
             >
-              sign in instead
+              Sign in instead
             </button>
             .
-          </div>
+          </AuthStatusAlert>
           <div className="space-y-2">
             <Label htmlFor="activate-identifier">Student ID or University Email</Label>
             <Input
@@ -502,17 +469,17 @@ export function StudentAuthForm({ university, expired }: Props) {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full h-12 rounded-2xl font-semibold text-white"
+            className="w-full h-10 rounded-xl font-semibold text-white"
             style={{ backgroundColor: university.primary_color }}
           >
-            {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Activate & Sign In"}
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Activate & Sign In"}
           </Button>
         </form>
       )}
 
-      <div className="space-y-3 border-t border-[var(--border)] pt-4">
+      <div className="space-y-2 border-t border-[var(--border)] pt-3">
         {mode === "login" ? (
-          <p className="text-center text-xs leading-relaxed text-[var(--cc-text-secondary)]">
+          <p className="text-center text-[11px] leading-snug text-[var(--cc-text-secondary)]">
             Lost your welcome email or need to pick a password yourself?{" "}
             <button
               type="button"
@@ -523,29 +490,48 @@ export function StudentAuthForm({ university, expired }: Props) {
             </button>
           </p>
         ) : (
-          <p className="text-center text-xs leading-relaxed text-[var(--cc-text-secondary)]">
-            <button
-              type="button"
-              onClick={() => switchAuthMode("login")}
-              className="font-semibold text-[var(--cc-accent)] underline underline-offset-2"
-            >
-              Back to sign in with temporary password
-            </button>
-          </p>
+          <button
+            type="button"
+            onClick={() => switchAuthMode("login")}
+            className="flex w-full items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--cc-accent-soft)] px-4 py-2 text-sm font-semibold text-[var(--cc-accent-dark)] transition-colors hover:bg-[color-mix(in_srgb,var(--cc-accent-soft)_75%,var(--cc-accent)_10%)]"
+          >
+            Back to sign in with temporary password
+          </button>
         )}
 
-        <p className="text-center text-[12px] leading-relaxed">
+        <Link
+          href="/auth/student/signup"
+          className="flex w-full items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--cc-surface)] px-4 py-2 text-sm font-semibold text-[var(--cc-text)] transition-colors hover:bg-[var(--cc-accent-soft)]"
+        >
+          New student? Request course access
+        </Link>
+
+        <nav
+          aria-label="Other sign-in options"
+          className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--cc-surface)]"
+        >
           <Link
-            href="/auth/student/signup"
-            className="font-medium text-[var(--cc-accent)] hover:underline"
+            href="/auth/university?change=1"
+            className="flex items-center justify-between gap-3 px-3.5 py-2 text-sm font-medium text-[var(--cc-text)] transition-colors hover:bg-[var(--cc-accent-soft)]"
           >
-            New student? Request course access
+            <span>Not your school? Change university</span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--cc-accent)]" aria-hidden />
           </Link>
-        </p>
+          <Link
+            href="/student/login/guest"
+            className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-3.5 py-2 text-sm font-medium text-[var(--cc-text)] transition-colors hover:bg-[var(--cc-accent-soft)]"
+          >
+            <span>
+              Career Member
+              <span className="block text-[11px] font-normal text-[var(--cc-text-secondary)]">
+                Career tools & recommendation letters
+              </span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--cc-accent)]" aria-hidden />
+          </Link>
+        </nav>
 
-        <StudentOtherSignInNav />
-
-        <p className="text-center text-[11px] leading-relaxed text-[var(--cc-text-muted)]">
+        <p className="text-center text-[11px] text-[var(--cc-text-secondary)]">
           Need help? Contact your instructor.
         </p>
       </div>

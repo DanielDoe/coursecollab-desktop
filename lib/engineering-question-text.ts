@@ -1,4 +1,4 @@
-import { hasMathContent } from "@/lib/math-markdown"
+import { hasMathContent, unescapeNewlinesOutsideMath } from "@/lib/math-markdown"
 
 /** Format engineering notation for readable display (Unicode superscripts, phasor emphasis). */
 
@@ -22,7 +22,7 @@ function toSuperscript(exp: string): string {
 export function formatEngineeringQuestionText(text: string): string {
   if (!text) return text
 
-  let t = text.replace(/\\n/g, "\n")
+  let t = unescapeNewlinesOutsideMath(text)
 
   // LaTeX-delimited math (e.g. \(v(t)\)) must not be rewritten to markdown italics.
   if (hasMathContent(t)) return t

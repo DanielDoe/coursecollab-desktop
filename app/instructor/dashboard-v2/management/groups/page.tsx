@@ -3,13 +3,22 @@
 import { EmbedModuleCard } from "@/components/student/dashboard-v2/embed-module-ui"
 import { PageEnter } from "@/components/student/dashboard-v2/light-motion"
 import { InstructorGroupsManagement } from "@/components/instructor-groups-management-v2"
-import { dashboardV2PageRootClass } from "@/lib/dashboard-v2-layout"
+import { cn } from "@/lib/utils"
+import {
+  DASHBOARD_V2_PANEL_SCROLL_ATTR,
+  dashboardV2ModuleShellClass,
+} from "@/lib/dashboard-v2-layout"
 
 export default function ManagementGroupsPage() {
   return (
-    <PageEnter className={dashboardV2PageRootClass}>
-      <EmbedModuleCard>
-        <div className="w-full min-w-0 p-3 sm:p-4 md:p-5">
+    <PageEnter
+      className={cn(dashboardV2ModuleShellClass("panel"), "h-full min-h-0 overflow-hidden")}
+      {...{ [DASHBOARD_V2_PANEL_SCROLL_ATTR]: "panel" }}
+    >
+      <EmbedModuleCard
+        className={cn(dashboardV2ModuleShellClass("panel"), "h-full min-h-0 flex-1 overflow-hidden")}
+      >
+        <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden p-2 sm:p-4 md:p-5">
           <InstructorGroupsManagement embedInDashboard />
         </div>
       </EmbedModuleCard>

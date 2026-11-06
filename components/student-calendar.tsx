@@ -72,6 +72,7 @@ interface CalendarEvent {
   is_completed: boolean
   reminder_minutes: number
   isClassMeeting?: boolean
+  scheduleLocked?: boolean
 }
 
 interface StudyGoal {
@@ -144,6 +145,10 @@ const THEMED_PANEL_SUBTEXT = "text-sm text-white/85"
 
 function isClassMeetingEvent(event: CalendarEvent): boolean {
   return event.isClassMeeting === true || event.event_type === "class_meeting"
+}
+
+function isScheduleLockedEvent(event: CalendarEvent): boolean {
+  return isClassMeetingEvent(event) || event.scheduleLocked === true
 }
 
 export function StudentCalendar({ studentId, embedInDashboard = false }: StudentCalendarProps) {
@@ -250,7 +255,11 @@ export function StudentCalendar({ studentId, embedInDashboard = false }: Student
         setClassMeetings([
           ...(data.events || []).map((e: CalendarEvent) => ({ ...e, isClassMeeting: true })),
           ...(Array.isArray(data.officeHoursEvents)
-            ? data.officeHoursEvents.map((e: CalendarEvent) => ({ ...e, isClassMeeting: false }))
+            ? data.officeHoursEvents.map((e: CalendarEvent) => ({
+                ...e,
+                isClassMeeting: false,
+                scheduleLocked: true,
+              }))
             : []),
         ])
         setClassScheduleInfo({
@@ -548,7 +557,7 @@ export function StudentCalendar({ studentId, embedInDashboard = false }: Student
   const totalEvents = allEvents.filter(e => !e.is_completed).length
 
   const openEventEditor = (event: CalendarEvent) => {
-    if (isClassMeetingEvent(event)) {
+    if (isScheduleLockedEvent(event)) {
       setViewingClassMeeting(event)
       setShowClassMeetingDialog(true)
       return
@@ -1101,7 +1110,12 @@ export function StudentCalendar({ studentId, embedInDashboard = false }: Student
                         {classMeetings.length} class meeting{classMeetings.length !== 1 ? "s" : ""} shown on your calendar
                       </p>
                     </div>
-                    {classScheduleInfo.schedule && classScheduleInfo.context && (
+                    {viewingClassMeeting.description && (
+                <p className="whitespace-pre-wrap text-sm text-[var(--cc-text)]">
+                  {viewingClassMeeting.description}
+                </p>
+              )}
+              {viewingClassMeeting.event_type !== "office_hours" && classScheduleInfo.schedule && classScheduleInfo.context && (
                       <SyllabusAddToCalendarMenu
                         mode="class-schedule"
                         schedule={classScheduleInfo.schedule}
@@ -1216,7 +1230,7 @@ export function StudentCalendar({ studentId, embedInDashboard = false }: Student
                                   <span className="font-semibold text-sm text-[var(--cc-text)] truncate">{event.title}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                  {!isClassMeetingEvent(event) && (
+                                  {!isScheduleLockedEvent(event) && (
                                     <>
                                       <Button
                                         variant="ghost"
@@ -1444,7 +1458,7 @@ export function StudentCalendar({ studentId, embedInDashboard = false }: Student
 
       <CalendarFeedSettingsCard
         portal="student"
-        description="Subscribe so Google, Outlook, or Apple Calendar stay updated when class times change."
+        description="Subscribe so Google, Outlook, or Apple Calendar stay updated when class times or agreed office hours change."
         switchClass="data-[state=checked]:bg-[var(--cc-accent)]"
         ctaClass={PORTAL_CTA}
         quietClass={PORTAL_OUTLINE_BTN}
@@ -1462,10 +1476,12 @@ export function StudentCalendar({ studentId, embedInDashboard = false }: Student
           <DialogHeader>
             <DialogTitle className="text-xl flex items-center gap-2">
               <GraduationCap className="w-5 h-5 text-[var(--cc-accent-dark)]" />
-              Class Meeting
+              {viewingClassMeeting?.event_type === "office_hours" ? "Office hours" : "Class Meeting"}
             </DialogTitle>
             <DialogDescription>
-              From your course syllabus — edit the syllabus to change meeting times.
+              {viewingClassMeeting?.event_type === "office_hours"
+                ? "From your course office hours. Your instructor updates the time and details."
+                : "From your course syllabus — edit the syllabus to change meeting times."}
             </DialogDescription>
           </DialogHeader>
           {viewingClassMeeting && (

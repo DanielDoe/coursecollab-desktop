@@ -239,6 +239,43 @@ export async function findLockedAssessmentMatchingText(
 }
 
 /**
+ * True when Ask Cora is open inside an attempt this student is taking now.
+ * The outside-chat import lock does not apply. Guided policy still refuses the solution.
+ */
+export async function isOpenAssessmentAttempt(
+  studentDatabaseId: number,
+  quizId: number,
+  attemptId: number,
+): Promise<boolean> {
+  if (
+    !Number.isFinite(studentDatabaseId) ||
+    studentDatabaseId <= 0 ||
+    !Number.isFinite(quizId) ||
+    quizId <= 0 ||
+    !Number.isFinite(attemptId) ||
+    attemptId <= 0
+  ) {
+    return false
+  }
+  try {
+    const rows = (await sql`
+      SELECT 1 AS ok
+      FROM quiz_attempts qa
+      WHERE qa.id = ${attemptId}
+        AND qa.student_id = ${studentDatabaseId}
+        AND qa.quiz_id = ${quizId}
+        AND qa.completed_at IS NULL
+        AND qa.deleted_at IS NULL
+      LIMIT 1
+    `) as { ok: number }[]
+    return rows.length > 0
+  } catch (err) {
+    console.warn("[cora/assessment-import-gate] open attempt lookup failed:", err)
+    return false
+  }
+}
+
+/**
  * Server-side guard for chat + import: quiz id, bank id, and pasted stem matching.
  */
 export async function guardCoraAgainstUnattemptedAssessments(

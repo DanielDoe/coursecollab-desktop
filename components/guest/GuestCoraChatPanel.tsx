@@ -3,9 +3,10 @@
 import { useCallback, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Loader2, Sparkles } from "lucide-react"
 import { getStudentData } from "@/lib/auth"
+import { CoraBotMark } from "@/components/cora/CoraBotMark"
 import { CoraChatBubble } from "@/components/cora/CoraChatBubble"
+import { CoraThinkingIndicator } from "@/components/cora/CoraThinkingIndicator"
 import { CoraChatInput } from "@/components/cora/CoraChatInput"
 import { CoraLogo } from "@/components/cora/CoraLogo"
 import { GuestUpgradePrompt } from "@/components/guest/GuestUpgradePrompt"
@@ -128,7 +129,7 @@ export function GuestCoraChatPanel({
       <div className="min-h-[280px] max-h-[420px] overflow-y-auto px-4 py-4">
         {messages.length === 0 ? (
           <div className="flex h-full min-h-[240px] flex-col items-center justify-center text-center text-sm text-[var(--cc-text-muted)]">
-            <Sparkles className="mb-2 size-8 text-violet-500/70" aria-hidden />
+            <CoraBotMark size="md" idle className="mx-auto mb-2" />
             <p>Ask Cora to prepare a recommendation brief, review your résumé, or plan an interview.</p>
             {!hasCareer ? (
               <p className="mt-2 text-xs">Career tools unlock with Cora Career — brief help stays free.</p>
@@ -142,9 +143,7 @@ export function GuestCoraChatPanel({
           ))
         )}
         {busy ? (
-          <div className="flex items-center gap-2 py-3 text-sm text-[var(--cc-text-muted)]">
-            <Loader2 className="size-4 animate-spin" /> Cora is thinking…
-          </div>
+          <CoraThinkingIndicator mode="general" className="max-w-md" />
         ) : null}
         <div ref={bottomRef} />
       </div>

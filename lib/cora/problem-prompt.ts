@@ -48,15 +48,28 @@ export function buildImportedProblemPrompt(problem: CoraProblemContext): string 
     )
   }
 
-  lines.push(
-    "",
-    "INSTRUCTIONS FOR THIS IMPORT:",
-    "- The student may ask for help understanding, solving step-by-step, reviewing their work, or preparing.",
-    "- Stay aligned with the imported question; do not invent a different problem.",
-    "- For Solve Together: use reference steps as a guide but never dump the full solution immediately.",
-    "- For Review & Improve: compare the student's work against the question requirements.",
-    "- Never reveal you are reading hidden 'reference' fields verbatim — teach naturally.",
-  )
+  const assessmentImport =
+    problem.source === "quiz" || problem.source === "practice_hub" || problem.source === "lecture_practice"
+  if (assessmentImport) {
+    lines.push(
+      "",
+      "INSTRUCTIONS FOR THIS IMPORT:",
+      "- This question is silent background. It is not a message the student sent, and it is not sitting in the chat box.",
+      "- Answer the student's typed message immediately. If they ask how to declare a variable, loop syntax, or what a concept means, answer that.",
+      "- Do NOT tell them to complete, start, or attempt the question before you help.",
+      "- Do NOT paste the question back, and do NOT solve it, fill it in, or use its numbers and required names in an example.",
+    )
+  } else {
+    lines.push(
+      "",
+      "INSTRUCTIONS FOR THIS IMPORT:",
+      "- The student may ask for help understanding, solving step-by-step, reviewing their work, or preparing.",
+      "- Stay aligned with the imported question; do not invent a different problem.",
+      "- For Solve Together: use reference steps as a guide but never dump the full solution immediately.",
+      "- For Review & Improve: compare the student's work against the question requirements.",
+      "- Never reveal you are reading hidden 'reference' fields verbatim — teach naturally.",
+    )
+  }
 
   return lines.join("\n")
 }

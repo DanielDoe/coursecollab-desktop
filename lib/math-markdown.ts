@@ -36,7 +36,8 @@ function escapeNonMathDollarPairs(input: string): string {
 
 /** Normalize LaTeX delimiters into remark-math $ / $$ form. */
 export function normalizeMathDelimiters(input: string): string {
-  let t = input.replace(/\\n/g, "\n")
+  if (typeof input !== "string" || !input) return ""
+  let t = unescapeNewlinesOutsideMath(input)
   // Display math must be on its own lines — glued $$…$$ spanning newlines breaks remark-math
   // and shows raw LaTeX (often highlighted as KaTeX errors) in question previews.
   t = t.replace(/\\\[([\s\S]*?)\\\]/g, (_, expr) => `\n$$\n${expr.trim()}\n$$\n`)
@@ -49,7 +50,7 @@ export function normalizeMathDelimiters(input: string): string {
 }
 
 const LATEX_COMMAND_RE =
-  /\\(?:frac|tfrac|cdot|cdotp|times|mathrm|text|mathbf|mathit|Omega|mu|alpha|beta|sqrt|left|right|boxed|Rightarrow|Rightarrow|pm|mp|leq|geq|neq|approx|sum|int|infty|partial|nabla|vec|hat|bar|dot)\b/
+  /\\(?:frac|tfrac|cdot|cdotp|times|mathrm|text|mathbf|mathit|Omega|omega|mu|nu|alpha|beta|gamma|delta|theta|lambda|pi|rho|sigma|tau|phi|psi|epsilon|ell|hbar|sqrt|left|right|boxed|Rightarrow|pm|mp|leq|geq|neq|approx|sum|int|infty|partial|nabla|vec|hat|bar|dot|not|sin|cos|tan|log|ln)\b/
 
 function readBalancedBracesEnd(text: string, openIndex: number): number | null {
   if (text[openIndex] !== "{") return null
@@ -137,14 +138,32 @@ export function fixScientificNotationShorthand(expr: string): string {
 
 function protectMathSegments(text: string): { text: string; segments: string[] } {
   const segments: string[] = []
-  const protectedText = text.replace(/(\$\$[\s\S]*?\$\$|\$[^$\n]+\$)/g, (m) => {
-    segments.push(m)
-    return `\x00MATH${segments.length - 1}\x00`
-  })
+  const protectedText = text.replace(
+    /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$[^$\n]+\$)/g,
+    (m) => {
+      segments.push(m)
+      return `\x00MATH${segments.length - 1}\x00`
+    },
+  )
   return { text: protectedText, segments }
 }
 
+const LATEX_N_COMMAND =
+  "abla|eq|u|ot|ewline|i|less|geq|leq|mid|otin|parallel|sim|subseteq|supseteq|triangleleft|triangleright|gtr|approx|cong|exists|vdash|Vdash|rightarrow|leftarrow|leftrightarrow|Rightarrow|Leftarrow|Leftrightarrow|nearrow|nwarrow|searrow|swarrow"
+
+/** Turn stored `\n` escapes into newlines without splitting `\nabla`, `\neq`, `\nu`, or `\not`. */
+export function unescapeNewlinesOutsideMath(input: string): string {
+  if (!input) return input
+  const { text, segments } = protectMathSegments(input)
+  const unescaped = text.replace(
+    new RegExp(`\\\\n(?!(?:${LATEX_N_COMMAND})(?![a-zA-Z]))`, "g"),
+    "\n",
+  )
+  return restoreMathSegments(unescaped, segments)
+}
+
 function restoreMathSegments(text: string, segments: string[]): string {
+  if (!segments.length) return text
   return text.replace(/\x00MATH(\d+)\x00/g, (_, i) => segments[Number(i)] ?? "")
 }
 
@@ -158,9 +177,104 @@ const EQUATION_RE = new RegExp(
   "g",
 )
 
+function wrapStandaloneLatexLine(line: string): string {
+  const trimmed = line.trim()
+  if (!trimmed || trimmed.includes("$") || /\\\(|\\\[/.test(trimmed)) return line
+  if (!LATEX_COMMAND_RE.test(trimmed)) return line
+  const proseWords = trimmed
+    .split(/\s+/)
+    .filter((word) => /^[A-Za-z]{3,}$/.test(word) && !/^(sin|cos|tan|log|ln|exp|det|gcd|lim|max|min|mod)$/i.test(word))
+  if (proseWords.length > 0) return line
+  return `$$\n${trimmed}\n$$`
+}
+
+function wrapStandaloneLatexLines(text: string): string {
+  let inFence = false
+  let inDisplay = false
+  return text
+    .split("\n")
+    .map((line) => {
+      const trimmed = line.trim()
+      if (/^```/.test(trimmed)) {
+        inFence = !inFence
+        return line
+      }
+      if (inFence) return line
+      if (trimmed === "$$") {
+        inDisplay = !inDisplay
+        return line
+      }
+      if (inDisplay) return line
+      return wrapStandaloneLatexLine(line)
+    })
+    .join("\n")
+}
+
+function wrapBareCommands(text: string): string {
+  let out = ""
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== "\\" || !/[a-zA-Z]/.test(text[i + 1] ?? "")) {
+      out += text[i]
+      continue
+    }
+    const cmd = /^\\[a-zA-Z]+/.exec(text.slice(i))
+    if (!cmd || !LATEX_COMMAND_RE.test(cmd[0])) {
+      out += text[i]
+      continue
+    }
+    let end = i + cmd[0].length
+    const consumeBraces = () => {
+      while (text[end] === "{") {
+        const close = readBalancedBracesEnd(text, end)
+        if (close == null) break
+        end = close
+      }
+    }
+    consumeBraces()
+    while (end < text.length) {
+      const ch = text[end] ?? ""
+      if (ch === "\\") {
+        const next = /^\\[a-zA-Z]+/.exec(text.slice(end))
+        if (!next || !LATEX_COMMAND_RE.test(next[0])) break
+        end += next[0].length
+        consumeBraces()
+        continue
+      }
+      if (/[\s0-9_^{}=+\-*/|,<>()[\]]/.test(ch)) {
+        end += 1
+        continue
+      }
+      if (/[A-Za-z]/.test(ch)) {
+        const word = /^[A-Za-z]+/.exec(text.slice(end))
+        if (!word) break
+        if (word[0].length >= 2 && !/^(sin|cos|tan|log|ln|exp|det|gcd|lim|max|min|mod)$/i.test(word[0])) break
+        end += word[0].length
+        continue
+      }
+      if (ch === "." && /\d/.test(text[end - 1] ?? "") && /\d/.test(text[end + 1] ?? "")) {
+        end += 1
+        continue
+      }
+      break
+    }
+    while (end > i && /\s/.test(text[end - 1] ?? "")) end -= 1
+    out += `$${text.slice(i, end)}$`
+    i = end - 1
+  }
+  return out
+}
+
+function wrapBareLatexOutsideFences(text: string): string {
+  return text
+    .split(/(```[\s\S]*?```)/g)
+    .map((part) => (part.startsWith("```") ? part : wrapBareLatexInPlainText(part)))
+    .join("")
+}
+
 function wrapBareLatexInPlainText(text: string): string {
   const { text: protectedText, segments } = protectMathSegments(text)
-  let t = protectedText
+  const commanded = protectMathSegments(wrapBareCommands(protectedText))
+  let t = commanded.text
 
   // Full equations first: v_L=(3I_0+6x10^{-3})\cdot500
   t = t.replace(EQUATION_RE, (match) => wrapAsInlineMath(match))
@@ -176,7 +290,7 @@ function wrapBareLatexInPlainText(text: string): string {
   // Standalone display-style fragments already using $$ but glued to text
   t = t.replace(/(\S)\$\$/g, "$1\n$$").replace(/\$\$(\S)/g, "$$\n$1")
 
-  return restoreMathSegments(t, segments)
+  return restoreMathSegments(restoreMathSegments(t, commanded.segments), segments)
 }
 
 /**
@@ -186,7 +300,7 @@ function wrapBareLatexInPlainText(text: string): string {
 export function normalizeAiFeedbackMath(input: string): string {
   if (!input?.trim()) return input
 
-  let t = normalizeMathDelimiters(input.replace(/\\n/g, "\n"))
+  let t = normalizeMathDelimiters(input)
 
   // "1) item" → markdown ordered list
   t = t.replace(/^(\d+)\)\s+/gm, "$1. ")
@@ -198,7 +312,7 @@ export function normalizeAiFeedbackMath(input: string): string {
   t = t.replace(/^[ \t]+(\$\$)/gm, "$1")
   t = t.replace(/^[ \t]{1,3}(?=[A-Za-z"'(])/gm, "")
 
-  t = wrapBareLatexInPlainText(t)
+  t = wrapBareLatexOutsideFences(wrapStandaloneLatexLines(t))
 
   return t.trim()
 }
@@ -219,7 +333,7 @@ export function normalizeExplanationMarkdown(input: string): string {
   if (!input?.trim()) return input
   let t = wrapBareBoxedMath(
     repairLatexDamagedByJsonEscapes(
-      normalizeMathDelimiters(input.replace(/\\n/g, "\n")),
+      normalizeMathDelimiters(input),
     ),
   )
   // remark-math needs display math on its own lines

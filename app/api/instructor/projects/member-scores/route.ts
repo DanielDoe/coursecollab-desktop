@@ -4,6 +4,7 @@ import { normalizeSessionForStorage } from "@/lib/session-catalog"
 import { recalculateAndSaveGrade } from "@/lib/grades"
 import { tryResolveInstructorCourseScope } from "@/lib/instructor-course-scope"
 import { resolveInstructorOwnedGroupsCourseScopeSqlFragment } from "@/lib/instructor-default-courses"
+import { resolveInstructorSessionCodeForScope } from "@/lib/instructor-session-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
     if (!scopeRes.ok && scopeRes.reason === "invalid") {
       return scopeRes.response
     }
+    const selectedSessionCode = scopeRes.ok ? await resolveInstructorSessionCodeForScope(request) : null
     const gCourseScope = scopeRes.ok
       ? await resolveInstructorOwnedGroupsCourseScopeSqlFragment(
           "g",
@@ -32,6 +34,7 @@ export async function GET(request: NextRequest) {
           scopeRes.instructorId,
           scopeRes.course.course_code,
           "g.session",
+          selectedSessionCode,
         )
       : sql.unsafe("(TRUE)")
 
@@ -95,12 +98,14 @@ export async function PUT(request: NextRequest) {
       return scopeRes.response
     }
     if (scopeRes.ok) {
+      const selectedSessionCode = await resolveInstructorSessionCodeForScope(request)
       const gFrag = await resolveInstructorOwnedGroupsCourseScopeSqlFragment(
         "g",
         scopeRes.course.id,
         scopeRes.instructorId,
         scopeRes.course.course_code,
         "g.session",
+        selectedSessionCode,
       )
       const inScope = await sql`
         SELECT 1

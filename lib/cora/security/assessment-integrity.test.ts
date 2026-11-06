@@ -82,6 +82,10 @@ describe("looksLikeAnswerSeekingRequest — allowed (study / logistics)", () => 
     "What does this question mean?",
     "How do I submit my attempt?",
     "I'm having a navigation issue with the timer",
+    "How do I declare a variable in C++?",
+    "What is the syntax for a for loop?",
+    "How does a while loop work?",
+    "Explain the syntax of a function",
   ]
 
   for (const message of allowed) {

@@ -3,6 +3,7 @@ import { sql } from "@/lib/db"
 import { exportGroupsAndProjectsToPDF, type GroupData, type PDFExportOptions, type ProjectData, type ProjectPresentationSlot } from "@/lib/pdf-export"
 import { resolvePdfArchiveMeta } from "@/lib/pdf-export-archive-meta"
 import { normalizedSectionVariantsForSql } from "@/lib/session-code-aliases"
+import { requireInstructorOrAdminSession } from "@/lib/instructor-session-auth"
 
 export const dynamic = 'force-dynamic'
 export const runtime = "nodejs"
@@ -23,12 +24,8 @@ export async function GET(request: NextRequest) {
     const format = searchParams.get("format") || "pdf"
 
     // Verify authentication
-    const instructorSession = request.headers.get("authorization") || request.headers.get("x-instructor-id")
-    const adminId = request.headers.get("x-admin-id")
-    
-    if (!instructorSession && !adminId) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 })
-    }
+    const __session = await requireInstructorOrAdminSession(request)
+    if (!__session.ok) return __session.response
 
     console.log("[Combined Export] Fetching groups and projects data:", { session })
 

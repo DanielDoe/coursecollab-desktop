@@ -312,8 +312,6 @@ export function InstructorAttendanceManagement({
       if (!res.ok) {
         throw new Error(typeof data.error === "string" ? data.error : "Failed to mark attendance");
       }
-      const label = attendanceStatusLabel(status);
-      toast({ title: "Saved", description: `${stu.fullName} — ${label} (${data.points ?? ""} pt)` });
       setSessionMarks((prev) => ({
         ...prev,
         [stu.studentId]: { status, pointsEarned: Number(data.points) || 0 },
@@ -411,7 +409,6 @@ export function InstructorAttendanceManagement({
       if (!res.ok) {
         throw new Error(typeof data.error === "string" ? data.error : "Update failed");
       }
-      toast({ title: "Updated", description: "Attendance status saved." });
       const pointsEarned = attendancePointsForStatus(statusEditValue);
       setRecords((prev) =>
         prev.map((r) =>
@@ -691,21 +688,21 @@ export function InstructorAttendanceManagement({
       case "present":
         return "border-0 bg-[var(--cc-sem-success)]/10 text-[var(--cc-sem-success)]";
       case "late":
-        return "border-0 bg-[var(--cc-sem-warning)]/10 text-[var(--cc-sem-warning)]";
+        return "border-0 bg-[var(--cc-warning)] text-slate-950";
       case "excused":
-        return "border-0 bg-muted text-muted-foreground";
+        return "border-0 bg-sky-700 text-white";
       default:
         return "border-0 bg-[var(--cc-sem-danger)]/10 text-[var(--cc-sem-danger)]";
     }
   };
 
   const markButtonClass = (status: AttendanceStatus, active: boolean) => {
-    if (active) {
-      if (status === "present") return cn(chrome.success, "!text-white")
-      if (status === "late") return cn(chrome.warning, "!text-white")
-      if (status === "absent") return cn(chrome.danger, "!text-white")
-      return cn(chrome.quiet, "!text-[var(--cc-text)]")
-    }
+    if (!active) return cn(chrome.quiet, "!text-[var(--cc-text)]")
+    if (status === "present") return cn(chrome.success, "!text-white")
+    // Gold warning is too light for white text; excused was the same gray as idle.
+    if (status === "late") return "border-0 bg-[var(--cc-warning)] !text-slate-950 shadow-sm hover:opacity-90"
+    if (status === "excused") return "border-0 bg-sky-700 !text-white shadow-sm hover:bg-sky-800"
+    if (status === "absent") return cn(chrome.danger, "!text-white")
     return cn(chrome.quiet, "!text-[var(--cc-text)]")
   };
 

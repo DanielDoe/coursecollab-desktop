@@ -13,7 +13,7 @@ import { formatStudentContextForPrompt } from "@/lib/cora/format-student-context
 import type { ExternalAiContextOptions } from "@/lib/cora/privacy/ai-data-minimization"
 import { buildTutorPreferencesPrompt, type CoraTutorPreferences } from "@/lib/cora/preferences-storage"
 import { runCoraAgentRuntime } from "@/lib/cora/agent/runtime"
-import { coraUiFromProposals } from "@/lib/cora/models/ui-payloads"
+import { courseObjectPromptAppendix, resolveCoraChatUi } from "@/lib/cora/models/ui-payloads"
 import { requireCallerStudentDbId } from "@/lib/student-api-auth"
 import {
   agentPolicyForRole,
@@ -32,7 +32,10 @@ import {
   isLectureOrPracticeLearningContext,
   textMatchesAssessmentQuestions,
 } from "@/lib/cora/security"
-import { guardCoraAgainstUnattemptedAssessments } from "@/lib/cora/assessment-import-gate"
+import {
+  guardCoraAgainstUnattemptedAssessments,
+  isOpenAssessmentAttempt,
+} from "@/lib/cora/assessment-import-gate"
 import { formatMembershipAccessForPrompt, formatReadOnlyCapabilitiesForPrompt } from "@/lib/cora/read-only-agent"
 import { buildImportedProblemPrompt } from "@/lib/cora/problem-prompt"
 import {
@@ -56,7 +59,7 @@ import { buildModelOpts } from "@/lib/openai-model-params"
 import OpenAI from "openai"
 import { getEffectiveMembershipTier, deductAITutorCredits } from "@/lib/membership"
 import { getStudentCodeBenchEntitlement } from "@/lib/codebench-entitlement"
-import { codebenchMembershipRequiredResponse } from "@/lib/codebench-cora-usage"
+import { logApiError } from "@/lib/system-log"
 
 // Check if OpenAI API key is configured
 const isOpenAIConfigured = !!process.env.OPENAI_API_KEY
@@ -398,8 +401,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Block pre-solving unattempted / in-progress homework & quizzes (import or paste)
-    if (!Number.isNaN(studentIdNum) && !isCodeBenchAssignment) {
+    // Outside Cora cannot discuss an assessment that is still open.
+    // Ask Cora inside that attempt can answer reference questions. The guided policy still refuses the solution.
+    const insideOpenAttempt =
+      !Number.isNaN(studentIdNum) &&
+      (importedProblem?.source === "quiz" ||
+        importedProblem?.source === "practice_hub" ||
+        importedProblem?.source === "lecture_practice") &&
+      (await isOpenAssessmentAttempt(
+        studentIdNum,
+        Number(importedProblem?.quizId),
+        Number(importedProblem?.attemptId),
+      ))
+    if (!Number.isNaN(studentIdNum) && !isCodeBenchAssignment && !insideOpenAttempt) {
       const importLock = await guardCoraAgainstUnattemptedAssessments(studentIdNum, {
         quizId: importedProblem?.quizId ?? null,
         bankQuestionId: importedProblem?.bankQuestionId ?? null,
@@ -746,6 +760,14 @@ LECTURE / PRACTICE WORKSPACE — GUIDED LEARNING:
 - Help the student learn how to reach the answer. Do not complete the solution for them.`
       } else if (assessmentIntegrityCtx?.state === "active") {
         systemPrompt += buildAssessmentSocraticPromptAppendix(assessmentIntegrityCtx)
+      }
+
+      if (imageAttachments.length > 0) systemPrompt += courseObjectPromptAppendix("walkthrough")
+      if (/\bquiz me\b|one checkpoint/i.test(String(message ?? ""))) {
+        systemPrompt += courseObjectPromptAppendix("checkpoint")
+      }
+      if (context?.codeContext || problemContext?.domain === "coding") {
+        systemPrompt += courseObjectPromptAppendix("code_patch")
       }
 
       if (!Number.isNaN(studentIdNum)) {
@@ -1230,16 +1252,21 @@ LECTURE / PRACTICE WORKSPACE — GUIDED LEARNING:
       meta.learningGoal = chatConfig.learningGoal
     }
 
+    const presented = resolveCoraChatUi({
+      message: response,
+      blockAnswerLeaks: assessmentIntegrityCtx?.state === "active",
+    })
+
     const publicRoute = buildPublicCoraChatFields({
       profile: coraRouting.profile ?? (coraLiteMode ? "lite" : "standard"),
       liteMode: coraLiteMode,
       complexity: coraRouting.complexity,
       reason: routingMeta?.reason ?? coraRouting.reason,
-      ui: coraUiFromProposals(response, coraProposals),
+      ui: presented.ui,
     })
 
     return NextResponse.json({
-      response,
+      response: presented.reply,
       detectedTopic,
       isConfigured: true,
       timestamp: new Date().toISOString(),
@@ -1259,9 +1286,19 @@ LECTURE / PRACTICE WORKSPACE — GUIDED LEARNING:
     })
   } catch (error: any) {
     console.error("[AI Tutor] Error:", error)
+    void logApiError(request, error, {
+      statusCode: 500,
+      moduleName: "Cora",
+      requestSummary: { feature: "ask-cora", surface: "quiz-taker" },
+    }).catch(() => {})
     
     // Provide helpful error messages
-    if (error.code === 'insufficient_quota') {
+    const quotaHit =
+      error.code === "insufficient_quota" ||
+      error.code === "credit_balance_exhausted" ||
+      error.type === "insufficient_quota" ||
+      String(error.message ?? "").includes("no credits remaining")
+    if (quotaHit) {
       return NextResponse.json({
         response: "⚠️ **AI Tutor Usage Limit Reached**\n\nThe AI assistant has reached its usage limit for this month. Please contact your instructor to add more credits to the OpenAI account.\n\nIn the meantime, you can:\n- Use the lecture-specific AI (available in slides)\n- Ask questions in the forum\n- Attend office hours",
         isConfigured: false,

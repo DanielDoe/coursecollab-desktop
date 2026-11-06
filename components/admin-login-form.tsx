@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { z } from "zod"
 import { CourseCollabLogo } from "@/components/course-collab-logo"
 import { Eye, EyeOff, ArrowRight, Lock, User, AlertCircle, Loader2 } from "lucide-react"
+import { AuthStatusAlert } from "@/components/auth/AuthStatusAlert"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -178,19 +179,18 @@ export function AdminLoginForm({ idPrefix = "", className, nativeApp = false }: 
 
       <div className="p-6 sm:p-8">
         <form onSubmit={handleSubmit} className="space-y-5">
-          {submitError && (
-            <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-3 flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-              <span>{submitError}</span>
-            </div>
-          )}
+          {submitError ? (
+            <AuthStatusAlert tone="error" title="Couldn't sign in">
+              {submitError}
+            </AuthStatusAlert>
+          ) : null}
 
-          {loginAttempts > 0 && !isLocked && !submitError && (
-            <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm p-3">
+          {loginAttempts > 0 && !isLocked && !submitError ? (
+            <AuthStatusAlert tone="warning" title="Sign-in attempts">
               {loginAttempts} failed attempt{loginAttempts > 1 ? "s" : ""}.
               {5 - loginAttempts > 0 ? ` ${5 - loginAttempts} attempts remaining.` : ""}
-            </div>
-          )}
+            </AuthStatusAlert>
+          ) : null}
 
           <div className="space-y-2">
             <Label htmlFor={`${idPrefix}username`} className={labelClass}>

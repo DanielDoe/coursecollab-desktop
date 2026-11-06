@@ -267,6 +267,7 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; topic: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const [scheduleForm, setScheduleForm] = useState<OfficeHourEditForm>(emptyOfficeHourEditForm)
   const [regularHours, setRegularHours] = useState<any[]>([])
@@ -412,6 +413,29 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
       }
     } catch {
       toast({ title: "Error", description: "Failed to schedule", variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (id: number) => {
+    setSaving(true)
+    try {
+      const res = await instructorApiFetch(`/api/instructor/office-hours/${id}`, {
+        method: "DELETE",
+        headers: apiHeaders(),
+      })
+      if (res.ok) {
+        toast({ title: "Deleted", description: "The request was removed and the student was notified." })
+        setDeleteTarget(null)
+        setEditingId(null)
+        loadRequests()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        toast({ title: "Error", description: d.error || "Failed to delete", variant: "destructive" })
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to delete", variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -1083,21 +1107,32 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
                     </p>
                   )}
 
-                  {["pending", "approved", "scheduled", "completed"].includes(r.status) && editingId !== r.id && (
+                  {editingId !== r.id && (
                     <div className="flex flex-wrap gap-2 pt-2">
                       {r.status === "pending" && (
                         <Button size="sm" onClick={() => handleApprove(r.id)} disabled={saving} className={fp.cta}>
                           <CheckCircle2 className="h-4 w-4 mr-1.5 shrink-0" /> Approve
                         </Button>
                       )}
-                      <Button size="sm" variant="secondary" onClick={() => openEdit(r)} disabled={saving}>
-                        <Pencil className="h-4 w-4 mr-1.5 shrink-0" /> Edit
-                      </Button>
+                      {["pending", "approved", "scheduled", "completed"].includes(r.status) && (
+                        <Button size="sm" variant="secondary" onClick={() => openEdit(r)} disabled={saving}>
+                          <Pencil className="h-4 w-4 mr-1.5 shrink-0" /> Edit
+                        </Button>
+                      )}
                       {r.status === "pending" && (
                         <Button size="sm" variant="outline" onClick={() => handleReject(r.id)} disabled={saving} className="border-red-200 dark:border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10">
                           <XCircle className="h-4 w-4 mr-1.5 shrink-0" /> Reject
                         </Button>
                       )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setDeleteTarget({ id: r.id, topic: r.topic || "this request" })}
+                        disabled={saving}
+                        className="border-red-200 dark:border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                      >
+                        <Trash2 className="h-4 w-4 mr-1.5 shrink-0" /> Delete
+                      </Button>
                     </div>
                   )}
 
@@ -1183,21 +1218,32 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
                           {r.meeting_venue}
                         </div>
                       )}
-                      {["pending", "approved", "scheduled", "completed"].includes(r.status) && editingId !== r.id && (
+                      {editingId !== r.id && (
                         <div className="flex flex-wrap gap-2 pt-2">
                           {r.status === "pending" && (
                             <Button size="sm" onClick={() => handleApprove(r.id)} disabled={saving} className={fp.cta}>
                               <CheckCircle2 className="h-4 w-4 mr-1.5 shrink-0" /> Approve
                             </Button>
                           )}
-                          <Button size="sm" variant="secondary" onClick={() => openEdit(r)} disabled={saving}>
-                            <Pencil className="h-4 w-4 mr-1.5 shrink-0" /> Edit
-                          </Button>
+                          {["pending", "approved", "scheduled", "completed"].includes(r.status) && (
+                            <Button size="sm" variant="secondary" onClick={() => openEdit(r)} disabled={saving}>
+                              <Pencil className="h-4 w-4 mr-1.5 shrink-0" /> Edit
+                            </Button>
+                          )}
                           {r.status === "pending" && (
                             <Button size="sm" variant="outline" onClick={() => handleReject(r.id)} disabled={saving} className="border-red-200 dark:border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10">
                               <XCircle className="h-4 w-4 mr-1.5 shrink-0" /> Reject
                             </Button>
                           )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setDeleteTarget({ id: r.id, topic: r.topic || "this request" })}
+                            disabled={saving}
+                            className="border-red-200 dark:border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1.5 shrink-0" /> Delete
+                          </Button>
                         </div>
                       )}
                       {editingId === r.id && renderEditForm(r.id)}
@@ -1209,6 +1255,30 @@ export function InstructorOfficeHoursContent({ embedInDashboard }: { embedInDash
           )}
         </>
       )}
+      <Dialog open={deleteTarget != null} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this request?</DialogTitle>
+            <DialogDescription>
+              {deleteTarget
+                ? `“${deleteTarget.topic}” will be removed. The student will be notified.`
+                : "This office hours request will be removed."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteTarget && void handleDelete(deleteTarget.id)}
+              disabled={saving}
+            >
+              {saving ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

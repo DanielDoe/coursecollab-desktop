@@ -46,6 +46,7 @@ import {
   Share2,
   Activity,
   Bot,
+  FolderCog,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { NavGroup, NavItem } from "@/lib/portal-nav-config"
@@ -169,6 +170,7 @@ export const FACULTY_NAV_REGISTRY: FacultyNavGroupDef[] = [
       { id: "playground-rules", label: "Playground Rules", href: p("/administration/playground-rules"), icon: Gamepad2, requiredPermissions: ["manage_course_settings", "manage_playground"] },
       { id: "ai-assistant-settings", label: "Cora Assistant Settings", href: p("/administration/ai-assistant-settings"), icon: Bot, requiredPermissions: ["manage_course_settings"] },
       { id: "team-project-policies", label: "Team & Project Policies", href: p("/administration/team-project-policies"), icon: Users, requiredPermissions: ["manage_course_settings"] },
+      { id: "project-settings", label: "Project Settings", href: p("/administration/project-settings"), icon: FolderCog, requiredPermissions: ["manage_course_settings"] },
       { id: "submission-issues", label: "Submission Issues", href: p("/administration/submission-issues"), icon: AlertCircle, requiredPermissions: ["manage_course_settings", "review_submissions"] },
       { id: "teaching-assistants", label: "Teaching Assistants", href: p("/administration/teaching-assistants"), icon: Users, requiredPermissions: ["manage_tas"] },
     ],

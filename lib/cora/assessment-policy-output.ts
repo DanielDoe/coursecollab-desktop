@@ -96,10 +96,22 @@ function extractCodeFences(text: string): string[] {
   return fences
 }
 
+function fenceInner(fence: string): string {
+  return fence.replace(/^```[\w+-]*\n?/i, "").replace(/```\s*$/i, "").trim()
+}
+
+/** Short generic syntax (a declaration or loop header), not a submittable program. */
+function isGenericSyntaxSnippet(inner: string): boolean {
+  if (/#include\s*</i.test(inner) || /\bint\s+main\s*\(/i.test(inner)) return false
+  const lines = inner.split("\n").filter((line) => line.trim().length > 0)
+  return lines.length <= 8 && inner.length <= 240
+}
+
 function fenceLooksLikeSolution(fence: string, minChars: number): boolean {
-  const inner = fence.replace(/^```[\w+-]*\n?/i, "").replace(/```\s*$/i, "").trim()
-  if (inner.length < minChars) return false
+  const inner = fenceInner(fence)
   if (SUBMISSION_READY_CPP.test(inner)) return true
+  if (inner.length < minChars) return false
+  if (isGenericSyntaxSnippet(inner)) return false
   const lines = inner.split("\n").filter((line) => line.trim().length > 0)
   if (lines.length >= 10) return true
   if (lines.length >= 6 && /\b(return|for\s*\(|while\s*\(|if\s*\()/i.test(inner)) return true
@@ -135,7 +147,21 @@ export function validateCoraAssessmentOutput(
     (fences.some((fence) => fenceLooksLikeSolution(fence, minFenceChars)) ||
       unstructuredCodeLooksLikeSolution(text))
 
-  if (phraseHit || confirmHit || mcqHit || numericHit || codeHit) {
+  if (phraseHit || confirmHit || mcqHit || numericHit) {
+    return { text: GUIDED_REPLACEMENT, blockedAnswer: true }
+  }
+
+  if (codeHit) {
+    const withoutFences = text
+      .replace(CODE_FENCE, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+    if (withoutFences.length >= 80 && !unstructuredCodeLooksLikeSolution(withoutFences)) {
+      return {
+        text: `${withoutFences}\n\nI left out a complete program so you can write that part yourself. Ask about a specific syntax piece if you are stuck.`,
+        blockedAnswer: true,
+      }
+    }
     return { text: GUIDED_REPLACEMENT, blockedAnswer: true }
   }
 

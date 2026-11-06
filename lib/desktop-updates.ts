@@ -19,6 +19,8 @@ export type DesktopUpdateStatus = {
   percent?: number
   message?: string
   needsApplicationsFolder?: boolean
+  /** Download finished during an exam. Install runs when the exam ends. */
+  holdInstall?: boolean
 }
 
 const WEB_STATUS: DesktopUpdateStatus = {
@@ -138,7 +140,7 @@ export function desktopUpdateButtonLabel(status: DesktopUpdateStatus): string {
     case "installing":
       return "Installing…"
     case "ready":
-      return "Restart to update"
+      return status.holdInstall ? "Updates after the exam" : "Restart to update"
     case "not-available":
       return "Up to date"
     case "error":
@@ -200,8 +202,12 @@ export function desktopUpdateFeedback(status: DesktopUpdateStatus): {
       }
     case "ready":
       return {
-        title: "Update ready",
-        description: status.message ?? `Version ${status.version ?? ""} is ready to install.`,
+        title: status.holdInstall ? "Update waits until the exam ends" : "Update ready",
+        description:
+          status.message ??
+          (status.holdInstall
+            ? "The update is downloaded and will install as soon as you leave the exam."
+            : `Version ${status.version ?? ""} is ready to install.`),
       }
     case "error":
       return {
@@ -258,7 +264,9 @@ export function normalizeDesktopUpdateStatus(status: DesktopUpdateStatus): Deskt
 
 export function desktopUpdateAriaLabel(status: DesktopUpdateStatus): string {
   if (status.state === "ready" && status.version) {
-    return `Restart to install version ${status.version}`
+    return status.holdInstall
+      ? `Version ${status.version} installs after the exam`
+      : `Restart to install version ${status.version}`
   }
   if (status.state === "available" && status.version) {
     return `Download version ${status.version}`

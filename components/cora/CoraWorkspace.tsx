@@ -9,7 +9,6 @@ import {
   Pause,
   Play,
   RotateCcw,
-  Sparkles,
   X,
   Zap,
 } from "lucide-react"
@@ -27,7 +26,9 @@ import {
 import { useStepEngine } from "@/components/cora/use-step-engine"
 import { CoraTimeline } from "@/components/cora/CoraTimeline"
 import { CoraCanvas } from "@/components/cora/CoraCanvas"
+import { CoraBotMark } from "@/components/cora/CoraBotMark"
 import { CoraHintMenu } from "@/components/cora/CoraHintMenu"
+import { CoraThinkingIndicator } from "@/components/cora/CoraThinkingIndicator"
 import { CoraSummary } from "@/components/cora/CoraSummary"
 import { useToast } from "@/hooks/use-toast"
 
@@ -155,14 +156,7 @@ export function CoraWorkspace({ open, problem, onClose }: Props) {
         <DialogTitle className="sr-only">{CORA_NAME}</DialogTitle>
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] px-5 py-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <span
-              className={cn(
-                "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br shadow-lg",
-                accent,
-              )}
-            >
-              <Sparkles className="h-5 w-5 text-white" />
-            </span>
+            <CoraBotMark size="sm" className="shrink-0" />
             <div className="min-w-0">
               <p className="truncate text-base font-bold text-[var(--cc-text)]">{CORA_NAME}</p>
               <p className="truncate text-xs text-[var(--cc-text-muted)]">
@@ -218,13 +212,7 @@ export function CoraWorkspace({ open, problem, onClose }: Props) {
 
         {loading ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 p-10">
-            <Loader2 className="h-10 w-10 animate-spin" />
-            <div className="text-center">
-              <p className="font-semibold text-[var(--cc-text)]">Building your workspace…</p>
-              <p className="text-sm text-[var(--cc-text-muted)]">
-                Instructor solutions first · animations second
-              </p>
-            </div>
+            <CoraThinkingIndicator mode="general" />
           </div>
         ) : error ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center">

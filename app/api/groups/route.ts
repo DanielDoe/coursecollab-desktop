@@ -8,6 +8,7 @@ import {
   studentDbIdFromGroupsRequest,
 } from "@/lib/group-request-auth"
 import { assertGroupSizeWithinPolicy, assertStudentSelfFormAllowed } from "@/lib/project-policy-enforcement"
+import { alreadyInGroupMessage, findStudentActiveGroupMembership } from "@/lib/groups/student-active-membership"
 import { resolveGroupProjectTermScope } from "@/lib/group-project-term-scope"
 
 export const dynamic = "force-dynamic"
@@ -370,38 +371,9 @@ export async function POST(request: NextRequest) {
     const size = await assertGroupSizeWithinPolicy(leaderCourseId, initialCount)
     if (!size.ok) return size.response
 
-    // Check if student is already in a group (excluding deleted groups)
-    // Allow students to be in multiple individual groups (groups where they're the only member)
-    const existingMembership = await sql`
-      SELECT 
-        g.id as group_id,
-        g.name, 
-        g.status, 
-        g.created_by,
-        (SELECT COUNT(*) FROM group_members gm2 WHERE gm2.group_id = g.id) as member_count
-      FROM group_members gm
-      JOIN groups g ON gm.group_id = g.id
-      WHERE gm.student_id = ${createdBy}
-      AND g.status IN ('pending', 'approved', 'pending_update')
-      AND (g.deleted_at IS NULL)
-    `
-
-    // Check if student is already in a non-individual group (more than 1 member)
-    // OR if student is a member (not creator) of any group
-    const nonIndividualGroups = existingMembership.filter((g: any) => {
-      const memberCount = parseInt(g.member_count || '0')
-      // Block if: student is a member (not creator) of any group, OR student created a group with multiple members
-      return (g.created_by !== createdBy) || (g.created_by === createdBy && memberCount > 1)
-    })
-
-    if (nonIndividualGroups.length > 0) {
-      const blockingGroup = nonIndividualGroups[0]
-      const isMember = blockingGroup.created_by !== createdBy
-      return NextResponse.json({ 
-        error: isMember 
-          ? `You are already a member of group: ${blockingGroup.name} (${blockingGroup.status})`
-          : `You already have a group with multiple members: ${blockingGroup.name} (${blockingGroup.status})` 
-      }, { status: 400 })
+    const existingMembership = await findStudentActiveGroupMembership(Number(createdBy))
+    if (existingMembership) {
+      return NextResponse.json({ error: alreadyInGroupMessage(existingMembership) }, { status: 400 })
     }
 
     // Determine if this is an individual group (no initial members or empty array)
@@ -446,22 +418,13 @@ export async function POST(request: NextRequest) {
       for (const memberId of initialMembers) {
         try {
           // Check if member is already in another group (excluding deleted groups)
-          const memberCheck = await sql`
-            SELECT gm.id, g.name, s.full_name
-            FROM group_members gm
-            JOIN groups g ON gm.group_id = g.id
-            JOIN students s ON gm.student_id = s.id
-            WHERE gm.student_id = ${memberId}
-            AND g.status IN ('pending', 'approved', 'pending_update')
-            AND (g.deleted_at IS NULL)
-          `
-
-          if (memberCheck.length > 0) {
-            const member = memberCheck[0]
+          const memberExisting = await findStudentActiveGroupMembership(Number(memberId))
+          if (memberExisting) {
+            const studentInfo = await sql`SELECT full_name FROM students WHERE id = ${memberId}`
             failedMembers.push({
               id: memberId,
-              name: member.full_name || `Student ${memberId}`,
-              reason: `Already in group: ${member.name}`
+              name: studentInfo[0]?.full_name || `Student ${memberId}`,
+              reason: `Already in group: ${memberExisting.name}`,
             })
             continue
           }

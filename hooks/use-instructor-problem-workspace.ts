@@ -5,6 +5,7 @@ import type { CodebenchLanguageId } from "@/lib/codebench-languages"
 import type { InstructorClassroomHandoff } from "@/lib/codebench-instructor-classroom"
 import type { InstructorLibraryItem } from "@/lib/codebench-instructor-library"
 import {
+  bufferHasUserCode,
   buildFreshProblemProject,
   instructorProblemProjectId,
   isInstructorProblemProjectId,
@@ -12,6 +13,7 @@ import {
   persistInstructorProblemRecord,
   persistInstructorProblemRecordDurable,
   resolveInstructorProblemRecord,
+  shouldKeepInstructorWorkspace,
   type InstructorProblemRecord,
   type InstructorProblemScope,
 } from "@/lib/codebench-instructor-problem-workspaces"
@@ -30,6 +32,17 @@ function scopeFromClassroom(handoff: InstructorClassroomHandoff): InstructorProb
 
 function scopeFromLibrary(item: InstructorLibraryItem): InstructorProblemScope {
   return { kind: "library", id: item.id }
+}
+
+export type OpenInstructorProblemResult = {
+  keptCurrentWorkspace: boolean
+  displacedProject: { id: string; name: string } | null
+}
+
+function projectHasUserCode(project: { nodes: Array<{ kind: string; content?: string; languageId?: string }> }): boolean {
+  return project.nodes.some(
+    (node) => node.kind === "file" && bufferHasUserCode(node.content ?? "", node.languageId),
+  )
 }
 
 function starterFromLibrary(item: InstructorLibraryItem) {
@@ -86,12 +99,12 @@ export function useInstructorProblemWorkspace(ide: IdeApi, ownerKey: string) {
       languageId: CodebenchLanguageId
       starterCode: string
       starterFileName: string
-    }) => {
-      if (!ide.hydrated) return
+    }): Promise<OpenInstructorProblemResult> => {
+      const untouched: OpenInstructorProblemResult = { keptCurrentWorkspace: false, displacedProject: null }
+      if (!ide.hydrated) return untouched
+      await flushActiveScope()
       openingRef.current = true
       try {
-        await flushActiveScope()
-
         const existing = await resolveInstructorProblemRecord(scope, ownerKey)
         const project =
           existing?.project ??
@@ -102,11 +115,27 @@ export function useInstructorProblemWorkspace(ide: IdeApi, ownerKey: string) {
             starterCode: starter.starterCode,
             starterFileName: starter.starterFileName,
           })
+        const current = ide.project
+        const displaced =
+          current.id !== project.id && projectHasUserCode(current)
+            ? { id: current.id, name: current.name }
+            : null
+        if (
+          shouldKeepInstructorWorkspace({
+            currentProjectId: current.id,
+            currentHasUserCode: displaced != null,
+            destinationProjectId: project.id,
+            destinationHasUserCode: existing?.project ? projectHasUserCode(existing.project) : false,
+          })
+        ) {
+          return { keptCurrentWorkspace: true, displacedProject: null }
+        }
 
         ide.upsertAndSwitchProject(project)
         activeScopeRef.current = scope
         activeMetaRef.current = meta
         setActiveScope(scope)
+        return { keptCurrentWorkspace: false, displacedProject: displaced }
       } finally {
         openingRef.current = false
       }

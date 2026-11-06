@@ -31,6 +31,9 @@ function navigateFromTray(link: string) {
 
 function updateTrayLabel(): string {
   const update = getUpdateStatus()
+  if (update.state === 'ready' && update.holdInstall) {
+    return `Install ${update.version ?? 'update'} after the exam`
+  }
   if (update.state === 'ready') return `Restart to install ${update.version ?? 'update'}`
   if (update.state === 'available') return `Download update ${update.version ?? ''}`.trim()
   if (update.state === 'downloading') {

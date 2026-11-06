@@ -120,6 +120,7 @@ interface DesktopUpdateStatus {
   percent?: number
   message?: string
   needsApplicationsFolder?: boolean
+  holdInstall?: boolean
 }
 
 interface CourseCollabDesktopBridge {

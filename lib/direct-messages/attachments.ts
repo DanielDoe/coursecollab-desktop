@@ -50,8 +50,10 @@ export function isMessageImageAttachment(mimeType: string | null | undefined, fi
 
 export function isPersistedMessageAttachmentUrl(url: string | null | undefined): boolean {
   if (isInvalidPersistedAttachmentUrl(url)) return false
-  if (!url?.trim()) return false
-  return url.startsWith("https://") || url.startsWith("http://")
+  const trimmed = url?.trim()
+  if (!trimmed) return false
+  if (trimmed.startsWith("https://") || trimmed.startsWith("http://")) return true
+  return /^\/api\/files\/\d+(?:\?.*)?$/.test(trimmed)
 }
 
 export function validateMessageAttachmentInput(att: {

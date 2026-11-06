@@ -47,6 +47,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   "playground-rules": "Playground Rules",
   "ai-assistant-settings": "Cora Assistant Settings",
   "team-project-policies": "Team & Project Policies",
+  "project-settings": "Project Settings",
   "submission-issues": "Submission Issues",
   "submission-diagnostics": "Submission Issues",
   announcements: "Announcements",

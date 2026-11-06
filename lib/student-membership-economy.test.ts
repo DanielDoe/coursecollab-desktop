@@ -27,8 +27,8 @@ describe("student membership catalog", () => {
 
   it("keeps monthly Cora allowances centralized", () => {
     assert.equal(STUDENT_CORA_MONTHLY.Scholar, 250)
-    assert.equal(STUDENT_CORA_MONTHLY.Explorer, 3000)
-    assert.equal(STUDENT_CORA_MONTHLY.Trailblazer, 7500)
+    assert.equal(STUDENT_CORA_MONTHLY.Explorer, 30000)
+    assert.equal(STUDENT_CORA_MONTHLY.Trailblazer, 75000)
     for (const plan of MEMBERSHIP_PLANS) {
       assert.equal(plan.features.aiTutor, STUDENT_CORA_MONTHLY[plan.id])
     }

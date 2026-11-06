@@ -33,6 +33,8 @@ import {
   uploadMessageAttachment,
 } from "@/lib/direct-messages/upload-message-attachment-client"
 import { mediaDisplayUrl } from "@/lib/media/display-url"
+import { MessageQuoteCard } from "@/components/messages/MessageQuoteCard"
+import type { MessageQuote } from "@/lib/direct-messages/message-quote"
 import {
   LOCAL_DEVICE_FILE_PASTE_ERROR,
   messageIsOnlyLocalDeviceFile,
@@ -98,6 +100,9 @@ type MessageComposerProps = {
   sending?: boolean
   sendDisabled?: boolean
   className?: string
+  replyQuote?: (MessageQuote & { quotingSelf?: boolean }) | null
+  onDismissReplyQuote?: () => void
+  focusRequest?: number
 }
 
 function FormatButton({
@@ -405,6 +410,9 @@ export function MessageComposer({
   sending,
   sendDisabled,
   className,
+  replyQuote = null,
+  onDismissReplyQuote,
+  focusRequest = 0,
 }: MessageComposerProps) {
   const theme = useMessagesTheme()
   const fileInputId = useId()
@@ -632,6 +640,11 @@ export function MessageComposer({
       })
   }
 
+  useEffect(() => {
+    if (!focusRequest) return
+    editor?.commands.focus("end")
+  }, [editor, focusRequest])
+
   const hasContent = composerCanSend(value, attachments)
 
   return (
@@ -786,6 +799,16 @@ export function MessageComposer({
             "border border-transparent focus-within:border-slate-200/80 dark:focus-within:border-white/[0.08]",
           )}
         >
+          {replyQuote ? (
+            <div className="mb-2">
+              <MessageQuoteCard
+                senderName={replyQuote.senderName}
+                excerpt={replyQuote.excerpt}
+                quotingSelf={replyQuote.quotingSelf}
+                onDismiss={onDismissReplyQuote}
+              />
+            </div>
+          ) : null}
           <EditorContent editor={editor} />
         </div>
 

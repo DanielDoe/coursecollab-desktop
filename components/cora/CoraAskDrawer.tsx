@@ -38,7 +38,8 @@ function useOverlayTopPx(open: boolean, topOffsetPx?: number) {
     }
     const measure = () => {
       const chrome = document.querySelector("[data-quiz-chrome]")
-      setTopPx(chrome ? Math.round(chrome.getBoundingClientRect().height) : 0)
+      const next = chrome ? Math.round(chrome.getBoundingClientRect().height) : 0
+      setTopPx((prev) => (prev === next ? prev : next))
     }
     measure()
     const chrome = document.querySelector("[data-quiz-chrome]")
@@ -127,7 +128,7 @@ export function CoraAskDrawer({
   className,
 }: Props) {
   const [mounted, setMounted] = useState(false)
-  const topPx = useOverlayTopPx(open, topOffsetPx)
+  const topPx = useOverlayTopPx(variant === "overlay" && open, topOffsetPx)
   const importedLabel = problem?.title ?? subtitle ?? null
   const panelKey = problem
     ? `${problem.source}-${problem.questionId ?? problem.quizId ?? "q"}-${problem.questionText.slice(0, 32)}`
@@ -163,12 +164,9 @@ export function CoraAskDrawer({
 
   if (variant === "panel") {
     return (
-      <motion.aside
+      <aside
         role="complementary"
         aria-label={title}
-        initial={{ opacity: 0, x: 12 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ type: "spring", damping: 32, stiffness: 320 }}
         className={cn(
           "flex min-h-0 w-[min(100%,26rem)] shrink-0 flex-col self-stretch overflow-hidden border-l border-[var(--border)] bg-[var(--cc-background)] text-[var(--cc-text)]",
           "max-lg:w-[min(100%,22rem)] max-md:h-[min(44dvh,440px)] max-md:w-full max-md:border-l-0 max-md:border-t",
@@ -176,7 +174,7 @@ export function CoraAskDrawer({
         )}
       >
         {body}
-      </motion.aside>
+      </aside>
     )
   }
 

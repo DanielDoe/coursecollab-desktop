@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { requireBoundStudentCaller } from "@/lib/student-api-auth"
-import { verifyAnswerLocally, canVerifyLocally } from "@/lib/local-answer-verification"
 import { syncPlaygroundEngagementByResultId } from "@/lib/playground-engagement-sync"
 import { markPlaygroundResultComplete } from "@/lib/playground-result-complete"
 import {
@@ -9,12 +8,9 @@ import {
   isClassroomSessionEnded,
   PLAYGROUND_SESSION_ENDED_MESSAGE,
 } from "@/lib/playground-session-guard"
-import { computePlaygroundAnswerPoints } from "@/lib/playground-scoring"
-import {
-  playgroundScoringFromPolicy,
-} from "@/lib/playground-policy-settings"
+import { playgroundScoringFromPolicy } from "@/lib/playground-policy-settings"
 import { getPlaygroundPolicyForCourse } from "@/lib/playground-policy-settings.server"
-import { parsePlaygroundCorrectLetters } from "@/lib/playground-question-utils"
+import { evaluatePlaygroundAnswer } from "@/lib/playground-answer-evaluation"
 import { ensurePlaygroundQuestionSnapshotColumns } from "@/lib/playground-session-question-snapshot"
 
 export const dynamic = 'force-dynamic'
@@ -58,21 +54,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get the full question data from question bank for proper evaluation
-    // questionId here is playground_question_id, we need to get the actual question_bank question
+    // Grade with the same local path quizzes and practice use.
+    // questionId is playground_questions.id; the bank row (or its session snapshot) is the key.
     let isCorrect = false
-    let questionType = 'mcq'
-    let resolvedCorrectAnswer: unknown = null
+    let points = 0
+    let correctAnswer: string | null = null
 
     try {
-      // Query question bank with JSONB options and correct_answer
       await ensurePlaygroundQuestionSnapshotColumns()
       const playgroundQuestion = await sql`
         SELECT 
           qb.id, 
+          qb.question_text,
           qb.question_type, 
           qb.correct_answer,
           qb.options,
+          qb.hint,
+          qb.explanation,
+          pq.snapshot_question_text,
           pq.snapshot_question_type,
           pq.snapshot_options,
           pq.snapshot_correct_answer
@@ -81,137 +80,10 @@ export async function POST(request: NextRequest) {
         WHERE pq.id = ${questionId}
       `
 
-      if (playgroundQuestion.length > 0) {
-        const question = playgroundQuestion[0]
-        const snapshotType = typeof question.snapshot_question_type === "string"
-          ? question.snapshot_question_type
-          : ""
-        questionType = (snapshotType || question.question_type)?.toLowerCase() || 'mcq'
-
-        let optionsArray: any[] = []
-        let correctAnswerValue: string | string[] = ''
-        const optionsSource = question.snapshot_options ?? question.options
-        const correctSource = question.snapshot_correct_answer || question.correct_answer
-
-        if (optionsSource) {
-          try {
-            const parsedOptions = typeof optionsSource === 'string' 
-              ? JSON.parse(optionsSource) 
-              : optionsSource
-            
-            if (Array.isArray(parsedOptions)) {
-              optionsArray = parsedOptions.map((opt: any) => {
-                if (typeof opt === 'string') return opt
-                if (opt && typeof opt === 'object' && opt.text) return opt.text
-                return String(opt)
-              })
-            }
-          } catch (e) {
-            // Error parsing options
-          }
-        }
-
-        if (correctSource) {
-          try {
-            const parsedCorrect = typeof correctSource === 'string'
-              ? JSON.parse(correctSource)
-              : correctSource
-            
-            if (Array.isArray(parsedCorrect)) {
-              correctAnswerValue = parsedCorrect
-            } else {
-              correctAnswerValue = String(parsedCorrect)
-            }
-          } catch (e) {
-            correctAnswerValue = String(correctSource)
-          }
-        }
-
-        // Build options object with letters (A, B, C, D, E)
-        const optionsObject: Record<string, string> = {}
-        optionsArray.forEach((opt, index) => {
-          const letter = String.fromCharCode(65 + index) // A, B, C, D, E
-          optionsObject[letter] = String(opt)
-        })
-
-        // For MCQ and true_false, correct_answer might be stored as:
-        // 1. Option letter (A, B, C, D, E)
-        // 2. Full option text
-        // 3. Index (0, 1, 2, 3, 4)
-        const normalizedType = questionType.toLowerCase().replace(/[_-]/g, "")
-        const isSelectAll = normalizedType === "selectall" || normalizedType === "multipleselect"
-
-        let normalizedCorrectAnswer: string | string[] = Array.isArray(correctAnswerValue)
-          ? parsePlaygroundCorrectLetters(correctAnswerValue)
-          : correctAnswerValue
-
-        if (!isSelectAll) {
-          let normalizedSingle = String(normalizedCorrectAnswer)
-
-          // If correct_answer is a number (index), convert to letter
-          if (!isNaN(Number(normalizedSingle)) && optionsArray.length > 0) {
-            const index = parseInt(normalizedSingle)
-            if (index >= 0 && index < optionsArray.length) {
-              normalizedSingle = String.fromCharCode(65 + index)
-            }
-          }
-          // If correct_answer is full option text, find the matching letter
-          else if (
-            normalizedSingle.length > 2 &&
-            !["A", "B", "C", "D", "E"].includes(normalizedSingle.toUpperCase())
-          ) {
-            const matchingIndex = optionsArray.findIndex(
-              (opt) =>
-                String(opt).toLowerCase().trim() === normalizedSingle.toLowerCase().trim(),
-            )
-            if (matchingIndex >= 0) {
-              normalizedSingle = String.fromCharCode(65 + matchingIndex)
-            }
-          }
-          normalizedCorrectAnswer = normalizedSingle
-        } else if (!Array.isArray(normalizedCorrectAnswer)) {
-          normalizedCorrectAnswer = parsePlaygroundCorrectLetters(normalizedCorrectAnswer)
-        }
-
-        let studentAnswer: string | string[] = selectedAnswer || ""
-        if (isSelectAll && typeof studentAnswer === "string") {
-          try {
-            const parsed = JSON.parse(studentAnswer)
-            studentAnswer = Array.isArray(parsed)
-              ? parsed.map((entry) => String(entry).trim().toUpperCase())
-              : [String(studentAnswer).trim().toUpperCase()]
-          } catch {
-            studentAnswer = studentAnswer
-              ? [String(studentAnswer).trim().toUpperCase()]
-              : []
-          }
-        }
-
-        // Use the same evaluation logic as assessments
-        if (canVerifyLocally(questionType)) {
-          const questionData = {
-            correctAnswer: normalizedCorrectAnswer,
-            options: optionsObject,
-          }
-
-          const verificationResult = verifyAnswerLocally(questionType, studentAnswer, questionData)
-          isCorrect = verificationResult.isCorrect
-          resolvedCorrectAnswer = normalizedCorrectAnswer
-        } else {
-          // Fallback to simple comparison for unsupported types
-          isCorrect = String(selectedAnswer || '').toLowerCase().trim() === String(normalizedCorrectAnswer || '').toLowerCase().trim()
-        }
-      } else {
+      if (playgroundQuestion.length === 0) {
         return NextResponse.json({ error: "Question not found" }, { status: 404 })
       }
-    } catch (queryError: any) {
-      console.error("[playground/submit] question lookup failed:", queryError)
-      return NextResponse.json({ error: "Failed to evaluate answer" }, { status: 500 })
-    }
 
-    let points = 0
-    if (isCorrect) {
-      const actualResponseTime = responseTimeMs || timeTaken * 1000
       const courseRow = await sql`
         SELECT ps.course_id
         FROM playground_results pr
@@ -222,11 +94,19 @@ export async function POST(request: NextRequest) {
       const courseId =
         courseRow[0]?.course_id != null ? Number(courseRow[0].course_id) : null
       const policy = await getPlaygroundPolicyForCourse(courseId)
-      points = computePlaygroundAnswerPoints(
-        true,
-        actualResponseTime,
-        playgroundScoringFromPolicy(policy),
-      )
+      const actualResponseTime = responseTimeMs || (timeTaken || 0) * 1000
+      const evaluation = evaluatePlaygroundAnswer({
+        question: playgroundQuestion[0],
+        selectedAnswer,
+        responseTimeMs: actualResponseTime,
+        scoring: playgroundScoringFromPolicy(policy),
+      })
+      isCorrect = evaluation.isCorrect
+      points = evaluation.points
+      correctAnswer = evaluation.correctAnswer
+    } catch (queryError: any) {
+      console.error("[playground/submit] question lookup failed:", queryError)
+      return NextResponse.json({ error: "Failed to evaluate answer" }, { status: 500 })
     }
 
     // Record the answer with precise timing
@@ -366,6 +246,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       isCorrect,
       points,
+      correctAnswer,
       score: updateResult?.[0]?.score != null ? Number(updateResult[0].score) : undefined,
       correctAnswers:
         updateResult?.[0]?.correct_answers != null

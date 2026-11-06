@@ -41,6 +41,11 @@ const ALLOWED_STUDY_OR_LOGISTICS = [
   /\bhow\s+(?:do\s+i|to)\s+(?:submit|navigate|start|save)\b/i,
   /\bwhere\s+(?:is|do\s+i)\s+(?:the\s+)?submit\b/i,
   /\b(?:formatting|interface|timer|navigation)\s+(?:help|issue)\b/i,
+  /\bhow\s+(?:do\s+i|to)\s+declare\b/i,
+  /\b(?:what(?:'s|\s+is)|explain)\s+(?:the\s+)?syntax\b/i,
+  /\bsyntax\s+(?:for|of)\s+(?:a\s+)?(?:for|while|do|if|function|variable|pointer|array|loop)\b/i,
+  /\bwhat\s+is\s+a\s+(?:for|while|do)\s+loop\b/i,
+  /\bhow\s+(?:does|do)\s+(?:a\s+)?(?:for|while|do)\s+loops?\s+work\b/i,
 ]
 
 const ANSWER_SEEKING_PATTERNS: RegExp[] = [
@@ -130,6 +135,26 @@ const ANSWER_SEEKING_PATTERNS: RegExp[] = [
   /\b(?:without|skip)\s+(?:the\s+)?(?:explanation|teaching|hints?)\b/i,
   /\b(?:direct|straight)\s+answer\s+only\b/i,
   /\b(?:unlock|enable)\s+(?:full|unrestricted)\s+(?:mode|access)\b/i,
+
+  // Indirect: finish, rewrite, substitute, or assemble THIS submission
+  /\b(?:rewrite|correct|fix)\s+(?:my\s+)?(?:code|program|function|solution|circuit)\b/i,
+  /\b(?:show|write|give)\s+(?:me\s+)?(?:the\s+)?(?:fixed|corrected)\s+(?:code|line|lines|version|function)\b/i,
+  /\b(?:fill\s+in|complete|finish|write)\s+(?:the\s+)?(?:rest|remainder|missing|remaining)\b/i,
+  /\b(?:only|just)\s+the\s+(?:missing|next|last)\s+(?:line|lines|part|piece)\b/i,
+  /\b(?:plug|substitute)\s+(?:in\s+)?(?:the\s+)?(?:numbers?|values?)\b/i,
+  /\bapply\s+(?:that|this|it)\s+to\s+(?:this|the)\s+(?:problem|question|assignment)\b/i,
+  /\b(?:now|then)\s+(?:write|code|implement)\s+(?:it|that|this)\b/i,
+  /\bput\s+(?:it|everything)\s+together\b/i,
+  /\b(?:worked|step[- ]by[- ]step)\s+solution\b/i,
+  /\bwalk\s+me\s+through\s+(?:the\s+)?(?:full\s+)?(?:solution|answer)\b/i,
+  /\bsolve\s+(?:it|this)\s+step\s+by\s+step\b/i,
+  /\bexample\s+(?:just\s+)?like\s+(?:this|mine|the\s+(?:problem|question))\b/i,
+  /\b(?:translate|turn)\s+(?:this|the)\s+(?:problem|question)\s+into\s+(?:code|c\+\+|cpp|python|matlab|a\s+program)\b/i,
+  /\bwhat\s+(?:values?|numbers?)\s+should\s+i\s+(?:use|enter|put|submit)\b/i,
+  /\bwhat\s+(?:should|would)\s+(?:the\s+)?(?:output|result)\s+be\b/i,
+  /\bcompare\s+(?:mine|my)\b.{0,48}\b(?:correct|right|answer|solution)\b/i,
+  /\b(?:next\s+line|missing\s+lines?)\s+(?:of\s+)?(?:code|the\s+program)\b/i,
+  /\b(?:write|give)\s+(?:me\s+)?the\s+next\s+(?:line|step)\b/i,
 ]
 
 /** Combine recent user turns so multi-step jailbreaks still trip input gates. */
@@ -138,8 +163,11 @@ export function mergeMessagesForAnswerSeekingCheck(
   history?: Array<{ role?: string; content?: string }> | null,
 ): string {
   const priorUser = (history ?? [])
-    .filter((m) => String(m.role ?? "").toLowerCase() === "user")
-    .slice(-4)
+    .filter((m) => {
+      const role = String(m.role ?? "").toLowerCase()
+      return role === "user" || role === "student" || role === "human"
+    })
+    .slice(-6)
     .map((m) => String(m.content ?? "").trim())
     .filter(Boolean)
   const latest = String(current ?? "").trim()
@@ -153,10 +181,6 @@ export function looksLikeAnswerSeekingRequest(message: string): boolean {
   if (!raw) return false
 
   const normalized = normalizeIntegrityText(raw)
-
-  for (const pattern of ALLOWED_STUDY_OR_LOGISTICS) {
-    if (pattern.test(raw) || pattern.test(normalized)) return false
-  }
 
   for (const pattern of ANSWER_SEEKING_PATTERNS) {
     if (pattern.test(raw) || pattern.test(normalized)) return true
@@ -178,6 +202,10 @@ export function looksLikeAnswerSeekingRequest(message: string): boolean {
       /\bfor\s+me\b/i.test(raw))
   ) {
     return true
+  }
+
+  for (const pattern of ALLOWED_STUDY_OR_LOGISTICS) {
+    if (pattern.test(raw) || pattern.test(normalized)) return false
   }
 
   return false

@@ -14,6 +14,8 @@ describe("message attachment durability helpers", () => {
         "https://example.blob.vercel-storage.com/messages/1/file.jpg",
       ),
     ).toBe(true)
+    expect(isPersistedMessageAttachmentUrl("/api/files/42")).toBe(true)
+    expect(isPersistedMessageAttachmentUrl("/uploads/messages/1/file.jpg")).toBe(false)
   })
 
   it("validateMessageAttachmentInput requires https fileUrl", () => {

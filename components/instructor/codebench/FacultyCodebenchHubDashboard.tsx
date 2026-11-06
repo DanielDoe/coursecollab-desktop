@@ -1,7 +1,7 @@
 "use client"
 
 import "@/components/instructor/codebench/instructor-codebench-ui.css"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import {
   Activity,
   BookOpen,
@@ -62,6 +62,9 @@ export function FacultyCodebenchHubDashboard() {
   const chrome = facultyEmbedChrome(MODULE_ID)
   const [view, setView] = useState<HubView>("workspace")
   const isWorkspaceView = view === "workspace" || view === "live_session"
+  const keepWorkspaceEditorRef = useRef(view === "workspace")
+  if (view === "workspace") keepWorkspaceEditorRef.current = true
+  const keepWorkspaceEditor = view === "workspace" || (view === "live_session" && keepWorkspaceEditorRef.current)
   const [libraryImport, setLibraryImport] = useState<InstructorLibraryItem | null>(null)
   const [classroomImport, setClassroomImport] = useState<InstructorClassroomHandoff | null>(null)
   const [liveSessionHandoff, setLiveSessionHandoff] = useState<InstructorClassroomHandoff | null>(null)
@@ -99,15 +102,7 @@ export function FacultyCodebenchHubDashboard() {
   const content = useMemo(() => {
     switch (view) {
       case "workspace":
-        return (
-          <InstructorCodebenchIde
-            className="h-full min-h-[min(520px,calc(100dvh-14rem))] flex-1 lg:min-h-0"
-            importLibraryItem={libraryImport}
-            onLibraryImportHandled={() => setLibraryImport(null)}
-            importClassroomAssignment={classroomImport}
-            onClassroomImportHandled={() => setClassroomImport(null)}
-          />
-        )
+        return null
       case "library":
         return (
           <InstructorCodeLibraryPanel
@@ -156,12 +151,10 @@ export function FacultyCodebenchHubDashboard() {
         return null
     }
   }, [
-    classroomImport,
     handleExitLiveSession,
     handleOpenClassroomInIde,
     handleOpenLibraryItem,
     handleStartLiveSession,
-    libraryImport,
     liveSessionHandoff,
     openChallenges,
     openWorkspace,
@@ -213,7 +206,23 @@ export function FacultyCodebenchHubDashboard() {
               : "instructor-codebench-scroll scrollbar-themed overflow-y-auto overflow-x-hidden overscroll-contain",
           )}
         >
-          {content}
+          {keepWorkspaceEditor ? (
+            <div
+              className={cn(
+                view === "workspace" ? "flex min-h-0 min-w-0 flex-1 flex-col" : "hidden",
+              )}
+              aria-hidden={view !== "workspace"}
+            >
+              <InstructorCodebenchIde
+                className="h-full min-h-[min(520px,calc(100dvh-14rem))] flex-1 lg:min-h-0"
+                importLibraryItem={libraryImport}
+                onLibraryImportHandled={() => setLibraryImport(null)}
+                importClassroomAssignment={classroomImport}
+                onClassroomImportHandled={() => setClassroomImport(null)}
+              />
+            </div>
+          ) : null}
+          {view === "workspace" ? null : content}
         </div>
       </FacultyModuleSplitLayout>
     </div>

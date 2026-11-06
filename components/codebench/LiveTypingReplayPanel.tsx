@@ -134,6 +134,7 @@ export function LiveTypingReplayPanel({
   const [draft, setDraft] = useState<string | null>(null)
   const [draftBase, setDraftBase] = useState<string | null>(null)
   const [sentFix, setSentFix] = useState<string | null>(null)
+  const sentOverRef = useRef<string | null>(null)
   const [syncState, setSyncState] = useState<"idle" | "sending" | "error">("idle")
   const editorHostRef = useRef<HTMLDivElement>(null)
   const [editorHeight, setEditorHeight] = useState(220)
@@ -194,11 +195,19 @@ export function LiveTypingReplayPanel({
 
   useEffect(() => {
     if (sentFix == null) return
-    if ((liveCode ?? "").trim() === sentFix.trim()) {
+    const live = liveCode ?? ""
+    if (live.trim() === sentFix.trim()) {
+      sentOverRef.current = null
       setSentFix(null)
       return
     }
-    const timer = window.setTimeout(() => setSentFix(null), SENT_FIX_HOLD_MS)
+    // The student's previous file is still streaming. Keep the edit on screen
+    // until their editor catches up or they type something new.
+    if (sentOverRef.current != null && live === sentOverRef.current) return
+    const timer = window.setTimeout(() => {
+      sentOverRef.current = null
+      setSentFix(null)
+    }, SENT_FIX_HOLD_MS)
     return () => window.clearTimeout(timer)
   }, [liveCode, sentFix])
 
@@ -226,6 +235,7 @@ export function LiveTypingReplayPanel({
     setSyncState("sending")
     try {
       await onSendToStudent(sent)
+      sentOverRef.current = liveCode ?? ""
       setSentFix(sent)
       setDraft(null)
       setDraftBase(null)

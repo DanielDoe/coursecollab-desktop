@@ -15,6 +15,8 @@ import {
   User,
   X,
 } from "lucide-react"
+import { CoraBotMark } from "@/components/cora/CoraBotMark"
+import { CoraThinkingIndicator } from "@/components/cora/CoraThinkingIndicator"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -577,10 +579,7 @@ export function LectureSlideAiAssistant({
                 ))
               )}
               {(loading || statusLine) && (
-                <div className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 text-sm text-muted-foreground shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
-                  {statusLine || "Thinking…"}
-                </div>
+                <CoraThinkingIndicator mode="explain" compact className="max-w-md" />
               )}
               <div ref={chatEndRef} />
             </div>
@@ -671,16 +670,13 @@ function ChatBubble({
 
   return (
     <div className={cn("flex w-full min-w-0 gap-2 sm:gap-2.5", isUser ? "flex-row-reverse" : "flex-row")}>
-      <div
-        className={cn(
-          "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full sm:mt-0 sm:h-8 sm:w-8",
-          isUser
-            ? "bg-primary text-primary-foreground"
-            : "bg-slate-200 text-slate-600 dark:bg-white/10 dark:text-primary",
-        )}
-      >
-        {isUser ? <User className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <Bot className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
-      </div>
+      {isUser ? (
+        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground sm:mt-0 sm:h-8 sm:w-8">
+          <User className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+        </div>
+      ) : (
+        <CoraBotMark size="xs" className="mt-0.5 shrink-0 sm:mt-0" />
+      )}
       <div
         className={cn(
           "min-w-0 max-w-[calc(100%-2rem)] flex-1 rounded-2xl px-3 py-2 shadow-sm [overflow-wrap:anywhere] [word-break:break-word] sm:max-w-[85%] sm:px-3.5 sm:py-2.5",

@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
+import { studentApiFetch } from "@/lib/auth"
 import { buildStudentScopedSearchParams } from "@/lib/student-session-ids"
 import { UserPlus, Send, X, Check, MessageSquare, Search, Users, Globe, Zap, Star, Sparkles, Crown } from "lucide-react"
 import { motion } from "framer-motion"
@@ -25,7 +26,7 @@ import { getFacultyModuleTheme } from "@/lib/faculty-module-themes"
 import { PORTAL_CARD, PORTAL_TEXT, PORTAL_TEXT_MUTED } from "@/lib/appearance/portal-nav-classes"
 import { getStudentModuleTheme } from "@/lib/student-module-themes"
 import { GroupDiscoverPanelSkeleton } from "@/components/student/dashboard-v2/GroupsPageSkeleton"
-import { portalOutlineButtonClass } from "@/lib/portal-module-themes"
+import { portalOutlineButtonClass, portalSolidButton } from "@/lib/portal-module-themes"
 
 const groupsTheme = getStudentModuleTheme("groups")
 
@@ -167,7 +168,7 @@ export function GroupRequestsPanel({
   const fetchDiscoveryData = async () => {
     try {
       const params = buildStudentScopedSearchParams({ session: studentSection })
-      const res = await fetch(`/api/groups/requests/discover?${params}`)
+      const res = await studentApiFetch(`/api/groups/requests/discover?${params}`)
       const data = await res.json()
       if (data.ok) {
         setOpenGroups(data.data.openGroups || [])
@@ -185,7 +186,7 @@ export function GroupRequestsPanel({
         studentId: String(studentDatabaseId),
         session: studentSection,
       })
-      const res = await fetch(`/api/groups/requests/my-requests?${params}`)
+      const res = await studentApiFetch(`/api/groups/requests/my-requests?${params}`)
       const data = await res.json()
       if (data.ok) {
         setIncomingJoinRequests(data.data.incomingJoinRequests || [])
@@ -351,12 +352,12 @@ export function GroupRequestsPanel({
   }
 
   const cardClass = embedInDashboard
-    ? "overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-none"
+    ? "gap-0 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] py-0 shadow-none"
     : "h-[600px] sm:h-[650px] md:h-[700px] border border-slate-200/60 dark:border-slate-700/60 bg-white/85 dark:bg-slate-800/85 backdrop-blur-sm shadow-[0_8px_32px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)] rounded-xl sm:rounded-2xl overflow-hidden"
 
   return (
     <Card className={cardClass}>
-      <CardHeader className={cn(embedInDashboard ? "p-3 sm:p-4 pb-3" : "pb-3 sm:pb-4 p-4 sm:p-6")}>
+      <CardHeader className={cn(embedInDashboard ? "gap-1 px-3 py-3 sm:px-4" : "pb-3 sm:pb-4 p-4 sm:p-6")}>
         <CardTitle className={cn(
           embedInDashboard
             ? "text-sm font-semibold text-[var(--cc-text)]"
@@ -400,7 +401,7 @@ export function GroupRequestsPanel({
         </div>
       </CardHeader>
 
-      <CardContent className="pt-0 px-4 sm:px-6 pb-4 sm:pb-6">
+      <CardContent className={cn(embedInDashboard ? "px-3 pb-3 sm:px-4" : "pt-0 px-4 sm:px-6 pb-4 sm:pb-6")}>
         <Tabs defaultValue="discover" className="w-full">
           <TabsList className={cn(
             "w-full rounded-xl mb-4 sm:mb-6 p-1 gap-0.5 sm:gap-1 grid grid-cols-3 h-10 sm:h-11 min-h-10 overflow-hidden",
@@ -464,7 +465,7 @@ export function GroupRequestsPanel({
                   <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">No groups available.</p>
                 </div>
               ) : (
-                <div className="space-y-3 sm:space-y-4">
+                <div className={embedInDashboard ? "overflow-hidden rounded-xl border border-[var(--border)] divide-y divide-[var(--border)]" : "space-y-3 sm:space-y-4"}>
                   {filterGroups(openGroups).map((g, index) => (
                     <motion.div
                       key={g.id}
@@ -474,7 +475,7 @@ export function GroupRequestsPanel({
                     >
                       <Card className={cn(
                         embedInDashboard
-                          ? "rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 shadow-none"
+                          ? "gap-0 rounded-none border-0 bg-transparent px-3 py-2.5 shadow-none hover:bg-muted/40"
                           : "border border-slate-200/60 dark:border-slate-700/60 bg-white/85 dark:bg-slate-800/85 backdrop-blur-sm shadow-[0_4px_16px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.3)] rounded-lg sm:rounded-xl p-3 sm:p-4 hover:shadow-[0_8px_24px_rgba(0,0,0,0.15)] dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)] transition-all duration-300",
                       )}>
                         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3">
@@ -501,12 +502,11 @@ export function GroupRequestsPanel({
                           <Button 
                             size="sm" 
                             className={cn(
-                              "rounded-lg sm:rounded-xl px-3 sm:px-4 py-1.5 sm:py-2 font-semibold gap-1.5 sm:gap-2 text-xs sm:text-sm w-full sm:w-auto shrink-0",
+                              "rounded-lg px-3 font-semibold gap-1.5 text-xs w-full sm:w-auto shrink-0",
                               embedInDashboard
-                                ? "h-9 border-0 shadow-none hover:opacity-90"
+                                ? cn("h-8", portalSolidButton("amber"))
                                 : "bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white shadow-[0_4px_16px_rgba(16,185,129,0.3)] hover:shadow-[0_8px_24px_rgba(16,185,129,0.4)] transition-all duration-300",
                             )}
-                            style={embedInDashboard ? { backgroundColor: "var(--cc-accent)", color: "#FFFFFF" } : undefined}
                             onClick={() => handleJoinGroup(g.id)}
                           >
                             <UserPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -544,7 +544,7 @@ export function GroupRequestsPanel({
                   <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">No available students found.</p>
                 </div>
               ) : (
-                <div className="space-y-3 sm:space-y-4">
+                <div className={embedInDashboard ? "overflow-hidden rounded-xl border border-[var(--border)] divide-y divide-[var(--border)]" : "space-y-3 sm:space-y-4"}>
                   {filterStudents(studentsWithoutGroup.filter((s) => s.id !== studentDatabaseId)).map((s, index) => (
                     <motion.div
                       key={s.id}
@@ -552,10 +552,14 @@ export function GroupRequestsPanel({
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.3, delay: index * 0.1 }}
                     >
-                      <Card className="border border-slate-200/60 dark:border-slate-700/60 bg-white/85 dark:bg-slate-800/85 backdrop-blur-sm shadow-[0_4px_16px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.3)] rounded-lg sm:rounded-xl p-3 sm:p-4 hover:shadow-[0_8px_24px_rgba(0,0,0,0.15)] dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)] transition-all duration-300">
+                      <Card className={cn(
+                        embedInDashboard
+                          ? "gap-0 rounded-none border-0 bg-transparent px-3 py-2.5 shadow-none hover:bg-muted/40"
+                          : "border border-slate-200/60 dark:border-slate-700/60 bg-white/85 dark:bg-slate-800/85 backdrop-blur-sm shadow-[0_4px_16px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.3)] rounded-lg sm:rounded-xl p-3 sm:p-4",
+                      )}>
                         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3">
                           <div className="flex-1 min-w-0">
-                            <h5 className="font-bold text-slate-800 dark:text-slate-200 text-base sm:text-lg break-words">{s.full_name}</h5>
+                            <h5 className={cn("break-words", embedInDashboard ? "text-sm font-semibold text-[var(--cc-text)]" : "font-bold text-slate-800 dark:text-slate-200 text-base sm:text-lg")}>{s.full_name}</h5>
                           </div>
                           <Button 
                             variant="outline" 

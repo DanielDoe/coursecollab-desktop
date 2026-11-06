@@ -23,7 +23,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Trash2,
-  Bot,
   ListOrdered,
   Baby,
   Brain,
@@ -76,6 +75,7 @@ import { DebugPanel } from "./ai-tutor/DebugPanel"
 import { DebugTraceModal } from "./ai-tutor/DebugTraceModal"
 import { DocGeneratorPanel } from "./ai-tutor/DocGeneratorPanel"
 import { MoreToolsDrawer } from "./ai-tutor/MoreToolsDrawer"
+import { CoraBotMark } from "@/components/cora/CoraBotMark"
 import { CoraThinkingIndicator } from "@/components/cora/CoraThinkingIndicator"
 import { CoraWorkspaceWelcome } from "@/components/cora/CoraWorkspaceWelcome"
 import { CoraQuestionImportDialog } from "@/components/cora/CoraQuestionImportDialog"
@@ -154,7 +154,11 @@ import {
 } from "@/lib/cora/study-plan-flows"
 import { buildReadOnlyRefusal, detectForbiddenWriteIntent } from "@/lib/cora/read-only-agent"
 import { CoraChatBubble } from "@/components/cora/CoraChatBubble"
+import { CoraUiPayloadCard } from "@/components/cora/CoraUiPayloadCard"
+import { CoraFollowUps } from "@/components/cora/CoraFollowUps"
+import { CoraThreadOutline } from "@/components/cora/CoraThreadOutline"
 import { CoraActionCard } from "@/components/cora/CoraActionCard"
+import { followUpsForCoraUi, type CoraUiPayload } from "@/lib/cora/models/ui-payloads"
 import type { CoraActionProposal } from "@/lib/cora/confirmations/action-proposals"
 import type { CoraStudentContextPayload } from "@/lib/cora/fetch-student-context"
 import { useRouter } from "next/navigation"
@@ -234,6 +238,7 @@ interface Message {
   messageType?: MessageType
   meta?: MessageMeta
   proposals?: CoraActionProposal[]
+  ui?: CoraUiPayload
   /** Scope redirect false-positive feedback (ENFORCE mode only) */
   scopeFeedback?: {
     eventId: number | null
@@ -1436,6 +1441,7 @@ How can I help you learn today?`,
           timestamp: new Date(),
           topic: data.detectedTopic as string | undefined,
           proposals,
+          ui: data.ui as CoraUiPayload | undefined,
           scopeFeedback:
             data.scopeRedirect && data.offerScopeFeedback
               ? {
@@ -2328,6 +2334,17 @@ How can I help you learn today?`,
                 : renderMessageContent(msg.content, msg.role)}
             </CoraChatBubble>
           )}
+          {!isUser && msg.ui ? <CoraUiPayloadCard ui={msg.ui} portal="student" /> : null}
+          {!isUser &&
+          msg.id ===
+            [...messages].reverse().find((item) => item.role === "ai" && item.id !== "typing" && item.id !== "welcome")
+              ?.id ? (
+            <CoraFollowUps
+              prompts={followUpsForCoraUi(msg.ui, "student")}
+              disabled={isLoading}
+              onSelect={(prompt) => void handleSendMessage(prompt)}
+            />
+          ) : null}
           {!isUser && msg.proposals && msg.proposals.length > 0 ? (
             <div className="mb-6 space-y-2">
               {msg.proposals.map((proposal) => (
@@ -2447,18 +2464,7 @@ How can I help you learn today?`,
         className={`flex gap-3 ${msg.role === 'student' ? 'justify-end' : 'justify-start'} mb-5`}
       >
         {msg.role === 'ai' && (
-          <div className="relative shrink-0">
-            {isThinking && (
-              <motion.span
-                className="absolute inset-0 rounded-2xl bg-violet-500/30"
-                animate={{ scale: [1, 1.35, 1], opacity: [0.45, 0, 0.45] }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              />
-            )}
-            <div className={`relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow-lg shadow-violet-500/20 ${isThinking ? "ring-2 ring-violet-400/40" : ""}`}>
-              <Bot className="h-5 w-5 text-white" />
-            </div>
-          </div>
+          <CoraBotMark size="sm" className="shrink-0" />
         )}
         
         <div className={`max-w-[min(78%,640px)] ${msg.role === 'student' ? 'order-first' : ''}`}>
@@ -3088,9 +3094,7 @@ How can I help you learn today?`,
       {!hideHeader && (
         <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-            <Bot className="w-6 h-6 text-white" />
-          </div>
+          <CoraBotMark size="sm" className="shrink-0" />
           <div>
             <h3 className="font-semibold text-white">AI Programming Tutor</h3>
             <p className="text-xs text-purple-100">Always here to help</p>
@@ -3367,11 +3371,30 @@ How can I help you learn today?`,
               onScroll={handleChatScroll}
               className="absolute inset-0 overflow-y-auto overscroll-contain"
             >
-              <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
+              <div className="mx-auto flex max-w-3xl items-start gap-4 px-4 py-8 sm:px-6">
+                <div className="min-w-0 flex-1">
                 <AnimatePresence mode="popLayout">
                   {visibleMessages.map((msg) => renderMessage(msg))}
                 </AnimatePresence>
                 <div ref={messagesEndRef} className="h-px" aria-hidden />
+                </div>
+                <CoraThreadOutline
+                  items={visibleMessages
+                    .filter((msg) => msg.role === "student" && msg.content.trim())
+                    .map((msg) => ({
+                      id: msg.id,
+                      label: msg.content.replace(/\s+/g, " ").slice(0, 48),
+                    }))}
+                  onSelect={(id) => {
+                    shouldAutoScrollRef.current = false
+                    const el = chatScrollRef.current
+                    const target = el?.querySelector(`[data-cora-message-id="${id}"]`)
+                    if (!el || !(target instanceof HTMLElement)) return
+                    const top =
+                      target.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - 12
+                    el.scrollTo({ top, behavior: "smooth" })
+                  }}
+                />
               </div>
             </div>
           </div>

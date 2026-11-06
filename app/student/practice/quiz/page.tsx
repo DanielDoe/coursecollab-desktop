@@ -81,9 +81,21 @@ interface Question {
   answerReview?: PracticeAnswerReview
 }
 
+const PRACTICE_CODE_QUESTION_TYPES = new Set([
+  "code_write",
+  "code_write_plot",
+  "code_problem",
+  "debug_code",
+  "code_debug",
+])
+
+function isCodeQuestionType(type: string): boolean {
+  return PRACTICE_CODE_QUESTION_TYPES.has(type.toLowerCase())
+}
+
 function isSelfContainedQuestionType(type: string): boolean {
   const t = type.toLowerCase()
-  return t === "circuit_submission" || t === "multi_part"
+  return t === "circuit_submission" || t === "multi_part" || isCodeQuestionType(t)
 }
 
 function questionTypeHint(type: string): string {
@@ -91,16 +103,25 @@ function questionTypeHint(type: string): string {
   if (t === "select_all" || t === "multi_output") return "Select all that apply"
   if (t === "circuit_submission") return "Upload your worked solution"
   if (t === "multi_part") return "Answer each part below"
+  if (isCodeQuestionType(t)) return "Write your solution in the editor, then submit"
   return "Select one answer"
 }
 
-function isPracticeItemLocked(
-  question: Pick<Question, "id" | "alreadyAttempted"> | undefined,
-  reviewOnly: boolean,
-  lockedQuestions: Set<number>,
-): boolean {
-  if (!question) return true
-  return reviewOnly || question.alreadyAttempted === true || lockedQuestions.has(question.id)
+function unwrapPracticeCodeAnswer(raw: unknown): { code: string; plotImage: string | null } {
+  if (typeof raw !== "string" || !raw.trim()) return { code: "", plotImage: null }
+  const trimmed = raw.trim()
+  if (trimmed.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(trimmed) as { code?: unknown; plotImage?: unknown }
+      return {
+        code: typeof parsed.code === "string" ? parsed.code : trimmed,
+        plotImage: typeof parsed.plotImage === "string" ? parsed.plotImage : null,
+      }
+    } catch {
+      /* not JSON */
+    }
+  }
+  return { code: raw, plotImage: null }
 }
 
 export default function PracticeQuizPage({ embedded = false }: { embedded?: boolean }) {
@@ -121,6 +142,7 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
   const [selectedAnswer, setSelectedAnswer] = useState<string>("")
   const [selectedMultiAnswers, setSelectedMultiAnswers] = useState<string[]>([])
   const [code, setCode] = useState("")
+  const [uploadedPlot, setUploadedPlot] = useState<string | null>(null)
   const [showFeedback, setShowFeedback] = useState(false)
   const [isCorrect, setIsCorrect] = useState(false)
   const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false)
@@ -141,7 +163,6 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
   const [reviewOnly, setReviewOnly] = useState(false)
 
   useEffect(() => {
-    let cancelled = false
     const studentData = getStudentData()
     if (!studentData || !studentData.databaseId) {
       router.push("/student/login")
@@ -153,9 +174,6 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
 
     const courseId = getStudentCourseIdFromSession()
     const courseQs = courseId != null ? `&courseId=${courseId}` : ""
-    const sessionQs = studentData.section
-      ? `&session=${encodeURIComponent(studentData.section)}`
-      : ""
     void studentApiFetch(`/api/practice/config?studentId=${dbId}${courseQs}`)
       .then((r) => r.json())
       .then((data) => {
@@ -200,121 +218,75 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
       return
     }
 
-    const attemptNum =
-      storedAttemptId && storedAttemptId !== "0" ? Number.parseInt(storedAttemptId, 10) : null
-    if (attemptNum && Number.isFinite(attemptNum)) {
-      setAttemptId(attemptNum)
+    if (storedAttemptId && storedAttemptId !== "0") {
+      setAttemptId(Number.parseInt(storedAttemptId))
     }
     setReviewOnly(storedReviewOnly)
-
-    void (async () => {
-      try {
-        const parsedQuestions = JSON.parse(storedQuestions) as Question[]
-        const restoredAnswers: Record<number, string | string[]> = {}
-        const restoredAnswered = new Set<number>()
-        const restoredLocked = new Set<number>()
-        const restoredReviews: Record<number, PracticeAnswerReview> = {}
-
-        const lockQuestion = (
-          questionId: number,
-          priorAnswer?: string | string[] | null,
-          answerReview?: PracticeAnswerReview | null,
-        ) => {
-          restoredAnswered.add(questionId)
-          restoredLocked.add(questionId)
-          if (priorAnswer != null) restoredAnswers[questionId] = priorAnswer
-          if (answerReview) restoredReviews[questionId] = answerReview
-        }
-
-        for (const q of parsedQuestions) {
-          if (!q.alreadyAttempted && !q.answerReview) continue
-          lockQuestion(q.id, q.priorAnswer, q.answerReview)
-        }
-
-        const questionIds = parsedQuestions
-          .map((q) => Number(q.id))
-          .filter((id) => Number.isFinite(id) && id > 0)
-
-        const hydrateFromPriors =
-          questionIds.length === 0
-            ? Promise.resolve()
-            : studentApiFetch(
-                `/api/practice/prior-answers?studentId=${dbId}&questionIds=${questionIds.join(",")}${courseQs}${sessionQs}`,
-              )
-                .then(async (response) => {
-                  if (!response.ok) return
-                  const data = await response.json()
-                  const rows = Array.isArray(data.answers) ? data.answers : []
-                  for (const row of rows as Array<{
-                    questionId?: number
-                    priorAnswer?: string | string[]
-                    answerReview?: PracticeAnswerReview | null
-                  }>) {
-                    const questionId = Number(row.questionId)
-                    if (!Number.isFinite(questionId) || questionId < 1) continue
-                    lockQuestion(questionId, row.priorAnswer, row.answerReview)
-                  }
-                })
-                .catch(() => {})
-
-        const hydrateFromAttempt =
-          storedReviewOnly || !attemptNum || !Number.isFinite(attemptNum)
-            ? Promise.resolve()
-            : studentApiFetch(`/api/practice/attempt/${attemptNum}/state`)
-                .then(async (response) => {
-                  if (!response.ok) return
-                  const data = await response.json()
-                  if (data.completedAt) {
-                    sessionStorage.removeItem("practiceAttemptId")
-                    sessionStorage.removeItem("practiceQuestions")
-                    sessionStorage.removeItem("practiceReviewOnly")
-                    router.push(`/student/practice/results/${attemptNum}`)
-                    return
-                  }
-                  if (!Array.isArray(data.answers)) return
-                  for (const row of data.answers as Array<{
-                    questionId: number
-                    studentAnswer: string | string[]
-                  }>) {
-                    lockQuestion(row.questionId, row.studentAnswer)
-                  }
-                })
-                .catch(() => {})
-
-        await Promise.all([hydrateFromPriors, hydrateFromAttempt])
-        if (cancelled) return
-
-        setQuestions(
-          parsedQuestions.map((q) =>
-            restoredLocked.has(q.id)
-              ? {
-                  ...q,
-                  alreadyAttempted: true,
-                  priorAnswer: restoredAnswers[q.id] ?? q.priorAnswer,
-                  answerReview: restoredReviews[q.id] ?? q.answerReview,
-                }
-              : q,
-          ),
-        )
-        setAnswers((prev) => ({ ...prev, ...restoredAnswers }))
-        setAnsweredQuestions((prev) => new Set([...prev, ...restoredAnswered]))
-        setLockedQuestions((prev) => new Set([...prev, ...restoredLocked]))
-        setAnswerReviews((prev) => ({ ...prev, ...restoredReviews }))
-      } catch {
-        if (cancelled) return
-        toast({
-          title: "Could not load practice session",
-          description: "Please start a new practice session",
-          variant: "destructive",
-        })
-        router.push(practiceHref)
-      } finally {
-        if (!cancelled) setHydrating(false)
+    try {
+      const parsedQuestions = JSON.parse(storedQuestions) as Question[]
+      setQuestions(parsedQuestions)
+      const restoredAnswers: Record<number, string | string[]> = {}
+      const restoredAnswered = new Set<number>()
+      const restoredLocked = new Set<number>()
+      const restoredReviews: Record<number, PracticeAnswerReview> = {}
+      for (const q of parsedQuestions) {
+        if (!q.alreadyAttempted && !q.answerReview) continue
+        restoredAnswered.add(q.id)
+        restoredLocked.add(q.id)
+        if (q.priorAnswer != null) restoredAnswers[q.id] = q.priorAnswer
+        if (q.answerReview) restoredReviews[q.id] = q.answerReview
       }
-    })()
+      if (restoredAnswered.size > 0) {
+        setAnswers(restoredAnswers)
+        setAnsweredQuestions(restoredAnswered)
+        setLockedQuestions(restoredLocked)
+        setAnswerReviews(restoredReviews)
+      }
 
-    return () => {
-      cancelled = true
+      if (storedReviewOnly || !storedAttemptId || storedAttemptId === "0") {
+        setHydrating(false)
+        return
+      }
+
+      void studentApiFetch(`/api/practice/attempt/${storedAttemptId}/state`)
+        .then(async (response) => {
+          if (!response.ok) return
+          const data = await response.json()
+          if (!Array.isArray(data.answers) || data.answers.length === 0) return
+
+          const restoredAnswers: Record<number, string | string[]> = {}
+          const restoredAnswered = new Set<number>()
+          const restoredLocked = new Set<number>()
+
+          for (const row of data.answers as Array<{
+            questionId: number
+            studentAnswer: string | string[]
+          }>) {
+            restoredAnswers[row.questionId] = row.studentAnswer
+            restoredAnswered.add(row.questionId)
+            restoredLocked.add(row.questionId)
+          }
+
+          setAnswers(restoredAnswers)
+          setAnsweredQuestions(restoredAnswered)
+          setLockedQuestions(restoredLocked)
+
+          if (data.completedAt) {
+            sessionStorage.removeItem("practiceAttemptId")
+            sessionStorage.removeItem("practiceQuestions")
+            router.push(`/student/practice/results/${storedAttemptId}`)
+          }
+        })
+        .catch(() => {})
+    } catch {
+      toast({
+        title: "Could not load practice session",
+        description: "Please start a new practice session",
+        variant: "destructive",
+      })
+      router.push(practiceHref)
+    } finally {
+      setHydrating(false)
     }
   }, [router, toast, practiceHref])
 
@@ -340,12 +312,24 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
       if (typeof savedAnswer === 'string') {
         setSelectedAnswer(savedAnswer)
         setSelectedMultiAnswers([])
+        if (isCodeQuestionType(currentQuestion.question_type)) {
+          const unwrapped = unwrapPracticeCodeAnswer(savedAnswer)
+          setCode(unwrapped.code)
+          setUploadedPlot(unwrapped.plotImage)
+        } else {
+          setCode("")
+          setUploadedPlot(null)
+        }
       } else if (Array.isArray(savedAnswer)) {
         setSelectedMultiAnswers(savedAnswer)
         setSelectedAnswer("")
+        setCode("")
+        setUploadedPlot(null)
       } else {
         setSelectedAnswer("")
         setSelectedMultiAnswers([])
+        setCode("")
+        setUploadedPlot(null)
       }
       
       const review = answerReviews[currentQuestion.id]
@@ -365,7 +349,7 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
       setIsSubmittingAnswer(false)
       setAiFeedback(null)
     }
-  }, [currentIndex, questions, answerReviews, hydrating])
+  }, [currentIndex, questions, answerReviews])
 
   const currentQuestion = questions[currentIndex]
   const progress = ((currentIndex + 1) / questions.length) * 100
@@ -390,7 +374,6 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
   }, [answers, code, currentQuestion, selectedAnswer, selectedMultiAnswers])
 
   const handleAnswer = (value: string | string[]) => {
-    if (isPracticeItemLocked(currentQuestion, reviewOnly, lockedQuestions)) return
     setAnswers((prev) => ({
       ...prev,
       [currentQuestion.id]: value,
@@ -422,15 +405,22 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
   }
 
   const handleCodeChange = (value: string | undefined) => {
-    if (isPracticeItemLocked(currentQuestion, reviewOnly, lockedQuestions)) return
-    if (value !== undefined) {
-      setCode(value)
-    }
+    if (value === undefined || !currentQuestion) return
+    setCode(value)
+    const next =
+      currentQuestion.question_type.toLowerCase() === "code_write_plot"
+        ? JSON.stringify({ code: value, plotImage: uploadedPlot || undefined })
+        : value
+    setAnswers((prev) => ({ ...prev, [currentQuestion.id]: next }))
   }
 
   const submitAnswer = async () => {
     if (!currentQuestion || isSubmittingAnswer) return
-    if (isPracticeItemLocked(currentQuestion, reviewOnly, lockedQuestions)) {
+    if (
+      reviewOnly ||
+      currentQuestion.alreadyAttempted ||
+      lockedQuestions.has(currentQuestion.id)
+    ) {
       toast({
         title: "Already attempted",
         description: "This question is locked. Review your previous answer below.",
@@ -444,7 +434,21 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
         ? selectedMultiAnswers
         : selectedAnswer || code
 
-    if (qType === "circuit_submission") {
+    if (isCodeQuestionType(qType)) {
+      const written = (code || unwrapPracticeCodeAnswer(answers[currentQuestion.id]).code).trim()
+      if (!written) {
+        toast({
+          title: "No code entered",
+          description: "Write your solution in the editor before submitting.",
+          variant: "destructive",
+        })
+        return
+      }
+      answerToSubmit =
+        qType === "code_write_plot"
+          ? JSON.stringify({ code: written, plotImage: uploadedPlot || undefined })
+          : written
+    } else if (qType === "circuit_submission") {
       const raw = selectedAnswer || String(answers[currentQuestion.id] ?? "")
       const cfg = parseCircuitSubmissionConfig(currentQuestion.solution_upload_config)
       if (!circuitSubmissionHasRequiredUpload(raw, cfg)) {
@@ -504,7 +508,7 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
       return optionMap[letter] || letter
     }
 
-    if (qType !== "circuit_submission" && qType !== "multi_part") {
+    if (qType !== "circuit_submission" && qType !== "multi_part" && !isCodeQuestionType(qType)) {
       if (Array.isArray(answerToSubmit)) {
         answerToSubmit = answerToSubmit.map(convertLetterToOption)
       } else if (
@@ -554,9 +558,10 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
     })
 
     try {
-      const isUploadType =
+      const isLongEvalType =
         currentQuestion.question_type === "circuit_submission" ||
-        currentQuestion.question_type === "multi_part"
+        currentQuestion.question_type === "multi_part" ||
+        isCodeQuestionType(currentQuestion.question_type)
 
       const response = await studentApiFetch("/api/practice/evaluate", {
         method: "POST",
@@ -571,8 +576,9 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
           responseTimeMs: Math.round(responseTime),
           xpEarned: calculatedXP,
           difficulty: currentQuestion.difficulty,
+          plotImage: qType === "code_write_plot" ? uploadedPlot : undefined,
         }),
-        signal: isUploadType ? AbortSignal.timeout(180000) : undefined,
+        signal: isLongEvalType ? AbortSignal.timeout(180000) : undefined,
       })
 
       const evalData = await response.json()
@@ -1191,6 +1197,28 @@ export default function PracticeQuizPage({ embedded = false }: { embedded?: bool
               onAnswerChange={handleAnswerSelect}
               onMultiAnswerToggle={handleMultiAnswerToggle}
               onCodeChange={handleCodeChange}
+              uploadedPlot={uploadedPlot}
+              onPlotUpload={(_file, base64) => {
+                setUploadedPlot(base64)
+                if (currentQuestion) {
+                  setAnswers((prev) => ({
+                    ...prev,
+                    [currentQuestion.id]: JSON.stringify({
+                      code: code || unwrapPracticeCodeAnswer(prev[currentQuestion.id]).code,
+                      plotImage: base64,
+                    }),
+                  }))
+                }
+              }}
+              onPlotRemove={() => {
+                setUploadedPlot(null)
+                if (currentQuestion) {
+                  setAnswers((prev) => ({
+                    ...prev,
+                    [currentQuestion.id]: code || unwrapPracticeCodeAnswer(prev[currentQuestion.id]).code,
+                  }))
+                }
+              }}
               isPreviewMode={false}
               isLocked={lockedQuestions.has(currentQuestion.id)}
               attemptId={attemptId}

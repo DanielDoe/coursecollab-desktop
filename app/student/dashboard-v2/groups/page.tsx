@@ -71,10 +71,10 @@ export default function DashboardV2GroupsPage() {
       })
 
       const [groupsRes, rosterRes, discoverRes, myReqRes] = await Promise.all([
-        fetch(`/api/groups?${groupParams}`),
+        studentApiFetch(`/api/groups?${groupParams}`),
         studentApiFetch(`/api/student/roster?${rosterParams}`),
-        fetch(`/api/groups/requests/discover?${discoverParams}`),
-        fetch(`/api/groups/requests/my-requests?${myReqParams}`),
+        studentApiFetch(`/api/groups/requests/discover?${discoverParams}`),
+        studentApiFetch(`/api/groups/requests/my-requests?${myReqParams}`),
       ])
 
       if (groupsRes.ok) {

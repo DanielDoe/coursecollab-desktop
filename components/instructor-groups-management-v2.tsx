@@ -24,7 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Users, Trash2, Crown, CheckCircle, XCircle, Clock, AlertCircle, ArrowLeft, RotateCcw, Archive, Download } from "lucide-react"
+import { Users, Trash2, Crown, CheckCircle, XCircle, Clock, AlertCircle, ArrowLeft, RotateCcw, Archive, Download, Settings } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
@@ -39,6 +39,7 @@ import {
   facultyToolbarFilterButtonClass,
 } from "@/components/instructor/dashboard-v2/FacultyIntegratedToolbar"
 import { facultyEmbedChrome } from "@/lib/faculty-embed-chrome"
+import { InstructorGroupSetupPanel } from "@/components/instructor/InstructorGroupSetupPanel"
 
 interface Group {
   id: number
@@ -70,7 +71,7 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
   const [groups, setGroups] = useState<Group[]>([])
   const [sessionCounts, setSessionCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
-  const [activeMenu, setActiveMenu] = usePersistedState<"all" | "pending" | "approved" | "deleted">("groups-menu", "all")
+  const [activeMenu, setActiveMenu] = usePersistedState<"all" | "pending" | "approved" | "deleted" | "setup">("groups-menu", "all")
   const [selectedSession, setSelectedSession] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -78,6 +79,8 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
   const [removeMemberDialogOpen, setRemoveMemberDialogOpen] = useState(false)
   const [membersDialogOpen, setMembersDialogOpen] = useState(false)
   const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false)
+  const [approveAllDialogOpen, setApproveAllDialogOpen] = useState(false)
+  const [approvingAll, setApprovingAll] = useState(false)
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null)
   const [selectedMember, setSelectedMember] = useState<{ id: number; name: string } | null>(null)
   const [viewMode, setViewMode] = useState<"card" | "list">("card")
@@ -118,7 +121,6 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
         params.append("session", selectedSession)
       }
       
-      // Map menu to status filter
       if (activeMenu === "pending") {
         params.append("status", "pending")
       } else if (activeMenu === "approved") {
@@ -127,12 +129,14 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
         params.append("status", "deleted")
       }
 
-      const url = `/api/groups${params.toString() ? `?${params.toString()}` : ''}`
+      const url = `/api/groups${params.toString() ? `?${params.toString()}` : ""}`
+      const headers = getInstructorScopeHeaders()
       const [response, countsResponse] = await Promise.all([
-        fetch(url, { headers: getInstructorScopeHeaders() }),
-        fetch("/api/groups/counts", { headers: getInstructorScopeHeaders() }),
+        fetch(url, { headers }),
+        fetch("/api/groups/counts", { headers }),
       ])
-      const data = await response.json()
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || "Failed to load groups")
       setGroups(data.groups || [])
       if (countsResponse.ok) {
         const countsData = await countsResponse.json()
@@ -158,6 +162,7 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
     try {
       const response = await fetch(`/api/groups/${groupId}/approve`, {
         method: "POST",
+        headers: getInstructorScopeHeaders(),
       })
 
       if (!response.ok) {
@@ -178,6 +183,46 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
         description: error.message || "Please try again.",
         variant: "destructive",
       })
+    }
+  }
+
+  const pendingToApprove = useMemo(
+    () =>
+      groups.filter(
+        (g) => !g.deleted_at && (g.status === "pending" || g.status === "pending_update"),
+      ),
+    [groups],
+  )
+
+  const handleApproveAll = async () => {
+    setApprovingAll(true)
+    try {
+      const params = new URLSearchParams()
+      if (selectedSession !== "all") params.append("session", selectedSession)
+      const response = await fetch(
+        `/api/groups/approve-all${params.toString() ? `?${params.toString()}` : ""}`,
+        { method: "POST", headers: getInstructorScopeHeaders() },
+      )
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || "Failed to approve groups")
+      const n = Number(data.approved) || 0
+      toast({
+        title: n === 1 ? "✅ Group approved" : `✅ ${n} groups approved`,
+        description:
+          n === 0
+            ? "There were no pending groups in this offering."
+            : "Students can now create projects for these groups.",
+      })
+      setApproveAllDialogOpen(false)
+      fetchGroups()
+    } catch (error: unknown) {
+      toast({
+        title: "❌ Failed to approve groups",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setApprovingAll(false)
     }
   }
 
@@ -523,16 +568,21 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
     )
   }
 
+  const openGroupDetail = (group: Group) => {
+    setSelectedGroup(group)
+    setMembersDialogOpen(true)
+  }
+
   const renderGroupActions = (group: Group) => (
-    <div className="flex items-center justify-end gap-0.5">
+    <div className="flex flex-wrap items-center justify-end gap-0.5 sm:flex-nowrap">
       {group.members && group.members.length > 0 && group.status === "approved" && !group.deleted_at ? (
         <Button
           variant="ghost"
           size="icon"
           className={cardActionClass}
-          onClick={() => {
-            setSelectedGroup(group)
-            setMembersDialogOpen(true)
+          onClick={(event) => {
+            event.stopPropagation()
+            openGroupDetail(group)
           }}
           title="Manage members"
         >
@@ -544,7 +594,10 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
           variant="ghost"
           size="icon"
           className={cardActionClass}
-          onClick={() => handleRestoreGroup(group.id, group.name)}
+          onClick={(event) => {
+            event.stopPropagation()
+            handleRestoreGroup(group.id, group.name)
+          }}
           title="Restore group"
         >
           <RotateCcw className="h-3.5 w-3.5" />
@@ -557,7 +610,10 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-[var(--cc-sem-success)] hover:bg-[var(--cc-sem-success)]/10"
-                onClick={() => handleApproveGroup(group.id, group.name)}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  handleApproveGroup(group.id, group.name)
+                }}
                 title="Approve"
               >
                 <CheckCircle className="h-3.5 w-3.5" />
@@ -566,7 +622,10 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-[var(--cc-sem-danger)] hover:bg-[var(--cc-sem-danger)]/10"
-                onClick={() => handleRejectGroup(group.id, group.name)}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  handleRejectGroup(group.id, group.name)
+                }}
                 title="Reject"
               >
                 <XCircle className="h-3.5 w-3.5" />
@@ -577,7 +636,10 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-[var(--cc-text-muted)] hover:bg-[var(--cc-sem-danger)]/10 hover:text-[var(--cc-sem-danger)]"
-            onClick={() => handleDeleteGroup(group.id, group.name)}
+            onClick={(event) => {
+              event.stopPropagation()
+              handleDeleteGroup(group.id, group.name)
+            }}
             title="Delete group"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -613,25 +675,35 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
   const renderGroupCard = (group: Group) => (
     <article
       key={group.id}
+      role="button"
+      tabIndex={0}
+      onClick={() => openGroupDetail(group)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          openGroupDetail(group)
+        }
+      }}
       className={cn(
         cardBase,
-        "flex flex-col overflow-hidden transition-colors hover:border-[var(--cc-accent)]/25",
+        "flex cursor-pointer flex-col transition-colors hover:border-[var(--cc-accent)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cc-accent)]/40",
         group.deleted_at && "opacity-75",
       )}
     >
-      <div className="flex flex-1 gap-3 p-4">
-        <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-xl", chrome.p.softBg)}>
-          <Users className={cn("h-5 w-5", chrome.p.iconText)} strokeWidth={2.2} />
+      <div className="flex flex-1 gap-3 p-3 sm:p-4">
+        <div
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-12 sm:w-12",
+            chrome.p.softBg,
+          )}
+        >
+          <Users className={cn("h-4 w-4 sm:h-5 sm:w-5", chrome.p.iconText)} strokeWidth={2.2} />
         </div>
         <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <h3 className={cn("truncate text-sm font-semibold leading-snug", PORTAL_TEXT)} title={group.name}>
-                {group.name}
-              </h3>
-              <p className={cn("mt-0.5 line-clamp-1 text-xs", PORTAL_TEXT_MUTED)}>{groupCardMeta(group)}</p>
-            </div>
+          <div className="space-y-1.5">
+            <h3 className={cn("text-sm font-semibold leading-snug break-words", PORTAL_TEXT)}>{group.name}</h3>
             {getStatusBadge(group.status, group.deleted_at)}
+            <p className={cn("text-xs leading-relaxed break-words", PORTAL_TEXT_MUTED)}>{groupCardMeta(group)}</p>
           </div>
           {renderGroupMembersSummary(group)}
           {renderPendingChanges(group)}
@@ -645,20 +717,27 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
   const renderGroupListItem = (group: Group) => (
     <article
       key={group.id}
+      role="button"
+      tabIndex={0}
+      onClick={() => openGroupDetail(group)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          openGroupDetail(group)
+        }
+      }}
       className={cn(
         cardBase,
-        "flex flex-col gap-3 p-3 transition-colors hover:border-[var(--cc-accent)]/25 sm:flex-row sm:items-center sm:gap-4 sm:p-4",
+        "flex cursor-pointer flex-col gap-3 p-3 transition-colors hover:border-[var(--cc-accent)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cc-accent)]/40 sm:flex-row sm:items-center sm:gap-4 sm:p-4",
         group.deleted_at && "opacity-75",
       )}
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className={cn("truncate text-sm font-semibold", PORTAL_TEXT)} title={group.name}>
-            {group.name}
-          </h3>
+          <h3 className={cn("text-sm font-semibold leading-snug break-words", PORTAL_TEXT)}>{group.name}</h3>
           {getStatusBadge(group.status, group.deleted_at)}
         </div>
-        <p className={cn("mt-0.5 line-clamp-1 text-xs", PORTAL_TEXT_MUTED)}>{groupCardMeta(group)}</p>
+        <p className={cn("mt-0.5 text-xs leading-relaxed break-words", PORTAL_TEXT_MUTED)}>{groupCardMeta(group)}</p>
         {renderGroupMembersSummary(group)}
         {renderPendingChanges(group)}
       </div>
@@ -687,7 +766,7 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
     <div
       className={
         embedInDashboard
-          ? "w-full min-w-0"
+          ? "flex min-h-0 w-full min-w-0 flex-1 flex-col"
           : "w-full max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6"
       }
     >
@@ -706,10 +785,16 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
       )}
 
       <FacultyModuleSplitLayout
+        scrollMode={embedInDashboard ? "panel" : "page"}
+        splitMode="container"
+        containerName="faculty-split"
+        className={embedInDashboard ? "min-h-0 flex-1" : undefined}
         menu={
           <FacultyModuleSideMenu
             moduleId="groups"
             title="Groups"
+            embedded
+            hideTitle
             activeId={activeMenu}
             onSelect={(id) => startTransition(() => setActiveMenu(id as typeof activeMenu))}
             items={[
@@ -717,16 +802,27 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
               { id: "pending", label: "Pending", icon: Clock, badge: menuCounts.pending },
               { id: "approved", label: "Approved", icon: CheckCircle, badge: menuCounts.approved },
               { id: "deleted", label: "Deleted", icon: Archive, badge: menuCounts.deleted, tone: "destructive" },
+              { id: "setup", label: "Group Setup", icon: Settings, section: "Settings" },
             ]}
           />
         }
       >
-        <div className="min-w-0 flex-1 space-y-4 sm:space-y-6">
+        <div
+          className={cn(
+            "@container/groups-panel flex min-h-0 min-w-0 w-full flex-1 flex-col gap-3 sm:gap-4 md:gap-6",
+            !embedInDashboard && "max-w-full",
+          )}
+        >
+          {activeMenu !== "setup" ? (
           <FacultyIntegratedToolbar
             moduleId="groups"
+            embedded={embedInDashboard}
+            searchCompact={embedInDashboard}
+            searchFill
+            className="shrink-0"
             search={searchQuery}
             onSearchChange={setSearchQuery}
-            searchPlaceholder="Search by name, leader, or member…"
+            searchPlaceholder="Search groups…"
             viewMode={viewMode === "card" ? "grid" : "list"}
             onViewModeChange={(mode) => setViewMode(mode === "grid" ? "card" : "list")}
             filters={
@@ -737,7 +833,7 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
                 <SelectTrigger
                   className={cn(
                     facultyToolbarFilterButtonClass(selectedSession !== "all"),
-                    "h-9 w-auto min-w-[8.5rem] gap-1.5 border-0 shadow-none focus:ring-1 focus:ring-[var(--cc-accent)]/35",
+                    "h-9 w-auto max-w-[9.5rem] min-w-0 gap-1.5 truncate border-0 shadow-none sm:max-w-none sm:min-w-[8.5rem] focus:ring-1 focus:ring-[var(--cc-accent)]/35",
                   )}
                 >
                   <SelectValue placeholder="Session" />
@@ -753,19 +849,34 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
               </Select>
             }
             trailing={
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleExportPDF}
-                className={facultyToolbarFilterButtonClass()}
-              >
-                <Download className="h-3.5 w-3.5 shrink-0 opacity-70" />
-                <span className="hidden sm:inline">Export</span>
-              </Button>
+              <>
+                {pendingToApprove.length > 0 && activeMenu !== "setup" ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setApproveAllDialogOpen(true)}
+                    disabled={approvingAll}
+                    className={cn(facultyToolbarFilterButtonClass(), chrome.success, "text-white hover:opacity-90")}
+                  >
+                    <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span className="hidden sm:inline">Approve all</span>
+                    <span className="tabular-nums">({pendingToApprove.length})</span>
+                  </Button>
+                ) : null}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleExportPDF}
+                  className={facultyToolbarFilterButtonClass()}
+                >
+                  <Download className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                  <span className="hidden sm:inline">Export</span>
+                </Button>
+              </>
             }
             meta={
-              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                <p className="text-xs text-[var(--cc-text-muted)]">
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <p className="min-w-0 text-xs text-[var(--cc-text-muted)] break-words">
                   {filteredGroups.length === groups.length ? (
                     <>
                       <span className="font-medium text-[var(--cc-text-secondary)] tabular-nums">
@@ -805,15 +916,22 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
               </div>
             }
           />
+          ) : null}
 
           {/* Groups Content */}
-          <div className="space-y-4">
-            {isPending && (
+          <div
+            className={cn(
+              "space-y-4",
+              embedInDashboard && "min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 sm:pr-2",
+            )}
+          >
+            {activeMenu === "setup" ? <InstructorGroupSetupPanel /> : null}
+            {activeMenu !== "setup" && isPending && (
               <div className={cn("flex items-center justify-center py-8 text-sm", PORTAL_TEXT_MUTED)}>
                 Loading…
               </div>
             )}
-            {!isPending && filteredGroups.length === 0 ? (
+            {activeMenu !== "setup" && !isPending && filteredGroups.length === 0 ? (
               <div className={cn(cardBase, "border-dashed py-14 text-center")}>
                 <Users className={cn("mx-auto mb-3 h-10 w-10", PORTAL_TEXT_MUTED)} />
                 <p className={cn("text-sm font-medium", PORTAL_TEXT)}>
@@ -833,11 +951,11 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
                     : "Groups appear here when students create them"}
                 </p>
               </div>
-            ) : !isPending && viewMode === "card" ? (
-              <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-3">
+            ) : activeMenu !== "setup" && !isPending && viewMode === "card" ? (
+              <div className="grid w-full min-w-0 grid-cols-1 gap-3 @[480px]/groups-panel:grid-cols-2 @[480px]/groups-panel:gap-4 @[920px]/groups-panel:grid-cols-3">
                 {filteredGroups.map(renderGroupCard)}
               </div>
-            ) : !isPending ? (
+            ) : activeMenu !== "setup" && !isPending ? (
               <div className="space-y-2">
                 {filteredGroups.map(renderGroupListItem)}
               </div>
@@ -846,7 +964,42 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
         </div>
       </FacultyModuleSplitLayout>
 
+      <AlertDialog open={approveAllDialogOpen} onOpenChange={setApproveAllDialogOpen}>
+        <AlertDialogContent className="rounded-2xl border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className={cn("rounded-lg p-2", chrome.p.softBg)}>
+                <CheckCircle className={cn("h-5 w-5", chrome.p.iconText)} />
+              </div>
+              <AlertDialogTitle className="text-xl font-semibold text-slate-800 dark:text-slate-100">
+                Approve all pending groups
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+              Approve {pendingToApprove.length} pending group{pendingToApprove.length === 1 ? "" : "s"}
+              {selectedSession !== "all" ? ` in ${selectedSession}` : " in this offering"}? Students can then create projects.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 dark:text-slate-200 rounded-xl">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                void handleApproveAll()
+              }}
+              disabled={approvingAll}
+              className={cn("rounded-xl", chrome.success)}
+            >
+              {approvingAll ? "Approving…" : `Approve ${pendingToApprove.length}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Delete Group Dialog */}
+
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="rounded-2xl border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950">
           <AlertDialogHeader>
@@ -898,15 +1051,28 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Members Dialog */}
+      {/* Group detail / members */}
       <Dialog open={membersDialogOpen} onOpenChange={setMembersDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[min(90dvh,640px)] w-[calc(100vw-2rem)] max-w-md overflow-y-auto sm:w-full">
           <DialogHeader>
             <DialogTitle>{selectedGroup?.name}</DialogTitle>
-            <DialogDescription>Remove members from this approved group.</DialogDescription>
+            <DialogDescription>
+              {selectedGroup
+                ? `${selectedGroup.session} · ${selectedGroup.leader_name} · ${selectedGroup.member_count} member${selectedGroup.member_count !== 1 ? "s" : ""}`
+                : null}
+            </DialogDescription>
           </DialogHeader>
+          {selectedGroup ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {getStatusBadge(selectedGroup.status, selectedGroup.deleted_at)}
+            </div>
+          ) : null}
+          {selectedGroup?.status === "approved" && !selectedGroup.deleted_at ? (
+            <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>Remove members from this approved group.</p>
+          ) : null}
           <ul className="max-h-64 space-y-1 overflow-y-auto">
-            {selectedGroup?.members?.map((member) => (
+            {selectedGroup?.members?.length ? (
+              selectedGroup.members.map((member) => (
               <li
                 key={member.id}
                 className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-[var(--sidebar-accent)]/40"
@@ -924,7 +1090,9 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
                   </p>
                   <p className={cn("text-xs", PORTAL_TEXT_MUTED)}>{member.student_id}</p>
                 </div>
-                {member.id !== selectedGroup.created_by ? (
+                {selectedGroup.status === "approved" &&
+                !selectedGroup.deleted_at &&
+                member.id !== selectedGroup.created_by ? (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -940,7 +1108,10 @@ export function InstructorGroupsManagement({ embedInDashboard }: { embedInDashbo
                   </Button>
                 ) : null}
               </li>
-            ))}
+              ))
+            ) : (
+              <li className={cn("rounded-lg px-2 py-6 text-center text-sm", PORTAL_TEXT_MUTED)}>No members listed.</li>
+            )}
           </ul>
         </DialogContent>
       </Dialog>

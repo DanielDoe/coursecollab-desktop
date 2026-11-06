@@ -17,14 +17,12 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Users,
   Download,
-  FileSpreadsheet,
   RotateCcw,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +32,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { getProjectModuleSessionCodes, PROJECT_MODULE_SESSIONS } from "@/lib/project-module-sessions";
 import { getInstructorScopeHeaders } from "@/lib/instructor-client-scope-headers";
+import { instructorApiFetch } from "@/lib/instructor-api-headers";
 import {
   FacultyIntegratedToolbar,
   facultyToolbarFilterButtonClass,
@@ -69,9 +68,9 @@ interface StudentGrade {
   studentPoints: number;
   instructorPoints: number;
   groupScore: number;
-  /** 0–50 used for gradebook when set; otherwise groupScore */
   effectiveScore: number;
   overrideScore: number | null;
+  maxPoints: number;
   session: string;
 }
 
@@ -92,6 +91,10 @@ function parseGroupMembersFromProject(project: unknown, fallback: GroupMemberRow
     });
   }
   return out.length > 0 ? out : fallback;
+}
+
+function scorePercent(row: { effectiveScore: number; maxPoints?: number }) {
+  return Math.min(100, Math.max(0, (row.effectiveScore / Math.max(1, row.maxPoints || 20)) * 100))
 }
 
 function projectSummaryFromApi(project: unknown): string | null {
@@ -241,7 +244,6 @@ function MemberProjectScoreEditor({
 
 export function InstructorProjectStudentGrades() {
   const chrome = facultyEmbedChrome("projects");
-  const fp = chrome.p;
   const cardBase = chrome.card;
   const { toast } = useToast();
   const [grades, setGrades] = useState<StudentGrade[]>([]);
@@ -277,26 +279,31 @@ export function InstructorProjectStudentGrades() {
       const query =
         sessionFilter === "all" ? `/api/groups` : `/api/groups?session=${encodeURIComponent(sessionFilter)}`;
 
-      const response = await fetch(query, { headers: getInstructorScopeHeaders() });
+      const response = await instructorApiFetch(query, { headers: getInstructorScopeHeaders() });
       const data = await response.json();
 
       if (!response.ok) {
         throw new Error("Failed to fetch groups");
       }
 
-      const scoresResponse = await fetch("/api/projects/list", { headers: getInstructorScopeHeaders() });
+      const scoresResponse = await instructorApiFetch("/api/projects/list", { headers: getInstructorScopeHeaders() });
       const scoresData = await scoresResponse.json();
 
-      const totalsRes = await fetch("/api/projects/vote-totals");
+      const totalsRes = await instructorApiFetch("/api/projects/vote-totals", {
+        headers: getInstructorScopeHeaders(),
+      });
       const totalsJson = (await totalsRes.json().catch(() => ({}))) as {
-        byProjectId?: Record<string, { totalScore?: number }>;
+        byProjectId?: Record<string, { totalScore?: number; maxPoints?: number }>;
       };
-      const voteTotalsByProjectId = new Map<number, number>();
+      const voteTotalsByProjectId = new Map<number, { totalScore: number; maxPoints: number }>();
       if (totalsRes.ok && totalsJson.byProjectId) {
         for (const [key, row] of Object.entries(totalsJson.byProjectId)) {
           const pid = Number(key);
           if (!Number.isFinite(pid)) continue;
-          voteTotalsByProjectId.set(pid, Number(row?.totalScore) || 0);
+          voteTotalsByProjectId.set(pid, {
+            totalScore: Number(row?.totalScore) || 0,
+            maxPoints: Number(row?.maxPoints) || 50,
+          });
         }
       }
 
@@ -304,7 +311,7 @@ export function InstructorProjectStudentGrades() {
         sessionFilter === "all"
           ? "/api/instructor/projects/member-scores"
           : `/api/instructor/projects/member-scores?session=${encodeURIComponent(sessionFilter)}`;
-      const overrideRes = await fetch(overrideUrl, { headers: instructorAuthHeaders() });
+      const overrideRes = await instructorApiFetch(overrideUrl, { headers: getInstructorScopeHeaders() });
       const overrideMap = new Map<string, number>();
       if (overrideRes.ok) {
         const ov = await overrideRes.json();
@@ -324,7 +331,9 @@ export function InstructorProjectStudentGrades() {
 
         if (!project) continue;
 
-        const groupScore = voteTotalsByProjectId.get(project.id as number) ?? 0;
+        const totals = voteTotalsByProjectId.get(project.id as number)
+        const groupScore = totals?.totalScore ?? 0
+        const maxPoints = totals?.maxPoints || 50
 
         const fallbackMembers: GroupMemberRow[] = Array.isArray(group.members)
           ? group.members.map((m: { id: number; student_id: string; full_name: string }) => ({
@@ -357,6 +366,7 @@ export function InstructorProjectStudentGrades() {
               groupScore,
               effectiveScore: effective,
               overrideScore: ov != null && Number.isFinite(ov) ? ov : null,
+              maxPoints,
               session: group.session,
             });
           }
@@ -414,8 +424,8 @@ export function InstructorProjectStudentGrades() {
         case "score":
           return mult * (a.effectiveScore - b.effectiveScore);
         case "grade": {
-          const pctA = (a.effectiveScore / 50) * 100;
-          const pctB = (b.effectiveScore / 50) * 100;
+          const pctA = scorePercent(a);
+          const pctB = scorePercent(b);
           return mult * (pctA - pctB);
         }
         default:
@@ -581,7 +591,7 @@ export function InstructorProjectStudentGrades() {
             ) : (
               <div className={cn(cardBase, "divide-y divide-[var(--border)] overflow-hidden")}>
                 {paginatedGrades.map((student, index) => {
-                  const pct = Math.min(100, Math.max(0, (student.effectiveScore / 50) * 100));
+                  const pct = scorePercent(student);
                   return (
                     <ProjectGradeListCard
                       key={`${student.studentId}-${student.projectId}`}
@@ -591,6 +601,7 @@ export function InstructorProjectStudentGrades() {
                       score={student.effectiveScore}
                       letter={getLetterGrade(pct)}
                       percent={pct}
+                      maxPoints={student.maxPoints}
                       hasOverride={student.overrideScore != null}
                       onSelect={() => setDetailRow(student)}
                     />
@@ -600,85 +611,45 @@ export function InstructorProjectStudentGrades() {
             )}
 
             {sortedGrades.length > 0 && (
-              <div className={cn(cardBase, "flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between")}>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                <p className={cn("text-xs tabular-nums", PORTAL_TEXT_MUTED)}>
                   {startIndex + 1}–{Math.min(endIndex, sortedGrades.length)} of {sortedGrades.length}
                 </p>
-                <div className="flex flex-wrap items-center gap-1.5">
+                <div className="flex items-center gap-1">
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
+                    size="icon"
+                    className="h-8 w-8 rounded-full"
                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
-                    className="h-8 w-8 p-0"
                     aria-label="Previous page"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNumber: number;
-                    if (totalPages <= 5) {
-                      pageNumber = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNumber = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNumber = totalPages - 4 + i;
-                    } else {
-                      pageNumber = currentPage - 2 + i;
-                    }
-                    return (
-                      <Button
-                        type="button"
-                        key={pageNumber}
-                        variant={currentPage === pageNumber ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setCurrentPage(pageNumber)}
-                        className={cn("h-8 w-8 p-0", currentPage === pageNumber && chrome.cta)}
-                      >
-                        {pageNumber}
-                      </Button>
-                    );
-                  })}
-                  {totalPages > 5 && currentPage < totalPages - 2 && (
-                    <>
-                      <span className="text-slate-400" aria-hidden>
-                        …
-                      </span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(totalPages)}
-                        className="h-8 w-8 p-0"
-                      >
-                        {totalPages}
-                      </Button>
-                    </>
-                  )}
+                  <span className={cn("min-w-10 px-1 text-center text-xs tabular-nums", PORTAL_TEXT)}>
+                    {currentPage} / {totalPages}
+                  </span>
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
+                    size="icon"
+                    className="h-8 w-8 rounded-full"
                     onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                     disabled={currentPage === totalPages}
-                    className="h-8 w-8 p-0"
                     aria-label="Next page"
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
-                  <Select
-                    value={itemsPerPage.toString()}
-                    onValueChange={(v) => setItemsPerPage(Number(v))}
-                  >
-                    <SelectTrigger className="h-8 w-[70px] sm:w-[80px]">
+                  <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(Number(v))}>
+                    <SelectTrigger className="ml-1 h-8 w-[4.5rem] rounded-full text-xs shadow-none" aria-label="Rows per page">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="5">5 / page</SelectItem>
-                      <SelectItem value="10">10 / page</SelectItem>
-                      <SelectItem value="20">20 / page</SelectItem>
-                      <SelectItem value="50">50 / page</SelectItem>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -687,14 +658,6 @@ export function InstructorProjectStudentGrades() {
         </div>
       )}
 
-      {!loading && sortedGrades.length > 0 && (
-        <Alert className={cn("rounded-xl border", fp.softBg, "border-[var(--border)]")}>
-          <FileSpreadsheet className={cn("h-4 w-4", fp.iconText)} />
-          <AlertDescription className={cn("text-sm", PORTAL_TEXT_MUTED)}>
-            Group voting totals apply to each member. Open a student to view the breakdown and set a 0–50 override.
-          </AlertDescription>
-        </Alert>
-      )}
 
       <Dialog open={detailRow != null} onOpenChange={(open) => !open && setDetailRow(null)}>
         <DialogContent className="max-h-[min(90vh,640px)] overflow-y-auto sm:max-w-lg">
@@ -770,33 +733,33 @@ export function InstructorProjectStudentGrades() {
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Scores</p>
                   <dl className="mt-2 space-y-2 text-slate-800 dark:text-slate-200">
                     <div className="flex justify-between gap-4 tabular-nums">
-                      <dt className="text-slate-600 dark:text-slate-400">Recorded (0–50)</dt>
-                      <dd className="font-semibold">{detailRow.effectiveScore.toFixed(1)}</dd>
+                      <dt className="text-slate-600 dark:text-slate-400">Recorded</dt>
+                      <dd className="font-semibold">
+                        {detailRow.effectiveScore.toFixed(1)} / {detailRow.maxPoints}
+                      </dd>
                     </div>
                     <div className="flex justify-between gap-4 tabular-nums">
                       <dt className="text-slate-600 dark:text-slate-400">Percent · letter</dt>
                       <dd className="flex items-center gap-2">
                         <Badge
-                          className={`${getGradeColor(
-                            Math.min(100, Math.max(0, (detailRow.effectiveScore / 50) * 100)),
-                          )} text-xs px-2 py-0.5 border-0`}
+                          className={`${getGradeColor(scorePercent(detailRow))} text-xs px-2 py-0.5 border-0`}
                         >
-                          {Math.min(100, Math.max(0, (detailRow.effectiveScore / 50) * 100)).toFixed(0)}%
+                          {scorePercent(detailRow).toFixed(0)}%
                         </Badge>
-                        <span className="font-semibold">
-                          {getLetterGrade(Math.min(100, Math.max(0, (detailRow.effectiveScore / 50) * 100)))}
-                        </span>
+                        <span className="font-semibold">{getLetterGrade(scorePercent(detailRow))}</span>
                       </dd>
                     </div>
                     <div className="flex justify-between gap-4 tabular-nums">
-                      <dt className="text-slate-600 dark:text-slate-400">Group voting total</dt>
-                      <dd>{detailRow.groupScore.toFixed(1)} / 50</dd>
+                      <dt className="text-slate-600 dark:text-slate-400">Group total</dt>
+                      <dd>
+                        {detailRow.groupScore.toFixed(1)} / {detailRow.maxPoints}
+                      </dd>
                     </div>
                     {detailRow.overrideScore != null && (
                       <div className="flex justify-between gap-4 tabular-nums">
                         <dt className="text-slate-600 dark:text-slate-400">Instructor override</dt>
                         <dd className="font-medium text-amber-700 dark:text-amber-300">
-                          {detailRow.overrideScore.toFixed(1)} / 50
+                          {detailRow.overrideScore.toFixed(1)} / {detailRow.maxPoints}
                         </dd>
                       </div>
                     )}

@@ -513,6 +513,7 @@ export function CoraChatInput({
 
         <Textarea
           ref={ref}
+          aria-label="Message to Cora"
           value={inputValue}
           onChange={(e) => onInputChange(e.target.value)}
           onKeyDown={(e) => {
@@ -563,7 +564,7 @@ export function CoraChatInput({
           </div>
 
           <div className="flex items-center gap-1">
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
@@ -573,7 +574,14 @@ export function CoraChatInput({
                   <ChevronDown className="h-4 w-4 opacity-50" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" side="top" className="w-64 rounded-2xl">
+              <DropdownMenuContent
+                align="end"
+                side="top"
+                collisionPadding={12}
+                className="w-64 rounded-2xl"
+                style={{ maxHeight: "18rem" }}
+                onCloseAutoFocus={(event) => event.preventDefault()}
+              >
                 <DropdownMenuLabel className="text-xs font-normal text-neutral-500">
                   {modeMenuLabel}
                 </DropdownMenuLabel>

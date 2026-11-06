@@ -36,6 +36,7 @@ interface AIResponsePanelProps {
   activeTab: string | null
   onTabChange: (tab: string) => void
   code: string
+  onApplyCode?: (next: string) => void
   studentId: string | null
   language?: string
   cachedChats?: Map<string, any[]>
@@ -72,6 +73,7 @@ export function AIResponsePanel({
   activeTab,
   onTabChange,
   code,
+  onApplyCode,
   studentId,
   language = "javascript",
   cachedChats,
@@ -370,6 +372,7 @@ export function AIResponsePanel({
         {activeTab === "tutor" ? (
           <CodebenchAskCoraPanel
             code={code}
+            onApplyCode={onApplyCode}
             studentId={studentId}
             language={language}
             learningMode={learningMode}

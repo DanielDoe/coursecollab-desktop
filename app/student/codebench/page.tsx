@@ -60,6 +60,8 @@ import type { StudentLiveClassroomSession } from "@/lib/codebench-live-classroom
 import {
   assignmentHasOpenLiveSession,
   LIVE_JOIN_GRACE_MS,
+  liveAssignmentPinUpdate,
+  openReplacementLiveSession,
   shouldReplaceLiveEditorBuffer,
   replacementLiveSession,
   shouldRestoreLiveStudentCode,
@@ -69,7 +71,7 @@ import {
 import { applyLiveEditorText, monacoCodeFromChange, readLiveEditorValue } from "@/lib/codebench-live-editor-apply"
 import { extractClassroomQuestionText } from "@/lib/codebench-instructor-classroom"
 import { isFileDirty } from "@/lib/codebench-ide-workspace"
-import { registerCodebenchMonacoThemes, codebenchEditorOptions } from "@/lib/codebench-monaco-themes"
+import { bindMonacoUndoRedo, registerCodebenchMonacoThemes, codebenchEditorOptions } from "@/lib/codebench-monaco-themes"
 import { useCora } from "@/components/cora/CoraProvider"
 import { coraContextFromQuestion } from "@/lib/cora/question-context"
 import type { CoraThinkingMode } from "@/lib/cora/thinking-process"
@@ -235,6 +237,11 @@ export default function CodeBenchPage({
   }, [])
   const liveJoinGraceUntilRef = useRef(0)
   const liveMissCountRef = useRef(0)
+  const appliedLivePinRef = useRef<string | null>(null)
+  const classroomSubmissionIdRef = useRef(classroomSubmissionId)
+  const liveSharingRef = useRef(liveSharing)
+  classroomSubmissionIdRef.current = classroomSubmissionId
+  liveSharingRef.current = liveSharing
   const markLiveJoinGrace = useCallback(() => {
     liveJoinGraceUntilRef.current = Date.now() + LIVE_JOIN_GRACE_MS
     liveMissCountRef.current = 0
@@ -258,9 +265,9 @@ export default function CodeBenchPage({
   liveEditorCodeRef.current = code
   const liveEditorOriginRef = useRef<"idle" | "editor" | "external">("idle")
   const applyInstructorCode = useCallback(
-    (nextCode: string, meta?: { restore?: boolean }) => {
+    (nextCode: string, meta?: { restore?: boolean }): boolean => {
       const current = readLiveEditorValue(editorRef, liveEditorCodeRef.current)
-      if (current === nextCode) return
+      if (current === nextCode) return true
       if (
         meta?.restore &&
         !shouldRestoreLiveStudentCode(
@@ -270,13 +277,18 @@ export default function CodeBenchPage({
           editorHoldsOtherLiveAssignment(studentId, classroomSubmissionId, current),
         )
       ) {
-        return
+        return true
       }
-      if (!meta?.restore && !shouldReplaceLiveEditorBuffer(current, nextCode, languageId)) return
+      if (!meta?.restore && !shouldReplaceLiveEditorBuffer(current, nextCode, languageId)) return true
 
       liveEditorOriginRef.current = "external"
       noteExternalApplyRef.current(400, nextCode)
       applyLiveEditorText(editorRef, nextCode, setCode)
+      const landed = readLiveEditorValue(editorRef, "") === nextCode
+      if (!landed) {
+        liveEditorOriginRef.current = "idle"
+        return false
+      }
       if (!meta?.restore && Date.now() - lastInstructorToastAtRef.current > 8000) {
         lastInstructorToastAtRef.current = Date.now()
         toast({
@@ -284,9 +296,14 @@ export default function CodeBenchPage({
           description: "Review the changes, then Run to try the fix.",
         })
       }
+      return true
     },
     [classroomSubmissionId, editorRef, languageId, setCode, studentId, toast],
   )
+  const applyCoraCodeToEditor = useCallback((nextCode: string) => {
+    if (editorRef) liveEditorOriginRef.current = "external"
+    applyLiveEditorText(editorRef, nextCode, setCode)
+  }, [editorRef, setCode])
   useEffect(() => {
     if (!editorRef) return
     if (liveEditorOriginRef.current === "editor" || liveEditorOriginRef.current === "external") {
@@ -617,7 +634,7 @@ export default function CodeBenchPage({
       const fromId = String(classroomSubmissionId ?? "")
       if (!id || id === fromId) return
       const moveKey = `${fromId}->${id}`
-      if (movedLiveAssignmentRef.current === moveKey) return
+      if (movedLiveAssignmentRef.current === moveKey && String(classroomSubmissionId) === id) return
       movedLiveAssignmentRef.current = moveKey
       bindLiveAssignment(session)
       window.dispatchEvent(
@@ -665,27 +682,52 @@ export default function CodeBenchPage({
   )
 
   useEffect(() => {
-    const fromUrl = searchParams.get("submissionId")?.trim()
-    const fromProp = initialAssignmentId?.trim()
+    const fromUrl = searchParams.get("submissionId")?.trim() || ""
+    const fromProp = initialAssignmentId?.trim() || ""
     const next = fromProp || fromUrl
     if (!next) return
-    setPinnedAssignmentId(next)
-    setClassroomSubmissionId(next)
-    setAssignmentSelectionConfirmed(true)
-    if (fromProp) {
-      markLiveJoinGrace()
-      // Only turn sharing ON from a listed session, and not before the list has loaded:
-      // a refresh used to send the join before the list could say the session had
-      // ended. When the list API is unavailable the server gates the join (403/410).
-      // Never clear it here — a transient empty/alias-missed list poll used to drop
-      // joined students off the faculty roster.
-      if (!liveListSettled) return
-      const hold = editorHoldRef.current
-      if (!claimHoldRef.current && hold && !hold.yours && String(hold.assignmentId) === String(next)) return
-      if (listSupported !== true || assignmentHasOpenLiveSession(liveSessions, next)) {
-        setLiveSharing(true)
-      }
+    const pinChanged = appliedLivePinRef.current !== next
+    const update = liveAssignmentPinUpdate({
+      pinChanged,
+      pinnedAssignmentId: next,
+      currentAssignmentId: classroomSubmissionIdRef.current,
+      listSettled: liveListSettled,
+      listSupported,
+      allowFollow: Boolean(fromProp) || liveSharingRef.current,
+      sessions: liveSessions,
+    })
+    appliedLivePinRef.current = next
+    if (!update) return
+    const switching = update.assignmentId !== classroomSubmissionIdRef.current
+    if (switching || pinChanged) {
+      setPinnedAssignmentId(update.assignmentId)
+      setClassroomSubmissionId(update.assignmentId)
+      setAssignmentSelectionConfirmed(true)
     }
+    if (update.restartGrace) markLiveJoinGrace()
+    if (switching && update.assignmentId !== next) {
+      window.dispatchEvent(
+        new CustomEvent("codebench-join-live-session", {
+          detail: { assignmentId: update.assignmentId },
+        }),
+      )
+    }
+    // Only turn sharing ON from a listed session, and not before the list has loaded.
+    // A refresh used to send the join before the list could say the session had
+    // ended. When the list API is unavailable the server gates the join (403/410).
+    // Never clear it here — a transient empty/alias-missed list poll used to drop
+    // joined students off the faculty roster. Grace restarts only when the pin changes.
+    if (!fromProp || !update.enableSharing) return
+    const hold = editorHoldRef.current
+    if (
+      !claimHoldRef.current &&
+      hold &&
+      !hold.yours &&
+      String(hold.assignmentId) === update.assignmentId
+    ) {
+      return
+    }
+    setLiveSharing(true)
   }, [initialAssignmentId, liveListSettled, liveSessions, listSupported, markLiveJoinGrace, searchParams])
 
   // Standalone page reload: resume the join remembered for this window. The embedded
@@ -777,6 +819,17 @@ export default function CodeBenchPage({
   }, [])
 
   useEffect(() => {
+    const replacementNow = openReplacementLiveSession({
+      isJoined: liveSharing,
+      listSupported,
+      loading: liveSessionsLoading,
+      assignmentId: classroomSubmissionId,
+      sessions: liveSessions,
+    })
+    if (replacementNow) {
+      moveOntoLiveSession(replacementNow)
+      return
+    }
     const result = shouldTreatLiveSessionAsEnded({
       isJoined: liveSharing,
       listSupported,
@@ -2528,6 +2581,7 @@ export default function CodeBenchPage({
                   }}
                   onMount={(editor, monaco) => {
                     setEditorRef(editor)
+                    bindMonacoUndoRedo(editor)
                     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
                       handleSaveWorkspace()
                     })
@@ -2624,6 +2678,7 @@ export default function CodeBenchPage({
                   activeTab={aiTab}
                   onTabChange={handleTabChange}
                   code={code}
+                  onApplyCode={applyCoraCodeToEditor}
                   studentId={studentId}
                   language={currentLanguage.apiLanguage}
                   learningMode={learningMode}

@@ -23,7 +23,10 @@ import {
   LIVE_STUDENT_SNAPSHOT_INTERVAL_MS,
   LIVE_STUDENT_SNAPSHOT_REPLAY_MS,
 } from "@/lib/codebench-live-timing"
-import { seedLiveInstructorPushBaseline } from "@/lib/codebench-live-instructor-push-state"
+import {
+  joinBaselineForInstructorPush,
+  seedLiveInstructorPushBaseline,
+} from "@/lib/codebench-live-instructor-push-state"
 import { useImmediateLivePoll } from "@/hooks/use-immediate-live-poll"
 import { setStudioLiveAssignment } from "@/lib/codebench-studio-analytics"
 import { readRememberedLiveJoin, rememberLiveSyncedCode } from "@/lib/codebench-live-join-memory"
@@ -340,6 +343,9 @@ export function useCodebenchLiveSnapshot({
   const stopHeartbeatRef = useRef(false)
   const activeAssignmentRef = useRef(assignmentId)
   const noteServerAccepted = useCallback(() => {
+    // A snapshot accepted from the short server cache must not undo a 410 that
+    // already told this editor the classroom moved.
+    if (stopHeartbeatRef.current) return
     goneCountRef.current = 0
     setConnection((current) => (current.state === "live" ? current : { state: "live" }))
   }, [])
@@ -348,7 +354,10 @@ export function useCodebenchLiveSnapshot({
     if (httpStatus === 410) {
       goneCountRef.current += 1
       if (follow) followRef.current = follow
-      if (goneCountRef.current >= LIVE_SESSION_GONE_CONFIRM) {
+      // movedTo means the instructor already opened the next assignment. Waiting
+      // for a second 410 left students streaming the closed file.
+      const followNow = followRef.current != null || goneCountRef.current >= LIVE_SESSION_GONE_CONFIRM
+      if (followNow) {
         stopHeartbeatRef.current = true
         setConnection({ state: "ended", follow: followRef.current })
       }
@@ -611,6 +620,7 @@ export function useCodebenchLiveSnapshot({
         const data = (await response.json()) as {
           code?: string
           instructorRevision?: number
+          instructorUpdatedAt?: string | null
           typingReplay?: TypingReplay | null
           serverNow?: number
         }
@@ -618,20 +628,30 @@ export function useCodebenchLiveSnapshot({
           typeof data.serverNow === "number" && Number.isFinite(data.serverNow)
             ? Date.now() - data.serverNow
             : 0
-        seedLiveInstructorPushBaseline(studentId, assignmentId, Number(data.instructorRevision) || 0)
+        const serverRevision = Number(data.instructorRevision) || 0
+        const pushedAt = typeof data.instructorUpdatedAt === "string" ? data.instructorUpdatedAt : null
+        const baseline = joinBaselineForInstructorPush({ serverRevision, pushedAt })
+        seedLiveInstructorPushBaseline(studentId, assignmentId, baseline, {
+          allowLower: baseline < serverRevision,
+        })
+        const instructorPushPending = baseline < serverRevision
         const saved = typeof data.code === "string" ? data.code : ""
         if (saved.trim() && !isCodebenchBoilerplate(saved, normalizeCodebenchLanguageId(language))) {
           protectedCodeRef.current = saved
         }
-        if (saved.trim()) onRestoreRef.current?.(saved)
-        else {
-          const foreign = foreignBufferRef.current
-          const editorNow = stripCodebenchProbeComments(
-            readEditorCode(editorRefStable.current, codeRef.current),
-          ).trim()
-          if (foreign && editorNow && editorNow === foreign.trim()) {
-            const template = getCodebenchLanguage(normalizeCodebenchLanguageId(language)).defaultCode
-            if (template.trim()) onRestoreRef.current?.(template)
+        // A fix that just arrived has to reach the editor. Restoring the saved
+        // student file here is what put the old program back after a rejoin.
+        if (!instructorPushPending) {
+          if (saved.trim()) onRestoreRef.current?.(saved)
+          else {
+            const foreign = foreignBufferRef.current
+            const editorNow = stripCodebenchProbeComments(
+              readEditorCode(editorRefStable.current, codeRef.current),
+            ).trim()
+            if (foreign && editorNow && editorNow === foreign.trim()) {
+              const template = getCodebenchLanguage(normalizeCodebenchLanguageId(language)).defaultCode
+              if (template.trim()) onRestoreRef.current?.(template)
+            }
           }
         }
         const restoredReplay = selectFaithfulTypingReplay(data.typingReplay, saved)

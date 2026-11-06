@@ -127,6 +127,7 @@ export async function sendFacultyCoraChat(input: {
     actions?: FacultyCoraChatAction[]
     proposals?: import("@/lib/cora/confirmations/action-proposals").CoraActionProposal[]
     plans?: import("@/lib/cora/confirmations/transaction-plans").CoraTransactionPlan[]
+    ui?: import("@/lib/cora/models/ui-payloads").CoraUiPayload
     restricted?: boolean
     needsConfirmation?: boolean
     estimateLow?: number
@@ -164,6 +165,7 @@ export async function sendFacultyCoraChat(input: {
     actions?: FacultyCoraChatAction[]
     proposals?: import("@/lib/cora/confirmations/action-proposals").CoraActionProposal[]
     plans?: import("@/lib/cora/confirmations/transaction-plans").CoraTransactionPlan[]
+    ui?: import("@/lib/cora/models/ui-payloads").CoraUiPayload
     restricted?: boolean
     needsConfirmation?: boolean
   }

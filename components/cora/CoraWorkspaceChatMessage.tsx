@@ -35,7 +35,7 @@ export function CoraWorkspaceChatMessage({ role, content, theme = "dark", tone =
       <div className="relative shrink-0 pt-0.5">
         <CoraBotMark size="sm" idle />
       </div>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 py-0.5 pr-2">
         <CoraRichReply content={content} theme={theme} tone={tone} />
       </div>
     </div>

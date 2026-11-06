@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -35,6 +37,7 @@ import {
   XCircle,
   Trash2,
   FileText,
+  Download,
   AlertCircle,
   X,
   Rocket,
@@ -59,6 +62,7 @@ import { getStudentModuleTheme } from "@/lib/student-module-themes"
 import { ProjectsManagerPanelSkeleton } from "@/components/student/dashboard-v2/ProjectsPageSkeleton"
 
 const projectsTheme = getStudentModuleTheme("projects")
+import { studentApiFetch } from "@/lib/auth"
 import { buildStudentScopedSearchParams } from "@/lib/student-session-ids"
 
 interface Milestone {
@@ -96,6 +100,7 @@ interface ProjectsManagerProps {
   studentSection: string
   studentDatabaseId: number
   embedInDashboard?: boolean
+  instructorProposed?: { assignmentId: number; title: string; description?: string | null } | null
   sharedSectionData?: {
     allProjects: Project[]
     groups: Group[]
@@ -109,6 +114,7 @@ export function ProjectsManager({
   studentSection,
   studentDatabaseId,
   embedInDashboard = false,
+  instructorProposed = null,
   sharedSectionData,
   onSectionDataChange,
 }: ProjectsManagerProps) {
@@ -126,6 +132,8 @@ export function ProjectsManager({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [projectReports, setProjectReports] = useState<ProjectReport[]>([])
+  const [reportPreviewHtml, setReportPreviewHtml] = useState("")
+  const [reportPreviewLoading, setReportPreviewLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Form states
@@ -179,7 +187,7 @@ export function ProjectsManager({
   const fetchProjects = async () => {
     try {
       const params = buildStudentScopedSearchParams({ session: studentSection })
-      const response = await fetch(`/api/projects/list?${params}`)
+      const response = await studentApiFetch(`/api/projects/list?${params}`)
       if (!response.ok) throw new Error("Failed to fetch projects")
       const data = await response.json()
       const allProjects = data.projects || []
@@ -196,7 +204,7 @@ export function ProjectsManager({
   const fetchGroups = async () => {
     try {
       const groupParams = buildStudentScopedSearchParams({ session: studentSection })
-      const response = await fetch(`/api/groups?${groupParams}`)
+      const response = await studentApiFetch(`/api/groups?${groupParams}`)
       const data = await response.json()
       setGroups(data.groups || [])
     } catch {
@@ -254,7 +262,7 @@ export function ProjectsManager({
       })
       return
     }
-    if (!selectedGroupId || !title.trim()) {
+    if (!selectedGroupId || !(instructorProposed?.title || title).trim()) {
       toast({
         title: "Error",
         description: "Please select a group and enter a project title",
@@ -269,8 +277,9 @@ export function ProjectsManager({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           groupId: Number(selectedGroupId),
-          title,
-          summary: summary || null,
+          title: instructorProposed?.title || title,
+          assignmentId: instructorProposed?.assignmentId,
+          summary: summary || instructorProposed?.description || null,
           deliverables: deliverables || null,
           targetPlatform: targetPlatform || null,
           studentId: studentDatabaseId,
@@ -290,7 +299,12 @@ export function ProjectsManager({
         throw new Error(errorMessage)
       }
       
-      toast({ title: "Success", description: "Project proposal submitted for approval" })
+      toast({
+        title: "Success",
+        description: instructorProposed
+          ? "Report workspace is ready for your group"
+          : "Project proposal submitted for approval",
+      })
       resetForm()
       setCreateDialogOpen(false)
       await refreshProjects()
@@ -412,10 +426,54 @@ export function ProjectsManager({
     setEditDialogOpen(true)
   }
 
+  const studentHeaders = () => {
+    const headers: Record<string, string> = {}
+    try {
+      const session = JSON.parse(localStorage.getItem("studentSession") || "{}") as { studentId?: string }
+      if (session.studentId) headers["x-student-id"] = String(session.studentId)
+    } catch {
+      /* ignore */
+    }
+    return headers
+  }
+
+  const rewritePreviewAssets = (html: string) =>
+    html.replaceAll('src="/', `src="${window.location.origin}/`)
+
   const openReportsDialog = (project: Project) => {
     setSelectedProject(project)
+    if (instructorProposed) {
+      setReportPreviewHtml("")
+      setReportPreviewLoading(true)
+      setReportsDialogOpen(true)
+      void (async () => {
+        try {
+          const res = await fetch(`/api/projects/workspace/${project.id}/preview?format=html&view=submission`, {
+            headers: studentHeaders(),
+          })
+          setReportPreviewHtml(res.ok ? rewritePreviewAssets(await res.text()) : "")
+        } finally {
+          setReportPreviewLoading(false)
+        }
+      })()
+      return
+    }
     fetchProjectReports(project.id)
     setReportsDialogOpen(true)
+  }
+
+  const downloadReportPdf = async (project: Project) => {
+    const res = await fetch(`/api/projects/workspace/${project.id}/preview?format=pdf&view=submission`, {
+      headers: studentHeaders(),
+    })
+    if (!res.ok) return
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `${project.title.replace(/[^\w.-]+/g, "-").slice(0, 80) || "project-report"}.pdf`
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   const openAddReportDialog = (project: Project) => {
@@ -511,7 +569,7 @@ export function ProjectsManager({
   }
 
   return (
-    <div className={cn(embedInDashboard ? "space-y-3 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4" : "max-w-5xl mx-auto space-y-6 sm:space-y-8 md:space-y-10 p-2")}>
+    <div className={cn(embedInDashboard ? "flex h-full min-h-0 flex-col space-y-3 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4" : "max-w-5xl mx-auto space-y-6 sm:space-y-8 md:space-y-10 p-2")}>
       {!embedInDashboard ? (
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
@@ -525,12 +583,23 @@ export function ProjectsManager({
             <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-200">My Projects</h2>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1 sm:mt-1.5">
               <span className="sm:hidden">Create & manage</span>
-              <span className="hidden sm:inline">Propose and manage projects for your approved groups</span>
+              <span className="hidden sm:inline">{instructorProposed ? "Form a group, then open the shared report" : "Propose and manage projects for your approved groups"}</span>
             </p>
+            {instructorProposed && projects.some((project) => project.status === "approved") ? (
+              <Link
+                href={`/student/dashboard-v2/projects/workspace/${projects.find((project) => project.status === "approved")?.id}`}
+                className="mt-2 inline-flex text-sm font-medium text-[var(--cc-accent)] underline"
+              >
+                Continue the shared report
+              </Link>
+            ) : null}
           </div>
         </div>
         <Button
-          onClick={() => setCreateDialogOpen(true)}
+          onClick={() => {
+            if (instructorProposed) setTitle(instructorProposed.title)
+            setCreateDialogOpen(true)
+          }}
           disabled={getMyApprovedGroups().length === 0}
           className={cn(
             "text-white rounded-lg sm:rounded-xl transition-all duration-300 px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 font-semibold gap-1.5 sm:gap-2 text-xs sm:text-sm md:text-base w-full sm:w-auto shrink-0",
@@ -538,28 +607,38 @@ export function ProjectsManager({
           )}
         >
           <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
-          <span className="hidden sm:inline">Propose Project</span>
-          <span className="sm:hidden">Propose</span>
+          <span className="hidden sm:inline">{instructorProposed ? "Open report" : "Propose Project"}</span>
+          <span className="sm:hidden">{instructorProposed ? "Report" : "Propose"}</span>
         </Button>
       </div>
       ) : (
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-[var(--cc-text)]">My projects</p>
-          <p className="text-xs text-[var(--cc-text-muted)]">Propose after your group is approved</p>
+          <p className="text-sm font-semibold text-[var(--cc-text)]">{instructorProposed ? "Shared report" : "My projects"}</p>
+          <p className="text-xs text-[var(--cc-text-muted)]">
+            {instructorProposed
+              ? "Every team uses the same title. Open the report and complete each section."
+              : "Propose after your group is approved"}
+          </p>
         </div>
+        {!(instructorProposed && projects.some((project) => project.status === "approved" && isProjectMember(project))) ? (
         <Button
-          onClick={() => setCreateDialogOpen(true)}
+          onClick={() => {
+            if (instructorProposed) setTitle(instructorProposed.title)
+            setCreateDialogOpen(true)
+          }}
           disabled={getMyApprovedGroups().length === 0}
           className="h-9 rounded-xl border-0 px-3 text-sm font-medium shadow-none hover:opacity-90 disabled:opacity-50"
           style={{ backgroundColor: "var(--cc-accent)", color: "#FFFFFF" }}
         >
           <Plus className="h-4 w-4" />
-          Propose
+          {instructorProposed ? "Start report" : "Propose"}
         </Button>
+        ) : null}
       </div>
       )}
 
+      <div className={cn(embedInDashboard && "min-h-0 flex-1 space-y-3 overflow-y-auto pr-1")}>
       {/* Status Alerts */}
       {getMyApprovedGroups().length === 0 && (
         <motion.div
@@ -644,7 +723,10 @@ export function ProjectsManager({
                   <span className="hidden sm:inline">No projects in your section yet. Propose a project to get started!</span>
                 </p>
                 <Button 
-                  onClick={() => setCreateDialogOpen(true)}
+                  onClick={() => {
+            if (instructorProposed) setTitle(instructorProposed.title)
+            setCreateDialogOpen(true)
+          }}
                   disabled={getMyApprovedGroups().length === 0}
                   className={cn(
                     "text-white rounded-lg sm:rounded-xl transition-all duration-300 px-6 sm:px-8 py-2.5 sm:py-3 font-semibold gap-2 text-sm sm:text-base w-full sm:w-auto",
@@ -815,6 +897,15 @@ export function ProjectsManager({
                 <CardFooter className="flex flex-wrap gap-2 sm:gap-3 pt-4 px-4 sm:px-6 pb-4 sm:pb-6">
                   {isProjectMember(project) && project.status === "approved" && (
                     <Button
+                      variant="default"
+                      className="rounded-lg sm:rounded-xl text-xs sm:text-sm px-2 sm:px-3 md:px-4 h-8 sm:h-9 md:h-10 flex-1 sm:flex-initial"
+                      asChild
+                    >
+                      <Link href={`/student/dashboard-v2/projects/workspace/${project.id}`}>{instructorProposed ? "Open report" : "Group workspace"}</Link>
+                    </Button>
+                  )}
+                  {isProjectMember(project) && project.status === "approved" && !instructorProposed && (
+                    <Button
                       variant="outline"
                       onClick={() => openAddReportDialog(project)}
                       className="rounded-lg sm:rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-600 dark:hover:text-emerald-400 dark:border-slate-700 dark:text-slate-300 transition-all duration-200 text-xs sm:text-sm px-2 sm:px-3 md:px-4 h-8 sm:h-9 md:h-10 flex-1 sm:flex-initial"
@@ -835,7 +926,7 @@ export function ProjectsManager({
                     <span className="sm:hidden">Reports</span>
                   </Button>
 
-                  {canEditProject(project) && project.status !== "pending_delete" && (
+                  {canEditProject(project) && project.status !== "pending_delete" && !instructorProposed && (
                     <>
                       <Button
                         variant="outline"
@@ -863,6 +954,7 @@ export function ProjectsManager({
           ))
         )}
       </div>
+      </div>
 
       {/* Create Project Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
@@ -879,7 +971,7 @@ export function ProjectsManager({
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm dark:text-slate-400">
               <span className="sm:hidden">Create project proposal</span>
-              <span className="hidden sm:inline">Propose a project for your group. Your proposal will be reviewed by the admin.</span>
+              <span className="hidden sm:inline">{instructorProposed ? `Every team uses “${instructorProposed.title}”. Open the report workspace for your group.` : "Propose a project for your group. Your proposal will be reviewed by the admin."}</span>
             </DialogDescription>
           </DialogHeader>
 
@@ -934,7 +1026,7 @@ export function ProjectsManager({
                 placeholder="Enter project title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                disabled={isSubmitting || !isLeaderOfAnyApprovedGroup()}
+                disabled={isSubmitting || !isLeaderOfAnyApprovedGroup() || Boolean(instructorProposed)}
                 className={cn(
                   "rounded-lg sm:rounded-full h-9 sm:h-10 dark:bg-slate-900/80 dark:border-slate-700 dark:text-slate-200 text-sm sm:text-base",
                   embedInDashboard && "focus-visible:ring-2 focus-visible:ring-amber-500/30",
@@ -1075,7 +1167,7 @@ export function ProjectsManager({
                 </>
               ) : (
                 <>
-                  <span className="hidden sm:inline">Submit Proposal</span>
+                  <span className="hidden sm:inline">{instructorProposed ? "Start shared report" : "Submit Proposal"}</span>
                   <span className="sm:hidden">Submit</span>
                 </>
               )}
@@ -1279,19 +1371,71 @@ export function ProjectsManager({
       </Dialog>
 
       {/* Project Reports Dialog */}
-      <Dialog open={reportsDialogOpen} onOpenChange={setReportsDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] sm:max-h-[90vh] overflow-y-auto rounded-xl sm:rounded-2xl backdrop-blur-sm w-[calc(100%-2rem)] sm:w-full dark:bg-slate-800/95 dark:border-slate-700/60">
-          <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4">
-            <DialogTitle className="text-lg sm:text-xl md:text-2xl dark:text-slate-200">
-              <span className="sm:hidden">Reports</span>
-              <span className="hidden sm:inline">Project Reports - {selectedProject?.title}</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs sm:text-sm dark:text-slate-400">
-              <span className="sm:hidden">Team progress updates</span>
-              <span className="hidden sm:inline">Progress updates and reports from all team members.</span>
-            </DialogDescription>
+      <Dialog
+        open={reportsDialogOpen}
+        onOpenChange={(open) => {
+          setReportsDialogOpen(open)
+          if (!open) {
+            setReportPreviewHtml("")
+            setReportPreviewLoading(false)
+          }
+        }}
+      >
+        <DialogContent
+          className={
+            instructorProposed
+              ? "grid h-[min(85vh,860px)] max-w-[calc(100%-2rem)] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-w-4xl !bg-[var(--cc-modal-surface,#fff)]"
+              : "max-w-4xl max-h-[85vh] sm:max-h-[90vh] overflow-y-auto rounded-xl sm:rounded-2xl backdrop-blur-sm w-[calc(100%-2rem)] sm:w-full dark:bg-slate-800/95 dark:border-slate-700/60"
+          }
+        >
+          <DialogHeader className={instructorProposed ? "border-b border-[var(--border)] px-5 py-4 pr-12" : "p-4 sm:p-6 pb-3 sm:pb-4"}>
+            <div className={instructorProposed ? "flex items-start justify-between gap-3" : undefined}>
+              <div className="min-w-0">
+                <DialogTitle className={instructorProposed ? undefined : "text-lg sm:text-xl md:text-2xl dark:text-slate-200"}>
+                  {instructorProposed ? (
+                    selectedProject?.title || "Student report"
+                  ) : (
+                    <>
+                      <span className="sm:hidden">Reports</span>
+                      <span className="hidden sm:inline">Project Reports - {selectedProject?.title}</span>
+                    </>
+                  )}
+                </DialogTitle>
+                <DialogDescription className={instructorProposed ? undefined : "text-xs sm:text-sm dark:text-slate-400"}>
+                  {instructorProposed ? (
+                    "School letterhead, cover, and the answers saved in each section."
+                  ) : (
+                    <>
+                      <span className="sm:hidden">Team progress updates</span>
+                      <span className="hidden sm:inline">Progress updates and reports from all team members.</span>
+                    </>
+                  )}
+                </DialogDescription>
+              </div>
+              {instructorProposed && selectedProject ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mr-6 h-8 shrink-0 gap-1.5 text-xs"
+                  onClick={() => void downloadReportPdf(selectedProject)}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download
+                </Button>
+              ) : null}
+            </div>
           </DialogHeader>
 
+          {instructorProposed ? (
+            reportPreviewLoading ? (
+              <p className={cn("px-5 py-8 text-sm", PORTAL_TEXT_MUTED)}>Building the report…</p>
+            ) : reportPreviewHtml ? (
+              <iframe title="Student report" className="h-full min-h-0 w-full bg-white" srcDoc={reportPreviewHtml} />
+            ) : (
+              <p className={cn("px-5 py-8 text-sm", PORTAL_TEXT_MUTED)}>The report could not be built.</p>
+            )
+          ) : (
           <div className="space-y-3 sm:space-y-4 py-4 px-4 sm:px-6">
             {projectReports.length === 0 ? (
               <div className="text-center py-6 sm:py-8 text-muted-foreground dark:text-slate-400">
@@ -1355,6 +1499,7 @@ export function ProjectsManager({
               ))
             )}
           </div>
+          )}
         </DialogContent>
       </Dialog>
 

@@ -143,12 +143,18 @@
   --chart-4: #fbbf24;
   --chart-5: #fb923c;
   --radius: 0.625rem;
-  --cc-auth-alert-error-bg: #fff1f2;
-  --cc-auth-alert-error-border: #fecdd3;
-  --cc-auth-alert-error-text: #be123c;
+  --cc-auth-alert-error-bg: #fff7f8;
+  --cc-auth-alert-error-border: #f3d0d6;
+  --cc-auth-alert-error-text: #9f1239;
   --cc-auth-alert-warning-bg: #fffbeb;
-  --cc-auth-alert-warning-border: #fde68a;
-  --cc-auth-alert-warning-text: #b45309;
+  --cc-auth-alert-warning-border: #f0e0a4;
+  --cc-auth-alert-warning-text: #92400e;
+  --cc-auth-alert-info-bg: #f6f2fb;
+  --cc-auth-alert-info-border: #e4d7f4;
+  --cc-auth-alert-info-text: #4f2d7f;
+  --cc-auth-alert-success-bg: #f3faf5;
+  --cc-auth-alert-success-border: #c6ead4;
+  --cc-auth-alert-success-text: #166534;
   --cc-auth-field-selection-bg: var(--cc-accent-soft);
   --cc-auth-field-selection-text: var(--cc-text);
   --sidebar: #f2e8fc;
@@ -232,6 +238,19 @@
   --cc-ui-scrollbar-track: rgb(122 78 186 / 0.1);
   --cc-ui-scrollbar-thumb: rgb(122 78 186 / 0.42);
   --cc-ui-scrollbar-thumb-hover: rgb(122 78 186 / 0.58);
+
+  --cc-auth-alert-error-bg: rgba(225, 29, 72, 0.12);
+  --cc-auth-alert-error-border: rgba(251, 113, 133, 0.28);
+  --cc-auth-alert-error-text: #fb7185;
+  --cc-auth-alert-warning-bg: rgba(245, 158, 11, 0.12);
+  --cc-auth-alert-warning-border: rgba(251, 191, 36, 0.28);
+  --cc-auth-alert-warning-text: #fbbf24;
+  --cc-auth-alert-info-bg: rgba(79, 45, 127, 0.22);
+  --cc-auth-alert-info-border: rgba(155, 111, 212, 0.32);
+  --cc-auth-alert-info-text: #d8c4f0;
+  --cc-auth-alert-success-bg: rgba(22, 101, 52, 0.18);
+  --cc-auth-alert-success-border: rgba(74, 222, 128, 0.28);
+  --cc-auth-alert-success-text: #86efac;
 
   /* Tailwind @theme inline tokens — keep utilities (text-foreground, text-muted-foreground, etc.) readable in dark mode */
   --color-background: #050505;
@@ -372,6 +391,68 @@
   margin: 0.5rem 0;
   overflow-x: auto;
   text-align: left;
+}
+
+/* Cora chat — KaTeX stays in the reply color, left-aligned, and out of code-chip styles */
+.cora-ai-reply .katex,
+.question-text-content .katex {
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: 1.05em;
+  line-height: 1.2;
+}
+
+.cora-ai-reply .katex *,
+.question-text-content .katex * {
+  color: inherit;
+  background: transparent;
+  border-color: currentColor;
+}
+
+.cora-ai-reply .katex code,
+.question-text-content .katex code,
+.prose .katex code {
+  background: transparent !important;
+  padding: 0 !important;
+  border: 0 !important;
+  font-size: inherit;
+  font-family: inherit;
+  color: inherit;
+}
+
+.cora-ai-reply .katex code::before,
+.cora-ai-reply .katex code::after,
+.question-text-content .katex code::before,
+.question-text-content .katex code::after,
+.prose .katex code::before,
+.prose .katex code::after {
+  content: none !important;
+}
+
+.cora-ai-reply .katex:not(.katex-display) {
+  display: inline-block;
+  margin: 0 0.42em;
+  vertical-align: -0.08em;
+}
+
+.cora-ai-reply .katex-display {
+  display: block;
+  margin: 0.75rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-align: left;
+}
+
+.cora-ai-reply .katex-display > .katex {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.cora-ai-reply.cora-math-center .katex-display,
+.cora-ai-reply.cora-math-center .katex-display > .katex {
+  text-align: center;
 }
 
 .prose pre {
@@ -1170,12 +1251,18 @@ html *::-webkit-scrollbar-corner {
   --card: var(--cc-surface);
   --muted: color-mix(in srgb, var(--cc-surface) 88%, var(--cc-text) 12%);
   /* Auth alerts — never inherit dashboard semantic danger (accent-aliased purple on dark prefs). */
-  --cc-auth-alert-error-bg: #fff1f2;
-  --cc-auth-alert-error-border: #fecdd3;
-  --cc-auth-alert-error-text: #be123c;
+  --cc-auth-alert-error-bg: #fff7f8;
+  --cc-auth-alert-error-border: #f3d0d6;
+  --cc-auth-alert-error-text: #9f1239;
   --cc-auth-alert-warning-bg: #fffbeb;
-  --cc-auth-alert-warning-border: #fde68a;
-  --cc-auth-alert-warning-text: #b45309;
+  --cc-auth-alert-warning-border: #f0e0a4;
+  --cc-auth-alert-warning-text: #92400e;
+  --cc-auth-alert-info-bg: #f6f2fb;
+  --cc-auth-alert-info-border: #e4d7f4;
+  --cc-auth-alert-info-text: #4f2d7f;
+  --cc-auth-alert-success-bg: #f3faf5;
+  --cc-auth-alert-success-border: #c6ead4;
+  --cc-auth-alert-success-text: #166534;
   --cc-auth-field-selection-bg: var(--cc-accent-soft);
   --cc-auth-field-selection-text: var(--cc-text);
 }

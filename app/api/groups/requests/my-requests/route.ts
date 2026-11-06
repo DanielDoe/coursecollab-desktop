@@ -3,13 +3,17 @@ import { sql } from "@/lib/db"
 import { normalizedSectionVariantsForSql } from "@/lib/session-code-aliases"
 import { resolveGroupProjectCourseScope } from "@/lib/student-course-scope"
 import { resolveGroupProjectTermScope } from "@/lib/group-project-term-scope"
+import { requireBoundStudentCaller } from "@/lib/student-api-auth"
 
 export const dynamic = "force-dynamic"
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const studentId = searchParams.get("studentId")
+    let studentId = searchParams.get("studentId")
+    const bound = await requireBoundStudentCaller(request, studentId)
+    if (!bound.ok) return bound.response
+    studentId = String(bound.studentDbId)
     const session = searchParams.get("session")
 
     if (!studentId || !session) {

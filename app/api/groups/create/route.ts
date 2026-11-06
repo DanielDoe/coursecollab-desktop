@@ -37,8 +37,8 @@ export async function POST(request: NextRequest) {
     // Auto-approve individual groups (this endpoint creates groups with just the creator)
     // so students can immediately create projects
     const groupResult = await sql`
-      INSERT INTO groups (name, session, created_by, status, course_id)
-      VALUES (${name}, ${session}, ${studentDbId}, 'approved', ${courseIdForGroup})
+      INSERT INTO groups (name, session, created_by, status, course_id, session_id)
+      VALUES (${name}, ${session}, ${studentDbId}, 'approved', ${courseIdForGroup}, ${(studentCheck[0] as { session_id?: number | null }).session_id ?? null})
       RETURNING id, name, session, created_by, created_at, status
     `
 

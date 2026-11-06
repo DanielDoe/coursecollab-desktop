@@ -33,6 +33,7 @@ import { filePath, isFileDirty } from "@/lib/codebench-ide-workspace"
 import {
   applyCodebenchMonacoTheme,
   registerCodebenchMonacoThemes,
+  bindMonacoUndoRedo,
   codebenchEditorOptions,
   type CodebenchMonacoThemeName,
 } from "@/lib/codebench-monaco-themes"
@@ -84,6 +85,7 @@ export function InstructorCodebenchIde({
   const [activeClassroomAssignment, setActiveClassroomAssignment] = useState<InstructorClassroomHandoff | null>(null)
   const [questionDrawerOpen, setQuestionDrawerOpen] = useState(false)
   const [editorExpanded, setEditorExpanded] = useState(false)
+  const [restoreProject, setRestoreProject] = useState<{ id: string; name: string } | null>(null)
   const monacoApiRef = useRef<{ editor: { setTheme: (name: string) => void } } | null>(null)
 
   const activeFile = ide.activeFile
@@ -150,11 +152,16 @@ export function InstructorCodebenchIde({
     lastLibraryImportRef.current = importLibraryItem.id
     setActiveClassroomAssignment(null)
     setQuestionDrawerOpen(false)
-    void openLibraryProblem(importLibraryItem).then(() => {
+    void openLibraryProblem(importLibraryItem).then((result) => {
       setLanguageId(importLibraryItem.languageId)
+      setRestoreProject(result.displacedProject)
       toast({
-        title: "Problem workspace opened",
-        description: `${importLibraryItem.title} — your progress is saved separately for each problem.`,
+        title: result.keptCurrentWorkspace ? "Kept your workspace code" : "Problem workspace opened",
+        description: result.keptCurrentWorkspace
+          ? `${importLibraryItem.title} is open beside the code you already wrote.`
+          : result.displacedProject
+            ? `${importLibraryItem.title} is open. Your earlier code is still in ${result.displacedProject.name}.`
+            : `${importLibraryItem.title} — your progress is saved separately for each problem.`,
       })
       onLibraryImportHandled?.()
     })
@@ -180,11 +187,16 @@ export function InstructorCodebenchIde({
       return
     }
 
-    void openClassroomProblem(importClassroomAssignment).then(() => {
+    void openClassroomProblem(importClassroomAssignment).then((result) => {
       setLanguageId(importClassroomAssignment.languageId)
+      setRestoreProject(result.displacedProject)
       toast({
-        title: "Classroom assignment loaded",
-        description: `${importClassroomAssignment.title} — pick up where you left off anytime.`,
+        title: result.keptCurrentWorkspace ? "Kept your workspace code" : "Classroom assignment loaded",
+        description: result.keptCurrentWorkspace
+          ? `${importClassroomAssignment.title} did not replace the code already in this editor.`
+          : result.displacedProject
+            ? `${importClassroomAssignment.title} is open. Restore ${result.displacedProject.name} anytime.`
+            : `${importClassroomAssignment.title} — pick up where you left off anytime.`,
       })
       onClassroomImportHandled?.()
     })
@@ -275,6 +287,7 @@ export function InstructorCodebenchIde({
             monacoApiRef.current = monaco
             applyCodebenchMonacoTheme(monaco, editorTheme as CodebenchMonacoThemeName)
             setEditorRef(editor)
+            bindMonacoUndoRedo(editor)
             editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => handleSave())
           }}
           options={codebenchEditorOptions()}
@@ -300,6 +313,23 @@ export function InstructorCodebenchIde({
             : cn("flex-1", className),
         )}
       >
+        {restoreProject ? (
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--muted)]/40 px-3 py-1.5 text-xs text-[var(--cc-text)]">
+            <p className="min-w-0 truncate">
+              Your earlier code is still in <span className="font-medium">{restoreProject.name}</span>.
+            </p>
+            <button
+              type="button"
+              className="shrink-0 rounded-md px-2 py-1 font-medium text-[var(--cc-accent)] hover:bg-[var(--muted)]"
+              onClick={() => {
+                ide.switchProject(restoreProject.id)
+                setRestoreProject(null)
+              }}
+            >
+              Restore
+            </button>
+          </div>
+        ) : null}
         <InstructorCodebenchToolbar
           languageId={currentLanguage.id}
           onLanguageChange={handleLanguageChange}

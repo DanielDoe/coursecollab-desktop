@@ -25,6 +25,7 @@ async function ensureCodebenchLiveSnapshotsSchemaOnce() {
     await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS instructor_code text`
     await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS instructor_revision integer NOT NULL DEFAULT 0`
     await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS instructor_updated_at timestamptz`
+    await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS pre_instructor_code text`
     await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS student_cursor jsonb`
     await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS instructor_cursor jsonb`
     await sql`ALTER TABLE codebench_live_snapshots ADD COLUMN IF NOT EXISTS student_left_at timestamptz`

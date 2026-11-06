@@ -20,7 +20,9 @@ import {
 } from "lucide-react"
 import { getStudentData } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
+import { CoraBotMark } from "@/components/cora/CoraBotMark"
 import { CoraChatBubble } from "@/components/cora/CoraChatBubble"
+import { CoraThinkingIndicator } from "@/components/cora/CoraThinkingIndicator"
 import { CoraChatInput } from "@/components/cora/CoraChatInput"
 import { CoraBrandInline } from "@/components/cora/CoraLogo"
 import { CardWrapper } from "@/components/student/dashboard-v2/CardWrapper"
@@ -442,7 +444,7 @@ export function GuestCoraDashboard() {
             <div className="min-h-[320px] flex-1 overflow-y-auto px-4 py-4">
               {messages.length === 0 ? (
                 <div className="flex h-full min-h-[240px] flex-col items-center justify-center text-center text-sm text-[var(--cc-text-muted)]">
-                  <Sparkles className="mb-2 size-8 text-violet-500/70" />
+                  <CoraBotMark size="md" idle className="mx-auto mb-2" />
                   <p>Ask {GUEST_CORA_NAV_LABEL} — or use Résumé match and Cover letter above.</p>
                   {guestCoraContext?.focusLabel ? (
                     <p className="mt-2 text-xs">Current focus: {guestCoraContext.focusLabel}</p>
@@ -456,9 +458,7 @@ export function GuestCoraDashboard() {
                 ))
               )}
               {busy ? (
-                <div className="flex items-center gap-2 py-3 text-sm text-[var(--cc-text-muted)]">
-                  <Loader2 className="size-4 animate-spin" /> Cora is thinking…
-                </div>
+                <CoraThinkingIndicator mode="general" className="max-w-md" />
               ) : null}
               <div ref={bottomRef} />
             </div>

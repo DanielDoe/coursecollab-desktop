@@ -52,7 +52,7 @@ import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { getStudentModuleTheme } from "@/lib/student-module-themes"
 import { GroupsManagerPanelSkeleton } from "@/components/student/dashboard-v2/GroupsPageSkeleton"
-import { portalOutlineButtonClass } from "@/lib/portal-module-themes"
+import { portalListStripe, portalOutlineButtonClass, portalSolidButton } from "@/lib/portal-module-themes"
 
 const groupsTheme = getStudentModuleTheme("groups")
 import { buildStudentScopedSearchParams } from "@/lib/student-session-ids"
@@ -72,6 +72,11 @@ interface Group {
     full_name: string
     joined_at: string
   }>
+}
+
+function memberInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?"
 }
 
 interface Student {
@@ -155,7 +160,7 @@ export function GroupsManager({
   const fetchGroups = async () => {
     try {
       const params = buildStudentScopedSearchParams({ session: studentSection })
-      const res = await fetch(`/api/groups?${params}`)
+      const res = await studentApiFetch(`/api/groups?${params}`)
       const data = await res.json()
       setGroups(data.groups || [])
     } catch {
@@ -218,7 +223,7 @@ export function GroupsManager({
 
     setIsSubmitting(true)
     try {
-      const res = await fetch("/api/groups", {
+      const res = await studentApiFetch("/api/groups", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -264,7 +269,7 @@ export function GroupsManager({
 
     setIsSubmitting(true)
     try {
-      const res = await fetch(`/api/groups/${selectedGroup.id}`, {
+      const res = await studentApiFetch(`/api/groups/${selectedGroup.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: editGroupName }),
@@ -291,7 +296,7 @@ export function GroupsManager({
     if (!selectedGroup) return
     setIsSubmitting(true)
     try {
-      const res = await fetch(`/api/groups/${selectedGroup.id}`, { method: "DELETE" })
+      const res = await studentApiFetch(`/api/groups/${selectedGroup.id}`, { method: "DELETE" })
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: "Failed to delete group" }))
         throw new Error(errorData.error || "Failed to delete group")
@@ -317,7 +322,7 @@ export function GroupsManager({
   const confirmLeaveGroup = async () => {
     if (!selectedGroup || !currentStudent) return
     try {
-      const res = await fetch("/api/groups/remove-member", {
+      const res = await studentApiFetch("/api/groups/remove-member", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ groupId: selectedGroup.id, studentId: currentStudent.id }),
@@ -341,7 +346,7 @@ export function GroupsManager({
     if (!selectedGroup || !selectedStudentId) return
     setIsSubmitting(true)
     try {
-      const res = await fetch("/api/groups/add-member", {
+      const res = await studentApiFetch("/api/groups/add-member", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ groupId: selectedGroup.id, studentId: Number.parseInt(selectedStudentId) }),
@@ -363,17 +368,30 @@ export function GroupsManager({
     }
   }
 
-  const isGroupLeader = (g: Group) => g.created_by === studentDatabaseId
-  const isGroupMember = (g: Group) => g.members?.some((m) => m.id === studentDatabaseId)
+  const isGroupLeader = (g: Group) => Number(g.created_by) === Number(studentDatabaseId)
+  const isGroupMember = (g: Group) => g.members?.some((m) => Number(m.id) === Number(studentDatabaseId))
+
+  const studentIdsInAGroup = new Set(
+    groups.flatMap((g) =>
+      g.deleted_at || g.status === "rejected" ? [] : (g.members ?? []).map((m) => Number(m.id)),
+    ),
+  )
+  const myActiveGroup = groups.find(
+    (g) =>
+      !g.deleted_at &&
+      g.status !== "rejected" &&
+      (Number(g.created_by) === Number(studentDatabaseId) ||
+        (g.members ?? []).some((m) => Number(m.id) === Number(studentDatabaseId))),
+  )
 
   const getAvailableStudents = () => {
     if (!selectedGroup) return []
-    const memberIds = selectedGroup.members?.map((m) => m.id) || []
-    return students.filter((s) => !memberIds.includes(s.id))
+    const memberIds = new Set((selectedGroup.members ?? []).map((m) => Number(m.id)))
+    return students.filter((s) => !memberIds.has(Number(s.id)) && !studentIdsInAGroup.has(Number(s.id)))
   }
 
   const getAvailableStudentsForCreation = () =>
-    students.filter((s) => s.id !== studentDatabaseId)
+    students.filter((s) => Number(s.id) !== Number(studentDatabaseId) && !studentIdsInAGroup.has(Number(s.id)))
 
   const toggleInitialMember = (studentId: number) => {
     setSelectedInitialMembers((prev) =>
@@ -447,14 +465,14 @@ export function GroupsManager({
     : "p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl bg-blue-100 dark:bg-blue-900/50 shrink-0"
   const iconClass = embedInDashboard ? "text-[var(--cc-accent)]" : "text-blue-600 dark:text-blue-400"
   const btnClass = embedInDashboard
-    ? "h-9 rounded-xl border-0 px-3 text-sm font-medium shadow-none hover:opacity-90"
+    ? cn("h-9 gap-1.5 rounded-lg px-3 text-sm font-medium", portalSolidButton("amber"))
     : "bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 text-white rounded-lg sm:rounded-xl shadow-[0_8px_32px_rgba(59,130,246,0.3)] dark:shadow-[0_8px_32px_rgba(59,130,246,0.5)] hover:shadow-[0_12px_40px_rgba(59,130,246,0.4)] dark:hover:shadow-[0_12px_40px_rgba(59,130,246,0.6)] transition-all duration-300 px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 font-semibold gap-1.5 sm:gap-2 text-xs sm:text-sm md:text-base w-full sm:w-auto shrink-0"
 
   return (
     <div className={cn("flex flex-col", embedInDashboard ? "min-h-0" : "h-[600px] sm:h-[650px] md:h-[700px]")}>
       <div className={cn(
         embedInDashboard
-          ? "overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4"
+          ? "flex min-h-0 flex-col gap-3"
           : "rounded-2xl border border-slate-200/60 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.04] shadow-sm p-4 sm:p-5 md:p-6",
       )}>
       <div className={cn("flex items-end justify-between gap-3", embedInDashboard ? "mb-3" : "mb-6")}>
@@ -477,15 +495,20 @@ export function GroupsManager({
             <p className="text-xs text-[var(--cc-text-muted)]">{getFilteredGroups().length} shown</p>
           </div>
         )}
+        {myActiveGroup ? (
+          <p className={cn("text-xs sm:text-sm", embedInDashboard ? "text-[var(--cc-text-muted)]" : "text-slate-500")}>
+            Already in {myActiveGroup.name}
+          </p>
+        ) : (
         <Button 
           onClick={() => setCreateDialogOpen(true)} 
           className={btnClass}
-          style={embedInDashboard ? { backgroundColor: "var(--cc-accent)", color: "#FFFFFF" } : undefined}
         >
           <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
           <span className="hidden sm:inline">Propose Group</span>
           <span className="sm:hidden">Propose</span>
         </Button>
+        )}
       </div>
 
       {/* Search and Filter */}
@@ -524,6 +547,95 @@ export function GroupsManager({
         </Select>
       </div>
 
+      {embedInDashboard ? (
+        <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)]">
+          {getFilteredGroups().length === 0 ? (
+            <div className="px-4 py-10 text-center">
+              <span className={cn("mx-auto mb-3 flex size-10 items-center justify-center rounded-xl", groupsTheme.page.iconBg, groupsTheme.page.iconText)}>
+                <Users className="h-4 w-4" />
+              </span>
+              <p className="text-sm font-medium text-[var(--cc-text)]">No groups yet</p>
+              <p className="mt-1 text-xs text-[var(--cc-text-muted)]">Propose a group to get started.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-[var(--border)]">
+              {getFilteredGroups().map((g, index) => {
+                const stripe = portalListStripe(index, "amber")
+                const members = g.members ?? []
+                const canManage = isGroupLeader(g) && (g.status === "approved" || g.status === "pending_update")
+                return (
+                  <div key={g.id} className="px-3 py-3 hover:bg-muted/40">
+                    <div className="flex items-center gap-3">
+                      <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl", stripe.iconBg, stripe.iconText)}>
+                        <Users className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <p className="truncate text-sm font-semibold text-[var(--cc-text)]">{g.name}</p>
+                          {getStatusBadge(g.status)}
+                          {isGroupLeader(g) ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                              <Crown className="h-3 w-3" />
+                              Leader
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-0.5 text-xs text-[var(--cc-text-muted)]">
+                          {g.member_count} member{g.member_count !== 1 ? "s" : ""}
+                        </p>
+                      </div>
+                      {isGroupLeader(g) ? (
+                        <div className="flex shrink-0 items-center gap-1">
+                          {canManage ? (
+                            <>
+                              <Button type="button" size="sm" className={cn("h-8 rounded-lg px-2.5 text-xs", portalSolidButton("amber"))} onClick={() => { setSelectedGroup(g); setAddMemberDialogOpen(true) }}>
+                                <UserPlus className="mr-1 h-3.5 w-3.5" />
+                                Add member
+                              </Button>
+                              <Button type="button" size="icon" variant="outline" className={cn("size-8", portalOutlineButtonClass(groupsTheme))} title="Edit group" onClick={() => { setSelectedGroup(g); setEditGroupName(g.name); setEditDialogOpen(true) }}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          ) : null}
+                          <Button type="button" size="icon" variant="ghost" className="size-8 text-[var(--cc-sem-danger)] hover:bg-[var(--cc-sem-danger)]/10" title="Delete group" onClick={() => { setSelectedGroup(g); setDeleteDialogOpen(true) }}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ) : isGroupMember(g) && g.status === "approved" ? (
+                        <Button type="button" size="sm" variant="outline" className="h-8 shrink-0 rounded-lg px-2.5 text-xs" onClick={() => handleRemoveMember(g.id)}>
+                          Leave
+                        </Button>
+                      ) : null}
+                    </div>
+                    {members.length ? (
+                      <ul className="mt-3 ml-[3.25rem] divide-y divide-[var(--border)] rounded-lg border border-[var(--border)]">
+                        {members.map((member) => {
+                          const leader = member.id === g.created_by
+                          return (
+                            <li key={member.id} className="flex items-center gap-2 px-2.5 py-1.5">
+                              <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-semibold", groupsTheme.page.iconBg, groupsTheme.page.iconText)}>
+                                {memberInitials(member.full_name)}
+                              </span>
+                              <span className="min-w-0 flex-1 truncate text-sm text-[var(--cc-text)]">{member.full_name}</span>
+                              {leader ? (
+                                <span className="shrink-0 text-[11px] font-medium text-amber-600 dark:text-amber-400">Leader</span>
+                              ) : (
+                                <span className="shrink-0 text-[11px] text-[var(--cc-text-muted)]">Member</span>
+                              )}
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    ) : (
+                      <p className="mt-2 ml-[3.25rem] text-xs text-[var(--cc-text-muted)]">No members listed yet.</p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
       <div className="space-y-4 sm:space-y-5 md:space-y-6 overflow-y-auto flex-1 pr-1 sm:pr-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent">
         {getFilteredGroups().length === 0 ? (
           <motion.div
@@ -655,7 +767,7 @@ export function GroupsManager({
                 )}>
                   {isGroupLeader(g) && (
                     <>
-                      {g.status === "approved" && (
+                      {(g.status === "approved" || g.status === "pending_update") && (
                         <>
                           <Button 
                             variant="outline" 
@@ -702,6 +814,7 @@ export function GroupsManager({
           ))
         )}
       </div>
+      )}
       </div>
 
       {/* === All Dialogs retained with modern styles === */}

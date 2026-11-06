@@ -179,20 +179,20 @@ Your response must follow this exact JSON structure:
 {
   "score": <number 0-100>,
   "isCorrect": <boolean>,
-  "feedback": "<itemized summary - list each issue with location and fix; never claim something is missing if it exists in the code>",
+  "feedback": "",
   "criteria": {
     "correctness": <number 0-40>,
     "codeQuality": <number 0-25>,
     "efficiency": <number 0-20>,
     "completeness": <number 0-15>
   },
-  "suggestions": ["<string>", "<string>", ...],
-  "detailedExplanation": "<detailed explanation of why this grade was given>",
+  "suggestions": [],
+  "detailedExplanation": "<one or two short sentences, under 280 characters. Say what earned or lost the points. Do not quote code. Do not restate the numeric score.>",
   "gradeBreakdown": {
-    "reasoning": "<explanation of the overall grade reasoning>",
-    "strengths": ["<strength 1>", "<strength 2>", ...],
-    "weaknesses": ["<itemized weakness - MUST reference specific code, e.g. Line 15: variable X is uninitialized when...>", ...],
-    "improvements": ["<itemized fix - MUST reference specific code and show correct approach>", ...]
+    "reasoning": "",
+    "strengths": [],
+    "weaknesses": [],
+    "improvements": []
   },
   "scoreBreakdown": {
     "criteriaScores": { "correctness": <0-40>, "codeQuality": <0-25>, "efficiency": <0-20>, "completeness": <0-15> },
@@ -202,39 +202,25 @@ Your response must follow this exact JSON structure:
     "finalScore": <number 0-100, equals rawScore when no penalty, else rawScore - suspiciousTypingPenalty; must respect MANDATORY MINIMUM SCORE for substantive attempts in the active evaluation mode>
   },
   "itemizedIssues": [
-    {"issue": "<what is wrong>", "location": "<line number or code snippet from student code>", "fix": "<exact correction or correct approach>"},
-    ...
+    {"issue": "<one short problem, under 120 characters>", "location": "<short snippet>", "fix": "<one-line correction>"}
   ],
-  "sampleAnswers": [
-    {
-      "approach": "Basic",
-      "description": "Simple, straightforward solution",
-      "code": "<complete working code here>"
-    },
-    {
-      "approach": "Intermediate",
-      "description": "Solution with improvements or alternative approach",
-      "code": "<complete working code here>"
-    },
-    {
-      "approach": "Advanced",
-      "description": "Optimized solution with best practices (optional)",
-      "code": "<complete working code here>"
-    }
-  ]
+  "sampleAnswers": []
 }
 
-Note: Provide at least 2 sample answers, 3 is preferred if there are distinct approaches.
+LENGTH LIMITS (mandatory — students already see the score):
+- detailedExplanation: 1–2 sentences, under 280 characters. No code quotes. No score restatement.
+- feedback, gradeBreakdown.reasoning, strengths, weaknesses, improvements, suggestions, and sampleAnswers must be empty. Do not repeat the explanation in any other field.
+- itemizedIssues: at most 3 distinct problems. Empty array when the solution is correct. Do not list the same mistake twice. Each issue and fix is one short line. No full programs.
 
 FEEDBACK VS FINAL NUMERIC GRADE (course policy):
-- **Words:** Grade the submission completely—every error can appear in feedback, weaknesses, and itemizedIssues.
+- **Words:** Name at most 3 real errors in itemizedIssues. Do not write essays.
 - **Numbers:** The minimum is a **floor**, not leniency to over-award. Weak work with many serious problems should land **at** the minimum, not far above it. "score" and scoreBreakdown.finalScore cannot fall below that floor for substantive attempts (see below). The server **overwrites** an illegally low grade if needed—do not pad grades above the floor without real merit.
 
-CRITICAL - DETAILED FEEDBACK: Students must understand exactly why they scored what they scored. Provide:
-- "feedback": Itemized summary with each issue, location (line/snippet), and fix
-- "gradeBreakdown": reasoning, strengths, weaknesses, improvements (reference specific code)
-- "itemizedIssues": For each problem: issue, location, fix
+CRITICAL - SHORT FEEDBACK: Students already see the score. Provide:
+- "detailedExplanation": one or two short sentences only
+- "itemizedIssues": at most 3 real problems, or [] if the solution is correct
 - "scoreBreakdown": criteriaScores, rawScore, suspiciousTypingPenalty (if any), penaltyReason, finalScore
+- Leave feedback, suggestions, strengths, weaknesses, improvements, reasoning, and sampleAnswers empty
 
 KEYSTROKE ANTI-CHEAT: ${
     (questionType || "").toLowerCase() === "code_write_plot"
@@ -348,58 +334,36 @@ What to check instead:
 - Use of plot-related commands where appropriate: plot, fplot, figure, hold, subplot, xlabel, ylabel, title, grid, linspace, mesh, surf, etc.
 - **Do NOT** penalize for the absence of C++-specific constructs. **Do** penalize real MATLAB issues (clear logic errors, wrong dimensions, bad indexing) per the problem.
 
-SAMPLE SOLUTIONS in your JSON, when you include them, should be **valid MATLAB** for this type (not C++), unless the question text explicitly required another language.`,
+Do not include sample programs. sampleAnswers must be [].`,
 
     }
     const genericTypeFallback = `For this code question, evaluate the submission according to the criteria, question text, and EXPECTED PROGRAMMING LANGUAGE in the user message. Do not assume C++ unless that message says C++ or a C-family language.`
     basePrompt += typeSpecificPrompts[questionType] ?? genericTypeFallback
   }
 
-  const sampleSolutionInstruction = isVisionModel
-    ? `5. SAMPLE SOLUTIONS: Provide **one** complete working solution that correctly solves the problem. Additional approaches are optional if token limits allow.`
-    : `5. SAMPLE SOLUTIONS: Provide 2-3 different working solutions that correctly solve the problem:\n   - Each solution should use a different approach or technique\n   - Progress from basic/simple to more advanced/sophisticated\n   - All solutions must be complete, working code\n   - Use clear, educational variable names\n   - Include comments explaining key concepts where helpful\n   - Solutions should demonstrate best practices`
-
   basePrompt += `
 
-CRITICAL REQUIREMENTS FOR COMPREHENSIVE FEEDBACK:
+SHORT FEEDBACK RULES:
 
-1. ITEMIZED FEEDBACK (MANDATORY): You MUST provide specific, itemized feedback. NEVER give vague statements like "logical errors" or "code does not compile" without listing EXACTLY what is wrong.
-   - For each issue: state the EXACT problem, cite the line or code snippet from the student's submission, and give the correct fix.
-   - Example: "Line 18: 'choice' may be uninitialized when the first if-block is skipped - add 'choice = 0' before the if statements."
-   - Do NOT include spelling/grammar in output strings (cout, printf) as issues - see rule 6 below.
+1. ITEMIZED ISSUES: At most 3 distinct problems. Empty array when the code is correct. Each entry is one short line: what is wrong, a short snippet, and a one-line fix. Do not repeat a mistake. Do not paste the student's program back.
+   - Example: issue "Missing << before celsius, so this line will not compile.", location "cout << \\"Temperature; \\" celsius", fix "cout << \\"Temperature: \\" << celsius << \\" C\\";"
+   - Do NOT include spelling in cout/printf strings.
 
-2. VERIFY BEFORE CLAIMING - CRITICAL: NEVER claim something is missing or wrong if it EXISTS in the code. Re-read the student's code line-by-line before each claim.
-   - If student has "#include <iostream>" - the # is PRESENT. Do NOT say "add #" or "missing #". That is a FALSE FLAG.
-   - If student has "using namespace std;" - the semicolon is PRESENT. Do NOT say "add semicolon" or "missing semicolon". That is a FALSE FLAG.
-   - If student has "return 0;" - do NOT say "missing return statement."
-   - If they have "include <iostream>" (no #) - that IS a typo, say "add # before include". If they have "int man()" - say "typo: man→main".
-   - ONLY report issues that you can VERIFY are actually wrong by looking at the exact characters in the code.
+2. VERIFY BEFORE CLAIMING: Never say something is missing if it is in the code.
+   - "#include <iostream>" means the # is present. "using namespace std;" means the semicolon is present. "return 0;" means the return is present.
+   - "include <iostream>" (no #) or "int man()" is a typo, not a missing section.
 
-3. GRADE BREAKDOWN - each item must be specific:
-   - WEAKNESSES: List each issue with location (e.g. "Line 12: ...", "In the switch: ..."). No vague items.
-   - IMPROVEMENTS: Give concrete fixes (e.g. "Initialize choice before the if: int choice = 0;")
-   - STRENGTHS: Reference specific code that works well
-
-4. ITEMIZED ISSUES: Populate "itemizedIssues" with every distinct problem. Each entry: issue (what's wrong), location (line or snippet), fix (correct approach).
-   - NEVER include typos in cout/printf strings (e.g. "schollar ship") as an itemized issue. Do NOT list them in weaknesses, suggestions, or improvements. Zero points deducted for output string spelling.
-
-5. FEEDBACK TONE: Be encouraging and educational. Focus on learning and improvement rather than just pointing out errors.
-
-6. FOCUS ON ERRORS THAT CAUSE CODE TO FAIL - NO SPELLING/GRAMMAR NIT-PICKING:
+3. FOCUS ON ERRORS THAT CAUSE CODE TO FAIL - NO SPELLING/GRAMMAR NIT-PICKING:
    - ONLY deduct for: (a) compile errors (syntax that prevents compilation), (b) runtime errors, (c) logic errors that produce wrong output, (d) uninitialized variables (undefined behavior), (e) missing required logic.
    - Do NOT deduct for: spelling in cout/printf strings (e.g. "schollar" vs "scholarship"), grammar in output text, typos in displayed messages. These are cosmetic - the code runs fine.
    - This is a CODING course, not grammar. Output string spelling does NOT cause code to fail. Do NOT penalize it in any mode (relaxed, standard, strict, very_strict).
    - Do NOT flag logic as "redundant" without tracing control flow. Example: else if(gpa >= 3.8) may handle a DIFFERENT case (e.g. high GPA alone qualifies) than the first if. Only flag redundancy when branches are TRULY unreachable.
 
-${sampleSolutionInstruction}
-
-IMPORTANT: You must provide BOTH detailed evaluation of the student's code AND sample solutions. The sample solutions help students learn different approaches after seeing their evaluation.
-
 ${getModeSpecificInstructions(aiEvaluationMode)}
 
 ${buildMandatoryAttemptFloorInstructionsForPrompt(aiEvaluationMode)}
 
-Remember: Your goal is to help the student learn by (1) evaluating their specific submission with detailed feedback, and (2) showing them correct solutions with different approaches.`
+Keep the written feedback short. The score and criteria numbers carry the grade. Words only name what is wrong, up to 3 items.`
 
   return basePrompt
 }
@@ -412,25 +376,25 @@ function getModeSpecificInstructions(mode?: string): string {
     return `EVALUATION MODE: RELAXED — ATTEMPT FLOOR, NOT INFLATED SCORING
 
 FEEDBACK vs NUMERIC FINAL:
-- FEEDBACK: List ALL problems honestly (typos, syntax errors, missing pieces). Detailed, critical feedback is required.
+- FEEDBACK: Name at most 3 real errors in itemizedIssues. One short line each. No essays.
 - NUMERIC GRADE: Substantive attempts **cannot finish below ${rmin}%**. That is **only** a safety net for effort—it does **not** mean be generous. Many significant errors → **set finalScore at ${rmin}%** (or only slightly above if there is clear partial credit). **Do not** hand out 60–80% for broken or mostly-wrong work. Reserve higher scores for real correctness / meaningful partial solutions.
 - Describe severity freely in feedback; keep the number honest relative to quality, bounded below by ${rmin}% for substantive attempts.
 ${noSpellingNote}`
   }
   if (m === "strict") {
     return `EVALUATION MODE: STRICT - HARD GRADING
-- FEEDBACK: List all problems. Give detailed itemized feedback.
+- FEEDBACK: At most 3 short itemized issues. No essays.
 - SCORING: Be STRICT. Deduct for style issues, edge cases, best-practice violations. Reserve 100 for near-perfect code.
 ${noSpellingNote}`
   }
   if (m === "very_strict") {
     return `EVALUATION MODE: VERY STRICT - VERY HARD GRADING
-- FEEDBACK: List all problems. Give detailed itemized feedback.
+- FEEDBACK: At most 3 short itemized issues. No essays.
 - SCORING: Be VERY STRICT. Professional standards. Reserve 100 for exceptional code only. Deduct for any deviation.
 ${noSpellingNote}`
   }
   return `EVALUATION MODE: STANDARD - MODERATELY STRICT GRADING
-- FEEDBACK: List all problems. Give detailed itemized feedback.
+- FEEDBACK: At most 3 short itemized issues. No essays.
 - SCORING: A little stricter than relaxed. Moderate deductions for syntax errors and partial solutions. Not as lenient as relaxed, not as harsh as strict.
 ${noSpellingNote}`
 }
@@ -733,11 +697,10 @@ CONTEXT FOR THIS SUBMISSION: trimmed student code length = ${submissionTrimLen} 
 Please evaluate this submission and provide:
 1. A score from 0-100 (substantive attempts: **≥** mode minimum; do **not** inflate—many serious problems → **at** the minimum, not high partial credit. Non-substantive work: low scores allowed.)
 2. Whether the answer is correct (true/false) - only true if code solves the problem correctly
-3. Detailed feedback explaining the score
+3. One or two short sentences in detailedExplanation
 4. Breakdown of points for each criterion
-5. Specific suggestions for improvement
-6. Detailed explanation of why this specific grade was given
-7. Comprehensive grade breakdown with reasoning, strengths, weaknesses, and improvements
+5. At most 3 itemizedIssues, or none if the solution is correct
+6. Leave feedback, suggestions, reasoning, strengths, weaknesses, and improvements empty
 
 CRITICAL SCORING REMINDERS:
 - If the attempt is **substantive**, the **MANDATORY MINIMUM** block above overrides any conflicting **lower** bound below—it does **not** tell you to score above the minimum; weak submissions should often sit **at** the minimum.
@@ -918,7 +881,8 @@ function buildMatlabCodeWritePlotHeuristic({
       ],
     },
     sampleAnswers: [],
-    requiresManualReview: false,
+    // Heuristic runs only when AI grading is unavailable — never release it as a final grade.
+    requiresManualReview: true,
     aiGraded: false,
     status: score >= 60 ? "Keep Practicing" : "Just Beginning",
     statusMessage:
@@ -1059,7 +1023,8 @@ function buildHeuristicEvaluation({
       ],
     },
     sampleAnswers: [],
-    requiresManualReview: false,
+    // Heuristic runs only when AI grading is unavailable — never release it as a final grade.
+    requiresManualReview: true,
     aiGraded: false,
     status: score >= 60 ? "Keep Practicing" : "Just Beginning",
     statusMessage: score >= 60 ? "Good attempt! You're on the right track." : "Good effort! Keep exploring and learning.",
@@ -1250,7 +1215,7 @@ export async function evaluateCode(params: EvaluateCodeParams): Promise<Evaluate
       aiEvaluationMode,
     }
 
-    let rawText: string
+    let rawText: string | undefined
     const maxEvalAttempts = 2
     let usedFallback = false
     let effectiveModel = model
@@ -1275,8 +1240,14 @@ export async function evaluateCode(params: EvaluateCodeParams): Promise<Evaluate
       messages.push({ role: "user", content: prompt })
     }
 
+    // Total budget must finish inside the routes' maxDuration (120–180s) or the platform kills the
+    // function mid-grade and the client falls back to "Evaluation failed".
+    const evalDeadline = Date.now() + 150_000
     for (let attempt = 0; attempt < maxEvalAttempts; attempt++) {
       retryCount = attempt
+      const remainingMs = evalDeadline - Date.now()
+      if (attempt > 0 && remainingMs < 20_000) break
+      timeoutMs = Math.max(15_000, Math.min(75_000, remainingMs))
       if (attempt === 1 && isResponsesModel(model) && !usedFallback) {
         usedFallback = true
         effectiveModel = fallbackModel
@@ -1300,18 +1271,19 @@ export async function evaluateCode(params: EvaluateCodeParams): Promise<Evaluate
             getSystemPrompt(questionType, criteria, questionTypeConfig, true, aiEvaluationMode),
             userParts,
             fallbackModel,
+            Math.floor(timeoutMs / 2),
           )
           rawText = visionResult.text
           effectiveModel = visionResult.modelUsed
         } else if (isResponsesModel(effectiveModel) && resolvedModel.provider === "openai") {
-          const gpt5Tokens = Math.max(modelConfig.max_tokens ?? 4000, 8192)
+          const gpt5Tokens = Math.min(modelConfig.max_tokens ?? 1400, 1400)
           rawText = await callGpt5Evaluation(apiKey, effectiveModel, messages, { max_tokens: gpt5Tokens }, timeoutMs)
         } else {
           const chatResult = await chatCompletionWithFallback(apiKey, {
             model: effectiveModel,
             messages: messages as { role: string; content: string }[],
             temperature: modelConfig.temperature,
-            max_tokens: modelConfig.max_tokens,
+            max_tokens: Math.min(modelConfig.max_tokens ?? 1400, 1400),
             top_p: modelConfig.top_p,
             frequency_penalty: modelConfig.frequency_penalty,
             presence_penalty: modelConfig.presence_penalty,
@@ -1346,7 +1318,10 @@ export async function evaluateCode(params: EvaluateCodeParams): Promise<Evaluate
       }
     }
 
-    const resultText = rawText!
+    if (!rawText?.trim()) {
+      throw new Error("AI evaluation exceeded its time budget")
+    }
+    const resultText = rawText
 
     let aiResult: {
       score?: number
@@ -1422,6 +1397,7 @@ export async function evaluateCode(params: EvaluateCodeParams): Promise<Evaluate
                   completeness: compMatch ? parseInt(compMatch[1]) : 0,
                 },
                 suggestions: ["Response was truncated by AI - instructor manual review recommended"],
+                requiresManualReview: true,
                 status: "Manual Review Required",
                 statusMessage: "AI response was incomplete - instructor will review",
               }

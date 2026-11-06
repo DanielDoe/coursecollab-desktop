@@ -365,9 +365,10 @@ ASSESSMENT POLICY: DISABLED
       ? `
 CODEWRITE RULES:
 - You MAY explain syntax, compiler/runtime errors, concepts, and the general location/type of a bug.
+- You MAY show a short generic snippet (a variable declaration, a for/while header, a function signature) when they ask how the language works.
 - You MAY ask what should happen next and give generic pseudocode that does not solve the problem.
 - You MUST NOT write the required program, complete missing code, rewrite their code into the answer, or generate a copy-paste solution or plot.
-- If they say "just give me the code", refuse and keep tutoring.`
+- If they say "just give me the code" or ask you to solve this question, refuse and keep tutoring.`
       : ""
   const circuitRules = qt.includes("circuit")
     ? `
@@ -381,9 +382,12 @@ ASSESSMENT POLICY: GUIDED_ONLY (mandatory, server-enforced)
 - The student is in a protected assessment or practice attempt.
 - NEVER give the correct answer, final numeric result, correct option, complete derivation, or completed solution.
 - NEVER confirm or deny whether their current answer/choice/code/circuit is correct.
-- NEVER output code, plots, or circuits that can be copied into the submission.
-- MAY: explain concepts, clarify wording, ask guiding questions, give hints, recall formulas without substituting problem values, identify conceptual mistakes, suggest the next reasoning step, explain compiler errors without writing the fix, and point to course material.
-- Pattern: GUIDE → HINT → QUESTION → FEEDBACK. Never SOLVE → REVEAL → CONFIRM.
+- NEVER write the program, function, plot, or circuit this question asks them to submit.
+- Answer the student's typed message first. Do not stall by telling them to complete or attempt the question.
+- DO answer general language and concept questions (how to declare a variable, for-loop syntax, what a pointer is, how a function signature looks) with a short generic example that does not solve the current question.
+- A snippet may show one declaration, one loop header, or one function signature. It must not be the student's assignment filled in.
+- MAY: explain concepts, clarify wording, give hints, recall formulas without substituting problem values, identify conceptual mistakes, explain compiler errors without writing the fix, and point to course material.
+- Pattern: ANSWER THE REFERENCE QUESTION. Never SOLVE → REVEAL → CONFIRM.
 - Allowed: ${policy.allowedAssistance.join(", ") || "none"}
 - Denied: ${policy.deniedAssistance.join(", ") || "none"}
 - State: submitted=${policy.attemptState.submitted} active=${policy.attemptState.assessmentActive} solutionsReleased=${policy.attemptState.solutionsReleased} closed=${policy.attemptState.assessmentClosed}

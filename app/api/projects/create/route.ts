@@ -95,6 +95,34 @@ export async function POST(request: NextRequest) {
     )
     if (!projectSize.ok) return projectSize.response
 
+    let resolvedTitle = title
+    let projectStatus = "pending"
+    let assignmentId: number | null = null
+    const requestedAssignment = Number(body.assignmentId)
+    if (Number.isFinite(requestedAssignment)) {
+      const assignments = await sql`
+        SELECT id, title, status, course_id, submission
+        FROM course_project_assignments
+        WHERE id = ${requestedAssignment}
+        LIMIT 1
+      `
+      const assignment = assignments[0] as
+        | { id: number; title: string; status: string; course_id: number; submission: { proposal_mode?: string } | null }
+        | undefined
+      const courseId = (groupCheck[0] as { course_id?: number | null }).course_id
+      const proposal = assignment?.submission?.proposal_mode
+      if (
+        assignment &&
+        assignment.status === "published" &&
+        proposal === "instructor" &&
+        Number(assignment.course_id) === Number(courseId)
+      ) {
+        resolvedTitle = assignment.title
+        projectStatus = "approved"
+        assignmentId = assignment.id
+      }
+    }
+
     let projectResult
     try {
       projectResult = await sql`
@@ -105,16 +133,18 @@ export async function POST(request: NextRequest) {
           deliverables, 
           target_platform,
           status,
-          course_id
+          course_id,
+          assignment_id
         )
         VALUES (
           ${groupIdNum}, 
-          ${title}, 
+          ${resolvedTitle}, 
           ${summary || null}, 
           ${deliverables || null}, 
           ${targetPlatform || null},
-          'pending',
-          ${(groupCheck[0] as { course_id?: number | null }).course_id ?? null}
+          ${projectStatus},
+          ${(groupCheck[0] as { course_id?: number | null }).course_id ?? null},
+          ${assignmentId}
         )
         RETURNING id, group_id, title, summary, deliverables, target_platform, status, created_at, updated_at
       `

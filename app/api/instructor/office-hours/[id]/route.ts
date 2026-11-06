@@ -145,3 +145,56 @@ export async function PATCH(
     return NextResponse.json({ error: "Failed to update request" }, { status: 500 })
   }
 }
+
+/** DELETE - Remove a student office-hour request from this course. */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const scope = await requireInstructorCourse(request)
+    if (!scope.ok) return scope.response
+
+    const { id } = await params
+    const requestId = Number.parseInt(id, 10)
+    if (!Number.isFinite(requestId)) {
+      return NextResponse.json({ error: "Invalid request id" }, { status: 400 })
+    }
+
+    const inScope = await officeHourRequestInOfferingScopeFromRequest(
+      request,
+      requestId,
+      scope.course.id,
+    )
+    if (!inScope) {
+      return NextResponse.json({ error: "Request not found" }, { status: 404 })
+    }
+
+    const current = await sql`
+      SELECT student_id, topic FROM office_hour_requests WHERE id = ${requestId} LIMIT 1
+    `
+    const row = current[0] as { student_id?: number; topic?: string } | undefined
+    if (!row) {
+      return NextResponse.json({ error: "Request not found" }, { status: 404 })
+    }
+
+    await sql`DELETE FROM office_hour_preferred_dates WHERE request_id = ${requestId}`.catch(() => [])
+    await sql`DELETE FROM office_hour_attachments WHERE request_id = ${requestId}`.catch(() => [])
+    await sql`DELETE FROM office_hour_requests WHERE id = ${requestId}`
+
+    if (row.student_id) {
+      await createNotification({
+        studentId: row.student_id,
+        type: "office_hours",
+        title: "Office Hours Update",
+        message: `Your office hours request${row.topic ? ` (${row.topic})` : ""} was removed.`,
+        link: "/student/dashboard-v2/office-hours",
+      })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("[Instructor Office Hours] DELETE:", error)
+    return NextResponse.json({ error: "Failed to delete request" }, { status: 500 })
+  }
+}

@@ -22,6 +22,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AuthStatusAlert } from "@/components/auth/AuthStatusAlert"
 import { setStudentSession } from "@/lib/auth"
 import { resolveStudentPostLoginPath, syncAppearanceSetupFromServer } from "@/lib/appearance/appearance-setup"
 import { MfaLoginStep, parseMfaLoginResponse, type MfaLoginState } from "@/components/auth/MfaLoginStep"
@@ -446,7 +447,9 @@ export function StudentLoginForm({
   }
 
   return (
-    <div
+    <main
+      id="main-content"
+      tabIndex={-1}
       className={cn(
         "w-full min-w-0 max-w-full rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/90 dark:bg-slate-900/60 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.08)] dark:shadow-none overflow-hidden",
         className
@@ -537,9 +540,9 @@ export function StudentLoginForm({
         </div>
 
         {error && !selectedCourseId ? (
-          <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-3 whitespace-pre-line mb-4">
+          <AuthStatusAlert tone="error" title="Couldn't sign in" className="mb-4">
             {error}
-          </div>
+          </AuthStatusAlert>
         ) : null}
 
         {!selectedCourseId ? (
@@ -782,11 +785,11 @@ export function StudentLoginForm({
                       </p>
                     </div>
                   </div>
-                  {error && (
-                    <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-3 whitespace-pre-line">
+                  {error ? (
+                    <AuthStatusAlert tone="error" title="Couldn't continue">
                       {error}
-                    </div>
-                  )}
+                    </AuthStatusAlert>
+                  ) : null}
                   <Button
                     type="submit"
                     disabled={loading || lectureSessions.length === 0}
@@ -962,11 +965,11 @@ export function StudentLoginForm({
                 </div>
               ) : null}
 
-              {error && (
-                <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-3 whitespace-pre-line">
+              {error ? (
+                <AuthStatusAlert tone="error" title="Couldn't sign in">
                   {error}
-                </div>
-              )}
+                </AuthStatusAlert>
+              ) : null}
 
               <Button
                 type="submit"
@@ -990,6 +993,6 @@ export function StudentLoginForm({
         </Tabs>
         )}
       </div>
-    </div>
+    </main>
   )
 }

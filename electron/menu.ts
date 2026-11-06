@@ -1,4 +1,4 @@
-import { Menu, app, shell, type BrowserWindow } from 'electron'
+import { BrowserWindow, Menu, app, shell } from 'electron'
 import { revealLocalProjectsRoot } from './codebench/projectFiles'
 import { focusDesktopWindow, navigateDesktopPath } from './desktop-window'
 import {
@@ -17,6 +17,9 @@ function go(path: string) {
 
 function updateMenuLabel(): string {
   const update = getUpdateStatus()
+  if (update.state === 'ready' && update.holdInstall) {
+    return `Install ${update.version ?? 'Update'} after the exam`
+  }
   if (update.state === 'ready') return `Restart to Install ${update.version ?? 'Update'}`
   if (update.state === 'available') return `Download Update ${update.version ?? ''}`.trim()
   if (update.state === 'downloading') {
@@ -152,6 +155,81 @@ function goMenu(): Electron.MenuItemConstructorOptions {
   }
 }
 
+type EditorEditAction = 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll'
+
+async function runEditorEdit(action: EditorEditAction): Promise<void> {
+  const win = BrowserWindow.getFocusedWindow()
+  if (!win) return
+  const handled = await win.webContents.executeJavaScript(
+    `typeof window.__ccMonacoEdit === 'function' && window.__ccMonacoEdit(${JSON.stringify(action)})`,
+    true,
+  )
+  if (handled) return
+  const page = win.webContents
+  if (action === 'selectAll') {
+    const inEditor = await page.executeJavaScript(
+      `(function () {
+        var active = document.activeElement
+        var editor = active && active.closest ? active.closest('.cm-editor, .monaco-editor') : null
+        if (!editor) return false
+        return document.execCommand('selectAll')
+      })()`,
+      true,
+    )
+    if (inEditor) return
+    page.selectAll()
+    return
+  }
+  if (action === 'undo') page.undo()
+  else if (action === 'redo') page.redo()
+  else if (action === 'cut') page.cut()
+  else if (action === 'copy') page.copy()
+  else page.paste()
+}
+
+function editMenu(isMac: boolean): Electron.MenuItemConstructorOptions {
+  return {
+    label: 'Edit',
+    submenu: [
+      {
+        label: 'Undo',
+        accelerator: 'CmdOrCtrl+Z',
+        click: () => void runEditorEdit('undo'),
+      },
+      {
+        label: 'Redo',
+        accelerator: 'Shift+CmdOrCtrl+Z',
+        click: () => void runEditorEdit('redo'),
+      },
+      ...(!isMac
+        ? ([
+            {
+              label: 'Redo',
+              accelerator: 'CmdOrCtrl+Y',
+              visible: false,
+              click: () => void runEditorEdit('redo'),
+            },
+          ] as Electron.MenuItemConstructorOptions[])
+        : []),
+      { type: 'separator' },
+      { label: 'Cut', accelerator: 'CmdOrCtrl+X', click: () => void runEditorEdit('cut') },
+      { label: 'Copy', accelerator: 'CmdOrCtrl+C', click: () => void runEditorEdit('copy') },
+      { label: 'Paste', accelerator: 'CmdOrCtrl+V', click: () => void runEditorEdit('paste') },
+      ...(isMac
+        ? ([
+            { role: 'pasteAndMatchStyle' as const },
+            { role: 'delete' as const },
+            { label: 'Select All', accelerator: 'CmdOrCtrl+A', click: () => void runEditorEdit('selectAll') },
+          ] as Electron.MenuItemConstructorOptions[])
+        : ([
+            { role: 'delete' as const },
+            { type: 'separator' as const },
+            { label: 'Select All', accelerator: 'CmdOrCtrl+A', click: () => void runEditorEdit('selectAll') },
+          ] as Electron.MenuItemConstructorOptions[])),
+    ],
+  }
+}
+
 function viewMenu(): Electron.MenuItemConstructorOptions {
   const submenu: Electron.MenuItemConstructorOptions[] = [
     { role: 'reload' },
@@ -197,7 +275,7 @@ export function buildApplicationMenu(): Electron.Menu {
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(isMac ? [courseCollabMenu()] : []),
     fileMenu(isMac),
-    { role: 'editMenu' },
+    editMenu(isMac),
     goMenu(),
     viewMenu(),
     { role: 'windowMenu' },

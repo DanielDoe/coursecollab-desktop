@@ -45,7 +45,10 @@ export async function POST(request: NextRequest) {
       const existingMembership = await sql`
         SELECT gm.id
         FROM group_members gm
+        JOIN groups g ON g.id = gm.group_id
         WHERE gm.student_id = ${joinRequest.requester_student_id}
+          AND g.deleted_at IS NULL
+          AND g.status IN ('pending', 'approved', 'pending_update')
         LIMIT 1
       `
 

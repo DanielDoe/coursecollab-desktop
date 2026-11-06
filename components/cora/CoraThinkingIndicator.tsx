@@ -60,19 +60,34 @@ export function CoraThinkingIndicator({
       aria-live="polite"
       aria-label={activeLabel}
     >
-      <div className={cn("flex items-center gap-3", showBot ? "" : "justify-center")}>
+      <div className={cn("flex items-center gap-5", showBot ? "" : "justify-center")}>
         {showBot ? (
-          <div className="relative shrink-0">
-            <div
-              className={cn(
-                "pointer-events-none absolute -inset-1 rounded-full border-2 border-transparent",
-                isLight
-                  ? "border-t-violet-500/70 border-r-violet-300/20 animate-spin"
-                  : "border-t-[#7dd3fc] border-r-violet-400/15 animate-spin",
-              )}
-              aria-hidden
-            />
-            <CoraBotMark size={compact ? "sm" : "md"} idle />
+          <div className={cn("relative shrink-0", compact ? "size-14" : "size-20")}>
+            <span className="pointer-events-none absolute inset-0" aria-hidden>
+              <svg viewBox="0 0 32 32" className="size-full animate-spin motion-reduce:animate-none">
+                <circle
+                  cx="16"
+                  cy="16"
+                  r="13.25"
+                  fill="none"
+                  strokeWidth="1.75"
+                  className={isLight ? "stroke-violet-300/35" : "stroke-white/10"}
+                />
+                <circle
+                  cx="16"
+                  cy="16"
+                  r="13.25"
+                  fill="none"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeDasharray="18 66"
+                  className={isLight ? "stroke-violet-500" : "stroke-[#7dd3fc]"}
+                />
+              </svg>
+            </span>
+            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[58%]">
+              <CoraBotMark size={compact ? "sm" : "md"} idle />
+            </span>
           </div>
         ) : null}
 

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { requireInstructorGroupAccess } from "@/lib/group-request-auth"
+import { requireInstructorOrAdminSession } from "@/lib/instructor-session-auth"
 
 function isGroupsStaff(request: NextRequest): boolean {
   const instructor =

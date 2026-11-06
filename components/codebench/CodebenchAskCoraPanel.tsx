@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState } from "react"
 import { Maximize2, Minimize2 } from "lucide-react"
 import { CoraBotMark } from "@/components/cora/CoraBotMark"
-import { CoraImportedQuestionPreview } from "@/components/cora/CoraImportedQuestionPreview"
 import { Button } from "@/components/ui/button"
 import { CoraChatInput } from "@/components/cora/CoraChatInput"
 import { CoraQuestionImportDialog } from "@/components/cora/CoraQuestionImportDialog"
 import { CoraThinkingIndicator } from "@/components/cora/CoraThinkingIndicator"
 import { CoraWorkspaceChatMessage } from "@/components/cora/CoraWorkspaceChatMessage"
+import { CoraUiPayloadCard } from "@/components/cora/CoraUiPayloadCard"
+import { CoraFollowUps } from "@/components/cora/CoraFollowUps"
+import { applyUnifiedDiff, followUpsForCoraUi, type CoraUiPayload } from "@/lib/cora/models/ui-payloads"
 import { CORA_NAME } from "@/lib/cora/constants"
 import type { CoraLearningGoal } from "@/lib/cora/learning-goals"
 import type { CoraProblemContext } from "@/lib/cora/types"
@@ -25,11 +27,13 @@ import {
 } from "@/lib/codebench-challenge-handoff"
 import { cn } from "@/lib/utils"
 import { withCodebenchCoraContext } from "@/lib/codebench-cora-client"
+import { reportClientError } from "@/lib/system-log-client"
 
 type Message = {
   role: "user" | "assistant"
   content: string
   timestamp: Date
+  ui?: CoraUiPayload
 }
 
 type Props = {
@@ -55,6 +59,7 @@ type Props = {
   codebenchCora?: boolean
   coraAccess?: boolean
   onLockedCora?: (label: string) => void
+  onApplyCode?: (next: string) => void
 }
 
 export function CodebenchAskCoraPanel({
@@ -75,6 +80,7 @@ export function CodebenchAskCoraPanel({
   codebenchCora = false,
   coraAccess = true,
   onLockedCora,
+  onApplyCode,
 }: Props) {
   const chromeHidden = hideChrome || assessmentEmbed
   const isLight = theme === "light"
@@ -90,18 +96,33 @@ export function CodebenchAskCoraPanel({
   )
   const [importedLabel, setImportedLabel] = useState<string | null>(initialImportedLabel)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const stickToBottomRef = useRef(true)
+
+  const importSyncKey = initialImportedQuestion
+    ? [
+        initialImportedQuestion.source,
+        initialImportedQuestion.questionId ?? "",
+        initialImportedQuestion.quizId ?? "",
+        initialImportedQuestion.questionText.slice(0, 80),
+        initialImportedLabel ?? "",
+      ].join("|")
+    : ""
+  const importedQuestionRef = useRef(initialImportedQuestion)
+  const importedLabelRef = useRef(initialImportedLabel)
+  importedQuestionRef.current = initialImportedQuestion
+  importedLabelRef.current = initialImportedLabel
 
   useEffect(() => {
     if (cachedMessages?.length) setMessages(cachedMessages)
   }, [cachedMessages])
 
   useEffect(() => {
-    if (initialImportedQuestion) {
-      setImportedQuestion(initialImportedQuestion)
-      setImportedLabel(initialImportedLabel)
-      setLearningGoal("solve_together")
-    }
-  }, [initialImportedQuestion, initialImportedLabel])
+    const next = importedQuestionRef.current
+    if (!next) return
+    setImportedQuestion(next)
+    setImportedLabel(importedLabelRef.current)
+  }, [importSyncKey])
 
   useEffect(() => {
     if (skipHandoffConsume) return
@@ -116,8 +137,25 @@ export function CodebenchAskCoraPanel({
     onMessagesChange?.(messages)
   }, [messages, onMessagesChange])
 
+  const handleThreadScroll = () => {
+    const el = scrollerRef.current
+    if (!el) return
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 96
+  }
+
+  const jumpToPrompt = (index: number) => {
+    const el = scrollerRef.current
+    const target = el?.querySelector(`[data-cora-message-index="${index}"]`)
+    if (!el || !(target instanceof HTMLElement)) return
+    stickToBottomRef.current = false
+    const top = target.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - 8
+    el.scrollTo({ top, behavior: "smooth" })
+  }
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    const el = scrollerRef.current
+    if (!el || !stickToBottomRef.current) return
+    el.scrollTo({ top: el.scrollHeight })
   }, [messages, isLoading])
 
   const sendMessage = async (rawInput?: string) => {
@@ -155,11 +193,17 @@ export function CodebenchAskCoraPanel({
           studentId,
           message: messageContent + codeContext,
           attachments: imageAttachmentsForApi(attachments),
+          conversationHistory: messages.slice(-8).map((msg) => ({
+            role: msg.role === "user" ? "student" : "assistant",
+            content: msg.content,
+          })),
+          chatConfig: { learningGoal },
           problemContext: importedQuestion ?? undefined,
           context: (() => {
             const ctx = {
               topic: "tutor",
               learningMode,
+              learningGoal,
               importedQuestion: importedQuestion ?? undefined,
               attemptId: importedQuestion?.attemptId,
               quizId: importedQuestion?.quizId,
@@ -178,6 +222,7 @@ export function CodebenchAskCoraPanel({
         {
           role: "assistant",
           content: data.response || data.message || "No response received.",
+          ui: data.ui,
           timestamp: new Date(),
         },
       ])
@@ -188,11 +233,24 @@ export function CodebenchAskCoraPanel({
         setImportedLabel(null)
       }
     } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Could not reach Cora."
+      reportClientError({
+        severity: "error",
+        category: "api",
+        title: assessmentEmbed ? "Ask Cora failed in quiz taker" : "Ask Cora failed",
+        errorMessage: messageText,
+        stackTrace: error instanceof Error ? error.stack : undefined,
+        moduleName: assessmentEmbed ? "Quiz Module" : "Cora",
+        featureName: "Ask Cora",
+        apiEndpoint: "/api/ai-tutor",
+        httpMethod: "POST",
+        metadata: { learningGoal, assessmentEmbed },
+      })
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: `Error: ${error instanceof Error ? error.message : "Could not reach Cora."}`,
+          content: `Error: ${messageText}`,
           timestamp: new Date(),
         },
       ])
@@ -256,18 +314,11 @@ export function CodebenchAskCoraPanel({
       </div>
       ) : null}
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
-        {assessmentEmbed && importedQuestion ? (
-          <CoraImportedQuestionPreview
-            label={importedLabel}
-            problem={importedQuestion}
-            compact
-            variant="theme"
-            collapsible
-            defaultCollapsed
-          />
-        ) : null}
-
+      <div
+        ref={scrollerRef}
+        onScroll={handleThreadScroll}
+        className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 space-y-4"
+      >
         {messages.length === 0 ? (
           <div
             className={cn(
@@ -278,29 +329,65 @@ export function CodebenchAskCoraPanel({
           >
             <CoraBotMark size="md" idle className="mx-auto mb-2" decorative />
             <p className="font-medium">
-              {importedQuestion
-                ? assessmentEmbed
-                  ? "Ask about this question"
-                  : "Challenge attached — ask your question"
-                : "Start a tutoring session"}
+              {importedQuestion && !assessmentEmbed
+                ? "Challenge attached — ask your question"
+                : assessmentEmbed
+                  ? "Ask Cora a reference question"
+                  : "Ask about the code in the editor"}
             </p>
             <p className="mt-1 text-xs">
-              {importedQuestion
-                ? assessmentEmbed
-                  ? "Cora sees this question and your attempt context. Ask for a hint or clarification — not the final answer."
-                  : "Type a hint request or question below. Cora will use the imported daily challenge with your message."
-                : "Import a quiz question or attach a screenshot of your work."}
+              {assessmentEmbed
+                ? "The question stays on the quiz. Ask about syntax or a concept, not the finished solution."
+                : "Cora can explain a line or propose a diff you apply to the open buffer."}
             </p>
           </div>
         ) : (
-          messages.map((message, index) => (
-            <CoraWorkspaceChatMessage
-              key={`${message.timestamp.getTime()}-${index}`}
-              role={message.role}
-              content={message.content}
-              theme={theme}
-            />
-          ))
+          <>
+            {messages.filter((message) => message.role === "user" && message.content.trim()).length >= 3 ? (
+              <div className="sticky top-0 z-10 -mx-1 flex gap-1 overflow-x-auto bg-inherit pb-1">
+                {messages.map((message, index) =>
+                  message.role === "user" && message.content.trim() ? (
+                    <button
+                      key={`prompt-${index}`}
+                      type="button"
+                      title={message.content}
+                      className="max-w-[140px] shrink-0 truncate rounded-full border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-[11px] text-[var(--cc-text-muted)]"
+                      onClick={() => jumpToPrompt(index)}
+                    >
+                      {message.content.replace(/\s+/g, " ").slice(0, 28)}
+                    </button>
+                  ) : null,
+                )}
+              </div>
+            ) : null}
+            {messages.map((message, index) => (
+              <div key={`${message.timestamp.getTime()}-${index}`} data-cora-message-index={index}>
+                <CoraWorkspaceChatMessage
+                  role={message.role}
+                  content={message.content}
+                  theme={theme}
+                />
+                {message.ui ? (
+                  <CoraUiPayloadCard
+                    ui={message.ui}
+                    portal="student"
+                    onApplyCode={onApplyCode}
+                    applyDiff={
+                      onApplyCode ? (diff) => applyUnifiedDiff(code, diff) : undefined
+                    }
+                  />
+                ) : null}
+                {message.role === "assistant" && index === messages.length - 1 ? (
+                  <CoraFollowUps
+                    className="pl-10 pr-2"
+                    prompts={followUpsForCoraUi(message.ui, "student", "codebench")}
+                    disabled={isLoading}
+                    onSelect={(prompt) => void sendMessage(prompt)}
+                  />
+                ) : null}
+              </div>
+            ))}
+          </>
         )}
 
         {isLoading ? (
@@ -331,11 +418,11 @@ export function CodebenchAskCoraPanel({
             const next = await processChatFiles(Array.from(files))
             setAttachments((prev) => [...prev, ...next].slice(0, 5))
           }}
-          onImportCourseQuestion={() => setImportOpen(true)}
-          importedQuestion={importedQuestion}
-          importedQuestionLabel={importedLabel}
+          onImportCourseQuestion={assessmentEmbed ? undefined : () => setImportOpen(true)}
+          importedQuestion={assessmentEmbed ? null : importedQuestion}
+          importedQuestionLabel={assessmentEmbed ? null : importedLabel}
           onClearImportedQuestion={
-            retainImportedQuestion
+            assessmentEmbed || retainImportedQuestion
               ? undefined
               : () => {
                   setImportedQuestion(null)
@@ -345,9 +432,11 @@ export function CodebenchAskCoraPanel({
           showImportedQuestionPreview={!assessmentEmbed}
           isLoading={isLoading || !studentId}
           placeholder={
-            importedQuestion
-              ? "Ask about this challenge — e.g. Where should I start?"
-              : "Ask Cora about your code, attach files, or import a course question…"
+            assessmentEmbed
+              ? "Ask about syntax or a concept — not for the finished solution"
+              : importedQuestion
+                ? "Ask how to declare a variable, the syntax of a loop, or where to start — not for the finished solution."
+                : "Ask Cora about your code, attach files, or import a course question…"
           }
         />
       </div>

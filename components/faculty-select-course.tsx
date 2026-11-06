@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectTrigger, SelectValue } from "@/components/
 import { Badge } from "@/components/ui/badge"
 import { GraduationCap, ArrowRight, BookOpen } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { AuthStatusAlert } from "@/components/auth/AuthStatusAlert"
 import { staffRoleLabel } from "@/lib/faculty-portal-nav-config"
 import { buildInstructorApiHeaders } from "@/lib/instructor-api-headers"
 import { FacultyCourseOfferingSelectItems } from "@/components/faculty-course-offering-select-items"
@@ -232,9 +233,9 @@ export function FacultySelectCourse() {
           ) : null}
 
           {error ? (
-            <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 text-red-700 text-sm px-4 py-3">
+            <AuthStatusAlert tone="error" title="Couldn't continue">
               {error}
-            </div>
+            </AuthStatusAlert>
           ) : null}
 
           <Button

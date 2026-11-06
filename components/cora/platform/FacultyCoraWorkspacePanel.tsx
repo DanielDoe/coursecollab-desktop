@@ -13,7 +13,6 @@ import {
   Minimize2,
   PanelRight,
   Plus,
-  Sparkles,
   Wand2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -41,8 +40,14 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { CoraChatBubble } from "@/components/cora/CoraChatBubble"
 import { CoraActionCard } from "@/components/cora/CoraActionCard"
+import { CoraUiPayloadCard } from "@/components/cora/CoraUiPayloadCard"
+import { CoraFollowUps } from "@/components/cora/CoraFollowUps"
+import { CoraThreadOutline } from "@/components/cora/CoraThreadOutline"
+import { followUpsForCoraUi } from "@/lib/cora/models/ui-payloads"
 import { CoraTransactionPlanCard } from "@/components/cora/CoraTransactionPlanCard"
+import { CoraBotMark } from "@/components/cora/CoraBotMark"
 import { CoraLogo } from "@/components/cora/CoraLogo"
+import { CoraThinkingIndicator } from "@/components/cora/CoraThinkingIndicator"
 import { CoraImportedQuestionPreview } from "@/components/cora/CoraImportedQuestionPreview"
 import { FacultyCoraQuestionBankDraftModal } from "@/components/cora/platform/FacultyCoraQuestionBankDraftModal"
 import { FacultyCoraImportCourseDialog } from "@/components/cora/platform/FacultyCoraImportCourseDialog"
@@ -166,6 +171,10 @@ export function FacultyCoraWorkspacePanel({
   const { toast } = useToast()
   const isBelowLg = useIsBelowLg()
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const lastAssistantId = useMemo(
+    () => [...messages].reverse().find((message) => message.role === "assistant")?.id ?? null,
+    [messages],
+  )
   const [modeId, setModeId] = useState(capabilityId || "assistant")
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -203,6 +212,14 @@ export function FacultyCoraWorkspacePanel({
     () => threads.filter((thread) => !thread.archivedAt),
     [threads],
   )
+
+  const jumpToMessage = (id: string) => {
+    const el = scrollRef.current
+    const target = el?.querySelector(`[data-cora-message-id="${id}"]`)
+    if (!el || !(target instanceof HTMLElement)) return
+    const top = target.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - 12
+    el.scrollTo({ top, behavior: "smooth" })
+  }
 
   useEffect(() => {
     const el = scrollRef.current
@@ -390,6 +407,7 @@ export function FacultyCoraWorkspacePanel({
           actions: replyActions,
           proposals: replyProposals,
           plans: replyPlans,
+          ui: data.ui,
           timestamp: new Date().toISOString(),
         }
         const withReply = [...nextMessages, assistantMessage]
@@ -552,6 +570,7 @@ export function FacultyCoraWorkspacePanel({
           actions: data.actions ?? [],
           proposals: data.proposals ?? [],
           plans: data.plans ?? [],
+          ui: data.ui,
           timestamp: new Date().toISOString(),
         }
         const withReply = [...messages, assistantMessage]
@@ -786,10 +805,11 @@ export function FacultyCoraWorkspacePanel({
         </div>
 
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-6 sm:py-6">
-          <div className="mx-auto w-full min-w-0 max-w-2xl space-y-2">
+          <div className="mx-auto flex w-full min-w-0 max-w-3xl items-start gap-4">
+          <div className="min-w-0 flex-1 space-y-2">
             {messages.length === 0 && !busy ? (
               <div className="rounded-2xl border border-dashed border-[var(--border)] px-3 py-6 text-center sm:rounded-3xl sm:px-5 sm:py-8">
-                <Sparkles className="mx-auto h-6 w-6 text-[var(--cc-text-muted)]" />
+                <CoraBotMark size="md" idle className="mx-auto" />
                 <p className="mt-3 text-sm font-medium text-[var(--cc-text)]">
                   Ask {FACULTY_CORA_NAV_LABEL} to create, improve, analyze, or automate
                 </p>
@@ -812,7 +832,7 @@ export function FacultyCoraWorkspacePanel({
             ) : null}
 
             {messages.map((msg) => (
-              <div key={msg.id}>
+              <div key={msg.id} data-cora-message-id={msg.id}>
                 {msg.role === "user" && msg.importedQuestion ? (
                   <div className="mb-2">
                     <CoraImportedQuestionPreview
@@ -832,6 +852,16 @@ export function FacultyCoraWorkspacePanel({
                     />
                   )}
                 </CoraChatBubble>
+                {msg.role === "assistant" && msg.ui ? (
+                  <CoraUiPayloadCard ui={msg.ui} portal="faculty" />
+                ) : null}
+                {msg.role === "assistant" && msg.id === lastAssistantId ? (
+                  <CoraFollowUps
+                    prompts={followUpsForCoraUi(msg.ui, "faculty")}
+                    disabled={isLoading}
+                    onSelect={(prompt) => void send(prompt)}
+                  />
+                ) : null}
                 {msg.proposals && msg.proposals.length > 0 ? (
                   <div className="mb-4 space-y-2">
                     {msg.proposals.map((proposal) => (
@@ -870,11 +900,15 @@ export function FacultyCoraWorkspacePanel({
             ))}
 
             {busy ? (
-              <div className="flex items-center gap-2 text-sm text-[var(--cc-text-muted)]">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {isIngesting ? "Extracting questions from document…" : isLoading ? "Preparing response…" : "Cora is thinking…"}
-              </div>
+              <CoraThinkingIndicator mode={isIngesting ? "create" : "general"} className="max-w-md" />
             ) : null}
+          </div>
+          <CoraThreadOutline
+            items={messages
+              .filter((msg) => msg.role === "user" && msg.content.trim())
+              .map((msg) => ({ id: msg.id, label: msg.content.replace(/\s+/g, " ").slice(0, 48) }))}
+            onSelect={jumpToMessage}
+          />
           </div>
         </div>
 

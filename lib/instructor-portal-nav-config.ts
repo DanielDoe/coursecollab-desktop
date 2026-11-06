@@ -38,6 +38,7 @@ import {
   Share2,
   CreditCard,
   Bot,
+  FolderCog,
 } from "lucide-react"
 import type { NavGroup, NavItem } from "@/lib/portal-nav-config"
 
@@ -176,6 +177,12 @@ export const INSTRUCTOR_NAV_GROUPS: NavGroup[] = [
         label: "Team & Project Policies",
         href: p("/administration/team-project-policies"),
         icon: Users,
+      },
+      {
+        id: "project-settings",
+        label: "Project Settings",
+        href: p("/administration/project-settings"),
+        icon: FolderCog,
       },
       {
         id: "submission-issues",

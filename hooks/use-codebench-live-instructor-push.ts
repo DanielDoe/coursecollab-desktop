@@ -5,6 +5,7 @@ import { studentApiFetch } from "@/lib/auth"
 import { LIVE_STUDENT_PUSH_POLL_MS } from "@/lib/codebench-live-timing"
 import { useImmediateLivePoll } from "@/hooks/use-immediate-live-poll"
 import {
+  joinBaselineForInstructorPush,
   knownLiveInstructorRevision,
   readStoredLiveInstructorPush,
   seedLiveInstructorPushBaseline,
@@ -16,6 +17,7 @@ type InstructorPushPayload = {
   revision?: number
   code?: string
   fileName?: string | null
+  pushedAt?: string | null
   syncRequestedAt?: string | null
 }
 
@@ -35,7 +37,7 @@ export function useCodebenchLiveInstructorPush({
   studentId: string | null
   assignmentId: string | null
   enabled: boolean
-  onApply: (code: string, meta: InstructorPushApplyMeta) => void
+  onApply: (code: string, meta: InstructorPushApplyMeta) => void | boolean
   onSyncRequest?: (requestedAt: string) => void
 }) {
   const appliedRevisionRef = useRef(knownLiveInstructorRevision(studentId, assignmentId))
@@ -74,13 +76,16 @@ export function useCodebenchLiveInstructorPush({
       }
       const revision = Number(data.revision) || 0
       const code = typeof data.code === "string" ? data.code : ""
+      const pushedAt = typeof data.pushedAt === "string" ? data.pushedAt : null
       if (!readStoredLiveInstructorPush(studentId, assignmentId)) {
-        // Restore normally seeds this; if it failed, an old push would overwrite typed work.
+        // An old push must not overwrite typed work. A push that just arrived
+        // stays eligible, including the first poll after the student rejoins.
+        const baseline = joinBaselineForInstructorPush({ serverRevision: revision, pushedAt })
         appliedRevisionRef.current = Math.max(
           appliedRevisionRef.current,
-          seedLiveInstructorPushBaseline(studentId, assignmentId, revision),
+          seedLiveInstructorPushBaseline(studentId, assignmentId, baseline, { allowLower: true }),
         )
-        return
+        if (baseline >= revision) return
       }
       const baseline = knownLiveInstructorRevision(studentId, assignmentId)
       const apply = shouldApplyLiveInstructorPush({
@@ -88,18 +93,18 @@ export function useCodebenchLiveInstructorPush({
         baselineRevision: baseline,
         appliedRevision: appliedRevisionRef.current,
       })
-      if (revision > appliedRevisionRef.current && code) {
+      if (revision > appliedRevisionRef.current && code && apply) {
+        const accepted = onApplyRef.current(code, {
+          revision,
+          fileName: data.fileName ?? null,
+          restore: false,
+        }) !== false
+        if (!accepted) return
         appliedRevisionRef.current = revision
         writeStoredLiveInstructorPush(studentId, assignmentId, {
           revision,
           code,
           fileName: data.fileName ?? null,
-        })
-        if (!apply) return
-        onApplyRef.current(code, {
-          revision,
-          fileName: data.fileName ?? null,
-          restore: false,
         })
       }
     } catch {

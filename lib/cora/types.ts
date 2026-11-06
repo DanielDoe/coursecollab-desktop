@@ -42,6 +42,7 @@ export type CoraProblemContext = {
   bankQuestionId?: number
   lectureId?: number
   quizId?: number
+  attemptId?: number
   studentDatabaseId?: number | null
 }
 

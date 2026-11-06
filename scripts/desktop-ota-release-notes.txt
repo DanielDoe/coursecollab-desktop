@@ -1,1 +1,2 @@
-- Quiz progress now saves every 15 seconds instead of every second, so exams and Ask Cora stay responsive.
+- Opening or continuing the midterm no longer crashes. Let this update install, then choose Continue Quiz.
+- Screenshots and other images can be sent in Messages again.

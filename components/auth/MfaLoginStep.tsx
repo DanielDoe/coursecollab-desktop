@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import {
-  AlertCircle,
   ArrowRight,
   Check,
   Copy,
@@ -11,6 +10,7 @@ import {
   ShieldCheck,
   Smartphone,
 } from "lucide-react"
+import { AuthStatusAlert } from "@/components/auth/AuthStatusAlert"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -418,10 +418,9 @@ export function MfaLoginStep({ state, portalLabel = "CourseCollab", onComplete, 
       )}
 
       {error ? (
-        <div className="flex items-start gap-2 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-3 py-2.5 text-sm text-red-600 dark:text-red-400">
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
+        <AuthStatusAlert tone="error" title="Verification failed">
+          {error}
+        </AuthStatusAlert>
       ) : null}
 
       <div className="flex flex-col gap-2">

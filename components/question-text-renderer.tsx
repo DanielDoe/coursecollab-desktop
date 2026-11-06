@@ -25,6 +25,8 @@ import {
 } from "@/lib/html-question-text"
 import {
   normalizeQuestionStemMarkdown,
+  protectInlineEscapeSequences,
+  restoreInlineEscapeSequences,
   questionStemHasCodeFence,
   stripStarterBoilerplateFromQuestionStem,
 } from "@/lib/question-stem-markdown"
@@ -75,13 +77,15 @@ function MarkdownMathBody({
     <div className={`prose prose-slate dark:prose-invert ${QUESTION_TEXT_ROOT_CLASS} ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
+        rehypePlugins={[[rehypeKatex, { output: "htmlAndMathml", throwOnError: false, strict: "ignore" }]]}
         components={{
           code({ node, inline, className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || "")
             const language = match ? match[1] : "cpp"
+            const raw = String(children).replace(/\n$/, "")
+            const isBlock = inline === true ? false : Boolean(match) || raw.includes("\n")
 
-            return !inline ? (
+            return isBlock ? (
               <div
                 className="my-4 max-w-full overflow-x-auto rounded-lg [&>pre]:!m-0 [&>pre]:!rounded-lg [&>pre]:!p-4 [&>pre]:!text-sm"
                 style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}
@@ -205,7 +209,7 @@ function ExplanationMarkdownBody({
     <div className={`${EXPLANATION_ROOT_CLASS} ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkMath]}
-        rehypePlugins={[rehypeKatex]}
+        rehypePlugins={[[rehypeKatex, { output: "htmlAndMathml", throwOnError: false, strict: "ignore" }]]}
         components={{
           h3({ children }) {
             return (
@@ -246,12 +250,16 @@ export function QuestionTextRenderer({
   className = "",
   questionId,
 }: QuestionTextRendererProps) {
-  const processedText = fixUnbracedMultiCharSubscriptsInMath(
-    normalizeMathDelimiters(
-      repairLatexDamagedByJsonEscapes(
-        formatLetteredSubparts(
-          formatEngineeringQuestionText(
-            normalizeQuestionStemMarkdown(stripStarterBoilerplateFromQuestionStem(text)),
+  const processedText = restoreInlineEscapeSequences(
+    fixUnbracedMultiCharSubscriptsInMath(
+      normalizeMathDelimiters(
+        repairLatexDamagedByJsonEscapes(
+          formatLetteredSubparts(
+            formatEngineeringQuestionText(
+              normalizeQuestionStemMarkdown(
+                stripStarterBoilerplateFromQuestionStem(protectInlineEscapeSequences(text)),
+              ),
+            ),
           ),
         ),
       ),

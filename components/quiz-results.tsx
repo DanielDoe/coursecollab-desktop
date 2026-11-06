@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { FeedbackTextRenderer, QuestionTextRenderer } from "@/components/question-text-renderer"
+import { briefAiFeedback } from "@/lib/ai-feedback-brief"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Progress } from "@/components/ui/progress"
@@ -1251,61 +1252,19 @@ const AIFeedbackDisplay = ({
         )}
       </div>
 
-      {/* Score Breakdown - transparent breakdown so students know exactly why they scored what they scored */}
-      {(() => {
-        const sb = feedback.scoreBreakdown
-        const breakdown = sb ?? (feedback.criteria && {
-          criteriaScores: feedback.criteria as Record<string, number>,
-          finalScore: feedback.score
-        })
-        if (!breakdown) return null
-        const hasContent = breakdown.criteriaScores || breakdown.rawScore != null ||
-          (breakdown.suspiciousTypingPenalty != null && breakdown.suspiciousTypingPenalty > 0) ||
-          breakdown.finalScore != null || feedback.score != null
-        if (!hasContent) return null
-        return (
-          <div className="mb-4 p-4 bg-slate-50/80 dark:bg-slate-800/80 rounded-xl border border-slate-200/60 dark:border-slate-600">
-            <h5 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3 flex items-center gap-2">
-              📊 Detailed Scoring
-            </h5>
-            <div className="space-y-2 text-sm">
-              {breakdown.criteriaScores && (
-                <div className="flex flex-wrap gap-3">
-                  {Object.entries(breakdown.criteriaScores).map(([key, val]) => (
-                    <span key={key} className="text-slate-700 dark:text-slate-300">
-                      {key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase())}: {val}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {breakdown.rawScore != null && (
-                <p className="text-slate-700 dark:text-slate-300">
-                  Raw score (code quality): {breakdown.rawScore}%
-                </p>
-              )}
-              {sb?.suspiciousTypingPenalty != null && sb.suspiciousTypingPenalty > 0 && (
-                <div className="p-2 bg-amber-50/80 dark:bg-amber-900/30 rounded-lg border border-amber-200/60 dark:border-amber-700/60">
-                  <p className="text-amber-800 dark:text-amber-200 font-medium">
-                    Suspicious typing penalty: −{sb.suspiciousTypingPenalty}%
-                  </p>
-                  {sb.penaltyReason && (
-                    <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">{sb.penaltyReason}</p>
-                  )}
-                </div>
-              )}
-              {(breakdown.finalScore != null || displayPercent != null) && (
-                <p className="font-semibold text-slate-900 dark:text-slate-100 pt-1">
-                  Final score:{" "}
-                  {(breakdown.finalScore != null
-                    ? breakdown.finalScore
-                    : displayPercent)}
-                  %
-                </p>
-              )}
-            </div>
+      {feedback.scoreBreakdown?.suspiciousTypingPenalty != null &&
+        feedback.scoreBreakdown.suspiciousTypingPenalty > 0 && (
+          <div className="mb-4 p-2 bg-amber-50/80 dark:bg-amber-900/30 rounded-lg border border-amber-200/60 dark:border-amber-700/60">
+            <p className="text-amber-800 dark:text-amber-200 font-medium text-sm">
+              Suspicious typing penalty: −{feedback.scoreBreakdown.suspiciousTypingPenalty}%
+            </p>
+            {feedback.scoreBreakdown.penaltyReason && (
+              <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                {feedback.scoreBreakdown.penaltyReason}
+              </p>
+            )}
           </div>
-        )
-      })()}
+        )}
 
       {feedback.questionType === "multi_part" &&
         feedback.mcqEarned != null &&
@@ -1330,80 +1289,20 @@ const AIFeedbackDisplay = ({
         )}
 
       {/* Detailed Explanation - show detailedExplanation or fallback to feedback for manual grades */}
-      {(feedback.detailedExplanation || (feedback.feedback && !feedback.gradeBreakdown?.reasoning)) && (
-        <div className="mb-4 p-4 bg-white/50 dark:bg-slate-800 rounded-xl border-l-4 border-blue-500 dark:border-blue-400">
-          <h5 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-2">
-            📝 Grade Explanation
-          </h5>
-          <FeedbackText text={String(feedback.detailedExplanation || feedback.feedback || "")} />
-        </div>
-      )}
-
-      {/* Grade Breakdown */}
-      {feedback.gradeBreakdown && (
-        <div className="mb-4 space-y-4">
-          {/* Reasoning */}
-          {feedback.gradeBreakdown.reasoning && (
-            <div className="p-4 bg-white/50 dark:bg-slate-800 rounded-xl">
-              <h5 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-2">
-                🧠 Reasoning
-              </h5>
-              <FeedbackText text={String(feedback.gradeBreakdown.reasoning)} />
-            </div>
-          )}
-
-          {/* Strengths */}
-          {feedback.gradeBreakdown.strengths && feedback.gradeBreakdown.strengths.length > 0 && (
-            <div className="p-4 bg-green-50/50 dark:bg-green-900/20 rounded-xl border border-green-200/50 dark:border-green-700/50">
-              <h5 className="text-sm font-semibold text-green-800 dark:text-green-200 mb-2 flex items-center gap-2">
-                ✅ Strengths
-              </h5>
-              <ul className="space-y-1">
-                {feedback.gradeBreakdown.strengths.map((strength, index) => (
-                  <li key={index} className="flex items-start gap-2 text-sm text-green-700 dark:text-green-300">
-                    <span className="text-green-600 dark:text-green-400 font-bold mt-0.5">•</span>
-                    <FeedbackText text={String(strength)} className="text-sm text-green-700 dark:text-green-300" />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Weaknesses */}
-          {feedback.gradeBreakdown.weaknesses && feedback.gradeBreakdown.weaknesses.length > 0 && (
-            <div className="p-4 bg-yellow-50/50 dark:bg-yellow-900/20 rounded-xl border border-yellow-200/50 dark:border-yellow-700/50">
-              <h5 className="text-sm font-semibold text-yellow-800 dark:text-yellow-200 mb-2 flex items-center gap-2">
-                ⚠️ Areas for Improvement
-              </h5>
-              <ul className="space-y-1">
-                {feedback.gradeBreakdown.weaknesses.map((weakness, index) => (
-                  <li key={index} className="flex items-start gap-2 text-sm text-yellow-700 dark:text-yellow-300">
-                    <span className="text-yellow-600 dark:text-yellow-400 font-bold mt-0.5">•</span>
-                    <FeedbackText text={String(weakness)} className="text-sm text-yellow-700 dark:text-yellow-300" />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Improvements */}
-          {feedback.gradeBreakdown.improvements && feedback.gradeBreakdown.improvements.length > 0 && (
-            <div className="p-4 bg-blue-50/50 dark:bg-blue-900/20 rounded-xl border border-blue-200/50 dark:border-blue-700/50">
-              <h5 className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-2">
-                🚀 How to Improve
-              </h5>
-              <ul className="space-y-1">
-                {feedback.gradeBreakdown.improvements.map((improvement, index) => (
-                  <li key={index} className="flex items-start gap-2 text-sm text-blue-700 dark:text-blue-300">
-                    <span className="text-blue-600 dark:text-blue-400 font-bold mt-0.5">•</span>
-                    <FeedbackText text={String(improvement)} className="text-sm text-blue-700 dark:text-blue-300" />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
+      {(() => {
+        const explanation = briefAiFeedback(
+          feedback.detailedExplanation || (!feedback.itemizedIssues?.length ? feedback.feedback : ""),
+        )
+        if (!explanation) return null
+        return (
+          <div className="mb-4 p-4 bg-white/50 dark:bg-slate-800 rounded-xl border-l-4 border-blue-500 dark:border-blue-400">
+            <h5 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-2">
+              📝 Grade Explanation
+            </h5>
+            <FeedbackText text={explanation} />
+          </div>
+        )
+      })()}
 
       {/* Sample Answers */}
       {sampleAnswers && sampleAnswers.length > 0 && (
@@ -1442,7 +1341,7 @@ const AIFeedbackDisplay = ({
             📋 Itemized Feedback
           </h5>
           <div className="space-y-3">
-            {feedback.itemizedIssues.map((item, index) => (
+            {feedback.itemizedIssues.slice(0, 3).map((item, index) => (
               <div key={index} className="p-3 bg-white/60 dark:bg-slate-800/60 rounded-lg border border-amber-200/40 dark:border-amber-700/40">
                 <div className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-1">
                   {index + 1}. <FeedbackText text={String(item.issue)} className="inline text-sm font-medium text-amber-800 dark:text-amber-200" />
@@ -1462,33 +1361,6 @@ const AIFeedbackDisplay = ({
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Feedback Text (Fallback) */}
-      {feedback.feedback && (
-        <div className="mb-4 p-4 bg-white/50 dark:bg-slate-800 rounded-xl">
-          <h5 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-2">
-            💬 General Feedback
-          </h5>
-          <FeedbackText text={String(feedback.feedback)} />
-        </div>
-      )}
-
-      {/* Suggestions */}
-      {feedback.suggestions && feedback.suggestions.length > 0 && (
-        <div className={portalTheme?.insetPanel ?? cn("mb-4 p-4 rounded-xl border", RESULTS_ACCENT_SOFT_PILL)}>
-          <h5 className={cn("text-sm font-semibold mb-2 flex items-center gap-2", portalTheme?.fp.iconText ?? RESULTS_ACCENT_PTS_ICON)}>
-            💡 Suggestions
-          </h5>
-          <ul className="space-y-1">
-            {feedback.suggestions.map((suggestion: string, index: number) => (
-              <li key={index} className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
-                <span className={cn("font-bold mt-0.5", portalTheme?.fp.iconText ?? RESULTS_ACCENT_PTS_ICON)}>•</span>
-                <FeedbackText text={String(suggestion)} className="text-sm text-slate-700 dark:text-slate-300" />
-              </li>
-            ))}
-          </ul>
         </div>
       )}
 
@@ -1586,22 +1458,6 @@ const AIFeedbackDisplay = ({
         )
       })()}
 
-      {/* Suggestions (Fallback) */}
-      {feedback.suggestions && feedback.suggestions.length > 0 && (
-        <div className="p-4 bg-white/50 dark:bg-slate-800 rounded-xl">
-          <h5 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-2">
-            💡 Quick Tips
-          </h5>
-          <ul className="space-y-2">
-            {feedback.suggestions.map((suggestion, index) => (
-              <li key={index} className="flex items-start gap-2 text-sm text-slate-800 dark:text-slate-200">
-                <span className="text-blue-600 dark:text-blue-400 font-bold mt-0.5">•</span>
-                <span>{suggestion}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </motion.div>
   )
 }
@@ -2516,7 +2372,7 @@ export function QuizResults({
         return
       }
       if (retakeStatus?.retakeBlockReason === "retake_max_attempts") {
-        toast("You've used all attempts for this assessment.", { variant: "default" })
+        toast.message("You've used all attempts for this assessment.", { variant: "default" })
         return
       }
       return

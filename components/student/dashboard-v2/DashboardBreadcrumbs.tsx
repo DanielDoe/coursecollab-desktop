@@ -15,7 +15,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { studentModuleBreadcrumbClass } from "@/lib/student-module-themes"
-import { isNonNavigableBreadcrumbPath } from "@/lib/breadcrumb-navigability"
+import { isNonNavigableBreadcrumbPath, projectsModuleHomeHref } from "@/lib/breadcrumb-navigability"
 import { SUMMER_CAMP_DASHBOARD_BASE } from "@/lib/summer-camp/camper-nav"
 import {
   CAMP_MODULE_TO_NAV_GROUP,
@@ -44,6 +44,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   groups: "Groups",
   projects: "Projects",
   playground: "Playground",
+  workspace: "Workspace",
+  grade: "Graded report",
   leaderboard: "Leaderboard",
   "classroom-points": "Classroom Points",
   attendance: "Attendance",
@@ -217,8 +219,9 @@ function getBreadcrumbParts(
         label = seg.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
       }
     }
-    const nonNavigable = isNonNavigableBreadcrumbPath(href, base)
-    parts.push({ href: nonNavigable ? "#" : href, label, nonNavigable })
+    const home = projectsModuleHomeHref(href)
+    const nonNavigable = isNonNavigableBreadcrumbPath(href, base) && !home
+    parts.push({ href: home || (nonNavigable ? "#" : href), label, nonNavigable })
   }
 
   return parts
@@ -324,7 +327,7 @@ export function DashboardBreadcrumbs({ compact }: { compact?: boolean }) {
       <nav
         aria-label="Breadcrumb"
         data-native-hide
-        className={cn("mb-3 sm:mb-5", compact && "mb-3")}
+        className={cn("mb-3 shrink-0 sm:mb-5", compact && "mb-3")}
       >
         <div
           className={cn(

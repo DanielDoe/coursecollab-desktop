@@ -30,13 +30,14 @@ export function CoraChatBubble({
   const set = isUser ? colors.user : colors.assistant
 
   return (
-    <div className={cn("group mb-8", isUser ? "flex justify-end" : "block", className)}>
+    <article aria-label={isUser ? "You" : "Cora"} aria-live="off" className={cn("group mb-8", isUser ? "flex justify-end" : "block", className)}>
       <div
         className={cn(
           "max-w-[min(92%,560px)]",
           isUser ? "ml-auto" : "mr-auto w-full max-w-none",
         )}
       >
+        <span className="sr-only">{isUser ? "You" : "Cora"}</span>
         <div
           className={cn(
             "text-[15px] leading-[1.7]",
@@ -55,6 +56,6 @@ export function CoraChatBubble({
         </div>
         {footer ? <div className="mt-2">{footer}</div> : null}
       </div>
-    </div>
+    </article>
   )
 }

@@ -231,7 +231,7 @@ export const MEMBERSHIP_PLANS: MembershipPlan[] = [
       quizAttempts: 2, // 1 main attempt + 1 retake from membership perks
       lectures: true,
       leaderboard: true,
-      aiTutor: 3000, // Cora Credits / month
+      aiTutor: 30000, // Cora Credits / month
       codeBench: true,
       codeBenchCora: true,
       earlyAccess: false,
@@ -240,7 +240,7 @@ export const MEMBERSHIP_PLANS: MembershipPlan[] = [
       saveAndFinishLater: 3, // 3 in-progress assessments max
     },
     highlights: [
-      "3,000 Cora Credits / month",
+      "30,000 Cora Credits / month",
       "Cora in CodeBench (explain, debug, improve)",
       "Full Cora learning assistant",
       "Interactive problem walkthroughs",
@@ -275,7 +275,7 @@ export const MEMBERSHIP_PLANS: MembershipPlan[] = [
       quizAttempts: 3,
       lectures: true,
       leaderboard: true,
-      aiTutor: 7500, // Cora Credits / month (+ Cora Lite after exhaustion)
+      aiTutor: 75000, // Cora Credits / month (+ Cora Lite after exhaustion)
       codeBench: true,
       codeBenchCora: true,
       earlyAccess: true,
@@ -284,7 +284,7 @@ export const MEMBERSHIP_PLANS: MembershipPlan[] = [
       saveAndFinishLater: "unlimited", // Unlimited in-progress assessments
     },
     highlights: [
-      "7,500 Cora Credits / month",
+      "75,000 Cora Credits / month",
       "Highest Cora allowance",
       "Full Agentic Cora",
       "Cora Lite after allowance",

@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { CheckCircle2, XCircle, GripVertical, Lock } from "lucide-react"
 import { QuestionTextRenderer } from "@/components/question-text-renderer"
 import { AiFeedbackMarkdown } from "@/components/ai-feedback-markdown"
-import { isQuizMcqOptionCorrect } from "@/lib/question-bank-preview"
+import { briefAiFeedback } from "@/lib/ai-feedback-brief"
 import { formatEngineeringQuestionText } from "@/lib/engineering-question-text"
 import { PlotUpload } from "@/components/plot-upload"
 import { motion } from "framer-motion"
@@ -35,7 +35,6 @@ import {
   type SolutionUploadAttachment,
 } from "@/lib/solution-upload"
 import type { PracticeAnswerReview } from "@/lib/practice-answer-review"
-import { resolveSelectAllCorrectLetters } from "@/lib/practice-answer-review"
 import { PracticeAnswerReviewBanner } from "@/components/practice-answer-review-banner"
 
 import { QuizAssessmentMonacoEditor } from "@/components/quiz-assessment-monaco-editor"
@@ -332,96 +331,26 @@ const AIFeedbackDisplay = memo(function AIFeedbackDisplay({
           )}
         </div>
       )}
-      {aiFeedback.detailedExplanation && (
-        <div className="mb-4 p-4 rounded-xl border border-blue-200/60 dark:border-blue-700/50 bg-white/50 dark:bg-slate-800">
-          <h5 className={FEEDBACK_SECTION_TITLE}>Grade Explanation</h5>
-          <FeedbackMarkdown text={aiFeedback.detailedExplanation} className="text-sm leading-relaxed" />
-        </div>
-      )}
-      {aiFeedback.scoreBreakdown && (
-        <div className="mb-4 p-4 rounded-xl border border-slate-200/50 dark:border-slate-600 bg-white/50 dark:bg-slate-800">
-          <h5 className={FEEDBACK_SECTION_TITLE}>Score Breakdown</h5>
-          <div className="space-y-1 text-sm text-slate-700 dark:text-slate-300">
-            {aiFeedback.scoreBreakdown.criteriaScores && (
-              <div className="flex flex-wrap gap-x-4 gap-y-1">
-                {Object.entries(aiFeedback.scoreBreakdown.criteriaScores).map(([k, v]) => {
-                  const display =
-                    typeof v === "number" || typeof v === "string"
-                      ? v
-                      : v != null && typeof v === "object" && "score" in (v as object)
-                        ? String((v as { score?: unknown }).score)
-                        : JSON.stringify(v)
-                  return (
-                    <span key={k}>
-                      {k}: {display}
-                    </span>
-                  )
-                })}
-              </div>
-            )}
-            {aiFeedback.scoreBreakdown.rawScore != null && (
-              <p>Raw score: {aiFeedback.scoreBreakdown.rawScore}%</p>
-            )}
-            {aiFeedback.scoreBreakdown.suspiciousTypingPenalty != null && aiFeedback.scoreBreakdown.suspiciousTypingPenalty > 0 && (
-              <p className="text-amber-700 dark:text-amber-300">
-                Typing penalty: −{aiFeedback.scoreBreakdown.suspiciousTypingPenalty}%
-                {aiFeedback.scoreBreakdown.penaltyReason && (
-                  <span className="block text-xs mt-0.5">{aiFeedback.scoreBreakdown.penaltyReason}</span>
-                )}
-              </p>
-            )}
-            {aiFeedback.scoreBreakdown.finalScore != null && (
-              <p className="font-semibold">Final score: {aiFeedback.scoreBreakdown.finalScore}%</p>
-            )}
+      {(() => {
+        const explanation = briefAiFeedback(
+          aiFeedback.detailedExplanation || (!aiFeedback.itemizedIssues?.length ? aiFeedback.feedback : ""),
+        )
+        if (!explanation) return null
+        return (
+          <div className="mb-4 p-4 rounded-xl border border-blue-200/60 dark:border-blue-700/50 bg-white/50 dark:bg-slate-800">
+            <h5 className={FEEDBACK_SECTION_TITLE}>Grade Explanation</h5>
+            <FeedbackMarkdown text={explanation} className="text-sm leading-relaxed" />
           </div>
-        </div>
-      )}
-      {aiFeedback.gradeBreakdown && (
-        <div className="mb-4 space-y-4">
-          {aiFeedback.gradeBreakdown.reasoning && (
-            <div className="p-4 rounded-xl border border-slate-200/60 dark:border-slate-600 bg-white/50 dark:bg-slate-800">
-              <h5 className={FEEDBACK_SECTION_TITLE}>Reasoning</h5>
-              <FeedbackMarkdown text={aiFeedback.gradeBreakdown.reasoning} />
-            </div>
-          )}
-          {!isMultiPart && aiFeedback.gradeBreakdown.strengths && aiFeedback.gradeBreakdown.strengths.length > 0 && (
-            <div className="p-4 rounded-xl border border-green-200/50 dark:border-green-700/50 bg-green-50/50 dark:bg-green-900/20">
-              <h5 className="text-sm font-semibold text-green-800 dark:text-green-200 mb-2">Strengths</h5>
-              <ul className="space-y-2">
-                {aiFeedback.gradeBreakdown.strengths.map((strength, index) => (
-                  <li key={index} className="text-sm text-green-700 dark:text-green-300">
-                    <FeedbackMarkdown text={`- ${strength}`} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {!isMultiPart && aiFeedback.gradeBreakdown.weaknesses && aiFeedback.gradeBreakdown.weaknesses.length > 0 && (
-            <div className="p-4 rounded-xl border border-yellow-200/50 dark:border-yellow-700/50 bg-yellow-50/50 dark:bg-yellow-900/20">
-              <h5 className="text-sm font-semibold text-yellow-800 dark:text-yellow-200 mb-2">Areas for Improvement</h5>
-              <ul className="space-y-2">
-                {aiFeedback.gradeBreakdown.weaknesses.map((weakness, index) => (
-                  <li key={index} className="text-sm text-yellow-700 dark:text-yellow-300">
-                    <FeedbackMarkdown text={`- ${weakness}`} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {!isMultiPart && aiFeedback.gradeBreakdown.improvements && aiFeedback.gradeBreakdown.improvements.length > 0 && (
-            <div className="p-4 rounded-xl border border-blue-200/50 dark:border-blue-700/50 bg-blue-50/50 dark:bg-blue-900/20">
-              <h5 className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2">How to Improve</h5>
-              <ul className="space-y-2">
-                {aiFeedback.gradeBreakdown.improvements.map((improvement, index) => (
-                  <li key={index} className="text-sm text-blue-700 dark:text-blue-300">
-                    <FeedbackMarkdown text={`- ${improvement}`} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
+        )
+      })()}
+      {aiFeedback.scoreBreakdown?.suspiciousTypingPenalty != null &&
+        aiFeedback.scoreBreakdown.suspiciousTypingPenalty > 0 && (
+          <p className="mb-4 text-sm text-amber-700 dark:text-amber-300">
+            Typing penalty: −{aiFeedback.scoreBreakdown.suspiciousTypingPenalty}%
+            {aiFeedback.scoreBreakdown.penaltyReason ? ` — ${aiFeedback.scoreBreakdown.penaltyReason}` : ""}
+          </p>
+        )}
+
       {sampleAnswers && sampleAnswers.length > 0 && (
         <div className="mb-4 p-4 rounded-xl border border-slate-200/60 dark:border-slate-600 bg-white/50 dark:bg-slate-800">
           <h5 className={FEEDBACK_SECTION_TITLE}>Sample Correct Answers</h5>
@@ -446,7 +375,7 @@ const AIFeedbackDisplay = memo(function AIFeedbackDisplay({
         <div className="mb-4 p-4 rounded-xl border border-amber-200/60 dark:border-amber-700/50 bg-amber-50/80 dark:bg-amber-900/20">
           <h5 className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-3">Itemized Feedback</h5>
           <div className="space-y-2">
-            {aiFeedback.itemizedIssues.map((item, index) => (
+            {aiFeedback.itemizedIssues.slice(0, 3).map((item, index) => (
               <div key={index} className="p-3 rounded-lg border border-amber-200/40 dark:border-amber-700/40 bg-white/60 dark:bg-slate-800/60">
                 <div className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-1">
                   <FeedbackMarkdown text={`${index + 1}. ${item.issue}`} />
@@ -464,12 +393,6 @@ const AIFeedbackDisplay = memo(function AIFeedbackDisplay({
               </div>
             ))}
           </div>
-        </div>
-      )}
-      {aiFeedback.feedback && !isMultiPart && (
-        <div className="mb-4 p-4 rounded-xl border border-slate-200/60 dark:border-slate-600 bg-white/50 dark:bg-slate-800">
-          <h5 className={FEEDBACK_SECTION_TITLE}>General Feedback</h5>
-          <FeedbackMarkdown text={aiFeedback.feedback} className="text-sm leading-relaxed" />
         </div>
       )}
       {aiFeedback.criteria && (
@@ -513,18 +436,6 @@ const AIFeedbackDisplay = memo(function AIFeedbackDisplay({
               </div>
             </div>
           </div>
-        </div>
-      )}
-      {aiFeedback.suggestions && aiFeedback.suggestions.length > 0 && (
-        <div className="p-4 rounded-xl border border-slate-200/60 dark:border-slate-600 bg-white/50 dark:bg-slate-800">
-          <h5 className={FEEDBACK_SECTION_TITLE}>Quick Tips</h5>
-          <ul className="space-y-2">
-            {aiFeedback.suggestions.map((suggestion, index) => (
-              <li key={index} className="text-sm text-slate-700 dark:text-slate-300">
-                <FeedbackMarkdown text={`- ${suggestion}`} />
-              </li>
-            ))}
-          </ul>
         </div>
       )}
     </motion.div>
@@ -1055,9 +966,6 @@ export const QuestionRenderer = memo(function QuestionRenderer({
                 isWrongSelection = isSelected
                 isCorrectOption = !isSelected
               }
-            } else if (showFeedback || isLocked) {
-              isCorrectOption = isQuizMcqOptionCorrect(option.letter, option.text, question.correct_answer)
-              isWrongSelection = isSelected && !isCorrectOption
             }
 
             return (
@@ -1082,7 +990,7 @@ export const QuestionRenderer = memo(function QuestionRenderer({
                 }}
                 disabled={showFeedback || isSubmittingAnswer || isLocked}
                 className={cn(
-                  "w-full rounded-xl border-2 p-3.5 text-left transition-all sm:p-4",
+                  "w-full rounded-xl border-2 p-3.5 text-left sm:p-4",
                   isCorrectOption
                     ? "border-green-500 bg-green-50 dark:border-green-400 dark:bg-green-950/50"
                     : isWrongSelection
@@ -1154,7 +1062,10 @@ export const QuestionRenderer = memo(function QuestionRenderer({
               isWrongSelection = row?.isSelected === true && !row?.isCorrect
             } else if ((showFeedback || isLocked) && lockedObjectiveGrade) {
               const correctLetters = lockedObjectiveGrade.correctLetters ?? []
-              if (correctLetters.length > 0) {
+              if (lockedObjectiveGrade.isCorrect && isSelected) {
+                isCorrectOption = true
+                isWrongSelection = false
+              } else if (correctLetters.length > 0) {
                 isCorrectOption = correctLetters.includes(option)
                 isWrongSelection = isSelected && !correctLetters.includes(option)
               } else if (lockedObjectiveGrade.isCorrect) {
@@ -1164,9 +1075,6 @@ export const QuestionRenderer = memo(function QuestionRenderer({
                 isWrongSelection = isSelected
                 isCorrectOption = false
               }
-            } else if (showFeedback || isLocked) {
-              isCorrectOption = isQuizMcqOptionCorrect(option, optionText, question.correct_answer)
-              isWrongSelection = isSelected && !isCorrectOption
             }
 
             return (
@@ -1191,7 +1099,7 @@ export const QuestionRenderer = memo(function QuestionRenderer({
                 }}
                 disabled={showFeedback || isSubmittingAnswer || isLocked}
                 className={cn(
-                  "w-full rounded-xl border-2 p-3.5 text-left transition-all sm:p-4",
+                  "w-full rounded-xl border-2 p-3.5 text-left sm:p-4",
                   isCorrectOption
                     ? "border-green-500 bg-green-50 dark:border-green-400 dark:bg-green-950/50"
                     : isWrongSelection
@@ -1247,11 +1155,7 @@ export const QuestionRenderer = memo(function QuestionRenderer({
       })
 
       const selectAllCorrectLetters = new Set(
-        lockedObjectiveGrade?.correctLetters?.length
-          ? lockedObjectiveGrade.correctLetters
-          : showFeedback || isLocked
-            ? resolveSelectAllCorrectLetters(question)
-            : [],
+        lockedObjectiveGrade?.correctLetters?.length ? lockedObjectiveGrade.correctLetters : [],
       )
       const selectAllPartialCredit =
         Boolean(lockedObjectiveGrade) &&
@@ -1291,9 +1195,10 @@ export const QuestionRenderer = memo(function QuestionRenderer({
                 isCorrectOption = row?.isCorrect === true
                 isWrongSelection = row?.isSelected === true && !row?.isCorrect
               }
-            } else if (showFeedback || isLocked) {
+            } else if ((showFeedback || isLocked) && lockedObjectiveGrade) {
               isCorrectOption = selectAllCorrectLetters.has(option)
-              isWrongSelection = isSelected && !isCorrectOption
+              isWrongSelection =
+                isSelected && !isCorrectOption && !lockedObjectiveGrade.isCorrect
               isPartialCreditSelection =
                 selectAllPartialCredit && isCorrectOption && isSelected
               if (
@@ -1304,11 +1209,7 @@ export const QuestionRenderer = memo(function QuestionRenderer({
                 isWrongSelection = false
                 isPartialCreditSelection = true
               }
-              if (
-                lockedObjectiveGrade?.isCorrect &&
-                selectAllCorrectLetters.size === 0 &&
-                isSelected
-              ) {
+              if (lockedObjectiveGrade.isCorrect && isSelected) {
                 isCorrectOption = true
                 isWrongSelection = false
                 isPartialCreditSelection = false
@@ -1345,7 +1246,7 @@ export const QuestionRenderer = memo(function QuestionRenderer({
                   }, "info")
                   onMultiAnswerToggle(option)
                 }}
-                className={`w-full text-left rounded-xl border-2 transition-all cursor-pointer p-3.5 sm:p-4 ${optionToneClass} ${showFeedback || isSubmittingAnswer || isLocked ? "cursor-not-allowed" : "hover:shadow-sm"}`}
+                className={`w-full text-left rounded-xl border-2 cursor-pointer p-3.5 sm:p-4 ${optionToneClass} ${showFeedback || isSubmittingAnswer || isLocked ? "cursor-not-allowed" : "hover:shadow-sm"}`}
                 data-nosnippet
               >
                 <div className="flex items-center gap-3" data-nosnippet>

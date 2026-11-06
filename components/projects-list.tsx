@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,21 +14,22 @@ import {
   Zap,
   Target,
   Calendar,
+  Activity,
   FileText,
   Check,
   X,
-  MessageCircle,
   FolderKanban,
   ExternalLink,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Project } from "@/lib/types/project";
 import { motion } from "framer-motion";
 import { ProjectSimpleVote } from "./project-simple-vote";
-import { toast } from "@/lib/app-toast";
 import { cn } from "@/lib/utils";
 import { getStudentModuleTheme } from "@/lib/student-module-themes";
 import { ProjectsListPanelSkeleton } from "@/components/student/dashboard-v2/ProjectsPageSkeleton";
+import { StudentGradedReport } from "@/components/projects/StudentGradedReport";
 
 const projectsTheme = getStudentModuleTheme("projects");
 
@@ -46,8 +48,63 @@ export function ProjectsList({
   showVoting = false,
   embedInDashboard = false,
 }: ProjectsListProps) {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedProject, setExpandedProject] = useState<number | null>(null);
+  const [gradeProject, setGradeProject] = useState<Project | null>(null);
+  const [progress, setProgress] = useState<{
+    complete: number;
+    total: number;
+    status: string;
+    events: Array<{ id: number; name: string; verb: string; section: string; when: string }>;
+  } | null>(null);
+
+  useEffect(() => {
+    if (expandedProject == null) {
+      setProgress(null);
+      return;
+    }
+    let cancel = false;
+    const session = JSON.parse(localStorage.getItem("studentSession") || "{}") as { studentId?: string };
+    const headers: Record<string, string> = {};
+    if (session.studentId) headers["x-student-id"] = String(session.studentId);
+    void fetch(`/api/projects/workspace/${expandedProject}`, { headers })
+      .then(async (res) => {
+        if (cancel) return;
+        if (!res.ok) {
+          setProgress(null);
+          return;
+        }
+        const data = await res.json();
+        const sections = (data.sections ?? []) as Array<{ status?: string }>;
+        const complete = sections.filter((section) => String(section.status) === "COMPLETE").length;
+        const events = ((data.activity ?? []) as Array<{
+          id?: number;
+          event_type?: string;
+          actor_name?: string | null;
+          section_title?: string | null;
+          created_at?: string;
+        }>).slice(0, 4).map((row) => ({
+          id: Number(row.id) || 0,
+          name: String(row.actor_name || "Someone"),
+          verb: activityVerb(row.event_type),
+          section: String(row.section_title || "").replace(/^Section \d+\.\s*/, ""),
+          when: relativeTime(row.created_at),
+        }));
+        setProgress({
+          complete,
+          total: sections.length,
+          status: String(data.workspace?.submission_status || data.project?.status || "").replace(/_/g, " "),
+          events,
+        });
+      })
+      .catch(() => {
+        if (!cancel) setProgress(null);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [expandedProject]);
 
   // Filter projects based on search query
   const filteredProjects = useMemo(() => {
@@ -97,6 +154,7 @@ export function ProjectsList({
           <Search className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-3.5 w-3.5 sm:h-4 sm:w-4 dark:text-slate-500" />
           <Input
             placeholder="Search..."
+            aria-label="Search projects"
             disabled
             className="pl-8 sm:pl-10 h-9 sm:h-10 rounded-lg sm:rounded-xl border-2 text-sm sm:text-base dark:bg-slate-800/50 dark:border-slate-700"
             title="Search projects..."
@@ -108,7 +166,7 @@ export function ProjectsList({
   }
 
   return (
-    <div className={cn(embedInDashboard ? "space-y-3 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4" : "space-y-3 sm:space-y-4 pt-3 sm:pt-5")}>
+    <div className={cn(embedInDashboard ? "flex h-full min-h-0 flex-col space-y-3 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4" : "space-y-3 sm:space-y-4 pt-3 sm:pt-5")}>
       <h3 className={cn(
         embedInDashboard
           ? "text-sm font-semibold text-[var(--cc-text)]"
@@ -130,6 +188,7 @@ export function ProjectsList({
         <Search className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-3.5 w-3.5 sm:h-4 sm:w-4 dark:text-slate-500" />
         <Input
           placeholder="Search..."
+          aria-label="Search projects"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className={cn(
@@ -143,6 +202,7 @@ export function ProjectsList({
       {/* Projects Grid */}
       {filteredProjects.length === 0 ? (
         <motion.div
+          className={embedInDashboard ? "min-h-0 flex-1" : undefined}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
@@ -170,10 +230,16 @@ export function ProjectsList({
         </motion.div>
       ) : (
         <div className={cn(
-          "flex flex-col overflow-y-auto pr-1",
-          embedInDashboard ? "max-h-[70vh] gap-2" : "gap-5 max-h-[70vh] pr-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent",
+          "flex min-h-0 flex-col overflow-y-auto pr-1",
+          embedInDashboard ? "flex-1 gap-2" : "gap-5 max-h-[70vh] pr-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent",
         )}>
-          {filteredProjects.map((project, index) => (
+          {filteredProjects.map((project, index) => {
+            const isMine =
+              studentId != null &&
+              (project.members?.some((member) => member.id === studentId) ||
+                project.leader?.id === studentId ||
+                project.group?.created_by === studentId);
+            return (
             <motion.div
               key={project.id}
               initial={{ opacity: 0, y: 20 }}
@@ -299,6 +365,21 @@ export function ProjectsList({
                   >
                     {expandedProject === project.id ? "Hide" : "View"}
                   </Button>
+                  {isMine ? (
+                    <Button
+                      size="sm"
+                      onClick={() => setGradeProject(project)}
+                      className={cn(
+                        "flex-1 rounded-lg sm:rounded-full text-xs h-8 sm:h-9",
+                        embedInDashboard
+                          ? "border-0 shadow-none hover:opacity-90"
+                          : "bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-700 dark:hover:bg-indigo-800",
+                      )}
+                      style={embedInDashboard ? { backgroundColor: "var(--cc-accent)", color: "#FFFFFF" } : undefined}
+                    >
+                      View grade
+                    </Button>
+                  ) : null}
                   {showVoting && studentId && project.status === "approved" && (
                     <Button
                       size="sm"
@@ -327,18 +408,71 @@ export function ProjectsList({
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2 sm:space-y-3"
+                  className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-[var(--border)] space-y-3"
                 >
-                  {/* Full Summary */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      ["Group", project.group?.name || "—"],
+                      ["Session", project.group?.session || "—"],
+                      ["Leader", project.leader?.full_name || "—"],
+                      ["Updated", project.updated_at ? new Date(project.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-lg border border-[var(--border)] px-2.5 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--cc-text-muted)]">{label}</p>
+                        <p className="mt-0.5 truncate text-xs font-medium text-[var(--cc-text)]">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {expandedProject === project.id && progress ? (
+                    <div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <Activity className="h-3.5 w-3.5 text-[var(--cc-accent)]" />
+                        <h4 className="text-xs font-semibold text-[var(--cc-text)]">Progress</h4>
+                      </div>
+                      <div className="pl-5 space-y-2">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className="text-xs text-[var(--cc-text-muted)]">
+                            {progress.complete} of {progress.total || 0} sections complete
+                            {progress.status ? ` · ${progress.status}` : ""}
+                          </p>
+                          <p className="text-xs font-semibold tabular-nums text-[var(--cc-text)]">
+                            {progress.total ? Math.round((progress.complete / progress.total) * 100) : 0}%
+                          </p>
+                        </div>
+                        <div className="h-1 overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--cc-text)_10%,transparent)]">
+                          <div
+                            className="h-full rounded-full bg-[var(--cc-accent)]"
+                            style={{ width: `${progress.total ? (progress.complete / progress.total) * 100 : 0}%` }}
+                          />
+                        </div>
+                        {progress.events.length ? (
+                          <ul className="space-y-1.5">
+                            {progress.events.map((event) => (
+                              <li key={event.id || `${event.name}-${event.when}`} className="text-xs text-[var(--cc-text-muted)]">
+                                <span className="font-medium text-[var(--cc-text)]">{event.name}</span>
+                                {" "}{event.verb}
+                                {event.section ? ` · ${event.section}` : ""}
+                                <span className="ml-1">{event.when}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-xs text-[var(--cc-text-muted)]">No activity yet.</p>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+
                   {project.summary && (
                     <div>
                       <div className="flex items-center gap-2 mb-1.5">
-                        <FileText className="h-3.5 w-3.5 text-blue-600" />
-                        <h4 className="text-xs font-semibold text-gray-900 dark:text-white">
+                        <FileText className="h-3.5 w-3.5 text-[var(--cc-accent)]" />
+                        <h4 className="text-xs font-semibold text-[var(--cc-text)]">
                           Summary
                         </h4>
                       </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed pl-5">
+                      <p className="text-xs leading-relaxed pl-5 text-[var(--cc-text-muted)]">
                         {project.summary}
                       </p>
                     </div>
@@ -349,11 +483,11 @@ export function ProjectsList({
                     <div>
                       <div className="flex items-center gap-2 mb-1.5">
                         <Zap className="h-3.5 w-3.5 text-purple-600" />
-                        <h4 className="text-xs font-semibold text-gray-900 dark:text-white">
+                        <h4 className="text-xs font-semibold text-[var(--cc-text)]">
                           Deliverables
                         </h4>
                       </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed pl-5 whitespace-pre-wrap">
+                      <p className="text-xs leading-relaxed pl-5 whitespace-pre-wrap text-[var(--cc-text-muted)]">
                         {project.deliverables}
                       </p>
                     </div>
@@ -383,7 +517,7 @@ export function ProjectsList({
                         <div>
                           <div className="flex items-center gap-2 mb-1.5">
                             <Calendar className="h-3.5 w-3.5 text-green-600" />
-                            <h4 className="text-xs font-semibold text-gray-900 dark:text-white">
+                            <h4 className="text-xs font-semibold text-[var(--cc-text)]">
                               Timeline ({timelineArray.length})
                             </h4>
                           </div>
@@ -425,21 +559,22 @@ export function ProjectsList({
                   {project.members && project.members.length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-1.5">
-                        <Users className="h-3.5 w-3.5 text-indigo-600" />
-                        <h4 className="text-xs font-semibold text-gray-900 dark:text-white">
+                        <Users className="h-3.5 w-3.5 text-[var(--cc-accent)]" />
+                        <h4 className="text-xs font-semibold text-[var(--cc-text)]">
                           Team ({project.members.length})
                         </h4>
                       </div>
                       <div className="flex flex-wrap gap-1 pl-5">
-                        {project.members.map((member: any) => (
+                        {project.members.map((member) => (
                           <Badge
                             key={member.id}
                             variant="outline"
-                            className={`px-1.5 py-0.5 text-xs ${
+                            className={cn(
+                              "px-1.5 py-0.5 text-xs",
                               member.id === project.group?.created_by
-                                ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800"
-                                : "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
-                            }`}
+                                ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
+                                : "border-[var(--border)] bg-[var(--card)] text-[var(--cc-text)]",
+                            )}
                           >
                             {member.id === project.group?.created_by && (
                               <Crown className="h-2.5 w-2.5 mr-0.5" />
@@ -456,7 +591,7 @@ export function ProjectsList({
                     <div>
                       <div className="flex items-center gap-2 mb-1.5">
                         <ExternalLink className="h-3.5 w-3.5 text-blue-600" />
-                        <h4 className="text-xs font-semibold text-gray-900 dark:text-white">
+                        <h4 className="text-xs font-semibold text-[var(--cc-text)]">
                           Project Link
                         </h4>
                       </div>
@@ -476,7 +611,6 @@ export function ProjectsList({
                     </div>
                   )}
 
-                   {/* Star Voting Section */}
                    {showVoting && studentId && project.status === "approved" && (
                      <div className="pt-3 border-t border-gray-100 dark:border-gray-800">
                        <ProjectSimpleVote
@@ -492,9 +626,66 @@ export function ProjectsList({
                 </motion.div>
               )}
             </motion.div>
-          ))}
+            );
+          })}
         </div>
       )}
+      <Dialog open={gradeProject != null} onOpenChange={(open) => { if (!open) setGradeProject(null); }}>
+        <DialogContent className="!flex h-[min(90vh,920px)] max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
+          <DialogHeader className="border-b border-[var(--border)] px-5 py-4 pr-12">
+            <DialogTitle>Graded report</DialogTitle>
+            <DialogDescription>{gradeProject?.title}</DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1">
+            {gradeProject ? (
+              <StudentGradedReport
+                projectId={gradeProject.id}
+                dockActions
+                onPreview={() => {
+                  const id = gradeProject.id
+                  setGradeProject(null)
+                  router.push(`/student/dashboard-v2/projects/grade/${id}`)
+                }}
+              />
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
+}
+
+function activityVerb(type?: string) {
+  switch (type) {
+    case "SECTION_COMPLETED":
+      return "marked a section complete";
+    case "SECTION_EDITED":
+      return "saved a draft";
+    case "COMMENT_ADDED":
+      return "posted a comment";
+    case "FILE_UPLOADED":
+      return "uploaded a file";
+    case "FILE_DELETED":
+      return "removed a file";
+    case "REFERENCE_ADDED":
+      return "added a reference";
+    case "SUBMISSION_STATUS_CHANGED":
+      return "updated the submission";
+    default:
+      return "updated the project";
+  }
+}
+
+function relativeTime(iso?: string) {
+  if (!iso) return "";
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "";
+  const minutes = Math.max(0, Math.round((Date.now() - then) / 60000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }

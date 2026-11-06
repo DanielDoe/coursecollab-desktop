@@ -12,7 +12,7 @@ import {
 } from "@/lib/cora/agent/clearances"
 import { buildFacultyCoraSession, logCoraAuditEvent } from "@/lib/cora/security"
 import { runCoraAgentRuntime } from "@/lib/cora/agent/runtime"
-import { coraUiFromProposals } from "@/lib/cora/models/ui-payloads"
+import { courseObjectPromptAppendix, resolveCoraChatUi } from "@/lib/cora/models/ui-payloads"
 import { resolveCoraDynamicRoute } from "@/lib/cora/ai/dynamic-router"
 import { loadCoraCourseRoutingPolicy } from "@/lib/cora/models/load-course-policy"
 import { buildPublicCoraChatFields } from "@/lib/cora/models/public-route"
@@ -407,7 +407,9 @@ export async function POST(request: NextRequest) {
       (contextProfileBlock ? `\n\n${contextProfileBlock}` : "") +
         "\n\n" +
         buildFacultyToolCatalogPacket(DEFAULT_FACULTY_CAPABILITY_MODULES) +
-        "\nWhen you prepare announcements or question-bank items, use propose_announcement / propose_question_bank_create so the instructor can confirm before anything is published. When they ask to create course flashcards, call create_faculty_flashcard_deck immediately with the bank topic — do not dump cards as Markdown. For any other create/update in the capability packet (notes, groups, projects, attendance, …), call propose_faculty_capability with the matching capability_id — never substitute Markdown copy/paste. Use the active course context — do not ask for course/section when known. For recent/published announcements, call list_course_announcements immediately — never claim announcement history is unavailable. Never say you cannot publish/create when a tool exists.",
+        "\nWhen you prepare announcements or question-bank items, use propose_announcement / propose_question_bank_create so the instructor can confirm before anything is published. When they ask to create course flashcards, call create_faculty_flashcard_deck immediately with the bank topic — do not dump cards as Markdown. For any other create/update in the capability packet (notes, groups, projects, attendance, …), call propose_faculty_capability with the matching capability_id — never substitute Markdown copy/paste. Use the active course context — do not ask for course/section when known. For recent/published announcements, call list_course_announcements immediately — never claim announcement history is unavailable. Never say you cannot publish/create when a tool exists." +
+        (body.capabilityId === "analyze" || body.capabilityId === "insights" ? courseObjectPromptAppendix("analytics") : "") +
+        (/\b(pdf|lecture)\b/i.test(userMessage) ? courseObjectPromptAppendix("lecture_pack") : ""),
       conversationHistory: history,
       userMessage,
       requestContext: {
@@ -468,8 +470,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const presented = resolveCoraChatUi({
+      message: agentResult.content,
+      questionDraftsJson: agentResult.artifacts?.questionDraftsJson,
+      verificationIssues: agentResult.artifacts?.verification?.issues,
+    })
+
     return NextResponse.json({
-      reply: agentResult.content,
+      reply: presented.reply,
       actions,
       proposals: agentResult.artifacts?.proposals ?? [],
       plans: agentResult.artifacts?.plans ?? [],
@@ -482,7 +490,7 @@ export async function POST(request: NextRequest) {
         liteMode: coraLiteMode,
         complexity: coraRouting.complexity,
         reason: coraRouting.reason,
-        ui: coraUiFromProposals(agentResult.content, agentResult.artifacts?.proposals),
+        ui: presented.ui,
       }),
     })
   } catch (error) {

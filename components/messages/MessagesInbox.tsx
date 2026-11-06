@@ -9,6 +9,7 @@ import {
   Mail,
   MessageCircle,
   Plus,
+  Reply,
   Search,
   SlidersHorizontal,
   X,
@@ -48,6 +49,23 @@ import {
 import { MessageAttachmentView } from "@/components/messages/MessageAttachmentView"
 import { MessageReactionBar } from "@/components/messages/MessageReactionBar"
 import { MessageParticipantDrawer } from "@/components/messages/MessageParticipantDrawer"
+import { MessageQuoteCard } from "@/components/messages/MessageQuoteCard"
+import { MessageThreadBackdrop } from "@/components/messages/MessageThreadBackdrop"
+import {
+  buildQuotedReply,
+  parseMessageQuote,
+  quoteExcerptFromBody,
+  quoteNamesMatch,
+  type MessageQuote,
+} from "@/lib/direct-messages/message-quote"
+import {
+  backgroundChangeLine,
+  readMessageThreadAppearance,
+  sameMessageBackground,
+  writeMessageThreadAppearance,
+  type BackgroundNotice,
+  type MessageThreadBackground,
+} from "@/lib/direct-messages/message-thread-background"
 import { PresenceAvatar } from "@/components/presence/PresenceAvatar"
 import { PresenceStatusPicker } from "@/components/presence/PresenceStatusPicker"
 import { RoleWithLastSeen } from "@/components/presence/LastSeenLabel"
@@ -114,6 +132,20 @@ function messagePlainText(body: string): string {
   return looksLikeHtml(body) ? stripHtmlToPlain(body) : body.trim()
 }
 
+function viewerDisplayName(): string {
+  if (typeof window === "undefined") return "You"
+  const student = window.sessionStorage.getItem("studentName")?.trim()
+  if (student) return student
+  try {
+    const raw = window.localStorage.getItem("instructorSession")
+    if (!raw) return "You"
+    const session = JSON.parse(raw) as { name?: string; fullName?: string; full_name?: string }
+    return session.name?.trim() || session.fullName?.trim() || session.full_name?.trim() || "You"
+  } catch {
+    return "You"
+  }
+}
+
 function MessageBody({ message, isMine }: { message: ThreadMessage; isMine: boolean }) {
   if (message.unsent) {
     return (
@@ -127,15 +159,25 @@ function MessageBody({ message, isMine }: { message: ThreadMessage; isMine: bool
       </p>
     )
   }
-  const plain = messagePlainText(message.body)
+  const parsedQuote = parseMessageQuote(message.body)
+  const replySource = parsedQuote.quote ? parsedQuote.reply : message.body
+  const plain = messagePlainText(replySource)
   const localFileOnly = messageIsOnlyLocalDeviceFile(plain)
-  const html = plain && !localFileOnly && looksLikeHtml(message.body) ? sanitizeMessageHtml(message.body) : null
+  const html = plain && !localFileOnly && looksLikeHtml(replySource) ? sanitizeMessageHtml(replySource) : null
   const hasAttachments = message.attachments.length > 0
   const emptyShell = (!plain || localFileOnly) && !hasAttachments
 
   return (
     <div className="space-y-2">
-      {emptyShell ? (
+      {parsedQuote.quote ? (
+        <MessageQuoteCard
+          senderName={parsedQuote.quote.senderName}
+          excerpt={parsedQuote.quote.excerpt}
+          mine={isMine}
+          quotingSelf={quoteNamesMatch(parsedQuote.quote.senderName, viewerDisplayName())}
+        />
+      ) : null}
+      {emptyShell && !parsedQuote.quote ? (
         <p
           className={cn(
             "text-xs italic leading-snug",
@@ -192,6 +234,10 @@ export function MessagesInbox({
   const [searchingRecipients, setSearchingRecipients] = useState(false)
   const [selectedRecipient, setSelectedRecipient] = useState<MessageRecipient | null>(null)
   const [participantProfileOpen, setParticipantProfileOpen] = useState(false)
+  const [replyQuote, setReplyQuote] = useState<(MessageQuote & { quotingSelf?: boolean }) | null>(null)
+  const [composerFocusRequest, setComposerFocusRequest] = useState(0)
+  const [threadBackground, setThreadBackground] = useState<MessageThreadBackground>({ kind: "default" })
+  const [backgroundNotices, setBackgroundNotices] = useState<BackgroundNotice[]>([])
   const [newSubject, setNewSubject] = useState("")
   const [draftHtml, setDraftHtml] = useState("")
   const [draftAttachments, setDraftAttachments] = useState<MessageAttachmentDraft[]>([])
@@ -252,10 +298,65 @@ export function MessagesInbox({
 
   const drawerParticipant = thread?.otherParticipant ?? selectedRecipient ?? null
 
+  const chatRows = useMemo(() => {
+    if (!thread) return []
+    const rows: Array<
+      | { kind: "message"; key: string; at: number; message: ThreadMessage }
+      | { kind: "notice"; key: string; at: number; text: string }
+    > = thread.messages.map((message) => ({
+      kind: "message" as const,
+      key: `m-${message.id}`,
+      at: Date.parse(message.createdAt) || 0,
+      message,
+    }))
+    for (const notice of backgroundNotices) {
+      rows.push({
+        kind: "notice",
+        key: notice.id,
+        at: Date.parse(notice.at) || 0,
+        text: notice.text,
+      })
+    }
+    rows.sort((a, b) => a.at - b.at)
+    return rows
+  }, [thread, backgroundNotices])
+
   const resetDraft = () => {
     setDraftHtml("")
     setDraftAttachments([])
+    setReplyQuote(null)
   }
+
+  const beginQuotedReply = useCallback((message: ThreadMessage) => {
+    if (message.unsent) return
+    const viewer = viewerDisplayName()
+    setReplyQuote({
+      senderName: message.senderName,
+      excerpt: quoteExcerptFromBody(message.body) || "Attachment",
+      quotingSelf: message.isMine || quoteNamesMatch(message.senderName, viewer),
+    })
+    setComposerFocusRequest((request) => request + 1)
+  }, [])
+
+  const changeThreadBackground = useCallback((next: MessageThreadBackground) => {
+    if (!selectedThreadId || !Number.isFinite(selectedThreadId)) return
+    setThreadBackground((current) => {
+      if (sameMessageBackground(current, next)) return current
+      setBackgroundNotices((prev) => {
+        const notices = [
+          ...prev,
+          {
+            id: `bg-${Date.now()}`,
+            at: new Date().toISOString(),
+            text: backgroundChangeLine(viewerDisplayName(), next.kind === "default"),
+          },
+        ]
+        writeMessageThreadAppearance(selectedThreadId, { background: next, notices })
+        return notices
+      })
+      return next
+    })
+  }, [selectedThreadId])
 
   useEffect(() => {
     setSendOutbox(listMessageSendOutbox())
@@ -353,6 +454,15 @@ export function MessagesInbox({
 
   useEffect(() => {
     setParticipantProfileOpen(false)
+    setReplyQuote(null)
+    if (!selectedThreadId || !Number.isFinite(selectedThreadId)) {
+      setThreadBackground({ kind: "default" })
+      setBackgroundNotices([])
+      return
+    }
+    const appearance = readMessageThreadAppearance(selectedThreadId)
+    setThreadBackground(appearance.background)
+    setBackgroundNotices(appearance.notices)
   }, [selectedThreadId, selectedRecipient?.id, selectedRecipient?.kind, thread?.otherParticipant.id, thread?.otherParticipant.kind])
 
   useEffect(() => {
@@ -475,6 +585,10 @@ export function MessagesInbox({
       setError("Attachments are still uploading or failed — wait for the checkmark or remove them before sending.")
       return
     }
+    const quotedPrefix = replyQuote
+      ? buildQuotedReply(replyQuote.senderName ?? "Quoted message", replyQuote.excerpt)
+      : ""
+    const body = `${quotedPrefix}${draftHtml}`
     setSending(true)
     setError(null)
     try {
@@ -482,7 +596,7 @@ export function MessagesInbox({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          body: draftHtml,
+          body,
           attachments: attachmentsReadyForSend(draftAttachments),
         }),
       })
@@ -494,7 +608,7 @@ export function MessagesInbox({
     } catch (e) {
       rememberFailedSend({
         threadId: thread.id,
-        bodyHtml: draftHtml,
+        bodyHtml: body,
         attachments: attachmentsReadyForSend(draftAttachments),
         sendUrl: `/api/messages/threads/${thread.id}`,
       })
@@ -818,13 +932,16 @@ export function MessagesInbox({
         {/* Chat panel */}
         <section
           className={cn(
-            "flex flex-col min-h-[360px] overflow-hidden",
+            "relative flex flex-col min-h-[360px] overflow-hidden",
             isStudentDash
               ? "rounded-xl bg-[var(--muted)]/20"
               : "rounded-2xl border border-slate-200/90 dark:border-white/10 bg-white/90 dark:bg-slate-950/40 backdrop-blur-sm shadow-sm",
             !showChatPanel && "hidden md:flex",
           )}
         >
+          {thread && threadBackground.kind !== "default" ? (
+            <MessageThreadBackdrop background={threadBackground} />
+          ) : null}
           {composeOpen && !selectedThreadId ? (
             <div className="flex flex-col flex-1 min-h-0">
               <div
@@ -965,7 +1082,7 @@ export function MessagesInbox({
             </div>
           ) : thread ? (
             <>
-              <header className="px-4 py-3 flex items-center gap-3 shrink-0 bg-[var(--muted)]/25 dark:bg-slate-900/40">
+              <header className="relative z-10 px-4 py-3 flex items-center gap-3 shrink-0 bg-[var(--muted)]/25 dark:bg-slate-900/40">
                 <button
                   type="button"
                   className="md:hidden inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-white/10"
@@ -981,7 +1098,7 @@ export function MessagesInbox({
                   type="button"
                   onClick={() => setParticipantProfileOpen(true)}
                   className="rounded-full shrink-0 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
-                  aria-label="View profile and shared files"
+                  aria-label={`Details for ${thread.otherParticipant.displayName}`}
                 >
                   <PresenceAvatar
                     name={thread.otherParticipant.displayName}
@@ -990,9 +1107,14 @@ export function MessagesInbox({
                 </button>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="font-semibold text-slate-900 dark:text-slate-100 truncate min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => setParticipantProfileOpen(true)}
+                      className="min-w-0 truncate text-left font-semibold text-slate-900 hover:underline dark:text-slate-100"
+                      aria-label={`Details for ${thread.otherParticipant.displayName}`}
+                    >
                       {thread.otherParticipant.displayName}
-                    </p>
+                    </button>
                     <PresenceStatusPicker className="shrink-0 hidden sm:inline-flex" />
                   </div>
                   <RoleWithLastSeen
@@ -1020,71 +1142,102 @@ export function MessagesInbox({
                 <PresenceStatusPicker />
               </div>
 
-              <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 space-y-4 bg-gradient-to-b from-slate-50/50 to-transparent dark:from-slate-900/30">
-                {thread.messages.map((m) => (
+              <div
+                className={cn(
+                  "relative z-10 flex-1 space-y-4 overflow-y-auto px-3 py-4 sm:px-4",
+                  threadBackground.kind === "default" &&
+                    "bg-gradient-to-b from-slate-50/50 to-transparent dark:from-slate-900/30",
+                )}
+              >
+                {chatRows.map((row) => row.kind === "notice" ? (
+                  <p key={row.key} className="text-center text-xs text-slate-500 dark:text-slate-400">
+                    {row.text}
+                  </p>
+                ) : (
                   <div
-                    key={m.id}
+                    key={row.key}
                     className={cn(
                       "flex gap-2.5 max-w-[min(88%,42rem)] items-start",
-                      m.isMine ? "ml-auto flex-row-reverse" : "mr-auto",
+                      row.message.isMine ? "ml-auto flex-row-reverse" : "mr-auto",
                     )}
                   >
-                    {!m.isMine && (
+                    {!row.message.isMine && (
                       <PresenceAvatar
-                        name={m.senderName}
-                        status={getStatus(m.senderKind, Number(m.senderId))}
+                        name={row.message.senderName}
+                        status={getStatus(row.message.senderKind, Number(row.message.senderId))}
                       />
                     )}
-                    <div className={cn("min-w-0 flex-1", m.isMine && "flex flex-col items-end")}>
+                    <div className={cn("min-w-0 flex-1", row.message.isMine && "flex flex-col items-end")}>
                       <div
                         className={cn(
                           "flex items-baseline gap-2 mb-1 leading-none",
-                          m.isMine && "flex-row-reverse",
+                          row.message.isMine && "flex-row-reverse",
                         )}
                       >
-                        <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">
-                          {m.isMine ? "You" : m.senderName}
-                        </span>
+                        {row.message.isMine ? (
+                          <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">You</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setParticipantProfileOpen(true)}
+                            className="text-xs font-semibold text-slate-800 hover:underline dark:text-slate-100"
+                            aria-label={`Details for ${row.message.senderName}`}
+                          >
+                            {row.message.senderName}
+                          </button>
+                        )}
                         <span className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
-                          {formatWhen(m.createdAt)}
+                          {formatWhen(row.message.createdAt)}
                         </span>
                       </div>
 
                       <MessageReactionBar
-                        messageId={m.id}
-                        reactions={m.reactions}
-                        isMine={m.isMine}
+                        messageId={row.message.id}
+                        reactions={row.message.reactions}
+                        isMine={row.message.isMine}
                         onReact={handleReact}
-                        reacting={reactingId === m.id}
+                        reacting={reactingId === row.message.id}
                       >
                         <div
                           className={cn(
                             "rounded-lg px-3 py-2 text-sm max-w-full",
-                            m.isMine
+                            row.message.isMine
                               ? cn(uiTheme.page.cta)
                               : "bg-slate-100 dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 border border-slate-200/70 dark:border-white/10",
                           )}
                         >
-                          <MessageBody message={m} isMine={m.isMine} />
+                          <MessageBody message={row.message} isMine={row.message.isMine} />
                         </div>
                       </MessageReactionBar>
-                      {m.canUnsend ? (
-                        <button
-                          type="button"
-                          className="mt-1 text-[11px] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                          onClick={() => void handleUnsend(Number(m.id))}
-                          disabled={unsendingId === Number(m.id)}
-                        >
-                          {unsendingId === Number(m.id) ? "Undoing…" : "Undo send"}
-                        </button>
-                      ) : null}
+                      <div className={cn("mt-1 flex items-center gap-3", row.message.isMine && "flex-row-reverse")}>
+                        {!row.message.unsent ? (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
+                            onClick={() => beginQuotedReply(row.message)}
+                          >
+                            <Reply className="h-3 w-3" />
+                            Reply
+                          </button>
+                        ) : null}
+                        {row.message.canUnsend ? (
+                          <button
+                            type="button"
+                            className="text-[11px] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                            onClick={() => void handleUnsend(Number(row.message.id))}
+                            disabled={unsendingId === Number(row.message.id)}
+                          >
+                            {unsendingId === Number(row.message.id) ? "Undoing…" : "Undo send"}
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 ))}
                 <div ref={messagesEndRef} />
               </div>
 
-              <footer className="px-3 sm:px-4 py-3 sm:py-4 bg-[var(--muted)]/25 dark:bg-slate-950/70 shrink-0 backdrop-blur-sm">
+              <footer className="relative z-10 px-3 sm:px-4 py-3 sm:py-4 bg-[var(--muted)]/25 dark:bg-slate-950/70 shrink-0 backdrop-blur-sm">
                 <MessageComposer
                   value={draftHtml}
                   onChange={setDraftHtml}
@@ -1097,6 +1250,9 @@ export function MessagesInbox({
                   sending={sending}
                   placeholder="Write a reply…"
                   minHeight={24}
+                  replyQuote={replyQuote}
+                  onDismissReplyQuote={() => setReplyQuote(null)}
+                  focusRequest={composerFocusRequest}
                 />
               </footer>
             </>
@@ -1181,6 +1337,9 @@ export function MessagesInbox({
         onOpenChange={setParticipantProfileOpen}
         participant={drawerParticipant}
         messages={thread?.messages ?? []}
+        threadId={thread?.id ?? null}
+        background={threadBackground}
+        onBackgroundChange={changeThreadBackground}
         presenceStatus={
           drawerParticipant ? getStatus(drawerParticipant.kind, drawerParticipant.id) : undefined
         }

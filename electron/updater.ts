@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { Notification, app, ipcMain, BrowserWindow, screen, shell } from 'electron'
 import { autoUpdater } from 'electron-updater'
+import { forceExitAssessmentLockdown, isAssessmentLockdownActive } from './assessment-lockdown'
 import { setAppQuitting } from './app-state'
 
 export const UPDATE_STATUS_CHANNEL = 'update:status'
@@ -26,10 +27,15 @@ export type DesktopUpdateStatus = {
   message?: string
   /** macOS only: the running copy is outside /Applications, so Squirrel cannot persist an update. */
   needsApplicationsFolder?: boolean
+  /** Download finished during an exam. Install runs when lockdown ends, without a blocking dialog. */
+  holdInstall?: boolean
 }
 
-/** After the main window loads — early enough to prompt on launch, late enough for React to subscribe. */
+/** After the main window loads — early enough to update before an exam starts. */
 const STARTUP_CHECK_DELAY_MS = 2_500
+/** Long-running sessions still pick up an update without a manual check. */
+const RECHECK_INTERVAL_MS = 30 * 60 * 1000
+const HELD_INSTALL_POLL_MS = 3_000
 const INSTALL_EXIT_FALLBACK_MS = 2_500
 const MAC_QUIT_FALLBACK_MS = 10_000
 
@@ -46,7 +52,11 @@ let status: DesktopUpdateStatus = {
   supported: false,
   currentVersion: '0.0.0',
 }
-let lastCheckUserInitiated = false
+type UpdateCheckReason = 'startup' | 'interval' | 'manual'
+
+let lastCheckReason: UpdateCheckReason = 'startup'
+/** Interval checks during an open exam download quietly and install after the student leaves. */
+let backgroundApply = false
 let statusListener: (() => void) | null = null
 let installInFlight = false
 let installWindow: BrowserWindow | null = null
@@ -72,6 +82,7 @@ function setStatus(patch: Partial<DesktopUpdateStatus>): DesktopUpdateStatus {
     currentVersion: patch.currentVersion ?? status.currentVersion,
     supported: patch.supported ?? status.supported,
     needsApplicationsFolder: patch.needsApplicationsFolder === true,
+    holdInstall: patch.holdInstall === true,
   }
   broadcastStatus()
   return status
@@ -98,7 +109,7 @@ function notifyUpdateAvailable(version: string): void {
   if (!Notification.isSupported()) return
   const notification = new Notification({
     title: 'CourseCollab update available',
-    body: `Version ${version} is ready to download.`,
+    body: `Version ${version} is downloading and will install automatically.`,
   })
   notification.show()
 }
@@ -285,6 +296,8 @@ function teardownBeforeInstall(): void {
     // ignore
   }
 
+  forceExitAssessmentLockdown()
+
   for (const window of BrowserWindow.getAllWindows()) {
     if (window.isDestroyed() || window === installWindow) continue
     // Prevent "minimize to tray" from canceling quitAndInstall.
@@ -293,12 +306,17 @@ function teardownBeforeInstall(): void {
   }
 }
 
-async function checkForUpdates(userInitiated: boolean): Promise<DesktopUpdateStatus> {
+async function checkForUpdates(reason: UpdateCheckReason = 'manual'): Promise<DesktopUpdateStatus> {
   if (!status.supported) {
     return setStatus({
       state: 'error',
       message: 'Over-the-air updates are available after installing a packaged CourseCollab build.',
     })
+  }
+
+  if (status.state === 'ready') {
+    installWhenSafe(reason !== 'interval')
+    return status
   }
 
   if (
@@ -310,8 +328,15 @@ async function checkForUpdates(userInitiated: boolean): Promise<DesktopUpdateSta
     return status
   }
 
-  lastCheckUserInitiated = userInitiated
-  setStatus({ state: 'checking', message: undefined, version: undefined, percent: undefined })
+  lastCheckReason = reason
+  backgroundApply = reason === 'interval' && examInProgress()
+  setStatus({
+    state: 'checking',
+    message: undefined,
+    version: undefined,
+    percent: undefined,
+    holdInstall: backgroundApply,
+  })
 
   try {
     await autoUpdater.checkForUpdates()
@@ -363,6 +388,38 @@ async function downloadUpdate(): Promise<DesktopUpdateStatus> {
   } catch (error) {
     return applyUpdateFailure(error, 'download')
   }
+}
+
+const ASSESSMENT_ROUTE = /\/student\/quiz(?:\/|$|\?)/
+
+function examInProgress(): boolean {
+  if (isAssessmentLockdownActive()) return true
+  return BrowserWindow.getAllWindows().some((window) => {
+    if (window.isDestroyed() || window === installWindow) return false
+    try {
+      return ASSESSMENT_ROUTE.test(window.webContents.getURL())
+    } catch {
+      return false
+    }
+  })
+}
+
+function installWhenSafe(force: boolean): void {
+  if (installInFlight) return
+  if (status.state !== 'ready') return
+  if (!force && examInProgress()) {
+    backgroundApply = true
+    setStatus({
+      state: 'ready',
+      holdInstall: true,
+      version: status.version,
+      releaseNotes: status.releaseNotes,
+      percent: 100,
+      message: `Version ${status.version ?? 'the update'} is downloaded. It will install as soon as you leave the exam.`,
+    })
+    return
+  }
+  installUpdate()
 }
 
 function macAppIsOutsideApplications(): boolean {
@@ -484,7 +541,7 @@ export function getUpdateStatus(): DesktopUpdateStatus {
 }
 
 export function requestManualUpdateCheck(): Promise<DesktopUpdateStatus> {
-  return checkForUpdates(true)
+  return checkForUpdates('manual')
 }
 
 export function requestDownloadUpdate(): Promise<DesktopUpdateStatus> {
@@ -507,7 +564,7 @@ export function registerUpdater(): void {
   }
 
   ipcMain.handle('update:get-status', () => status)
-  ipcMain.handle('update:check', () => checkForUpdates(true))
+  ipcMain.handle('update:check', () => checkForUpdates('manual'))
   ipcMain.handle('update:download', () => downloadUpdate())
   ipcMain.handle('update:install', () => installUpdate())
   ipcMain.handle('update:move-to-applications', () => moveMacAppToApplications())
@@ -516,7 +573,8 @@ export function registerUpdater(): void {
   if (!app.isPackaged) return
 
   configureFeed()
-  autoUpdater.autoDownload = false
+  // Startup and manual checks download and install without a "remind me later" step.
+  autoUpdater.autoDownload = true
   autoUpdater.autoRunAppAfterInstall = true
   /** Apply only from the installing screen. A quit-time install on macOS can remove the app if Squirrel fails. */
   autoUpdater.autoInstallOnAppQuit = false
@@ -526,7 +584,7 @@ export function registerUpdater(): void {
     if (installInFlight) return
     // Never wipe a downloaded update or an in-flight download with a fresh "checking" state.
     if (status.state === 'ready' || status.state === 'downloading' || status.state === 'installing') return
-    setStatus({ state: 'checking', message: undefined })
+    setStatus({ state: 'checking', message: undefined, holdInstall: backgroundApply })
   })
 
   autoUpdater.on('update-available', (info) => {
@@ -535,14 +593,18 @@ export function registerUpdater(): void {
     if (status.state === 'ready' && status.version === info.version) return
     if (status.state === 'installing') return
     if (status.state === 'downloading' && status.version === info.version) return
-    const alreadyKnown = status.state === 'available' && status.version === info.version
+    const alreadyKnown = status.version === info.version
     setStatus({
-      state: 'available',
+      state: 'downloading',
       version: info.version,
       releaseNotes: releaseNotesText(info.releaseNotes),
-      message: `Version ${info.version} is available.`,
+      percent: 0,
+      holdInstall: backgroundApply,
+      message: backgroundApply
+        ? `Version ${info.version} is downloading. It will install after you leave the exam.`
+        : `Downloading version ${info.version}. CourseCollab will restart to install it.`,
     })
-    if (!alreadyKnown && !lastCheckUserInitiated) notifyUpdateAvailable(info.version)
+    if (!alreadyKnown && lastCheckReason !== 'manual') notifyUpdateAvailable(info.version)
   })
 
   autoUpdater.on('update-not-available', (info) => {
@@ -559,6 +621,7 @@ export function registerUpdater(): void {
     setStatus({
       state: 'downloading',
       percent: Math.max(0, Math.min(100, Math.round(progress.percent))),
+      holdInstall: backgroundApply,
       message: undefined,
     })
   })
@@ -570,9 +633,10 @@ export function registerUpdater(): void {
       version: info.version,
       releaseNotes: releaseNotesText(info.releaseNotes),
       percent: 100,
+      holdInstall: false,
       message: `Installing version ${info.version}. CourseCollab will restart when it is in place.`,
     })
-    installUpdate()
+    installWhenSafe(lastCheckReason !== 'interval')
   })
 
   autoUpdater.on('error', (error) => {
@@ -586,6 +650,25 @@ export function registerUpdater(): void {
   })
 
   setTimeout(() => {
-    void checkForUpdates(false)
+    void checkForUpdates('startup')
   }, STARTUP_CHECK_DELAY_MS)
+
+  setInterval(() => {
+    if (installInFlight) return
+    if (
+      status.state === 'checking' ||
+      status.state === 'downloading' ||
+      status.state === 'installing' ||
+      status.state === 'ready'
+    ) {
+      return
+    }
+    void checkForUpdates('interval')
+  }, RECHECK_INTERVAL_MS)
+
+  setInterval(() => {
+    if (!status.holdInstall || status.state !== 'ready' || installInFlight) return
+    if (examInProgress()) return
+    installUpdate()
+  }, HELD_INSTALL_POLL_MS)
 }

@@ -11,11 +11,11 @@ export async function GET(request: NextRequest) {
     const groupsCourseScope = scope.gCourseScope
     const gTermScope = await resolveGroupProjectTermScope(request, scope.courseId, null)
     const sessionCounts = await sql`
-      SELECT session, COUNT(*)::bigint AS count
-      FROM groups
-      WHERE deleted_at IS NULL
+      SELECT g.session, COUNT(*)::bigint AS count
+      FROM groups g
+      WHERE g.deleted_at IS NULL
       AND (${groupsCourseScope}) AND (${gTermScope})
-      GROUP BY session
+      GROUP BY g.session
     `
 
     let total = 0

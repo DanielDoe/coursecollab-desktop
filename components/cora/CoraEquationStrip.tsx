@@ -1,6 +1,7 @@
 "use client"
 
 import { AnimatePresence, motion } from "framer-motion"
+import { CoraMathText } from "@/components/cora/CoraMathText"
 import { cn } from "@/lib/utils"
 
 type Props = {
@@ -22,9 +23,9 @@ export function CoraEquationStrip({ equations, accent }: Props) {
               transition={{ delay: i * 0.12, duration: 0.3 }}
               className="flex flex-col items-center gap-1"
             >
-              <code className="rounded-lg bg-[var(--muted)]/50 px-4 py-2 font-mono text-base sm:text-lg text-[var(--cc-text)]">
-                {eq.latex}
-              </code>
+              <div className="rounded-lg bg-[var(--muted)]/50 px-4 py-2 text-base text-[var(--cc-text)] sm:text-lg">
+                <CoraMathText text={eq.latex} display align="center" compact />
+              </div>
               {i < equations.length - 1 ? (
                 <motion.span
                   initial={{ scaleY: 0 }}

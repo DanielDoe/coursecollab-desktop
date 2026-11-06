@@ -7434,6 +7434,43 @@ export function QuizTaker({
     return (questionPoints / totalQuizPoints) * 100
   }, [currentQuestion, totalQuizPoints])
 
+  const studentDatabaseIdForRenderer = (() => {
+    if (typeof window === "undefined") return null
+    const raw = sessionStorage.getItem("studentDatabaseId")
+    if (!raw) return null
+    const parsed = Number.parseInt(raw, 10)
+    return Number.isFinite(parsed) ? parsed : null
+  })()
+
+  // Must stay above the instruction and violation returns. A hook after those returns
+  // changes the hook count when the student starts or continues, which crashes the exam.
+  const coraProblem = useMemo(() => {
+    if (!currentQuestion || !quiz) return null
+    const canAsk = canStudentAskCora(currentQuestion.question_type || "mcq", {
+      subquestionTypes: parseSubquestions(currentQuestion.subquestions).map((sq) => sq.type),
+    })
+    if (!canAsk) return null
+    return coraContextFromQuestion({
+      source: "quiz",
+      questionText: currentQuestion.question_text,
+      title: `Question ${currentQuestionIndex + 1}`,
+      questionType: currentQuestion.question_type,
+      hint: hintTextByQuestionId[currentQuestion.id] ?? currentQuestion.hint ?? null,
+      questionId: currentQuestion.id,
+      bankQuestionId: currentQuestion.bank_question_id,
+      quizId: quiz.id,
+      attemptId: attemptId ?? undefined,
+      studentDatabaseId: studentDatabaseIdForRenderer,
+    })
+  }, [
+    currentQuestion,
+    currentQuestionIndex,
+    hintTextByQuestionId,
+    quiz,
+    attemptId,
+    studentDatabaseIdForRenderer,
+  ])
+
   // CRITICAL: If locked due to violations, show warning screen with danger colors
   if (isLockedDueToViolations && attemptId) {
     const violationMessage = violationReason?.toLowerCase().includes('tab') 
@@ -8129,38 +8166,6 @@ export function QuizTaker({
   const canAskCoraOnCurrentQuestion = canStudentAskCora(questionType, {
     subquestionTypes: parseSubquestions(currentQuestion?.subquestions).map((sq) => sq.type),
   })
-
-  const studentDatabaseIdForRenderer = (() => {
-    if (typeof window === "undefined") return null
-    const raw = sessionStorage.getItem("studentDatabaseId")
-    if (!raw) return null
-    const parsed = Number.parseInt(raw, 10)
-    return Number.isFinite(parsed) ? parsed : null
-  })()
-
-  const coraProblem = useMemo(() => {
-    if (!currentQuestion || !quiz || !canAskCoraOnCurrentQuestion) return null
-    return coraContextFromQuestion({
-      source: "quiz",
-      questionText: currentQuestion.question_text,
-      title: `Question ${currentQuestionIndex + 1}`,
-      questionType: currentQuestion.question_type,
-      hint: hintTextByQuestionId[currentQuestion.id] ?? currentQuestion.hint ?? null,
-      questionId: currentQuestion.id,
-      bankQuestionId: currentQuestion.bank_question_id,
-      quizId: quiz.id,
-      attemptId: attemptId ?? undefined,
-      studentDatabaseId: studentDatabaseIdForRenderer,
-    })
-  }, [
-    canAskCoraOnCurrentQuestion,
-    currentQuestion,
-    currentQuestionIndex,
-    hintTextByQuestionId,
-    quiz,
-    attemptId,
-    studentDatabaseIdForRenderer,
-  ])
 
   // Lock questions if: timer expired OR (lockable type AND submitted) OR (AI-graded AND timer expired)
   const shouldLockQuestion =

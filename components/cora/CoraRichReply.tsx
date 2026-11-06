@@ -91,21 +91,26 @@ export function CoraRichReply({ content, theme = "dark", tone = "default", class
     "cora-ai-reply text-[14px] leading-[1.6]",
     isLight ? "text-neutral-800" : "text-neutral-100",
     "[&_p]:mb-2 [&_p:last-child]:mb-0 [&_strong]:font-semibold",
+    "[&_.katex]:text-current [&_.katex]:bg-transparent [&_.katex]:p-0",
+    "[&_.katex:not(.katex-display)]:mx-[0.28em] [&_.katex:not(.katex-display)]:align-[-0.08em]",
+    "[&_.katex-display]:my-3 [&_.katex-display]:overflow-x-auto [&_.katex-display]:text-left [&_.katex-display>.katex]:text-left",
     isLight ? "[&_strong]:text-neutral-900" : "[&_strong]:text-white",
     isLight
-      ? "[&_code]:rounded [&_code]:bg-neutral-900 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-neutral-100"
-      : "[&_code]:rounded [&_code]:bg-black/40 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-rose-50",
+      ? "[&_code]:mx-0.5 [&_code]:rounded-md [&_code]:bg-neutral-900 [&_code]:px-2 [&_code]:py-1 [&_code]:text-neutral-100"
+      : "[&_code]:mx-0.5 [&_code]:rounded-md [&_code]:bg-black/40 [&_code]:px-2 [&_code]:py-1 [&_code]:text-rose-50",
   )
 
   if (useErrorTone && parsed?.line && parsed.fix) {
     return (
       <ErrorAnalysisShell line={parsed.line} isLight={isLight} className={className}>
-        <p className="mb-2 text-[13px] leading-snug">
-          <span className={lineLabelClass}>Line {parsed.line}:</span> {parsed.problem}
-        </p>
-        <p className="text-[13px] leading-snug">
-          <span className={fixLabelClass}>Fix:</span> {parsed.fix}
-        </p>
+        <div className="mb-2 text-[13px] leading-snug">
+          <span className={lineLabelClass}>Line {parsed.line}:</span>{" "}
+          <FeedbackTextRenderer text={parsed.problem} className={cn(proseClass, "mt-1 [&>div]:!mb-0")} />
+        </div>
+        <div className="text-[13px] leading-snug">
+          <span className={fixLabelClass}>Fix:</span>{" "}
+          <FeedbackTextRenderer text={parsed.fix} className={cn(proseClass, "mt-1 [&>div]:!mb-0")} />
+        </div>
       </ErrorAnalysisShell>
     )
   }

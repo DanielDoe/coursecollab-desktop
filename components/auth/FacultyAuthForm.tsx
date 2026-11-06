@@ -17,16 +17,18 @@ import type { UniversityRecord } from "@/lib/universities-shared"
 import { cn } from "@/lib/utils"
 import { ctaInkOnFill } from "@/lib/appearance/chrome-ink"
 import {
-  AlertCircle,
   ArrowRight,
   BookOpen,
+  Building2,
   ChevronRight,
   Eye,
   EyeOff,
+  GraduationCap,
   KeyRound,
   Lock,
   User,
 } from "lucide-react"
+import { AuthStatusAlert } from "@/components/auth/AuthStatusAlert"
 import { CcBookLoader } from "@/components/ui/cc-book-loader"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -53,16 +55,16 @@ import {
   tryAutoProceedAfterFacultyLogin,
 } from "@/lib/faculty-auth-flow"
 import { clearFacultyExplicitSignOutFlag } from "@/lib/faculty-session-restore-client"
-import { effectiveRememberMeForClient, isDesktopAppShell } from "@/lib/desktop-auth-policy"
+import { effectiveRememberMeForClient, isDesktopAuthLoginOnly, DESKTOP_WEB_SIGNUP_PATHS } from "@/lib/desktop-auth-policy"
 import {
-  DesktopAuthPanelBody,
-  DesktopAuthPanelCard,
+  DesktopAuthBackLink,
   DesktopAuthStepProgress,
   DesktopAuthUniversityHeader,
   desktopAuth,
 } from "@/components/auth/desktop-auth-primitives"
-import { DesktopAuthStagger } from "@/components/auth/desktop-auth-motion"
+import { DesktopWebSignupLink } from "@/components/auth/DesktopWebSignupLink"
 import { MfaLoginStep, parseMfaLoginResponse, type MfaLoginState } from "@/components/auth/MfaLoginStep"
+import { useDesktopAppChrome } from "@/hooks/use-desktop-app-chrome"
 
 type WizardStep = "login" | "course"
 
@@ -83,9 +85,9 @@ function facultyCourseTitleDisplay(title: string): string {
 }
 
 const stepMotion = {
-  initial: { opacity: 0.92, x: '16%' },
-  animate: { opacity: 1, x: 0, pointerEvents: 'auto' as const },
-  exit: { opacity: 0.88, x: '-10%', pointerEvents: 'none' as const },
+  initial: { opacity: 0, x: "8%" },
+  animate: { opacity: 1, x: 0, pointerEvents: "auto" as const },
+  exit: { opacity: 0, x: "-8%", pointerEvents: "none" as const },
 }
 
 function StepIndicator({ step, accent }: { step: WizardStep; accent: string }) {
@@ -150,32 +152,6 @@ function StepIndicator({ step, accent }: { step: WizardStep; accent: string }) {
   )
 }
 
-function FacultyOtherSignInNav({ backHref }: { backHref: string }) {
-  const portalHub = isDesktopAppShell() ? "/auth/welcome?change=1" : "/auth/university?change=1"
-
-  return (
-    <div className="border-t border-[var(--border)] pt-4">
-      <p className="text-center text-[12px] leading-relaxed text-[var(--cc-text-secondary)]">
-        <Link href="/auth/student" className="font-semibold text-[var(--cc-accent)] hover:underline">
-          Student sign in
-        </Link>
-        <span aria-hidden className="mx-1.5 text-[var(--cc-text-muted)]">
-          ·
-        </span>
-        <Link href={backHref} className="font-medium text-[var(--cc-accent)] hover:underline">
-          Change university
-        </Link>
-        <span aria-hidden className="mx-1.5 text-[var(--cc-text-muted)]">
-          ·
-        </span>
-        <Link href={portalHub} className="font-medium text-[var(--cc-accent)] hover:underline">
-          More options
-        </Link>
-      </p>
-    </div>
-  )
-}
-
 export function FacultyAuthForm({
   university,
   initialStep = "login",
@@ -203,8 +179,10 @@ export function FacultyAuthForm({
 
   const accent = university.primary_color || "#582c83"
   const accentInk = ctaInkOnFill(accent)
-  const isDesktop = variant === "desktop"
-  const resolvedBackHref = backHref ?? "/auth/university?change=1&next=faculty"
+  const desktopChrome = useDesktopAppChrome()
+  const isDesktop = variant === "desktop" || desktopChrome
+  const hideSignup = isDesktopAuthLoginOnly(variant)
+  const signupHref = nativeApp ? appendNativeAppQuery("/faculty/signup") : "/faculty/signup"
   const loginRememberMe = effectiveRememberMeForClient(rememberMe)
   const inputClass = isDesktop
     ? desktopAuth.input
@@ -215,7 +193,6 @@ export function FacultyAuthForm({
   const actionButtonClass = isDesktop
     ? desktopAuth.button
     : "h-12 w-full gap-2 rounded-xl font-semibold shadow-sm"
-  const alertClass = isDesktop ? desktopAuth.alert : "rounded-xl"
 
   useEffect(() => {
     const remembered = readRememberedFacultyLogin()
@@ -417,13 +394,13 @@ export function FacultyAuthForm({
         step === "course" && nativeApp && "flex min-h-0 flex-1 flex-col",
         isDesktop && step === "course"
           ? "flex min-h-0 flex-1 flex-col gap-5 overflow-hidden"
-          : cn("space-y-5", isDesktop && "space-y-5"),
+          : cn("space-y-4", isDesktop && "space-y-5"),
       )}
     >
       {!isDesktop ? (
-      <div className="flex flex-col items-center gap-4 text-center">
-        <UniversityLogo university={university} size="md" variant="full" />
-        <div className="space-y-1.5">
+      <div className="flex flex-col items-center gap-2 text-center">
+        <UniversityLogo university={university} size="sm" variant="full" />
+        <div className="space-y-1">
           <span
             className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]"
             style={{ backgroundColor: `${accent}18`, color: accent }}
@@ -435,8 +412,8 @@ export function FacultyAuthForm({
               {university.short_name}
             </p>
           ) : null}
-          <h2 className="text-2xl font-semibold tracking-tight text-[var(--cc-text)]">Faculty sign in</h2>
-          <p className="text-sm text-[var(--cc-text-secondary)]">
+          <h2 className="text-xl font-semibold tracking-tight text-[var(--cc-text)]">Faculty sign in</h2>
+          <p className="text-xs text-[var(--cc-text-secondary)]">
             {universityHasFullWordmark(university)
               ? "Continue to your courses and teaching tools."
               : university.name}
@@ -470,35 +447,15 @@ export function FacultyAuthForm({
       )}
 
       {expired ? (
-        <div
-          className={cn(
-            alertClass,
-            isDesktop
-              ? cn(desktopAuth.alert, desktopAuth.alertWarning)
-              : cn("border p-3 text-sm", desktopAuth.alertWarning),
-            "flex items-start gap-2",
-          )}
-          role="status"
-        >
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
-          <span>Your session expired. Please sign in again.</span>
-        </div>
+        <AuthStatusAlert tone="warning" title="Session expired" compact={isDesktop}>
+          Please sign in again.
+        </AuthStatusAlert>
       ) : null}
 
       {error ? (
-        <div
-          className={cn(
-            alertClass,
-            isDesktop
-              ? cn(desktopAuth.alert, desktopAuth.alertError)
-              : cn("border p-3 text-sm", desktopAuth.alertError),
-            "flex items-start gap-2",
-          )}
-          role="alert"
-        >
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
-          <span>{error}</span>
-        </div>
+        <AuthStatusAlert tone="error" title="Couldn't sign in" compact={isDesktop}>
+          {error}
+        </AuthStatusAlert>
       ) : null}
 
       <div
@@ -507,7 +464,7 @@ export function FacultyAuthForm({
           isDesktop && step === "course" && "flex min-h-0 flex-1 flex-col overflow-hidden",
         )}
       >
-      <AnimatePresence mode="popLayout" initial={false}>
+      <AnimatePresence mode="wait" initial={false}>
         {step === "login" ? (
           <motion.div
             key="login"
@@ -595,20 +552,63 @@ export function FacultyAuthForm({
                 </Label>
               </div>
 
-              <div className={desktopAuth.actionStack}>
+              {isDesktop ? (
+                <div className={desktopAuth.actionStack}>
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className={cn(actionButtonClass, "rounded-md")}
+                    style={{ backgroundColor: accent, color: accentInk }}
+                  >
+                    {loading ? <Spinner size="sm" /> : "Continue"}
+                  </Button>
+                  {backHref ? (
+                    <DesktopAuthBackLink href={backHref} label={backLabel} className="mt-0" />
+                  ) : null}
+                </div>
+              ) : (
                 <Button
                   type="submit"
                   disabled={loading}
-                  className={cn(actionButtonClass, isDesktop && "rounded-md")}
+                  className={actionButtonClass}
                   style={{ backgroundColor: accent, color: accentInk }}
                 >
                   {loading ? <Spinner size="sm" /> : "Continue"}
-                  {!loading && !isDesktop ? <ArrowRight className="h-4 w-4" aria-hidden /> : null}
+                  {!loading ? <ArrowRight className="h-4 w-4" aria-hidden /> : null}
                 </Button>
-              </div>
+              )}
             </form>
 
-            <FacultyOtherSignInNav backHref={resolvedBackHref} />
+            {!isDesktop ? (
+              <div className="space-y-3 border-t border-[var(--border)] pt-5">
+                <p className="text-center text-sm text-[var(--cc-text-secondary)]">
+                  New faculty member?{" "}
+                  <Link href={signupHref} className="font-semibold text-[var(--cc-accent)] hover:underline">
+                    Request an account
+                  </Link>
+                </p>
+                <nav aria-label="Other sign-in options" className="space-y-2">
+                  <Link
+                    href="/auth/university?change=1&next=faculty"
+                    className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--cc-background)] px-3.5 py-3 text-sm font-medium text-[var(--cc-text)] transition-colors hover:bg-[var(--cc-accent-soft)]"
+                  >
+                    <Building2 className="h-4 w-4 shrink-0 text-[var(--cc-accent)]" strokeWidth={2.25} aria-hidden />
+                    <span className="min-w-0 flex-1 text-left">Change university</span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-[var(--cc-text-muted)]" aria-hidden />
+                  </Link>
+                  <Link
+                    href="/auth/student"
+                    className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--cc-background)] px-3.5 py-3 text-sm font-medium text-[var(--cc-text)] transition-colors hover:bg-[var(--cc-accent-soft)]"
+                  >
+                    <GraduationCap className="h-4 w-4 shrink-0 text-[var(--cc-accent)]" strokeWidth={2.25} aria-hidden />
+                    <span className="min-w-0 flex-1 text-left">Student sign in</span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-[var(--cc-text-muted)]" aria-hidden />
+                  </Link>
+                </nav>
+              </div>
+            ) : hideSignup ? (
+              <DesktopWebSignupLink path={DESKTOP_WEB_SIGNUP_PATHS.faculty} label="Request an account on web" />
+            ) : null}
           </motion.div>
         ) : (
           <motion.div
@@ -760,30 +760,6 @@ export function FacultyAuthForm({
       </div>
     </div>
   )
-
-  if (isDesktop) {
-    const courseStepLayout = step === "course"
-
-    return (
-      <DesktopAuthPanelBody
-        className={courseStepLayout ? "min-h-0 justify-start overflow-hidden" : undefined}
-      >
-        <DesktopAuthPanelCard
-          className={
-            courseStepLayout
-              ? "flex max-h-[min(calc(100dvh-12rem),44rem)] min-h-0 flex-col overflow-hidden"
-              : undefined
-          }
-        >
-          {courseStepLayout ? (
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{panelContent}</div>
-          ) : (
-            <DesktopAuthStagger className="space-y-5">{panelContent}</DesktopAuthStagger>
-          )}
-        </DesktopAuthPanelCard>
-      </DesktopAuthPanelBody>
-    )
-  }
 
   return panelContent
 }

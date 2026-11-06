@@ -34,10 +34,10 @@ export function buildMandatoryAttemptFloorInstructionsForPrompt(mode?: string): 
   return `MANDATORY MINIMUM NUMERIC GRADE (${label} mode = "${m}") — REQUIRED IN YOUR JSON
 
 SEPARATE FEEDBACK FROM THE FINAL NUMBER:
-- **Feedback:** Evaluate thoroughly. List every problem in "feedback", "gradeBreakdown", "itemizedIssues", and "weaknesses". You may be as detailed and critical as needed—students should see the full picture.
+- **Feedback:** Put at most 3 real errors in itemizedIssues, one short line each. detailedExplanation is one or two sentences under 280 characters. Leave feedback, reasoning, strengths, weaknesses, improvements, suggestions, and sampleAnswers empty.
 - **Numeric grade — floor only, not generosity:** ${pct}% is a **lower bound** for substantive attempts, **not** a default grade and **not** permission to be forgiving. Students with **many significant errors** should typically finish **at** ${pct}% (the minimum), not in the 60s or 70s. **Do not inflate** scores above the minimum unless the work **objectively** merits it (e.g. partial correct logic, substantial progress toward a solution). When in doubt between "slightly above minimum" and "right at minimum" for weak work, choose **at** the minimum.
 - For substantive attempts, **"score"** and **"scoreBreakdown.finalScore"** MUST **NOT finish below ${pct}%** (0–100 scale). If fair deductions would land below ${pct}%, set finalScore to **${pct}%** (not higher).
-- If your math would land below ${pct}% after deductions (including suspiciousTypingPenalty when that verdict applies), **raise** finalScore to exactly **${pct}** and state briefly in "gradeBreakdown.reasoning" that the course minimum for substantive attempts applies—do **not** add extra points beyond that unless quality warrants it. **code_write_plot:** never apply suspiciousTypingPenalty (always 0); the floor rule still applies without typing deductions.
+- If your math would land below ${pct}% after deductions (including suspiciousTypingPenalty when that verdict applies), **raise** finalScore to exactly **${pct}** and mention the course minimum in the short detailedExplanation—do **not** add extra points beyond that unless quality warrants it. **code_write_plot:** never apply suspiciousTypingPenalty (always 0); the floor rule still applies without typing deductions.
 
 WHEN THE MINIMUM DOES NOT APPLY:
 - Empty/non-answers, nonsense, or template-only with no real solution: scores may be very low (typically 0–5/100).

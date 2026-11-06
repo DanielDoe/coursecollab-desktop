@@ -14,6 +14,7 @@ import {
   typingReplaySince,
 } from "@/lib/codebench-live-replay"
 import { codebenchLiveCodeToPersist } from "@/lib/codebench-languages"
+import { studentSnapshotCodeAfterInstructorPush } from "@/lib/codebench-live-instructor-push-state"
 import { normalizeTypingReplay } from "@/lib/typing-replay"
 import {
   cleanLiveClientId,
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Student session is invalid" }, { status: 401 })
     }
     const rows = await platformSql`
-      SELECT code, instructor_code, instructor_revision, language, file_name, updated_at, typing_replay
+      SELECT code, instructor_code, instructor_revision, instructor_updated_at, language, file_name, updated_at, typing_replay
       FROM codebench_live_snapshots
       WHERE student_id = ${auth.studentDbId}
         AND assignment_id = ${assignmentId}
@@ -61,6 +62,7 @@ export async function GET(request: NextRequest) {
           code?: string
           instructor_code?: string | null
           instructor_revision?: number | null
+          instructor_updated_at?: string | null
           language?: string | null
           file_name?: string | null
           updated_at?: string
@@ -78,6 +80,7 @@ export async function GET(request: NextRequest) {
       code,
       instructorCode: typeof row?.instructor_code === "string" ? row.instructor_code : "",
       instructorRevision: Number(row?.instructor_revision) || 0,
+      instructorUpdatedAt: row?.instructor_updated_at ?? null,
       language: row?.language ?? null,
       fileName: row?.file_name ?? null,
       updatedAt: row?.updated_at ?? null,
@@ -395,13 +398,21 @@ export async function POST(request: NextRequest) {
     }
 
     const storedRows = await platformSql`
-      SELECT code
+      SELECT code, instructor_code, pre_instructor_code, instructor_updated_at
       FROM codebench_live_snapshots
       WHERE student_id = ${auth.studentDbId}
         AND assignment_id = ${assignmentId}
       LIMIT 1
     `.catch(() => [])
-    const storedCode = (storedRows[0] as { code?: string } | undefined)?.code
+    const storedSnapshot = storedRows[0] as
+      | {
+          code?: string
+          instructor_code?: string | null
+          pre_instructor_code?: string | null
+          instructor_updated_at?: string | Date | null
+        }
+      | undefined
+    const storedCode = storedSnapshot?.code
     const persistedCode = editorStillOpen
       ? code
       : codebenchLiveCodeToPersist(
@@ -410,7 +421,16 @@ export async function POST(request: NextRequest) {
           language,
         )
     const preservedTypedCode = persistedCode !== code
-    code = persistedCode
+    const afterInstructorPush = studentSnapshotCodeAfterInstructorPush({
+      storedCode: typeof storedCode === "string" ? storedCode : "",
+      incomingCode: persistedCode,
+      instructorCode: typeof storedSnapshot?.instructor_code === "string" ? storedSnapshot.instructor_code : "",
+      preInstructorCode:
+        typeof storedSnapshot?.pre_instructor_code === "string" ? storedSnapshot.pre_instructor_code : "",
+      instructorUpdatedAt: storedSnapshot?.instructor_updated_at ?? null,
+    })
+    const keptInstructorPush = afterInstructorPush !== persistedCode
+    code = afterInstructorPush
 
     let replayJson: string | null = null
     let updateReplay = false
@@ -473,7 +493,7 @@ export async function POST(request: NextRequest) {
               language,
               cursorJson: studentCursorJson,
               codeChars: code.length,
-              keptPreviousCode: false,
+              keptPreviousCode: keptInstructorPush,
               editorStillOpen,
             }),
             dedupeSeconds: 20,
@@ -526,7 +546,7 @@ export async function POST(request: NextRequest) {
               language,
               cursorJson: studentCursorJson,
               codeChars: code.length,
-              keptPreviousCode: false,
+              keptPreviousCode: keptInstructorPush,
               editorStillOpen,
             }),
             dedupeSeconds: 20,
@@ -643,7 +663,7 @@ export async function POST(request: NextRequest) {
           language,
           cursorJson: studentCursorJson,
           codeChars: code.length,
-          keptPreviousCode: preservedTypedCode,
+          keptPreviousCode: preservedTypedCode || keptInstructorPush,
           editorStillOpen,
         }),
         dedupeSeconds: 15,
@@ -667,7 +687,7 @@ export async function POST(request: NextRequest) {
         language,
         cursorJson: studentCursorJson,
         codeChars: code.length,
-        keptPreviousCode: preservedTypedCode,
+        keptPreviousCode: preservedTypedCode || keptInstructorPush,
         editorStillOpen,
       }),
       dedupeSeconds: preservedTypedCode ? 20 : 15,

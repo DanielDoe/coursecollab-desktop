@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { requireProjectMemberOrInstructor, studentDbIdFromGroupsRequest } from "@/lib/project-request-auth"
+import { requireBoundStudentCaller } from "@/lib/student-api-auth"
 
 // PATCH update a report
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ reportId: string }> }) {
@@ -52,8 +53,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   try {
     const { reportId } = await params
     const { searchParams } = new URL(request.url)
-    const studentId = searchParams.get("studentId")
+    let studentId = searchParams.get("studentId")
 
+    const bound = await requireBoundStudentCaller(request, studentId)
+    if (!bound.ok) return bound.response
+    studentId = String(bound.studentDbId)
     // Verify the student owns this report
     const reportCheck = await sql`
       SELECT id, student_id, project_id FROM project_reports WHERE id = ${reportId}

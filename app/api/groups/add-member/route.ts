@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { assertGroupSizeWithinPolicy } from "@/lib/project-policy-enforcement"
+import { alreadyInGroupMessage, findStudentActiveGroupMembership } from "@/lib/groups/student-active-membership"
 
 export async function POST(request: NextRequest) {
   try {
@@ -46,6 +47,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Student is already a member of this group" }, { status: 400 })
     }
 
+    const otherGroup = await findStudentActiveGroupMembership(Number(studentId), {
+      excludeGroupId: Number(groupId),
+    })
+    if (otherGroup) {
+      return NextResponse.json({ error: alreadyInGroupMessage(otherGroup) }, { status: 400 })
+    }
+
     const memberCountRows = await sql`
       SELECT COUNT(*)::int AS count FROM group_members WHERE group_id = ${groupId}
     `
@@ -59,17 +67,15 @@ export async function POST(request: NextRequest) {
     )
     if (!size.ok) return size.response
 
-    if (group.status === "approved") {
-      // Get current pending changes
+    if (group.status === "approved" || group.status === "pending_update") {
+      // Approved groups queue membership changes until an instructor approves them.
       const currentGroup = await sql`
         SELECT pending_changes FROM groups WHERE id = ${groupId}
       `
 
       const pendingChanges = currentGroup[0].pending_changes || {}
-      const addMembers = pendingChanges.addMembers || []
-
-      // Add to pending members list
-      addMembers.push(studentId)
+      const addMembers: number[] = Array.isArray(pendingChanges.addMembers) ? pendingChanges.addMembers : []
+      if (!addMembers.includes(Number(studentId))) addMembers.push(Number(studentId))
 
       const newPendingChanges = JSON.stringify({ ...pendingChanges, addMembers })
 

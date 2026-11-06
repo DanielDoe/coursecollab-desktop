@@ -27,8 +27,8 @@ export type StudentCoraTier = "Scholar" | "Explorer" | "Trailblazer"
 /** Monthly included membership credits (students). Do not roll over. */
 export const STUDENT_CORA_MONTHLY: Record<StudentCoraTier, number> = {
   Scholar: 250,
-  Explorer: 3000,
-  Trailblazer: 7500,
+  Explorer: 30000,
+  Trailblazer: 75000,
 }
 
 export type InstructorCoraTier = "Free" | "Pro" | "Teams"

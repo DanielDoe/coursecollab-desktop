@@ -1,12 +1,39 @@
+import { unescapeNewlinesOutsideMath } from "@/lib/math-markdown"
+
 const FENCE_LANG =
   "cpp|c\\+\\+|python|java|javascript|typescript|matlab"
 const FENCE_LANG_OR_C = `${FENCE_LANG}|c`
+const INLINE_ESCAPE = "\uE000"
+
+/** Keep `\n` / `\t` inside inline code as the characters students must read. */
+export function protectInlineEscapeSequences(input: string): string {
+  if (!input) return input
+  return input.replace(/```[\s\S]*?```|`([^`\n]+)`/g, (full, inline: string | undefined) => {
+    if (inline == null) return full
+    return (
+      "`" +
+      inline
+        .replace(/\\n/g, `${INLINE_ESCAPE}n`)
+        .replace(/\\t/g, `${INLINE_ESCAPE}t`)
+        .replace(/\\r/g, `${INLINE_ESCAPE}r`) +
+      "`"
+    )
+  })
+}
+
+export function restoreInlineEscapeSequences(input: string): string {
+  if (!input) return input
+  return input
+    .replace(new RegExp(`${INLINE_ESCAPE}n`, "g"), "\\n")
+    .replace(new RegExp(`${INLINE_ESCAPE}t`, "g"), "\\t")
+    .replace(new RegExp(`${INLINE_ESCAPE}r`, "g"), "\\r")
+}
 
 /** Normalize instructor stems so ``` / `` fences render in QuestionTextRenderer. */
 export function normalizeQuestionStemMarkdown(input: string): string {
   if (!input) return input
 
-  let t = input.replace(/\\n/g, "\n")
+  let t = unescapeNewlinesOutsideMath(input)
 
   // Double-backtick fences (Word/export): ``cpp → ```cpp — not when already ```cpp
   t = t.replace(new RegExp("(?<!`)``(" + FENCE_LANG + ")\\b", "gi"), "```$1")
@@ -82,7 +109,7 @@ export function isCppStarterBoilerplate(code: string): boolean {
 export function stripStarterBoilerplateFromQuestionStem(text: string): string {
   if (!text?.trim()) return text
 
-  let t = text.replace(/\\n/g, "\n")
+  let t = unescapeNewlinesOutsideMath(text)
 
   t = t.replace(
     /^\s*(?:starter\s*code|boilerplate(?:\s*code)?|template\s*code|sample\s*code|skeleton\s*code)\s*:?\s*$/gim,

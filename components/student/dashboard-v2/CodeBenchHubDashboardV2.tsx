@@ -44,6 +44,7 @@ import { useStudentLiveClassroomSessions } from "@/hooks/use-student-live-classr
 import {
   LIVE_JOIN_GRACE_MS,
   assignmentHasOpenLiveSession,
+  openReplacementLiveSession,
   replacementLiveSession,
   shouldTreatLiveSessionAsEnded,
 } from "@/lib/codebench-live-student-ui"
@@ -258,6 +259,24 @@ export function CodeBenchHubDashboardV2() {
   }, [markLiveJoinGrace])
 
   useEffect(() => {
+    const replacementNow = openReplacementLiveSession({
+      isJoined: Boolean(liveJoin),
+      listSupported,
+      loading: liveSessionsLoading,
+      assignmentId: liveJoin?.assignmentId,
+      sessions: liveSessions,
+    })
+    if (replacementNow && liveJoin) {
+      const nextId = String(replacementNow.assignmentId)
+      if (liveJoin.assignmentId !== nextId) {
+        markLiveJoinGrace()
+        setLiveJoin({ assignmentId: nextId, nonce: Date.now() })
+        window.dispatchEvent(
+          new CustomEvent("codebench-join-live-session", { detail: { assignmentId: nextId } }),
+        )
+      }
+      return
+    }
     const result = shouldTreatLiveSessionAsEnded({
       isJoined: Boolean(liveJoin),
       listSupported,

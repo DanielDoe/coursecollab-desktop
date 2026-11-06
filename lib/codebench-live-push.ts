@@ -122,7 +122,10 @@ export async function pushInstructorLiveCode(input: {
 
   await ensureCodebenchLiveSnapshotsSchema()
 
-  // Only write instructor_code on conflict so faculty keep seeing the student stream.
+  // A student who has not posted yet keeps an empty code column so this send
+  // is not mistaken for their own work. Once they have a file, the send becomes
+  // the live snapshot and their previous buffer is kept so a stale copy of it
+  // cannot overwrite the edit.
   const updated = await sql`
     INSERT INTO codebench_live_snapshots (
       student_id,
@@ -152,6 +155,11 @@ export async function pushInstructorLiveCode(input: {
       course_id = COALESCE(EXCLUDED.course_id, codebench_live_snapshots.course_id),
       language = COALESCE(EXCLUDED.language, codebench_live_snapshots.language),
       file_name = COALESCE(EXCLUDED.file_name, codebench_live_snapshots.file_name),
+      pre_instructor_code = codebench_live_snapshots.code,
+      code = CASE
+        WHEN length(btrim(codebench_live_snapshots.code)) > 0 THEN EXCLUDED.instructor_code
+        ELSE codebench_live_snapshots.code
+      END,
       instructor_code = EXCLUDED.instructor_code,
       instructor_revision = COALESCE(codebench_live_snapshots.instructor_revision, 0) + 1,
       instructor_updated_at = NOW()

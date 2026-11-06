@@ -5,6 +5,7 @@ import { memo, useEffect, useRef } from "react"
 import type { editor } from "monaco-editor"
 import {
   applyCodebenchMonacoTheme,
+  bindMonacoUndoRedo,
   codebenchEditorOptions,
   registerCodebenchMonacoThemes,
 } from "@/lib/codebench-monaco-themes"
@@ -76,6 +77,7 @@ export function QuizAssessmentMonacoEditor({
         onMount={(editorInstance, monaco) => {
           editorRef.current = editorInstance
           monacoRef.current = monaco
+          bindMonacoUndoRedo(editorInstance)
           applyCodebenchMonacoTheme(monaco, editorTheme)
           const model = editorInstance.getModel()
           if (model) {

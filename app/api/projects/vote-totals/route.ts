@@ -22,15 +22,13 @@ export async function GET(request: NextRequest) {
         COALESCE(ps.instructor_avg_rating, 0) AS instructor_avg_rating,
         COALESCE(ps.student_points, 0) AS student_points,
         COALESCE(ps.instructor_points, 0) AS instructor_points,
-        COALESCE(ps.total_score, 0) AS total_score
+        COALESCE(ps.total_score, 0) AS total_score,
+        COALESCE(a.max_points, 50) AS max_points
       FROM project_scores ps
-      WHERE EXISTS (
-        SELECT 1
-        FROM projects p
-        INNER JOIN groups g ON p.group_id = g.id
-        WHERE p.id = ps.project_id
-          AND (${scope.gCourseScope}) AND (${gTermScope})
-      )
+      JOIN projects p ON p.id = ps.project_id
+      LEFT JOIN course_project_assignments a ON a.id = p.assignment_id
+      INNER JOIN groups g ON p.group_id = g.id
+      WHERE (${scope.gCourseScope}) AND (${gTermScope})
     `;
 
     type Row = {
@@ -42,6 +40,7 @@ export async function GET(request: NextRequest) {
       student_points: number;
       instructor_points: number;
       total_score: number;
+      max_points: number;
     };
 
     const byProjectId: Record<
@@ -54,6 +53,7 @@ export async function GET(request: NextRequest) {
         studentPoints: number;
         instructorPoints: number;
         totalScore: number;
+        maxPoints: number;
       }
     > = {};
 
@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
         studentPoints: Number(r.student_points) || 0,
         instructorPoints: Number(r.instructor_points) || 0,
         totalScore: Number(r.total_score) || 0,
+        maxPoints: Number(r.max_points) || 50,
       };
     }
 

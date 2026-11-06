@@ -11,6 +11,7 @@ export type FacultyCoraStoredMessage = {
     payload: Record<string, unknown>
   }>
   proposals?: import("@/lib/cora/confirmations/action-proposals").CoraActionProposal[]
+  ui?: import("@/lib/cora/models/ui-payloads").CoraUiPayload
   proposalStatusById?: Record<string, "idle" | "confirming" | "done" | "error">
   proposalResultById?: Record<string, unknown>
   plans?: import("@/lib/cora/confirmations/transaction-plans").CoraTransactionPlan[]

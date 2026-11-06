@@ -7,6 +7,8 @@ import { getCodebenchLanguage } from "./codebench-languages"
 import {
   LIVE_JOIN_GRACE_MS,
   LIVE_SESSION_END_CONFIRM_MISSES,
+  liveAssignmentPinUpdate,
+  openReplacementLiveSession,
   replacementLiveSession,
   shouldReplaceLiveEditorBuffer,
   shouldRestoreLiveStudentCode,
@@ -98,6 +100,96 @@ describe("replacementLiveSession", () => {
   it("follows the newest other open session", () => {
     assert.equal(replacementLiveSession([older, newer], 42)?.assignmentId, 9)
     assert.equal(replacementLiveSession([newer, older, open[0]], 42)?.assignmentId, 9)
+  })
+})
+
+describe("openReplacementLiveSession", () => {
+  const closed = { ...open[0], assignmentId: 901, startedAt: "2026-10-20T18:32:00.000Z" }
+  const next = { ...open[0], assignmentId: 600, startedAt: "2026-10-20T19:11:00.000Z" }
+
+  it("follows on the first poll that lists only the new session", () => {
+    assert.equal(
+      openReplacementLiveSession({
+        isJoined: true,
+        listSupported: true,
+        loading: false,
+        assignmentId: closed.assignmentId,
+        sessions: [next],
+      })?.assignmentId,
+      600,
+    )
+  })
+
+  it("does not follow while the current session is still listed, or the list is empty", () => {
+    assert.equal(
+      openReplacementLiveSession({
+        isJoined: true,
+        listSupported: true,
+        loading: false,
+        assignmentId: 901,
+        sessions: [closed, next],
+      }),
+      null,
+    )
+    assert.equal(
+      openReplacementLiveSession({
+        isJoined: true,
+        listSupported: true,
+        loading: false,
+        assignmentId: 901,
+        sessions: [],
+      }),
+      null,
+    )
+  })
+})
+
+describe("liveAssignmentPinUpdate", () => {
+  const sessions = [
+    { ...open[0], assignmentId: 600, startedAt: "2026-10-20T19:11:00.000Z" },
+  ]
+
+  it("does not restart join grace when the same open pin is polled again", () => {
+    const update = liveAssignmentPinUpdate({
+      pinChanged: false,
+      pinnedAssignmentId: "600",
+      currentAssignmentId: "600",
+      listSettled: true,
+      listSupported: true,
+      allowFollow: true,
+      sessions,
+    })
+    assert.equal(update?.restartGrace, false)
+    assert.equal(update?.enableSharing, true)
+  })
+
+  it("follows the open session instead of pinning the closed assignment again", () => {
+    const update = liveAssignmentPinUpdate({
+      pinChanged: false,
+      pinnedAssignmentId: "901",
+      currentAssignmentId: "901",
+      listSettled: true,
+      listSupported: true,
+      allowFollow: true,
+      sessions,
+    })
+    assert.equal(update?.assignmentId, "600")
+    assert.equal(update?.restartGrace, true)
+  })
+
+  it("leaves a followed session in place when the parent still names the closed one", () => {
+    assert.equal(
+      liveAssignmentPinUpdate({
+        pinChanged: false,
+        pinnedAssignmentId: "901",
+        currentAssignmentId: "600",
+        listSettled: true,
+        listSupported: true,
+        allowFollow: true,
+        sessions,
+      }),
+      null,
+    )
   })
 })
 

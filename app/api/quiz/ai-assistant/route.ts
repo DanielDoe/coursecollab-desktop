@@ -18,6 +18,7 @@ import {
 } from "@/lib/cora/assessment-policy-gate"
 import { requireCallerStudentDbId } from "@/lib/student-api-auth"
 import { recordAssessmentCoraAssistantInteraction } from "@/lib/assessment-cora-assistant-log"
+import { logApiError } from "@/lib/system-log"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -260,6 +261,11 @@ ${buildCodeCoachContextBlock({
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`${LOG} OpenAI error:`, msg)
+      void logApiError(request, err, {
+        statusCode: 500,
+        moduleName: "Quiz Module",
+        requestSummary: { feature: "ask-cora", surface: "quiz-ai-assistant" },
+      }).catch(() => {})
       return NextResponse.json(
         { error: msg || "The AI service could not generate a response. Please try again.", code: "OPENAI_ERROR" },
         { status: 500 }
@@ -315,6 +321,11 @@ ${buildCodeCoachContextBlock({
     process.stderr?.write?.(`${LOG} CAUGHT: ${err.message}\n`)
     process.stderr?.write?.(`${LOG} Stack: ${err.stack || "none"}\n`)
     console.error(`${LOG} CAUGHT ERROR:`, err.message, err.stack)
+    void logApiError(request, err, {
+      statusCode: 500,
+      moduleName: "Quiz Module",
+      requestSummary: { feature: "ask-cora", surface: "quiz-ai-assistant" },
+    }).catch(() => {})
     const code = err.message?.includes("DATABASE") ? "DB_ERROR" : err.message?.includes("OPENAI") || err.message?.includes("fetch") ? "OPENAI_ERROR" : "UNKNOWN_ERROR"
     return NextResponse.json(
       {

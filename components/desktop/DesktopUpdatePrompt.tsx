@@ -14,14 +14,12 @@ import { Progress } from "@/components/ui/progress"
 import { CC_MODAL_SURFACE } from "@/lib/appearance/modal-ui"
 import { cn } from "@/lib/utils"
 import {
-  dismissDesktopUpdatePrompt,
   downloadDesktopUpdate,
   getDesktopUpdateStatus,
   installDesktopUpdate,
   moveDesktopAppToApplications,
   normalizeDesktopUpdateStatus,
   openDesktopUpdateDownloadPage,
-  shouldPromptDesktopUpdate,
   subscribeDesktopUpdateStatus,
   type DesktopUpdateStatus,
 } from "@/lib/desktop-updates"
@@ -34,12 +32,16 @@ export function DesktopUpdatePrompt() {
   const syncPromptVisibility = useCallback((next: DesktopUpdateStatus) => {
     const normalized = normalizeDesktopUpdateStatus(next)
     setStatus(normalized)
+    if (normalized.holdInstall) {
+      setOpen(false)
+      return
+    }
     if (
       normalized.state === "downloading" ||
       normalized.state === "installing" ||
       normalized.state === "ready" ||
-      normalized.needsApplicationsFolder ||
-      shouldPromptDesktopUpdate(normalized)
+      normalized.state === "available" ||
+      normalized.needsApplicationsFolder
     ) {
       setOpen(true)
       return
@@ -65,11 +67,6 @@ export function DesktopUpdatePrompt() {
 
   if (!status?.supported) return null
 
-  const onRemindLater = () => {
-    if (status.version) dismissDesktopUpdatePrompt(status.version)
-    setOpen(false)
-  }
-
   const onPrimary = () => {
     if (!status || busy) return
     setBusy(true)
@@ -90,6 +87,8 @@ export function DesktopUpdatePrompt() {
   }
 
   const locked = status.state === "downloading" || status.state === "installing"
+  const blocking =
+    locked || status.state === "available" || status.state === "ready"
 
   const title =
     status.state === "installing"
@@ -109,7 +108,7 @@ export function DesktopUpdatePrompt() {
       ? (status.message ??
         `Installing version ${status.version ?? "the update"}. CourseCollab will restart when it is in place.`)
       : status.state === "downloading"
-        ? "Please keep CourseCollab open until the download finishes."
+        ? "This update installs automatically. Leave CourseCollab open until it restarts."
         : status.state === "ready"
           ? (status.message ?? `Version ${status.version ?? ""} will install after you restart.`)
           : status.state === "error"
@@ -142,23 +141,21 @@ export function DesktopUpdatePrompt() {
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen && locked) return
+        if (!nextOpen && blocking) return
         if (!nextOpen && status.state === "error") {
           setOpen(false)
-          return
         }
-        if (!nextOpen) onRemindLater()
       }}
     >
       <DialogContent
         className={cn(CC_MODAL_SURFACE, "sm:max-w-md")}
         data-desktop-update-dialog=""
-        showCloseButton={!locked}
+        showCloseButton={!blocking}
         onEscapeKeyDown={(event) => {
-          if (locked) event.preventDefault()
+          if (blocking) event.preventDefault()
         }}
         onPointerDownOutside={(event) => {
-          if (locked) event.preventDefault()
+          if (blocking) event.preventDefault()
         }}
       >
         <DialogHeader>
@@ -199,11 +196,6 @@ export function DesktopUpdatePrompt() {
         ) : null}
         {locked ? null : (
         <DialogFooter className="gap-3 sm:gap-3">
-          {status.state === "available" ? (
-            <Button type="button" variant="ghost" onClick={onRemindLater} disabled={busy}>
-              Remind me later
-            </Button>
-          ) : null}
           {status.state === "error" ? (
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
               Close

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ArrowLeft, GraduationCap, KeyRound, CheckCircle2, Clock, Shield } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AuthStatusAlert } from "@/components/auth/AuthStatusAlert"
 
 export default function GuestForgotPasswordPage() {
   const router = useRouter()
@@ -143,9 +144,9 @@ export default function GuestForgotPasswordPage() {
               />
             </div>
             {error ? (
-              <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-3">
+              <AuthStatusAlert tone="error" title="Couldn't submit">
                 {error}
-              </div>
+              </AuthStatusAlert>
             ) : null}
             <Button type="submit" className="w-full rounded-xl bg-violet-600 hover:bg-violet-700" disabled={loading}>
               {loading ? "Submitting…" : "Submit request"}

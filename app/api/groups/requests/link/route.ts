@@ -26,6 +26,8 @@ export async function POST(request: NextRequest) {
       JOIN groups g ON gm.group_id = g.id
       WHERE gm.student_id IN (${fromStudentId}, ${toStudentId})
         AND TRIM(g.session) = ANY(${sessionVariants}::text[])
+        AND g.deleted_at IS NULL
+        AND g.status IN ('pending', 'approved', 'pending_update')
     `
 
     if (existingMemberships.length > 0) {

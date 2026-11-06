@@ -10,7 +10,7 @@ import { PageEnter } from "@/components/student/dashboard-v2/light-motion"
 import { EmbedModuleCard } from "@/components/student/dashboard-v2/embed-module-ui"
 import { ProjectsPageSkeleton } from "@/components/student/dashboard-v2/ProjectsPageSkeleton"
 import { dashboardV2PageRootClass } from "@/lib/dashboard-v2-layout"
-import { getStudentData } from "@/lib/auth"
+import { getStudentData, studentApiFetch } from "@/lib/auth"
 import { buildStudentScopedSearchParams } from "@/lib/student-session-ids"
 
 type SectionGroup = {
@@ -45,6 +45,11 @@ export default function DashboardV2ProjectsPage() {
   const [groups, setGroups] = useState<SectionGroup[]>([])
   const [loadingProjects, setLoadingProjects] = useState(true)
   const [mounted, setMounted] = useState(false)
+  const [instructorProposed, setInstructorProposed] = useState<{
+    assignmentId: number
+    title: string
+    description?: string | null
+  } | null>(null)
 
   useEffect(() => {
     const session = getStudentData()
@@ -75,10 +80,8 @@ export default function DashboardV2ProjectsPage() {
       })
 
       const [projectsRes, groupsRes] = await Promise.all([
-        fetch(`/api/projects/list?${projectParams}`),
-        fetch(`/api/groups?${groupParams}`, {
-          headers: { "x-student-id": String(studentDatabaseId) },
-        }),
+        studentApiFetch(`/api/projects/list?${projectParams}`),
+        studentApiFetch(`/api/groups?${groupParams}`),
       ])
 
       if (projectsRes.ok) {
@@ -105,6 +108,26 @@ export default function DashboardV2ProjectsPage() {
   useEffect(() => {
     void loadSectionData()
   }, [loadSectionData])
+
+  useEffect(() => {
+    if (!studentDatabaseId || !studentSection) return
+    void (async () => {
+      const res = await fetch(`/api/projects/instructor-setup?session=${encodeURIComponent(studentSection)}`, {
+        headers: { "x-student-id": String(studentDatabaseId) },
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      if (data.proposalMode === "instructor" && data.assignment?.id) {
+        setInstructorProposed({
+          assignmentId: Number(data.assignment.id),
+          title: String(data.assignment.title),
+          description: data.assignment.description ?? null,
+        })
+      } else {
+        setInstructorProposed(null)
+      }
+    })()
+  }, [studentDatabaseId, studentSection])
 
   const myApprovedProject = useMemo(() => {
     if (!studentDatabaseId) return null
@@ -150,12 +173,15 @@ export default function DashboardV2ProjectsPage() {
                 <span className="text-[var(--cc-text-muted)]">
                   {myApprovedProject
                     ? ` · ${myApprovedProject.title}`
-                    : " · propose after your group is approved"}
+                    : instructorProposed
+                      ? ` · ${instructorProposed.title}`
+                      : " · propose after your group is approved"}
                 </span>
               </>
             )}
           </p>
         </div>
+        {instructorProposed ? null : (
         <Link
           href="/student/dashboard-v2/projects/leaderboard"
           className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-sm text-[var(--cc-text)] hover:bg-[var(--muted)]"
@@ -163,18 +189,19 @@ export default function DashboardV2ProjectsPage() {
           <Trophy className="h-4 w-4" />
           <span className="hidden sm:inline">Leaderboard</span>
         </Link>
+        )}
       </div>
 
       {loadingProjects ? (
         <ProjectsPageSkeleton showHeader={false} />
       ) : (
         <>
-          <div className="grid gap-3 xl:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.15fr)] xl:items-start">
+          <div className="grid gap-3 xl:h-[min(70vh,42rem)] xl:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.15fr)] xl:items-stretch">
             <ProjectsList
               projects={allProjects}
               loading={false}
               studentId={studentDatabaseId}
-              showVoting
+              showVoting={!instructorProposed}
               embedInDashboard
             />
             <ProjectsManager
@@ -184,6 +211,7 @@ export default function DashboardV2ProjectsPage() {
               embedInDashboard
               sharedSectionData={sharedSectionData}
               onSectionDataChange={() => void loadSectionData()}
+              instructorProposed={instructorProposed}
             />
           </div>
 

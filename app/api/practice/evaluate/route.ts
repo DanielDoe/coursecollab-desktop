@@ -22,10 +22,23 @@ import {
 import type { PracticeHubPolicy } from "@/lib/practice-hub-policy-settings"
 import { requirePracticeAttemptOwnership } from "@/lib/require-student-practice-auth"
 import { buildPracticePriorReview, getLatestPracticeAnswerForQuestion } from "@/lib/practice-prior-attempts"
+import { evaluateCode } from "@/lib/ai-evaluate-code"
+import { resolvePlotImageForCodeWritePlot } from "@/lib/code-write-plot-answer"
+import { resolveEvaluationLanguageList } from "@/lib/ai-code-languages"
+import { resolveReferenceAnswerForAiGrading } from "@/lib/resolve-reference-answer-for-ai"
 
+const PRACTICE_AI_CODE_TYPES = [
+  "code_write",
+  "code_explain",
+  "code_problem",
+  "debug_code",
+  "code_debug",
+  "code_write_plot",
+] as const
 
 export const dynamic = 'force-dynamic'
-// Mark as dynamic to prevent build-time database initialization
+export const runtime = "nodejs"
+export const maxDuration = 180
 
 function withPracticeAnswerReview(
   question: Record<string, unknown>,
@@ -57,7 +70,7 @@ function withPracticeAnswerReview(
 
 export async function POST(request: NextRequest) {
   try {
-    const { questionId, answer, questionType, attemptId, responseTimeMs, xpEarned, difficulty } = await request.json()
+    const { questionId, answer, questionType, attemptId, responseTimeMs, xpEarned, difficulty, plotImage } = await request.json()
 
     if (!questionId || answer === undefined) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -218,6 +231,128 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json(uploadEval)
+    }
+
+    if (PRACTICE_AI_CODE_TYPES.includes(String(actualQuestionType) as (typeof PRACTICE_AI_CODE_TYPES)[number])) {
+      let codeToEvaluate = answer
+      if (actualQuestionType === "code_write_plot" && typeof answer === "string") {
+        try {
+          const parsed = JSON.parse(answer)
+          if (parsed.code) codeToEvaluate = parsed.code
+        } catch {
+          /* use as-is */
+        }
+      }
+
+      const plotForEval =
+        actualQuestionType === "code_write_plot"
+          ? resolvePlotImageForCodeWritePlot(answer, plotImage)
+          : plotImage
+      const allowedList = resolveEvaluationLanguageList({
+        questionAiCodeLanguage: null,
+        quizAllowedAiCodeLanguages: null,
+        quizFallbackCodeLanguage: actualQuestionType === "code_write_plot" ? "matlab" : "cpp",
+      })
+      const referenceAnswer = resolveReferenceAnswerForAiGrading(question)
+      let aiResult
+      try {
+        aiResult = await evaluateCode({
+          questionType: actualQuestionType,
+          questionText: question.question_text || "",
+          studentAnswer:
+            typeof codeToEvaluate === "string" ? codeToEvaluate : JSON.stringify(codeToEvaluate),
+          correctAnswer: referenceAnswer ?? question.correct_answer,
+          rubric: question.hint,
+          maxPoints,
+          plotImage: plotForEval,
+          aiEvaluationMode: "standard",
+          codeLanguage: allowedList[0] || (actualQuestionType === "code_write_plot" ? "matlab" : "cpp"),
+          allowedCodeLanguages: allowedList.length > 1 ? allowedList : undefined,
+        })
+      } catch (aiError) {
+        console.error("[Practice Evaluation] AI code grading failed:", aiError)
+        if (attemptId) {
+          try {
+            await savePracticeAnswerRecord({
+              attemptId,
+              questionId,
+              answer,
+              isCorrect: false,
+              responseTimeMs: responseTimeMs ?? null,
+              xpEarned: 0,
+              difficulty: difficulty ?? question.difficulty ?? null,
+            })
+          } catch (saveError) {
+            console.error("[Practice Evaluation] Failed to save code after AI error:", saveError)
+          }
+        }
+        return NextResponse.json({
+          isCorrect: false,
+          score: 0,
+          pointsEarned: 0,
+          maxPoints,
+          xpEarned: 0,
+          feedback: "Your code was saved. Automatic grading is temporarily unavailable — try again later.",
+          aiGraded: true,
+          requiresManualReview: true,
+        })
+      }
+
+      const pointsEarned =
+        typeof aiResult.pointsEarned === "number" && Number.isFinite(aiResult.pointsEarned)
+          ? Number(aiResult.pointsEarned.toFixed(2))
+          : Number(((aiResult.score / 100) * maxPoints).toFixed(2))
+      const isCorrect = Boolean(aiResult.isCorrect)
+      const serverXp = resolveXp(isCorrect)
+
+      if (attemptId) {
+        try {
+          await savePracticeAnswerRecord({
+            attemptId,
+            questionId,
+            answer,
+            isCorrect,
+            responseTimeMs: responseTimeMs ?? null,
+            xpEarned: serverXp,
+            difficulty: difficulty ?? question.difficulty ?? null,
+          })
+        } catch (saveError) {
+          console.error("[Practice Evaluation] Failed to save AI-graded code answer:", saveError)
+        }
+      }
+
+      return NextResponse.json({
+        isCorrect,
+        score: aiResult.score,
+        pointsEarned,
+        maxPoints,
+        xpEarned: serverXp,
+        feedback: aiResult.feedback || aiResult.statusMessage,
+        criteria: aiResult.criteria,
+        suggestions: aiResult.suggestions,
+        detailedExplanation: aiResult.detailedExplanation,
+        gradeBreakdown: aiResult.gradeBreakdown,
+        itemizedIssues: aiResult.itemizedIssues,
+        sampleAnswers: aiResult.sampleAnswers,
+        status: aiResult.status,
+        statusMessage: aiResult.statusMessage,
+        aiFeedback: {
+          score: aiResult.score,
+          feedback: aiResult.feedback || aiResult.statusMessage,
+          criteria: aiResult.criteria,
+          suggestions: aiResult.suggestions,
+          detailedExplanation: aiResult.detailedExplanation,
+          gradeBreakdown: aiResult.gradeBreakdown,
+          scoreBreakdown: aiResult.scoreBreakdown,
+          itemizedIssues: aiResult.itemizedIssues,
+          sampleAnswers: aiResult.sampleAnswers,
+          status: aiResult.status,
+          statusMessage: aiResult.statusMessage,
+          evaluationDiagnostics: aiResult.evaluationDiagnostics,
+        },
+        aiGraded: true,
+        requiresManualReview: aiResult.requiresManualReview || false,
+      })
     }
 
     const formattedQuestion = formatQuestionBankRowForRenderer({

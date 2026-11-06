@@ -19,7 +19,78 @@ export function assignmentHasOpenLiveSession(
 /**
  * When the instructor closes one live assignment and opens another, the editor
  * should follow the newest open session instead of dropping the student.
+ *
+ * Follow as soon as the list shows a different open session.
+ * Join grace and the two-miss confirm are for an empty poll. They must not
+ * keep the editor posting to a closed assignment while the next one is already open.
  */
+export function openReplacementLiveSession<T extends { assignmentId: number; startedAt: string }>(input: {
+  isJoined: boolean
+  listSupported: boolean | null
+  loading: boolean
+  assignmentId: string | number | null | undefined
+  sessions: T[]
+}): T | null {
+  if (!input.isJoined || input.listSupported !== true || input.loading) return null
+  if (!String(input.assignmentId ?? "").trim()) return null
+  if (assignmentHasOpenLiveSession(input.sessions, input.assignmentId)) return null
+  return replacementLiveSession(input.sessions, input.assignmentId)
+}
+
+export type LiveAssignmentPinUpdate = {
+  assignmentId: string
+  restartGrace: boolean
+  enableSharing: boolean
+}
+
+/**
+ * The parent assignment id is re-read on every live-session poll.
+ * Restarting join grace on each poll holds the 20s window open forever, so the
+ * editor never treats the classroom as ended and keeps streaming the old file.
+ * A closed pin follows the open session instead of pulling the editor back.
+ */
+export function liveAssignmentPinUpdate(input: {
+  pinChanged: boolean
+  pinnedAssignmentId: string
+  currentAssignmentId: string
+  listSettled: boolean
+  listSupported: boolean | null
+  allowFollow: boolean
+  sessions: { assignmentId: number; startedAt: string }[]
+}): LiveAssignmentPinUpdate | null {
+  const pinned = input.pinnedAssignmentId.trim()
+  if (!pinned) return null
+  const current = String(input.currentAssignmentId ?? "").trim()
+  const listReady = input.listSettled && input.listSupported === true
+  const pinnedOpen = assignmentHasOpenLiveSession(input.sessions, pinned)
+  const replacement =
+    input.allowFollow && listReady && !pinnedOpen
+      ? replacementLiveSession(input.sessions, pinned)
+      : null
+
+  if (replacement && String(replacement.assignmentId) !== current) {
+    return {
+      assignmentId: String(replacement.assignmentId),
+      restartGrace: true,
+      enableSharing: true,
+    }
+  }
+  if (replacement) return null
+
+  if (!input.pinChanged) {
+    if (listReady && pinnedOpen && current === pinned) {
+      return { assignmentId: pinned, restartGrace: false, enableSharing: true }
+    }
+    return null
+  }
+
+  return {
+    assignmentId: pinned,
+    restartGrace: true,
+    enableSharing: input.listSettled && (input.listSupported !== true || pinnedOpen),
+  }
+}
+
 export function replacementLiveSession<T extends { assignmentId: number; startedAt: string }>(
   sessions: T[],
   currentAssignmentId: string | number | null | undefined,

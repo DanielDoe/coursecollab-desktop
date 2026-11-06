@@ -11,6 +11,7 @@ import Link from "next/link"
 import { appendNativeAppQuery } from "@/lib/mobile-native-app"
 import { useNativeApp } from "@/hooks/use-native-app"
 import { cn } from "@/lib/utils"
+import { AuthStatusAlert } from "@/components/auth/AuthStatusAlert"
 import {
   parseAccessLifecycleFromLoginError,
 } from "@/components/auth/AccessRequestStatusPanel"
@@ -120,11 +121,11 @@ export function InstructorLoginForm({
 
       <div className="p-6 sm:p-8">
         <form onSubmit={handleSubmit} className="space-y-5">
-          {error && (
-            <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-3">
+          {error ? (
+            <AuthStatusAlert tone="error" title="Couldn't sign in">
               {error}
-            </div>
-          )}
+            </AuthStatusAlert>
+          ) : null}
 
           <div className="space-y-2">
             <Label htmlFor={`${idPrefix}username`} className={labelClass}>

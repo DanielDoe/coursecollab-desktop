@@ -39,7 +39,7 @@ const EVENT_NOTES: Record<string, string> = {
   snapshot_denied: "The classroom refused the save. The HTTP status is why (closed session, wrong section, or not allowed).",
   roster_status:
     "This row is the instructor poll, not a student request, so there is no student HTTP status. The roster status is what the instructor list showed for this student.",
-  instructor_edit: "The instructor sent an edited copy. That copy is stored separately and does not replace the student's own file.",
+  instructor_edit: "The instructor sent an edited copy into the student's live file. Their previous buffer cannot replace that edit.",
   student_sync_requested: "The instructor asked the student editor to upload the file it currently has.",
   compiler_error: "The student's compiler ran and reported an error.",
   compiler_ready: "The student's compiler is installed and the compile succeeded.",

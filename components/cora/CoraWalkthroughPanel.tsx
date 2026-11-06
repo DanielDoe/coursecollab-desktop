@@ -8,8 +8,6 @@ import {
   CheckCircle2,
   ChevronRight,
   Lightbulb,
-  Loader2,
-  Sparkles,
   X,
 } from "lucide-react"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -17,6 +15,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
+import { CoraBotMark } from "@/components/cora/CoraBotMark"
+import { CoraThinkingIndicator } from "@/components/cora/CoraThinkingIndicator"
 import { CORA_NAME, CORA_TAGLINE } from "@/lib/cora/constants"
 import type { CoraDomain, CoraProblemContext, CoraWalkthroughResponse, CoraWalkthroughStep } from "@/lib/cora/types"
 import { LectureAiMarkdown } from "@/components/lecture-ai-markdown"
@@ -152,9 +152,7 @@ export function CoraWalkthroughPanel({ open, problem, onClose }: Props) {
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1.5 min-w-0">
               <div className="flex items-center gap-2">
-                <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br", theme.rail)}>
-                  <Sparkles className="h-4 w-4 text-white" />
-                </span>
+                <CoraBotMark size="sm" className="shrink-0" />
                 <div>
                   <SheetTitle className="text-lg font-bold text-[var(--cc-text)]">{CORA_NAME}</SheetTitle>
                   <p className="text-xs text-[var(--cc-text-muted)]">{CORA_TAGLINE} · {domainLabel}</p>
@@ -186,11 +184,7 @@ export function CoraWalkthroughPanel({ open, problem, onClose }: Props) {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {loading ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-12">
-              <Loader2 className={cn("h-10 w-10 animate-spin", theme.icon)} />
-              <div className="text-center space-y-1">
-                <p className="font-semibold text-[var(--cc-text)]">{CORA_NAME} is preparing your steps…</p>
-                <p className="text-sm text-[var(--cc-text-muted)]">Using course materials when available</p>
-              </div>
+              <CoraThinkingIndicator mode="solve_together" />
             </div>
           ) : error ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center">

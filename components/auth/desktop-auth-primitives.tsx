@@ -27,6 +27,10 @@ export const desktopAuth = {
     "border-[var(--cc-auth-alert-error-border)] bg-[var(--cc-auth-alert-error-bg)] text-[var(--cc-auth-alert-error-text)]",
   alertWarning:
     "border-[var(--cc-auth-alert-warning-border)] bg-[var(--cc-auth-alert-warning-bg)] text-[var(--cc-auth-alert-warning-text)]",
+  alertInfo:
+    "border-[var(--cc-auth-alert-info-border)] bg-[var(--cc-auth-alert-info-bg)] text-[var(--cc-auth-alert-info-text)]",
+  alertSuccess:
+    "border-[var(--cc-auth-alert-success-border)] bg-[var(--cc-auth-alert-success-bg)] text-[var(--cc-auth-alert-success-text)]",
   identityMedia: "flex shrink-0 items-center justify-center",
   identityMediaFramed:
     "h-8 w-8 rounded-md bg-[var(--cc-accent-soft)] ring-1 ring-inset ring-[var(--border)]",

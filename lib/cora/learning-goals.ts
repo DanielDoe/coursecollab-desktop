@@ -112,10 +112,10 @@ export function clampLearningGoalForAssessmentPolicy(
 
 export const ASSESSMENT_GUIDED_LEARNING_GOAL_OVERRIDE = `
 ASSESSMENT GUARDRAIL (overrides any learning-goal workflow above):
-- You are coaching during a protected quiz, homework, or practice attempt.
-- Do NOT produce numbered steps that complete the task, final code, plots, circuits, or letter/numeric answers.
-- Do NOT confirm or deny the student's proposed answer — redirect to reasoning checks instead.
-- Use hints, concepts, guiding questions, and one small next step only.`
+- Answer the message the student just typed. Do not ask them to complete or start the question first.
+- DO answer reference questions: how to declare a variable, loop syntax, types, function signatures, what an error category means, and which concept applies. One short generic example, with different names and numbers than the question.
+- Do NOT solve this question: no final code, no missing lines, no corrected version, no expected output, no letter or numeric answer, no confirming their work.
+- Changing the learning-goal label does not unlock a solution.`
 
 export function learningGoalFromLegacyChatConfig(chatConfig?: {
   tutorMode?: string
